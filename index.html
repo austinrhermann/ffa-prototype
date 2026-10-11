@@ -34,6 +34,7 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 .stat span{opacity:.7;font-size:13px}
 #hp{left:18px}#ammo{right:18px}
 #msg{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:24px;text-shadow:0 2px 6px #000;text-align:center}
+#resume{position:absolute;top:44%;left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 16px;border-radius:4px;font-size:15px;display:none}
 #note{position:absolute;top:60%;left:50%;transform:translateX(-50%);font-size:16px;text-shadow:0 2px 6px #000}
 #board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);padding:16px 22px;border-radius:6px;display:none;min-width:320px}
 #board table{width:100%;border-collapse:collapse;font-size:15px}
@@ -122,6 +123,7 @@ body.touch .card small.tc{display:block}
   <div class="stat" id="ammo"><span id="wname">Laser Pistol</span><b id="ammov">30</b><span id="ammos">/ 60</span><span id="nadev">2 frags</span></div>
   <div id="msg"></div>
   <div id="note"></div>
+  <div id="resume">Click to resume</div>
   <div id="mic"></div>
   <input id="chatin" type="text" maxlength="120" placeholder="Say something… (Enter to send, Esc to cancel)" autocomplete="off" spellcheck="false" aria-label="Chat message">
   <div id="board"></div>
@@ -751,15 +753,17 @@ function makeRig(mi) {
     }
     const aL = root.getObjectByName('DEF-UpperArm_1L'), aR = root.getObjectByName('DEF-UpperArm_1R'), nk = root.getObjectByName('DEF-Neck');
     piv2 = aL && aR ? aL.position.clone().add(aR.position).multiplyScalar(0.5) : nk ? nk.position.clone() : piv1.clone();
-    // Keep the body centred on the entity so it turns in place
-    root.position.set(-piv1.x, 0, -piv1.z);
   }
+  // Turn the body 10° to its right so it lines up with the camera and aim; keep it centred so it turns in place
+  root.rotation.y = RIG_TURN;
+  if (piv1) { const c = new V3(piv1.x, 0, piv1.z).applyAxisAngle(new V3(0, 1, 0), RIG_TURN); root.position.set(-c.x, 0, -c.z); }
   // The soldiers hold the gun at low ready; raise the arms so a level gaze gives a level gun
   const raise = model.gunDir ? Math.asin(Math.max(-1, Math.min(1, model.gunDir.y))) : 0;
   const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null };
   if (model.crouchDrop === undefined) model.crouchDrop = measureCrouch(r);
   return r;
 }
+const RIG_TURN = -10 * Math.PI / 180;
 // Crouch pose: left foot planted, right knee down toward the floor
 const CROUCH_POSE = { thighL: -1.3, kneeL: 2.2, thighR: -0.6, kneeR: 2.0 };
 function measureCrouch(r) {
@@ -1388,7 +1392,7 @@ function botShoot(b, t, dist) {
   if (b.ammo <= 0 || !los(b, t)) return;
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3;
-  const start = b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).add(b.rig.root.position));
+  const start = b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix));
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0, head = false;
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -1532,7 +1536,22 @@ addEventListener('mousemove', e => {
   P.yaw -= e.movementX * s;
   P.pitch = Math.max(-1.5, Math.min(1.5, P.pitch - e.movementY * s));
 });
-document.addEventListener('pointerlockchange', () => setPlaying(document.pointerLockElement === renderer.domElement));
+// Losing the pointer lock by switching tabs or apps keeps the game running (click to recapture); Esc still pauses
+let away = false;
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === renderer.domElement) { setAway(false); setPlaying(true); return; }
+  if (!locked && !away) return;
+  if (document.hidden || !document.hasFocus()) { setAway(true); return; }
+  // Focus can drop a moment after the lock does, so look again before showing the pause screen
+  setTimeout(() => { if (document.pointerLockElement) return; if (document.hidden || !document.hasFocus()) setAway(true); else setPlaying(false); }, 150);
+  locked = false;
+});
+function setAway(on) {
+  if (on && !away) { for (const k in keys) keys[k] = false; mouseDown = mouseRight = false; boardOpen = false; closeChat(); locked = false; }
+  away = on; $('resume').style.display = on ? 'block' : 'none';
+}
+addEventListener('mousedown', e => { if (away && !matchOver && e.button === 0) renderer.domElement.requestPointerLock(); });
+addEventListener('keydown', e => { if (away && e.code === 'Escape') setPlaying(false); });
 
 // ---------- Player ----------
 function updatePlayer(dt) {
@@ -1674,7 +1693,7 @@ function setPlaying(on) {
   $('overlay').style.display = on || matchOver ? 'none' : 'flex';
   $('play').textContent = 'Resume';
   if (!on) {
-    closeChat();
+    closeChat(); setAway(false);
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = null;
     $('joy').style.display = 'none';
@@ -2220,7 +2239,7 @@ function loop(now) {
   if (NET.role === 'guest') {
     if (!matchOver) { updatePlayer(dt); updateGun(dt); updateCook(dt); }
     updateReplicas(dt, now); updateCorpses(dt);
-  } else if (!matchOver && (locked || remotes.length)) {
+  } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
     updateGun(dt);
     bots.forEach(b => updateBot(b, dt));
