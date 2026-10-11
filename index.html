@@ -23,6 +23,12 @@ canvas{display:block}
 #feed{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:13px}
 #feed div{background:var(--panel);padding:4px 10px;border-radius:3px}
 #feed .me{outline:1px solid var(--accent)}
+#feed .chat{max-width:340px;white-space:pre-wrap;overflow-wrap:anywhere}
+#feed .chat b{color:var(--accent);font-weight:600}
+#chatin{position:absolute;left:18px;bottom:112px;width:min(340px,calc(100% - 36px));box-sizing:border-box;padding:7px 10px;background:var(--panel);color:var(--hud);border:1px solid var(--accent);border-radius:4px;font:inherit;font-size:14px;outline:none;pointer-events:auto;display:none;z-index:5}
+#chatin.on{display:block}
+body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px + env(safe-area-inset-top,0px))}
+#tchat{left:calc(300px + env(safe-area-inset-left,0px))}
 .stat{position:absolute;bottom:18px;background:var(--panel);padding:8px 16px;border-radius:4px;display:flex;align-items:baseline;gap:8px}
 .stat b{font-size:30px;font-variant-numeric:tabular-nums}
 .stat span{opacity:.7;font-size:13px}
@@ -117,6 +123,7 @@ body.touch .card small.tc{display:block}
   <div id="msg"></div>
   <div id="note"></div>
   <div id="mic"></div>
+  <input id="chatin" type="text" maxlength="120" placeholder="Say something… (Enter to send, Esc to cancel)" autocomplete="off" spellcheck="false" aria-label="Chat message">
   <div id="board"></div>
 </div>
 <div id="touch">
@@ -133,6 +140,7 @@ body.touch .card small.tc{display:block}
   <div class="tt" id="tboard" data-act="board">Scores</div>
   <div class="tt" id="tgyro" data-act="gyro">Gyro</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
+  <div class="tt" id="tchat" data-act="chat">Chat</div>
 </div>
 <div id="overlay"><div class="cards"><div class="card">
   <h1>Free for all</h1>
@@ -152,6 +160,7 @@ body.touch .card small.tc{display:block}
     <dt>Wheel, 1–4</dt><dd>Switch weapon</dd>
     <dt>F</dt><dd>Knife</dd>
     <dt>M</dt><dd>Mute or unmute your mic</dd>
+    <dt>Enter</dt><dd>Chat with everyone in the game</dd>
     <dt>G</dt><dd>Frag grenade</dd>
     <dt>Tab</dt><dd>Scoreboard</dd>
     <dt>Esc</dt><dd>Pause and settings</dd>
@@ -730,7 +739,39 @@ function makeRig(mi) {
   }
   const car = root.getObjectByName('Carbine'); let gunBone = null;
   if (car) { gunBone = car.parent; car.visible = false; }
-  return { wrap, root, bones, model, phase: 0, amp: 0, gunBone, gunVis: null };
+  // The exported skeleton is flat (every DEF bone hangs off the rig node), so the upper body is posed as a rigid group:
+  // level 1 (spine, shoulders) bends at the hips; arms and hands (2) and neck and head (3) pivot again at the shoulders
+  const spine = root.getObjectByName('DEF-Spine1'), upper = [];
+  let piv1 = null, piv2 = null;
+  if (spine) {
+    piv1 = spine.position.clone();
+    for (const b of spine.parent.children) {
+      if (!b.isBone || b.name.startsWith('DEF-Thigh')) continue;
+      upper.push({ b, pos: b.position.clone(), rest: b.quaternion.clone(), lv: b === spine || b.name.startsWith('DEF-Shoulder') ? 1 : /^DEF-(UpperArm|Finger)/.test(b.name) ? 2 : 3 });
+    }
+    const aL = root.getObjectByName('DEF-UpperArm_1L'), aR = root.getObjectByName('DEF-UpperArm_1R'), nk = root.getObjectByName('DEF-Neck');
+    piv2 = aL && aR ? aL.position.clone().add(aR.position).multiplyScalar(0.5) : nk ? nk.position.clone() : piv1.clone();
+    // Keep the body centred on the entity so it turns in place
+    root.position.set(-piv1.x, 0, -piv1.z);
+  }
+  // The soldiers hold the gun at low ready; raise the arms so a level gaze gives a level gun
+  const raise = model.gunDir ? Math.asin(Math.max(-1, Math.min(1, model.gunDir.y))) : 0;
+  const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null };
+  if (model.crouchDrop === undefined) model.crouchDrop = measureCrouch(r);
+  return r;
+}
+// Crouch pose: left foot planted, right knee down toward the floor
+const CROUCH_POSE = { thighL: -1.3, kneeL: 2.2, thighR: -0.6, kneeR: 2.0 };
+function measureCrouch(r) {
+  const fL = r.root.getObjectByName('DEF-FootL'), fR = r.root.getObjectByName('DEF-FootR');
+  if (!fL || !fR) return 0.45;
+  const y0 = Math.min(fL.getWorldPosition(new V3()).y, fR.getWorldPosition(new V3()).y);
+  for (const k in CROUCH_POSE) setBone(r.bones[k], CROUCH_POSE[k]);
+  r.root.updateMatrixWorld(true);
+  const y1 = Math.min(fL.getWorldPosition(new V3()).y, fR.getWorldPosition(new V3()).y);
+  for (const k in CROUCH_POSE) setBone(r.bones[k], 0);
+  r.root.updateMatrixWorld(true);
+  return Math.max(0, Math.min(0.8, y1 - y0));
 }
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone || !m.gunDir) return;
@@ -758,19 +799,44 @@ function updateCorpses(dt) { for (const c of corpses) if (c.t < 0.5) { c.t += dt
 function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.length = 0; }
 const _q = new THREE.Quaternion();
 function setBone(bn, ang) { if (bn) bn.b.quaternion.copy(bn.rest).multiply(_q.setFromAxisAngle(bn.axis, ang)); }
-function animRig(r, dt, speed) {
+// Walk cycle, crouch and aim pitch (camera convention: positive pitch looks up)
+function animRig(r, dt, speed, crouch, pitch) {
   r.amp += (Math.min(1, speed / 4.5) - r.amp) * Math.min(1, dt * 8);
   r.phase += dt * speed * 2.6;
-  const s = Math.sin(r.phase), c = Math.cos(r.phase), A = r.amp;
-  setBone(r.bones.thighL, -s * 0.6 * A); setBone(r.bones.thighR, s * 0.6 * A);
-  setBone(r.bones.kneeL, Math.max(0, c) * A); setBone(r.bones.kneeR, Math.max(0, -c) * A);
-  r.root.position.y = Math.abs(c) * 0.035 * A;
+  r.cr += ((crouch ? 1 : 0) - r.cr) * Math.min(1, dt * 12);
+  r.pt += (Math.max(-1.2, Math.min(1.2, pitch || 0)) - r.pt) * Math.min(1, dt * 14);
+  const C = r.cr, s = Math.sin(r.phase), c = Math.cos(r.phase), A = r.amp * (1 - 0.5 * C), CP = CROUCH_POSE;
+  setBone(r.bones.thighL, -s * 0.6 * A + C * CP.thighL); setBone(r.bones.thighR, s * 0.6 * A + C * CP.thighR);
+  setBone(r.bones.kneeL, Math.max(0, c) * A + C * CP.kneeL); setBone(r.bones.kneeR, Math.max(0, -c) * A + C * CP.kneeR);
+  r.root.position.y = Math.abs(c) * 0.035 * A - C * r.model.crouchDrop;
+  // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
+  const lean = 0.3 * C;
+  poseUpper(r, lean - r.pt * 0.4, -lean - r.pt * 0.6);
 }
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _p2 = new V3();
+function poseUpper(r, a1, a2) {
+  if (!r.upper.length) return;
+  _qa.setFromAxisAngle(_X, a1); _qb.setFromAxisAngle(_X, a2 + r.raise); _qc.setFromAxisAngle(_X, a2);
+  _p2.copy(r.piv2).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
+  for (const u of r.upper) {
+    u.b.position.copy(u.pos).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
+    u.b.quaternion.copy(u.rest).premultiply(_qa);
+    if (u.lv > 1) { const q = u.lv === 2 ? _qb : _qc; u.b.position.sub(_p2).applyQuaternion(q).add(_p2); u.b.quaternion.premultiply(q); }
+  }
+}
+// Hit boxes shrink with the crouch so shots line up with the lowered body
+function crouchHit(e) {
+  if (!e.hit || !e.rig) return;
+  const k = 1 - e.rig.cr * (1 - CROUCH_H / STAND_H);
+  for (const o of e.hit) { o.position.y = o.userData.y * k; if (o.userData.part !== 'head') o.scale.y = k; }
+}
+// Turn a networked body smoothly toward its latest reported yaw
+function smoothYaw(e, dt) { e.yawV = e.yawV === undefined ? e.yaw : e.yawV + wrap(e.yaw - e.yawV) * Math.min(1, dt * 16); return e.yawV; }
 function makeBotMesh(ent, mi) {
   const g = new THREE.Group(), rig = makeRig(mi);
   ent.rig = rig; g.add(rig.wrap);
   const hy = rig.model.headY, k = hy / 1.64, inv = new THREE.MeshBasicMaterial({ visible: false });
-  const part = (w, h, d, y, p) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), inv); o.position.y = y; o.userData = { ent, part: p }; g.add(o); return o; };
+  const part = (w, h, d, y, p) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), inv); o.position.y = y; o.userData = { ent, part: p, y }; g.add(o); return o; };
   const torsoH = hy - 0.12 - 0.8 * k;
   ent.hit = [
     part(0.6, 0.8 * k, 0.4, 0.4 * k, 'body'),
@@ -792,7 +858,7 @@ function updatePlayerRig(dt) {
   const r = P.rig;
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.y = P.yaw + Math.PI;
-  animRig(r, dt, Math.hypot(P.vel.x, P.vel.z));
+  animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
 }
 
 const P = makeEntity('You', true);
@@ -830,7 +896,7 @@ function respawn(e) {
   e.health = 100; e.alive = true; e.h = STAND_H;
   e.ammo = MAG; e.reserve = START_RES; e.nades = 2; e.reloading = 0;
   if (e.isRemote) {
-    e.yaw = Math.atan2(-s.x, -s.z); e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
+    e.yaw = e.yawV = Math.atan2(-s.x, -s.z); e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
     e.inv = ['pistol']; e.ammoBy = { pistol: { mag: 12, res: 24 } }; e.wpn = 'pistol'; setRigWeapon(e.rig, 'pistol');
     sendTo(e, { t: 'spawn', p: arr(s), y: Math.atan2(s.x, s.z), n: e.spawnSeq });
   } else if (e.isPlayer) { e.yaw = Math.atan2(s.x, s.z); e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
@@ -892,6 +958,35 @@ function feed(k, v, icon) {
   setTimeout(() => d.remove(), 5000);
   if (NET.role === 'host') netFx({ t: 'fd', k, v, i: icon });
 }
+// ---------- Text chat (Enter to open, Enter to send; messages share the kill feed) ----------
+let chatOpen = false;
+function chatLine(name, text, mine) {
+  const d = document.createElement('div'), b = document.createElement('b');
+  b.textContent = name + ': '; d.append(b, text); d.className = 'chat' + (mine ? ' me' : '');
+  const f = $('feed'); f.prepend(d);
+  while (f.children.length > 6) f.lastChild.remove();
+  setTimeout(() => d.remove(), 9000);
+}
+function openChat() {
+  if (chatOpen) return;
+  chatOpen = true;
+  for (const k in keys) keys[k] = false; mouseDown = mouseRight = false;
+  const el = $('chatin'); el.value = ''; el.classList.add('on'); el.focus();
+}
+function closeChat() {
+  if (!chatOpen) return;
+  chatOpen = false;
+  const el = $('chatin'); el.classList.remove('on'); el.blur();
+}
+function sendChat() {
+  const text = $('chatin').value.replace(/\s+/g, ' ').trim().slice(0, 120);
+  closeChat();
+  if (!text) return;
+  chatLine(P.name, text, true);
+  if (NET.role === 'host') broadcast({ t: 'chat', n: P.name, x: text });
+  else if (NET.conn && NET.conn.open) NET.conn.send({ t: 'chat', x: text });
+}
+$('chatin').addEventListener('blur', () => setTimeout(closeChat, 0));
 
 // ---------- Combat ----------
 let matchOver = false;
@@ -1293,7 +1388,7 @@ function botShoot(b, t, dist) {
   if (b.ammo <= 0 || !los(b, t)) return;
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3;
-  const start = b.mesh.localToWorld(m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone());
+  const start = b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).add(b.rig.root.position));
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0, head = false;
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -1349,6 +1444,7 @@ function updateBot(b, dt) {
   if (t) {
     const dx = t.pos.x - b.pos.x, dz = t.pos.z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
     b.yaw = turn(b.yaw, want, D.turn * dt);
+    b.pitch += (Math.atan2(t.pos.y + t.h * 0.7 - b.pos.y - 1.5, dist) - b.pitch) * Math.min(1, dt * 8);
     const facing = Math.abs(wrap(want - b.yaw));
     if (dist < 1.8 && ai.knifeCd <= 0 && facing < 0.5) { knifeAttack(b); ai.knifeCd = 0.8; }
     if (noAmmo) { wish.copy(fwd); speed = 6.5; }
@@ -1371,6 +1467,7 @@ function updateBot(b, dt) {
       }
     }
   } else {
+    b.pitch *= 1 - Math.min(1, dt * 4);
     if (!ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
@@ -1403,7 +1500,7 @@ function updateBot(b, dt) {
   stepSound(b, dt);
   b.mesh.position.copy(b.pos);
   b.mesh.rotation.y = b.yaw;
-  animRig(b.rig, dt, Math.hypot(b.vel.x, b.vel.z));
+  animRig(b.rig, dt, Math.hypot(b.vel.x, b.vel.z), false, b.pitch);
 }
 
 // ---------- Input ----------
@@ -1411,6 +1508,9 @@ const keys = {};
 let locked = false, boardOpen = false, tCrouch = false, tAim = false;
 const SENS = 0.0022;
 addEventListener('keydown', e => {
+  const enter = e.code === 'Enter' || e.code === 'NumpadEnter';
+  if (chatOpen) { if (enter && !e.isComposing) { e.preventDefault(); sendChat(); } else if (e.code === 'Escape') closeChat(); return; }
+  if (enter && locked && !e.repeat) { e.preventDefault(); openChat(); return; }
   keys[e.code] = true;
   if (e.code === 'Tab') { e.preventDefault(); boardOpen = true; }
   if (!locked || e.repeat) return;
@@ -1423,7 +1523,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG') releaseCook(); });
 addEventListener('wheel', e => { if (!locked || performance.now() - wheelT < 150 || !e.deltaY) return; wheelT = performance.now(); nextWeapon(e.deltaY > 0 ? 1 : -1); }, { passive: true });
-addEventListener('mousedown', e => { if (!locked) return; if (e.button === 0) { mouseDown = true; clickQ = true; } if (e.button === 2) mouseRight = true; });
+addEventListener('mousedown', e => { if (!locked || chatOpen) return; if (e.button === 0) { mouseDown = true; clickQ = true; } if (e.button === 2) mouseRight = true; });
 addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) mouseRight = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
@@ -1574,6 +1674,7 @@ function setPlaying(on) {
   $('overlay').style.display = on || matchOver ? 'none' : 'flex';
   $('play').textContent = 'Resume';
   if (!on) {
+    closeChat();
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = null;
     $('joy').style.display = 'none';
@@ -1665,6 +1766,7 @@ function touchEnd(e) {
     const act = el ? el.dataset.act : null;
     if (e.type === 'touchend' && act === 'gyro') toggleGyro();
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
+    if (e.type === 'touchend' && act === 'chat') openChat();
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
     if (act === 'nade') releaseCook();
   }
@@ -1903,6 +2005,7 @@ function onGuestMsg(conn, m) {
       r.nades = m.n | 0;
       break;
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
+    case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(3, +m.f || 3))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd') { applyFx(m.m); broadcast(m.m, conn); } break;
@@ -1918,9 +2021,9 @@ function updateRemotes(dt) {
   for (const r of remotes) {
     if (!r.alive) { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); continue; }
     r.pos.lerp(r.target, Math.min(1, dt * 14));
-    r.mesh.position.copy(r.pos); r.mesh.rotation.y = r.yaw;
+    r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
-    animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z)); stepSound(r, dt);
+    animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
   }
 }
 function snapshot() {
@@ -1928,7 +2031,7 @@ function snapshot() {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
-      p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), a: e.alive, w: e.isPlayer ? curW : e.wpn,
+      p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths,
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
@@ -1976,6 +2079,7 @@ function onHostMsg(m) {
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
     case 'nade': P.nades = Math.min(MAX_NADES, P.nades + 1); note('+1 grenade', 1); break;
+    case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
     case 'reset': $('results').style.display = 'none'; matchOver = false; clearCorpses(); break;
     default: applyFx(m);
@@ -1999,8 +2103,8 @@ function applySnapshot(s) {
     r.prev.copy(r.target); r.target.set(d.p[0], d.p[1], d.p[2]);
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
-    if (d.a && !r.alive) r.pos.copy(r.target);
-    Object.assign(r, { name: d.n, yaw: d.y, kills: d.k, deaths: d.d, health: d.hp, alive: d.a });
+    if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
@@ -2022,9 +2126,9 @@ function updateReplicas(dt, now) {
   for (const r of replicas.values()) {
     if (!r.alive) continue;
     r.pos.lerp(r.target, Math.min(1, dt * 14));
-    r.mesh.position.copy(r.pos); r.mesh.rotation.y = r.yaw;
+    r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
-    animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z)); stepSound(r, dt);
+    animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
   }
   for (const a of ammoBoxes) if (a.active) { a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05; }
   for (const pk of PICKUPS) if (pk.active) { pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06; }
@@ -2052,7 +2156,8 @@ function netTick(dt) {
 }
 
 // ----- Voice chat (every player connects audio directly to every other player) -----
-const VOICE = { stream: null, calls: {}, els: {}, muted: false, silent: null };
+// Guests join with their mic muted; M (or the Mic button) unmutes
+const VOICE = { stream: null, calls: {}, els: {}, muted: NET.role === 'guest', silent: null };
 async function getMic() {
   if (VOICE.stream || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   try {

@@ -24,8 +24,12 @@ Import the repo in Vercel, framework preset **Other**, no build command, output 
 
 ## Voice chat
 
-Every player connects audio directly to every other player. The browser asks for microphone access when you join (guests) or when the first friend joins (host). Press **M** to mute or unmute; on mobile use the **Mic** button. If mic access is denied you can still hear others.
+Every player connects audio directly to every other player. The browser asks for microphone access when you join (guests) or when the first friend joins (host). Guests join with their mic muted. Press **M** to mute or unmute; on mobile use the **Mic** button. If mic access is denied you can still hear others.
+
+## Text chat
+
+Press **Enter** to open the chat box, type, and press **Enter** again to send (Esc cancels). Messages appear for everyone in the kill feed. On mobile use the **Chat** button.
 
 ## Controls
 
-WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click aim · R reload · F knife · G (hold) cook and throw grenade · Wheel / 1–4 switch weapon · M mute · Tab scores · Esc pause
+WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click aim · R reload · F knife · G (hold) cook and throw grenade · Wheel / 1–4 switch weapon · M mute · Enter chat · Tab scores · Esc pause
