@@ -1700,7 +1700,9 @@ const VMW = {};
 function initPlayerWeapons() {
   P.inv = ['pistol'];
   cookT = -1;
-  P.ammoBy = { pistol: { mag: WEAPONS.pistol.mag, res: WEAPONS.pistol.startRes } };
+  // Set these first: selectWeapon syncs P.ammo/P.reserve into ammoBy[curW], which is still 'pistol' if we died holding it
+  P.ammo = WEAPONS.pistol.mag; P.reserve = WEAPONS.pistol.startRes;
+  P.ammoBy = { pistol: { mag: P.ammo, res: P.reserve } };
   selectWeapon('pistol', true);
 }
 function syncAmmo() { if (P.ammoBy && P.ammoBy[curW]) { P.ammoBy[curW].mag = P.ammo; P.ammoBy[curW].res = P.reserve; } }
