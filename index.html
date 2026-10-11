@@ -398,14 +398,18 @@ function levelBunker() {
 function levelFortress() {
   return {
     mesh: 'Fortress', mode: 'defend', cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
-    // Defenders: courtyard, wall walk over the gate, north building, west wing, tower room, tower roof
-    spawns: [[-3, 34, -2], [0, 34, 0], [-1, 34, -4], [-3, 38, 3.6], [1, 38, 3.6], [-6, 38, -7], [-10, 41, -2], [5.5, 45, 4.5], [5.3, 48.5, 2]],
+    // Defenders: courtyard, wall walk over the gate, north building upstairs, tower room, tower roof
+    spawns: [[-3, 34, -2], [0, 34, 0], [-1, 34, -4], [-3, 38, 3.6], [1, 38, 3.6], [-4, 38, -6], [5, 38, -4], [5.5, 45, 4.5], [5.3, 48.5, 2]],
     atk: [[34, 64], [38, 70], [-4, 66], [-46, 46], [-52, 38], [24, 50]],
     ammo: [[-4, 34, 1], [1, 34, -4], [-1, 38, 3.6], [6.2, 45, 5], [-9, 38, -7], [-2, 34, -5, 1], [6.6, 45, 4, 1]],
     pickups: [['carbine', -2, 34, 0.5], ['carbine', 1, 38, 3.6], ['shotgun', 0, 34, -5], ['rifle', 5.8, 48.5, 4], ['rifle', 5.2, 45, 5.2]],
     // Ladders: climb volume [x0, x1, z0, z1, y0, y1] and the way they face (up the tower shaft to the room hatch; outside up to the roof)
     ladders: [{ box: [3.15, 4.05, 2.2, 2.95, 33.5, 44.9], dir: [0, 1] }, { box: [1.85, 2.8, 1.95, 2.85, 33.5, 48.6], dir: [1, 0] }],
-    base: [-13, 9, -11, 7, 28], // x0, x1, z0, z1, floor: attackers in or near this box wear the fort down
+    // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room
+    gate: { mesh: 'Front_Gate', at: [-2.4, 6.5], drop: 6.4 },
+    core: { mesh: 'Computer', at: [5.29, 44.96, 1.4], hp: 260 },
+    // The way in, as [x, z, floor y]: outside the gate, the courtyard, round the boulder to the tower door, the ladder (climbed), the room
+    route: [[-2.4, 8, 33], [-2.4, 2.6, 33.5], [1.2, 1, 33.5], [3.6, 1, 33.5], [3.6, 2.6, 33.5, 1], [3.7, 3.7, 43.9], [4.4, 3.4, 43.9]],
   };
 }
 const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, fortress: levelFortress };
@@ -622,7 +626,8 @@ function loadLevel(id) {
   buildWorld(L);
   SPAWNS.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
   if (L.mesh) {
-    L.spawns.forEach(p => SPAWNS.push(settle(p)));
+    // A spawn inside a wall or under a hill would trap whoever lands there
+    L.spawns.forEach(p => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else SPAWNS.push(s); });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
     L.atk.forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
@@ -688,8 +693,11 @@ function blockedAt(x, y, z, h) { return TG ? meshBlocked(x, y, z, h) : !!hitBox(
 // Every level triangle in world space, bucketed into 4m columns. Water is kept apart: it only marks where land ends.
 // Terrain, hills and trees have outward normals (only their tops are floors); the fort's walls and roofs count from either side.
 function buildTG(root) {
+  // The gate starts closed: put it back in its frame before reading its triangles
+  const gm = LV.gate ? root.getObjectByName(LV.gate.mesh) : null;
+  if (gm) { if (gm.userData.y0 === undefined) gm.userData.y0 = gm.position.y; gm.position.y = gm.userData.y0; }
   root.updateMatrixWorld(true);
-  const T = [], B = [], NR = [], water = [], OUT = [];
+  const T = [], B = [], NR = [], water = [], OUT = [], gate = [];
   const a = new V3(), b = new V3(), c = new V3(), e1 = new V3(), e2 = new V3(), n = new V3();
   root.traverse(m => {
     if (!m.isMesh) return;
@@ -700,6 +708,7 @@ function buildTG(root) {
       c.fromBufferAttribute(pos, ix ? ix.getX(i + 2) : i + 2).applyMatrix4(m.matrixWorld);
       n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a)); const l = n.length(); if (l < 1e-9) continue; n.divideScalar(l);
       if (m.userData.water) { water.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); continue; }
+      if (m === gm) gate.push(NR.length / 3);
       T.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); NR.push(n.x, n.y, n.z); OUT.push(m.material.name === 'FX_Ground' ? 1 : 0);
       B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
     }
@@ -716,7 +725,18 @@ function buildTG(root) {
   for (let k = 0; k < gw * gd; k++) start[k + 1] += start[k];
   const fillAt = start.slice(0, gw * gd), list = new Int32Array(start[gw * gd]);
   for (let t = 0; t < nt; t++) each(t, k => { list[fillAt[k]++] = t; });
-  return { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
+  const G = { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
+  G.gate = { mesh: gm, tris: gate, T: gate.map(t => G.T.slice(t * 9, t * 9 + 9)), B: gate.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false, y: 0 };
+  return G;
+}
+// Opening the gate takes its triangles out of play (collapsed to a point far away, so floors, walls and rays all miss them)
+function setGateSolid(open) {
+  const g = TG && TG.gate; if (!g || g.open === open) return;
+  g.open = open;
+  g.tris.forEach((t, k) => {
+    if (open) { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); }
+    else { TG.T.set(g.T[k], t * 9); TG.B.set(g.B[k], t * 6); }
+  });
 }
 // Visit each triangle whose column overlaps the XZ box once
 function tgEach(xa, za, xb, zb, fn) {
@@ -749,6 +769,12 @@ function groundAt(x, z, yTop) {
     if (y !== null && y <= yTop && (best === null || y > best)) best = y;
   });
   return best;
+}
+// Is (x, y, z) under a hill or tree (inside it)?
+function hillAbove(x, y, z) {
+  let hit = false; const G = TG;
+  tgEach(x, z, x, z, t => { if (!G.OUT[t]) return; const h = triYAt(G.T, t * 9, x, z); if (h !== null && h > y + 0.2) hit = true; });
+  return hit;
 }
 function waterAt(x, z) {
   const W2 = TG.water;
@@ -918,7 +944,7 @@ function buildTerrainNav() {
     }
   }
 }
-// Cells the attackers can reach from their spawns; the ones closest to the fort are where they head
+// Cells the attackers can reach from their spawns; the ones closest to the front gate are where they head
 function findAssault() {
   ASSAULT.length = 0;
   const seen = new Uint8Array(N), q = [];
@@ -927,7 +953,7 @@ function findAssault() {
     const i = q[h], c = i % GW, r = (i / GW) | 0;
     for (let k = 0; k < 8; k++) if (EDGE[i] >> k & 1) { const j = idx(c + NB[k][0], r + NB[k][1]); if (!seen[j]) { seen[j] = 1; q.push(j); } }
   }
-  const [x0, x1, z0, z1] = LV.base, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+  const [mx, mz] = LV.gate.at;
   const d = i => Math.hypot(cx(i % GW) - mx, cz((i / GW) | 0) - mz);
   ASSAULT.push(...q.sort((a, b) => d(a) - d(b)).slice(0, 10));
 }
@@ -1001,7 +1027,7 @@ function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
-  $('goal').textContent = def ? `Fortress defend: hold the fort through ${NET.role === 'host' ? +$('swaves').value : WAVES} waves of attackers coming up from behind the hills. Ammo and guns are inside.` : `First to ${KILL_LIMIT} kills wins.`;
+  $('goal').textContent = def ? `Fortress defend: survive ${NET.role === 'host' ? +$('swaves').value : WAVES} waves of attackers coming up from behind the hills. They batter down the front gate, then climb the tower for the computer. Lose the computer and the fort falls. Ammo and guns are inside.` : `First to ${KILL_LIMIT} kills wins.`;
   $('mtitle').textContent = def ? 'Fortress defend' : 'Free for all';
   $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = def ? '' : 'none';
   $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
@@ -1293,7 +1319,7 @@ function respawn(e) {
     e.inv = ['pistol']; e.ammoBy = { pistol: { mag: 12, res: 24 } }; e.wpn = 'pistol'; setRigWeapon(e.rig, 'pistol');
     sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq });
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
-  else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.lastSeenT = 0; botInitWeapons(e); }
+  else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.route = undefined; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e); }
 }
 
 // ---------- Helpers ----------
@@ -1415,30 +1441,63 @@ function updateChatbox() {
 // ---------- Combat ----------
 let matchOver = false;
 // ---------- Fortress defend: players hold the fort, bots attack in waves ----------
-// Attackers near the fort wear its health down; the next wave starts after a short break; survive them all to win
+// Attackers at the front gate wear it down (hp). When it breaks it drops into the ground and they head up the tower
+// to shoot the computer (core); lose the computer and the fort falls. Survive every wave to win.
 let WAVES = 6;
-const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0 };
-const WAVE_BREAK = 12, SIEGE_RATE = 0.8; // seconds between waves; base health lost per second per attacker at the fort
+const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 };
+const WAVE_BREAK = 12, SIEGE_RATE = 0.8; // seconds between waves; gate health lost per second per attacker at it
 const waveSize = n => 4 + 3 * (n - 1);
-function inBase(e) { const [x0, x1, z0, z1, y0] = LV.base, m = 4; return e.pos.x > x0 - m && e.pos.x < x1 + m && e.pos.z > z0 - m && e.pos.z < z1 + m && e.pos.y > y0; }
+const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
+// Outside the gate and close enough to be battering at it
+function atGate(e) { const [gx, gz] = LV.gate.at; return e.pos.z > gz - 1.5 && e.pos.y < 35 && Math.hypot(e.pos.x - gx, e.pos.z - gz) < 6.5; }
+function coreMesh() { const c = LV && LV.core && LEVEL_SCENES[LV.mesh]; return c ? c.getObjectByName(LV.core.mesh) : null; }
+let coreFlash = 0;
+function damageCore(amt) {
+  if (matchOver || WAVE.core <= 0) return;
+  WAVE.core = Math.max(0, WAVE.core - amt / LV.core.hp * 100); coreFlash = 0.12;
+  if (WAVE.core <= 0) {
+    const [x, y, z] = LV.core.at, p = new V3(x, y, z);
+    _boomFx(p, 3); sBoom(vol(p, 120)); netFx({ t: 'bm', p: arr(p), s: 3 });
+    endMatch(null, false);
+  }
+}
+// Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match.
+// It stands open between waves so anyone who fell outside can get back in, and shuts when a wave starts.
+function setGate(open, breach) {
+  if (!TG || !TG.gate || TG.gate.open === open) return;
+  setGateSolid(open);
+  if (NET.role === 'host' && breach) { waveNote('The gate is down! Get to the tower and protect the computer'); sTone([392, 311, 262], 0.2, 'sawtooth', 0.12); }
+}
+function updateGate(dt) {
+  const g = TG && TG.gate; if (!g || !g.mesh) return;
+  const want = g.open ? -LV.gate.drop : 0;
+  if (g.y !== want) { g.y = want < g.y ? Math.max(want, g.y - dt * 4) : Math.min(want, g.y + dt * 4); g.mesh.position.y = g.mesh.userData.y0 + g.y; }
+  const cm = coreMesh();
+  if (cm) { if (!cm.userData.mat) { cm.material = cm.material.clone(); cm.userData.mat = cm.material; } coreFlash = Math.max(0, coreFlash - dt); cm.material.emissive.setHex(coreFlash > 0 ? 0xff3010 : 0x000000); }
+}
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
 function startWave() {
-  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n);
+  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n); setGate(false);
   bots.forEach(b => { b.respawnT = Math.random() * 3; });
-  waveNote(`Wave ${WAVE.n} of ${WAVES}: they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
+  waveNote(`Wave ${WAVE.n} of ${WAVES}: the gate is shut and they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
 }
 function updateWaves(dt) {
   if (MODE !== 'defend' || matchOver) return;
   let alive = 0, siege = 0;
-  for (const b of bots) if (b.alive) { alive++; if (inBase(b)) siege++; }
+  for (const b of bots) if (b.alive) { alive++; if (atGate(b)) siege++; }
   WAVE.left = alive + WAVE.queue;
-  if (WAVE.phase === 'prep') { WAVE.t -= dt; if (WAVE.t <= 0) startWave(); return; }
-  if (siege) WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt);
-  if (WAVE.hp <= 0) { endMatch(null, false); return; }
+  if (WAVE.phase === 'prep') {
+    const was = WAVE.t; WAVE.t -= dt;
+    if (was > 4 && WAVE.t <= 4) waveNote('The gate closes in 4 seconds');
+    if (WAVE.t <= 0) startWave(); return;
+  }
+  if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) setGate(true, true); }
   if (!alive && WAVE.queue <= 0) {
     if (WAVE.n >= WAVES) { endMatch(null, true); return; }
-    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = Math.min(100, WAVE.hp + 10);
-    waveNote(`Wave ${WAVE.n} cleared. Restock and get ready`); sTone([523, 659, 784], 0.12, 'square', 0.1);
+    // Between waves the gate is patched up (a broken one is rebuilt) and opened, and the computer is repaired a little
+    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = WAVE.hp <= 0 ? 40 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
+    setGate(true);
+    waveNote(`Wave ${WAVE.n} cleared. The gate is open: restock and get back inside`); sTone([523, 659, 784], 0.12, 'square', 0.1);
   }
 }
 // Attackers come out of cover behind the hills, spread a little around each spawn point
@@ -1481,7 +1540,7 @@ function resetMatch() {
   clearCorpses();
   matchOver = false;
   if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100 });
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100, core: 100 }); setGate(true);
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
   } else ents.forEach(respawn);
@@ -1493,7 +1552,7 @@ function endMatch(w, held) {
   const def = MODE === 'defend';
   if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : w.isPlayer ? 'You win' : `${w.name} wins`;
-  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `Overrun on wave ${WAVE.n} of ${WAVES}.`) : '';
+  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `They destroyed the computer on wave ${WAVE.n} of ${WAVES}.`) : '';
   const list = [...ents].filter(e => !def || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   showResults(title, sub, list.map(e => [e.id, e.name, e.kills, e.deaths]), P.id);
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
@@ -1870,11 +1929,30 @@ function updateCook(dt) {
 
 // Bots
 const BOT_DMG = 0.55;
+function botMuzzle(b, w) { const m = b.rig.model; return b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix)); }
+// Attackers that made it to the tower room turn on the computer (a still target: most shots land)
+function botShootCore(b, dt) {
+  const ai = b.ai, [x, y, z] = LV.core.at, dx = x - b.pos.x, dz = z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
+  b.yaw = turn(b.yaw, want, D.turn * dt);
+  b.pitch += (Math.atan2(y - b.pos.y - 1.5, dist) - b.pitch) * Math.min(1, dt * 8);
+  ai.fireCd -= dt;
+  if (b.reloading > 0 || b.ammo <= 0 || ai.fireCd > 0 || Math.abs(wrap(want - b.yaw)) > 0.2) return;
+  const w = WEAPONS[b.wpn]; b.ammo--;
+  ai.fireCd = w.auto ? 0.15 : Math.max(w.rate, 0.3) + Math.random() * 0.3;
+  sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
+  let total = 0; const start = botMuzzle(b, w);
+  for (let i = 0; i < (w.pellets || 1); i++) {
+    const hit = Math.random() < 0.6, aim = new V3(x, y, z);
+    if (!hit) aim.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.9));
+    if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
+    if (hit) total += w.dmg;
+  }
+  if (total) damageCore(total * BOT_DMG);
+}
 function botShoot(b, t, dist) {
   if (b.ammo <= 0 || !los(b, t)) return;
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
-  const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3;
-  const start = b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix));
+  const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0, head = false;
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -1897,7 +1975,7 @@ function botNade(b, t) {
 }
 function findTarget(b) {
   const def = MODE === 'defend';
-  let best = null, bd = def ? 80 : 55;
+  let best = null, bd = def ? (b.ai.route >= LV.route.length ? 12 : 80) : 55; // in the tower room they only turn from the computer for close threats
   for (const o of ents) {
     if (o === b || !o.alive || (def && o.bot)) continue;
     const d = b.pos.distanceTo(o.pos);
@@ -1918,7 +1996,39 @@ function followPath(b, wish, dt, face) {
   if (Math.hypot(dx, dz) < (TG ? 0.9 : 0.45)) { ai.pi++; if (ai.pi >= ai.path.length) { ai.path = null; ai.lastSeenT = 0; } }
   else { wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
 }
-// Attackers march on the fort: pick one of the spots outside it closest to the walls
+// Once the gate is open, attackers walk the level's route (through the gate, across the courtyard, up the ladder).
+// ai.route is the next step; route.length means they've arrived. Off the route (knocked down the hatch, say) they rejoin
+// at the nearest step they can see on their floor, or head back round to the gate.
+function routeJoin(b) {
+  let best, bd = 7;
+  LV.route.forEach(([x, z, y], i) => {
+    const d = Math.hypot(x - b.pos.x, z - b.pos.z);
+    if (Math.abs(b.pos.y - y) < 2 && d < bd && losPts(new V3(b.pos.x, b.pos.y + 1, b.pos.z), new V3(x, y + 1, z))) { bd = d; best = i; }
+  });
+  return best;
+}
+function followRoute(b, wish, dt, face) {
+  const ai = b.ai, st = LV.route[ai.route]; if (!st) return;
+  const [x, z, y, ladder] = st, dx = x - b.pos.x, dz = z - b.pos.z;
+  if (!ladder && Math.abs(b.pos.y - y) > 2.5) { ai.route = undefined; b.climb = undefined; return; }
+  if (ladder) {
+    const l = LV.ladders.find(q => x > q.box[0] && x < q.box[1] && z > q.box[2] - 1 && z < q.box[3]);
+    if (b.pos.y > l.box[5] - 1.5 && !ladderAt(b.pos)) { ai.route++; b.climb = undefined; wish.set(l.dir[0], 0, l.dir[1]); return; }
+    b.climb = 1; // into the ladder and up; at the top keep walking off it onto the floor
+    if (ladderAt(b.pos)) { wish.set(l.dir[0], 0, l.dir[1]); if (face) b.yaw = turn(b.yaw, Math.atan2(l.dir[0], l.dir[1]), 6 * dt); return; }
+  } else if (Math.hypot(dx, dz) < 0.7) { ai.route++; return; }
+  wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
+}
+// Attackers: to the gate, then (once it's down) along the route; returns true once they're in the tower room
+function botAdvance(b, wish, dt, face) {
+  const ai = b.ai;
+  if (gateOpen() && ai.route === undefined) { const j = routeJoin(b); if (j !== undefined) { ai.route = j; ai.path = null; } }
+  if (ai.route !== undefined) { if (ai.route >= LV.route.length) return true; followRoute(b, wish, dt, face); return false; }
+  if (!ai.path) planAssault(b);
+  followPath(b, wish, dt, face);
+  return false;
+}
+// Attackers march on the fort: pick one of the spots outside it closest to the gate
 function planAssault(b) {
   const ai = b.ai; if (!ASSAULT.length) return;
   ai.path = findPath(cellOf(b.pos), ASSAULT[Math.random() * ASSAULT.length | 0]); ai.pi = 0;
@@ -1956,9 +2066,9 @@ function updateBot(b, dt) {
     else {
       ai.strafeT -= dt;
       if (ai.strafeT <= 0) { ai.strafeT = 0.4 + Math.random() * 0.9; ai.strafeDir = Math.random() < 0.5 ? -1 : 1; }
-      if (def && dist > 12 && !inBase(b)) { // keep pushing up the hill while shooting
-        if (!ai.path) planAssault(b);
-        followPath(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
+      if (def && ai.route !== undefined && ai.route < LV.route.length) botAdvance(b, wish, dt, false); // inside: keep going, shooting on the move
+      else if (def && (gateOpen() || (dist > 12 && !atGate(b))) && !(ai.route >= LV.route.length)) { // keep pushing up the hill while shooting
+        botAdvance(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
       } else {
         wish.addScaledVector(right, ai.strafeDir);
         if (dist > 18) wish.addScaledVector(fwd, 0.8); else if (dist < 5) wish.addScaledVector(fwd, -0.8);
@@ -1977,9 +2087,9 @@ function updateBot(b, dt) {
       }
     }
   } else {
-    b.pitch *= 1 - Math.min(1, dt * 4);
-    if (!ai.path && def) planAssault(b);
-    else if (!ai.path) {
+    if (!def || !botAdvance(b, wish, dt, true)) b.pitch *= 1 - Math.min(1, dt * 4);
+    else botShootCore(b, dt);
+    if (!def && !ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
       if (goal === null && Math.random() < 0.6) { const pk = nearestPickup(b); if (pk) goal = cellOf(pk.pos); }
@@ -1988,12 +2098,13 @@ function updateBot(b, dt) {
       ai.path = findPath(cellOf(b.pos), goal); ai.pi = 0;
       if (!ai.path || !ai.path.length) { ai.path = null; ai.lastSeenT = 0; }
     }
-    followPath(b, wish, dt, true);
+    if (!def) followPath(b, wish, dt, true);
   }
   ai.stuckT += dt;
   if (ai.stuckT > 1) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-    if (moved < 0.4 && ai.path) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
+    const routing = ai.route !== undefined && ai.route < LV.route.length && !b.climb;
+    if (moved < 0.4 && (ai.path || routing)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
     else ai.stuckN = 0;
     ai.lastPos.copy(b.pos); ai.stuckT = 0;
   }
@@ -2163,9 +2274,9 @@ function updateHUD(dt) {
   $('wname').textContent = WP().name;
   $('nadev').textContent = `${P.nades} frag${P.nades === 1 ? '' : 's'}`;
   if (MODE === 'defend') {
-    const hp = Math.ceil(WAVE.hp), wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
-    $('top').textContent = `${wv}   ·   Fort ${hp}%   ·   You ${P.kills}/${P.deaths}`;
-    $('top').classList.toggle('alert', hp <= 30);
+    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep', down = gateOpen() && !prep, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
+    $('top').textContent = `${wv}   ·   ${down ? 'Gate down' : prep ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   Computer ${core}%   ·   You ${P.kills}/${P.deaths}`;
+    $('top').classList.toggle('alert', !prep && (down || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
     $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
@@ -2577,7 +2688,7 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
-    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : -1] : null,
+    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
@@ -2636,7 +2747,13 @@ function onHostMsg(m) {
 }
 function applySnapshot(s) {
   KILL_LIMIT = s.lim; matchOver = s.over;
-  if (Array.isArray(s.wv)) { const [n, total, left, hp, t] = s.wv; Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : 'fight', t: Math.max(0, +t || 0) }); if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); } }
+  if (Array.isArray(s.wv)) {
+    const [n, total, left, hp, t, core, open] = s.wv, was = WAVE.core;
+    Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
+    if (WAVE.core < was) coreFlash = 0.12;
+    setGate(!!open);
+    if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); }
+  }
   const seen = new Set();
   for (const d of s.e) {
     if (d.i === NET.myId) { P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
@@ -2787,6 +2904,7 @@ function loop(now) {
   updatePlayerRig(dt);
   renderPreview(dt);
   updateFx(dt);
+  updateGate(dt);
   updateVM(dt);
   updateHUD(dt);
   updateChatbox();
