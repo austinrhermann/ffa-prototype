@@ -22,6 +22,7 @@ canvas{display:block}
 #hurt{position:absolute;inset:0;background:rgba(220,20,20,.55);opacity:0}
 #low{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 25%,rgba(0,0,0,.92));opacity:0}
 #top{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--panel);padding:6px 14px;border-radius:4px;font-size:14px;white-space:nowrap}
+#top.alert{background:#7a1f1f}
 #feed{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:13px}
 #feed div{background:var(--panel);padding:4px 10px;border-radius:3px}
 #feed .me{outline:1px solid var(--accent)}
@@ -56,7 +57,7 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 .set input{width:100%;accent-color:#9dff7a}
 #play,#next{width:100%;padding:12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font-size:16px;font-weight:600;cursor:pointer;margin-top:4px}
 .set input[type=text],.set select{width:100%;padding:7px 8px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit}
-.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .levels button{padding:9px 4px;border-radius:4px;border:1px solid rgba(238,243,234,.25);background:#1e252c;color:var(--hud);font:inherit;font-size:14px;cursor:pointer}
 .levels button.on{background:var(--accent);color:#0d1a08;border-color:var(--accent)}
 .levels button:focus-visible{outline:2px solid #fff;outline-offset:2px}
@@ -159,12 +160,12 @@ body.touch .card small.tc{display:block}
   <div class="tt" id="tchat" data-act="chat">Chat</div>
 </div>
 <div id="overlay"><div class="cards"><div class="card">
-  <h1>Free for all</h1>
+  <h1 id="mtitle">Free for all</h1>
   <p id="goal">First to 20 kills wins.</p>
   <div class="set hostonly" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly">You're joining a friend's game. The host picks the level, bots and score limit.</p>
   <p class="guestonly" id="netstat">Pick a name and character, then join.</p>
-  <div class="set hostonly"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button></div></div>
+  <div class="set hostonly"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="fortress">Fortress</button></div></div>
   <dl class="kb">
     <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
     <dt>Shift</dt><dd>Run</dd>
@@ -189,9 +190,10 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly"><label for="sbots">Bots <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
+  <div class="set hostonly"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly"><label for="sdiff">Bot difficulty <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
-  <div class="set hostonly"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
+  <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
+  <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
   <button id="play" disabled>Loading characters…</button>
   <small class="kb">Needs a mouse and keyboard. Changing the bot count restarts the match.</small>
   <small class="tc">Best in landscape. Changing the bot count restarts the match.</small>
@@ -205,8 +207,9 @@ body.touch .card small.tc{display:block}
 </div></div>
 <div id="results"><div class="card">
   <h1 id="rtitle">You win</h1>
+  <p id="rsub"></p>
   <table class="rt" id="rtable"></table>
-  <div class="set hostonly"><label for="slimit">Score limit for next round <output id="olimit">20</output></label><input type="range" id="slimit" min="5" max="50" step="5" value="20"></div>
+  <div class="set hostonly" id="setnext"><label for="slimit">Score limit for next round <output id="olimit">20</output></label><input type="range" id="slimit" min="5" max="50" step="5" value="20"></div>
   <button id="next" class="hostonly">Next round</button>
   <p class="guestonly">Waiting for the host to start the next round…</p>
 </div></div>
@@ -266,7 +269,9 @@ let TOP = F2 + 1.3; // wall height; per level (Complex stops 1.3m above the seco
 const H = new Float32Array(N).fill(SOLID);
 const U = new Uint8Array(N), STAIR = new Uint8Array(N), UW = new Uint8Array(N);
 const idx = (c, r) => r * GW + c;
-const cx = c => c - 32 + 0.5, cz = r => r - 35 + 0.5;
+// Grid origin and cell size: 1m cells centred on the origin, except mesh levels (Fortress) which use bigger cells
+let CS = 1, OX = -32, OZ = -35;
+const cx = c => OX + (c + 0.5) * CS, cz = r => OZ + (r + 0.5) * CS;
 const walk0 = i => H[i] > -50;
 function fill(c1, r1, c2, r2, h, st) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) { H[idx(c, r)] = h; STAIR[idx(c, r)] = st ? 1 : 0; } }
 function up(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 1; }
@@ -284,9 +289,12 @@ const node = (c, r, l = 0) => l * N + idx(c, r);
 const cellPos = n => { const i = n % N; return new V3(cx(i % GW), nodeH(n), cz((i / GW) | 0)); };
 // ===LEVELS-START
 const OVER = new Float32Array(N);
-const WALK = [], SPAWNS = [], AMMO_NODES = [], NADE_NODES = [], STATIC_PICKUPS = [];
+const WALK = [], SPAWNS = [], AMMO_SPOTS = [], STATIC_PICKUPS = [];
 const MAX_NADES = 3;
 let SNOW = null, curLevel = null;
+// Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
+let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
+const EDGE = new Uint8Array(N), LEVEL_SCENES = {}, ATK_SPAWNS = [], ASSAULT = [];
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
 // Helpers that shift a level's local coordinates into the grid
 function shifted(ox, oy) {
@@ -385,10 +393,29 @@ function levelBunker() {
     pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['carbine',24,34]]),
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker };
+// Fortress (from the Blender set): a fort on a hilltop island. Fortress defend: players hold the fort while waves of bots
+// come up from behind the hills. Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it.
+function levelFortress() {
+  return {
+    mesh: 'Fortress', mode: 'defend', cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
+    // Defenders: courtyard, wall walk over the gate, north building, west wing, tower room, tower roof
+    spawns: [[-3, 34, -2], [0, 34, 0], [-1, 34, -4], [-3, 38, 3.6], [1, 38, 3.6], [-6, 38, -7], [-10, 41, -2], [5.5, 45, 4.5], [5.3, 48.5, 2]],
+    atk: [[34, 64], [38, 70], [-4, 66], [-46, 46], [-52, 38], [24, 50]],
+    ammo: [[-4, 34, 1], [1, 34, -4], [-1, 38, 3.6], [6.2, 45, 5], [-9, 38, -7], [-2, 34, -5, 1], [6.6, 45, 4, 1]],
+    pickups: [['carbine', -2, 34, 0.5], ['carbine', 1, 38, 3.6], ['shotgun', 0, 34, -5], ['rifle', 5.8, 48.5, 4], ['rifle', 5.2, 45, 5.2]],
+    // Ladders: climb volume [x0, x1, z0, z1, y0, y1] and the way they face (up the tower shaft to the room hatch; outside up to the roof)
+    ladders: [{ box: [3.15, 4.05, 2.2, 2.95, 33.5, 44.9], dir: [0, 1] }, { box: [1.85, 2.8, 1.95, 2.85, 33.5, 48.6], dir: [1, 0] }],
+    base: [-13, 9, -11, 7, 28], // x0, x1, z0, z1, floor: attackers in or near this box wear the fort down
+  };
+}
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, fortress: levelFortress };
 function buildGrid(id) {
-  H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9);
-  const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null;
+  H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
+  const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
+  MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
+  CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
+  TG = L.mesh ? buildTG(LEVEL_SCENES[L.mesh]) : null;
+  if (TG) { buildTerrainNav(); WALK.length = 0; for (let n = 0; n < N; n++) if (walk0(n)) WALK.push(n); return L; }
   // Second-floor walls sit above ground cells that border second-floor walkways
   for (let r = 0; r < GD; r++) for (let c = 0; c < GW; c++) {
     const i = idx(c, r); if (U[i] || STAIR[i]) continue;
@@ -404,7 +431,17 @@ function buildGrid(id) {
 // ===LEVELS-END
 
 function cellOf(p) {
-  const c0 = Math.max(0, Math.min(GW - 1, Math.floor(p.x + 32))), r0 = Math.max(0, Math.min(GD - 1, Math.floor(p.z + 35)));
+  const c0 = Math.max(0, Math.min(GW - 1, Math.floor((p.x - OX) / CS))), r0 = Math.max(0, Math.min(GD - 1, Math.floor((p.z - OZ) / CS)));
+  if (TG) { // mesh levels: one layer; nearest walkable cell around the point
+    let best = idx(c0, r0), bd = Infinity;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const c = c0 + dc, r = r0 + dr; if (c < 0 || r < 0 || c >= GW || r >= GD) continue;
+      const i = idx(c, r); if (!walk0(i)) continue;
+      const d = (cx(c) - p.x) ** 2 + (cz(r) - p.z) ** 2 + (H[i] - p.y) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
   for (const [dc, dr] of [[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]) {
     const c = c0 + dc, r = r0 + dr; if (c < 0 || r < 0 || c >= GW || r >= GD) continue;
     const i = idx(c, r);
@@ -444,10 +481,37 @@ function boxMat(b0, b1) {
   return MAT.wall;
 }
 let levelGroup = null;
+// A wooden ladder standing on the far side of its climb volume
+function makeLadder(l) {
+  const [x0, x1, z0, z1, y0, y1] = l.box, [fx, fz] = l.dir, g = new THREE.Group(), mat = MAT.crate;
+  const w = 0.55, top = y1 - 0.2, len = top - y0;
+  const px = fx ? (fx > 0 ? x1 : x0) - fx * 0.16 : (x0 + x1) / 2, pz = fz ? (fz > 0 ? z1 : z0) - fz * 0.16 : (z0 + z1) / 2;
+  const ax = fz ? 1 : 0, az = fx ? 1 : 0; // across the ladder
+  for (const s of [-1, 1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.07), mat);
+    rail.position.set(px + ax * s * w / 2, y0 + len / 2, pz + az * s * w / 2); g.add(rail);
+  }
+  for (let y = y0 + 0.3; y < top; y += 0.35) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(ax ? w : 0.045, 0.045, az ? w : 0.045), mat);
+    rung.position.set(px, y, pz); g.add(rung);
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
 function buildWorld(L) {
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   levelGroup = new THREE.Group(); scene.add(levelGroup);
   W.meshes.length = 0; W.colliders.length = 0;
+  const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
+  camera.far = L.mesh ? 400 : 300; camera.updateProjectionMatrix();
+  if (!L.mesh) { sun.position.set(25, 50, 15); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
+  sun.shadow.bias = L.mesh ? -0.0005 : 0; sun.shadow.normalBias = L.mesh ? 0.03 : 0;
+  if (L.mesh) {
+    const sc = LEVEL_SCENES[L.mesh]; levelGroup.add(sc);
+    sc.traverse(o => { if (o.isMesh && !o.userData.water) W.meshes.push(o); });
+    for (const l of L.ladders || []) levelGroup.add(makeLadder(l));
+    return;
+  }
   MAT.wall.color.setHex(L.wall);
   const A0 = new Float32Array(N).fill(NaN), A1 = new Float32Array(N).fill(NaN), B0 = new Float32Array(N).fill(NaN), B1 = new Float32Array(N).fill(NaN);
   for (let i = 0; i < N; i++) {
@@ -556,11 +620,19 @@ function buildWorld(L) {
 function loadLevel(id) {
   const L = buildGrid(id);
   buildWorld(L);
-  SPAWNS.length = 0; L.spawns.forEach(([c, r, l]) => SPAWNS.push(cellPos(node(c, r, l))));
+  SPAWNS.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
+  if (L.mesh) {
+    L.spawns.forEach(p => SPAWNS.push(settle(p)));
+    L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
+    L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
+    L.atk.forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
+    findAssault();
+    return;
+  }
+  L.spawns.forEach(([c, r, l]) => SPAWNS.push(cellPos(node(c, r, l))));
   // Two of every three listed spots get ammo; every sixth becomes a (rarer) grenade crate
-  AMMO_NODES.length = 0; NADE_NODES.length = 0;
-  L.ammo.forEach(([c, r, l], i) => { const nd = node(c, r, l); if (i % 3 !== 2) AMMO_NODES.push(nd); else if (i % 6 === 2) NADE_NODES.push(nd); });
-  STATIC_PICKUPS.length = 0; L.pickups.forEach(([wid, c, r, l]) => STATIC_PICKUPS.push([wid, node(c, r, l)]));
+  L.ammo.forEach(([c, r, l], i) => { const nd = node(c, r, l); if (i % 3 !== 2) AMMO_SPOTS.push({ pos: cellPos(nd), cell: nd, nade: false }); else if (i % 6 === 2) AMMO_SPOTS.push({ pos: cellPos(nd), cell: nd, nade: true }); });
+  L.pickups.forEach(([wid, c, r, l]) => STATIC_PICKUPS.push([wid, cellPos(node(c, r, l))]));
 }
 loadLevel('complex');
 
@@ -578,6 +650,23 @@ function moveAxis(e, ax, d) {
   if (e.onGround && up > 0 && up <= STEP && !hitBox(nx, b.max.y + 0.001, nz, e.h)) { e.pos.x = nx; e.pos.z = nz; e.pos.y = b.max.y; return; }
   e.vel[ax] = 0;
 }
+function physics(e, dt) {
+  if (TG) return meshPhysics(e, dt);
+  e.vel.y -= GRAV * dt;
+  moveAxis(e, 'x', e.vel.x * dt);
+  moveAxis(e, 'z', e.vel.z * dt);
+  const ny = e.pos.y + e.vel.y * dt;
+  e.onGround = false;
+  const b = hitBox(e.pos.x, ny, e.pos.z, e.h);
+  if (b) { if (e.vel.y < 0) { e.pos.y = b.max.y; e.onGround = true; } e.vel.y = 0; }
+  else e.pos.y = ny;
+}
+function solidPt(x, y, z, m) {
+  if (TG) return y < KILL_Y || meshSolidPt(x, y, z, m);
+  if (y < BOT) return true;
+  for (const b of W.colliders) if (x > b.min.x - m && x < b.max.x + m && y > b.min.y - m && y < b.max.y + m && z > b.min.z - m && z < b.max.z + m) return true;
+  return false;
+}
 // Players can't pass through each other: drop velocity heading into anyone in the way and ease apart any overlap
 function bodyBlock(e, dt) {
   for (const o of ents) {
@@ -592,20 +681,255 @@ function bodyBlock(e, dt) {
     if (d < 2 * R) { const k = Math.min(6, (2 * R - d) * 12); e.vel.x += dx * k; e.vel.z += dz * k; }
   }
 }
-function physics(e, dt) {
-  e.vel.y -= GRAV * dt;
-  moveAxis(e, 'x', e.vel.x * dt);
-  moveAxis(e, 'z', e.vel.z * dt);
-  const ny = e.pos.y + e.vel.y * dt;
-  e.onGround = false;
-  const b = hitBox(e.pos.x, ny, e.pos.z, e.h);
-  if (b) { if (e.vel.y < 0) { e.pos.y = b.max.y; e.onGround = true; } e.vel.y = 0; }
-  else e.pos.y = ny;
+// Would a body of height h fit here? (standing back up from a crouch)
+function blockedAt(x, y, z, h) { return TG ? meshBlocked(x, y, z, h) : !!hitBox(x, y, z, h); }
+
+// ---------- Mesh levels: triangle grid (collision, rays, terrain nav) ----------
+// Every level triangle in world space, bucketed into 4m columns. Water is kept apart: it only marks where land ends.
+// Terrain, hills and trees have outward normals (only their tops are floors); the fort's walls and roofs count from either side.
+function buildTG(root) {
+  root.updateMatrixWorld(true);
+  const T = [], B = [], NR = [], water = [], OUT = [];
+  const a = new V3(), b = new V3(), c = new V3(), e1 = new V3(), e2 = new V3(), n = new V3();
+  root.traverse(m => {
+    if (!m.isMesh) return;
+    const pos = m.geometry.attributes.position, ix = m.geometry.index, cnt = ix ? ix.count : pos.count;
+    for (let i = 0; i < cnt; i += 3) {
+      a.fromBufferAttribute(pos, ix ? ix.getX(i) : i).applyMatrix4(m.matrixWorld);
+      b.fromBufferAttribute(pos, ix ? ix.getX(i + 1) : i + 1).applyMatrix4(m.matrixWorld);
+      c.fromBufferAttribute(pos, ix ? ix.getX(i + 2) : i + 2).applyMatrix4(m.matrixWorld);
+      n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a)); const l = n.length(); if (l < 1e-9) continue; n.divideScalar(l);
+      if (m.userData.water) { water.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); continue; }
+      T.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); NR.push(n.x, n.y, n.z); OUT.push(m.material.name === 'FX_Ground' ? 1 : 0);
+      B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
+    }
+  });
+  const nt = NR.length / 3, S = 4;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let t = 0; t < nt; t++) { x0 = Math.min(x0, B[t * 6]); z0 = Math.min(z0, B[t * 6 + 2]); x1 = Math.max(x1, B[t * 6 + 3]); z1 = Math.max(z1, B[t * 6 + 5]); }
+  const gw = Math.ceil((x1 - x0) / S) + 1, gd = Math.ceil((z1 - z0) / S) + 1, start = new Int32Array(gw * gd + 1);
+  const each = (t, fn) => {
+    const c0 = Math.floor((B[t * 6] - x0) / S), c1 = Math.floor((B[t * 6 + 3] - x0) / S), r0 = Math.floor((B[t * 6 + 2] - z0) / S), r1 = Math.floor((B[t * 6 + 5] - z0) / S);
+    for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) fn(r * gw + cc);
+  };
+  for (let t = 0; t < nt; t++) each(t, k => start[k + 1]++);
+  for (let k = 0; k < gw * gd; k++) start[k + 1] += start[k];
+  const fillAt = start.slice(0, gw * gd), list = new Int32Array(start[gw * gd]);
+  for (let t = 0; t < nt; t++) each(t, k => { list[fillAt[k]++] = t; });
+  return { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
 }
-function solidPt(x, y, z, m) {
-  if (y < BOT) return true;
-  for (const b of W.colliders) if (x > b.min.x - m && x < b.max.x + m && y > b.min.y - m && y < b.max.y + m && z > b.min.z - m && z < b.max.z + m) return true;
-  return false;
+// Visit each triangle whose column overlaps the XZ box once
+function tgEach(xa, za, xb, zb, fn) {
+  const G = TG, S = G.S;
+  const c0 = Math.max(0, Math.floor((xa - G.x0) / S)), c1 = Math.min(G.gw - 1, Math.floor((xb - G.x0) / S));
+  const r0 = Math.max(0, Math.floor((za - G.z0) / S)), r1 = Math.min(G.gd - 1, Math.floor((zb - G.z0) / S));
+  if (c0 > c1 || r0 > r1) return;
+  if (++G.sid > 4e9) { G.stamp.fill(0); G.sid = 1; }
+  const id = G.sid;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const k = r * G.gw + c;
+    for (let j = G.start[k]; j < G.start[k + 1]; j++) { const t = G.list[j]; if (G.stamp[t] !== id) { G.stamp[t] = id; fn(t); } }
+  }
+}
+// Height of triangle t straight above or below (x, z), or null if (x, z) is outside it
+function triYAt(T, k, x, z) {
+  const ax = T[k], az = T[k + 2], v0x = T[k + 3] - ax, v0z = T[k + 5] - az, v1x = T[k + 6] - ax, v1z = T[k + 8] - az, px = x - ax, pz = z - az;
+  const den = v0x * v1z - v1x * v0z; if (Math.abs(den) < 1e-9) return null;
+  const u = (px * v1z - v1x * pz) / den, v = (v0x * pz - px * v0z) / den;
+  if (u < -1e-4 || v < -1e-4 || u + v > 1 + 1e-4) return null;
+  return T[k + 1] + u * (T[k + 4] - T[k + 1]) + v * (T[k + 7] - T[k + 1]);
+}
+const FLOOR_NY = 0.64; // surfaces flatter than ~50° are floors; steeper ones are walls
+// Highest floor at (x, z) no higher than yTop
+function groundAt(x, z, yTop) {
+  let best = null; const G = TG;
+  tgEach(x, z, x, z, t => {
+    const ny = G.NR[t * 3 + 1]; if ((G.OUT[t] ? ny : Math.abs(ny)) < FLOOR_NY) return;
+    const y = triYAt(G.T, t * 9, x, z);
+    if (y !== null && y <= yTop && (best === null || y > best)) best = y;
+  });
+  return best;
+}
+function waterAt(x, z) {
+  const W2 = TG.water;
+  for (let k = 0; k < W2.length; k += 9) { const y = triYAt(W2, k, x, z); if (y !== null) return y; }
+  return -Infinity;
+}
+// Land: any surface (even a steep one you'd slide down) below yTop and above the water line; the island's edges are walls
+function onLand(x, z, yTop) {
+  let top = null; const G = TG;
+  tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y !== null && y <= yTop && (top === null || y > top)) top = y; });
+  return top !== null && top > waterAt(x, z) + 0.3;
+}
+const _qa3 = new V3(), _ab3 = new V3(), _ac3 = new V3(), _ap3 = new V3(), _bp3 = new V3(), _cp3 = new V3(), _bc3 = new V3(), _ta = new V3(), _tb = new V3(), _tc = new V3(), _sc = new V3();
+// Closest point on triangle abc to p (Ericson, Real-Time Collision Detection 5.1.5)
+function closestPtTri(p, a, b, c, out) {
+  _ab3.subVectors(b, a); _ac3.subVectors(c, a); _ap3.subVectors(p, a);
+  const d1 = _ab3.dot(_ap3), d2 = _ac3.dot(_ap3); if (d1 <= 0 && d2 <= 0) return out.copy(a);
+  _bp3.subVectors(p, b); const d3 = _ab3.dot(_bp3), d4 = _ac3.dot(_bp3); if (d3 >= 0 && d4 <= d3) return out.copy(b);
+  const vc = d1 * d4 - d3 * d2; if (vc <= 0 && d1 >= 0 && d3 <= 0) return out.copy(a).addScaledVector(_ab3, d1 / (d1 - d3));
+  _cp3.subVectors(p, c); const d5 = _ab3.dot(_cp3), d6 = _ac3.dot(_cp3); if (d6 >= 0 && d5 <= d6) return out.copy(c);
+  const vb = d5 * d2 - d1 * d6; if (vb <= 0 && d2 >= 0 && d6 <= 0) return out.copy(a).addScaledVector(_ac3, d2 / (d2 - d6));
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return out.copy(b).addScaledVector(_bc3.subVectors(c, b), (d4 - d3) / ((d4 - d3) + (d5 - d6)));
+  const den = 1 / (va + vb + vc);
+  return out.copy(a).addScaledVector(_ab3, vb * den).addScaledVector(_ac3, vc * den);
+}
+function loadTri(t) { const T = TG.T, k = t * 9; _ta.set(T[k], T[k + 1], T[k + 2]); _tb.set(T[k + 3], T[k + 4], T[k + 5]); _tc.set(T[k + 6], T[k + 7], T[k + 8]); }
+// Sphere against nearby triangles: fn(t, closest point, distance) for every triangle within r of the centre
+function sphereTris(c, r, fn) {
+  const G = TG;
+  tgEach(c.x - r, c.z - r, c.x + r, c.z + r, t => {
+    const b = t * 6;
+    if (c.x + r < G.B[b] || c.x - r > G.B[b + 3] || c.y + r < G.B[b + 1] || c.y - r > G.B[b + 4] || c.z + r < G.B[b + 2] || c.z - r > G.B[b + 5]) return;
+    loadTri(t); closestPtTri(c, _ta, _tb, _tc, _qa3);
+    const d2 = c.distanceToSquared(_qa3); if (d2 < r * r) fn(t, _qa3, Math.sqrt(d2));
+  });
+}
+// The body is two spheres above step height (lower bumps are stepped onto by the floor probe instead)
+function bodySpheres(y, h) { const lo = y + STEP + R, hi = y + h - R; return hi > lo + 0.01 ? [lo, hi] : [hi]; }
+function pushOut(e) {
+  // Feet: slopes too steep to stand on push you back out along their surface, so you slide down instead of sinking in
+  for (let it = 0; it < 2; it++) {
+    _sc.set(e.pos.x, e.pos.y + R, e.pos.z);
+    sphereTris(_sc, R, (t, q, d) => {
+      const ny = Math.abs(TG.NR[t * 3 + 1]); if (ny < 0.15 || ny >= FLOOR_NY || q.y > _sc.y || d < 1e-5) return;
+      const nx = (_sc.x - q.x) / d, nyy = (_sc.y - q.y) / d, nz = (_sc.z - q.z) / d, push = R - d;
+      e.pos.x += nx * push; e.pos.y += nyy * push; e.pos.z += nz * push; _sc.set(e.pos.x, e.pos.y + R, e.pos.z);
+      const vn = e.vel.x * nx + e.vel.y * nyy + e.vel.z * nz; if (vn < 0) { e.vel.x -= vn * nx; e.vel.y -= vn * nyy; e.vel.z -= vn * nz; }
+    });
+  }
+  for (let it = 0; it < 2; it++) for (const sy of bodySpheres(e.pos.y, e.h)) {
+    _sc.set(e.pos.x, sy, e.pos.z);
+    sphereTris(_sc, R, (t, q, d) => {
+      const ny = TG.NR[t * 3 + 1];
+      // walls, and the undersides of hills and trees (nobody fits under those): push out sideways and stop moving into it
+      if (Math.abs(ny) < FLOOR_NY || (TG.OUT[t] && ny < 0)) {
+        let hx = _sc.x - q.x, hz = _sc.z - q.z, hl = Math.hypot(hx, hz);
+        if (hl < 1e-5) { hx = TG.NR[t * 3]; hz = TG.NR[t * 3 + 2]; hl = Math.hypot(hx, hz) || 1; }
+        hx /= hl; hz /= hl;
+        const push = R - d; e.pos.x += hx * push; e.pos.z += hz * push; _sc.x = e.pos.x; _sc.z = e.pos.z;
+        const vn = e.vel.x * hx + e.vel.z * hz; if (vn < 0) { e.vel.x -= vn * hx; e.vel.z -= vn * hz; }
+      } else if (q.y > _sc.y && !e.onGround) { // ceiling: bumps heads in the air, but never pushes feet through the floor
+        const g = groundAt(e.pos.x, e.pos.z, e.pos.y + 0.05), y = e.pos.y - (R - d);
+        _sc.y += (g !== null ? Math.max(g, y) : y) - e.pos.y; e.pos.y = g !== null ? Math.max(g, y) : y; if (e.vel.y > 0) e.vel.y = 0;
+      }
+    });
+  }
+}
+function ladderAt(p) {
+  if (!LV || !LV.ladders) return null;
+  for (const l of LV.ladders) { const [x0, x1, z0, z1, y0, y1] = l.box; if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && p.y > y0 - 0.1 && p.y < y1) return l; }
+  return null;
+}
+// On a ladder, moving toward it climbs and moving away climbs down; at the top, keep going to step off onto the floor
+function climbLadder(e, l, dt) {
+  const [fx, fz] = l.dir, along = e.climb || 0, top = e.pos.y >= l.box[5] - 0.3;
+  const floor = groundAt(e.pos.x, e.pos.z, e.pos.y + 0.05), standing = floor !== null && e.pos.y - floor < 0.05;
+  if ((top && along > 0.2) || (standing && along < -0.2)) return false;
+  e.vel.y = Math.max(-1, Math.min(1, along + (e.climbUp ? 1 : 0))) * 3.2;
+  const vn = e.vel.x * fx + e.vel.z * fz; e.vel.x -= vn * fx; e.vel.z -= vn * fz;
+  e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; pushOut(e);
+  e.pos.y = Math.min(l.box[5], e.pos.y + e.vel.y * dt);
+  const g = groundAt(e.pos.x, e.pos.z, e.pos.y + 0.05);
+  if (g !== null && e.pos.y < g) e.pos.y = g;
+  e.onGround = true; // full control on the ladder (no air drift)
+  return true;
+}
+function meshPhysics(e, dt) {
+  if (e.climb !== undefined) { const l = ladderAt(e.pos); if (l && climbLadder(e, l, dt)) return; }
+  e.vel.y -= GRAV * dt;
+  const wasGround = e.onGround, y0 = e.pos.y, steps = Math.max(1, Math.ceil(Math.hypot(e.vel.x, e.vel.z) * dt / 0.2));
+  for (let s = 0; s < steps; s++) {
+    const ox = e.pos.x, oz = e.pos.z;
+    e.pos.x += e.vel.x * dt / steps; e.pos.z += e.vel.z * dt / steps;
+    pushOut(e);
+    if (!onLand(e.pos.x, e.pos.z, e.pos.y + STEP)) { e.pos.x = ox; e.pos.z = oz; e.vel.x = e.vel.z = 0; }
+  }
+  const ny = e.pos.y + e.vel.y * dt, g = groundAt(e.pos.x, e.pos.z, Math.max(e.pos.y, y0) + STEP);
+  e.onGround = false;
+  if (g !== null && e.vel.y <= 0 && (ny <= g || (wasGround && e.pos.y - g <= STEP))) { e.pos.y = g; e.vel.y = 0; e.onGround = true; }
+  else { e.pos.y = ny; if (g !== null && e.pos.y < g) e.pos.y = g; }
+  pushOut(e);
+}
+function meshBlocked(x, y, z, h) {
+  let hit = false; const c = new V3(x, y + h - R, z);
+  sphereTris(c, R - 0.02, (t, q) => { if (Math.abs(TG.NR[t * 3 + 1]) < FLOOR_NY || q.y > c.y) hit = true; });
+  return hit;
+}
+function meshSolidPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, () => { hit = true; }); return hit; }
+// Nearest triangle hit along a ray (d normalised) within far, walking the columns it crosses
+function tgRay(ox, oy, oz, dx, dy, dz, far) {
+  const G = TG, S = G.S, T = G.T;
+  if (++G.sid > 4e9) { G.stamp.fill(0); G.sid = 1; }
+  const id = G.sid;
+  let best = far, c = Math.floor((ox - G.x0) / S), r = Math.floor((oz - G.z0) / S);
+  const sc = dx > 0 ? 1 : -1, sr = dz > 0 ? 1 : -1, adx = Math.abs(dx), adz = Math.abs(dz);
+  const tdc = adx > 1e-9 ? S / adx : Infinity, tdr = adz > 1e-9 ? S / adz : Infinity;
+  let tc = adx > 1e-9 ? (dx > 0 ? G.x0 + (c + 1) * S - ox : ox - (G.x0 + c * S)) / adx : Infinity;
+  let tr = adz > 1e-9 ? (dz > 0 ? G.z0 + (r + 1) * S - oz : oz - (G.z0 + r * S)) / adz : Infinity;
+  let t0 = 0;
+  while (t0 <= best) {
+    if (c >= 0 && r >= 0 && c < G.gw && r < G.gd) {
+      const k = r * G.gw + c;
+      for (let j = G.start[k]; j < G.start[k + 1]; j++) {
+        const t = G.list[j]; if (G.stamp[t] === id) continue; G.stamp[t] = id;
+        const q = t * 9, e1x = T[q + 3] - T[q], e1y = T[q + 4] - T[q + 1], e1z = T[q + 5] - T[q + 2], e2x = T[q + 6] - T[q], e2y = T[q + 7] - T[q + 1], e2z = T[q + 8] - T[q + 2];
+        const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz;
+        if (Math.abs(det) < 1e-12) continue;
+        const inv = 1 / det, sx = ox - T[q], sy = oy - T[q + 1], sz = oz - T[q + 2], u = (sx * px + sy * py + sz * pz) * inv;
+        if (u < 0 || u > 1) continue;
+        const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (dx * qx + dy * qy + dz * qz) * inv;
+        if (v < 0 || u + v > 1) continue;
+        const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+        if (tt > 1e-4 && tt < best) best = tt;
+      }
+    }
+    if (tc < tr) { t0 = tc; tc += tdc; c += sc; } else { t0 = tr; tr += tdr; r += sr; }
+    if (t0 > far) break;
+  }
+  return best;
+}
+function tgClear(a, b) { const d = b.clone().sub(a), l = d.length(); if (l < 1e-3) return true; d.divideScalar(l); return tgRay(a.x, a.y, a.z, d.x, d.y, d.z, l) >= l; }
+// Drop a listed position onto the floor below it
+function settle([x, y, z]) { const g = groundAt(x, z, y + 0.5); return new V3(x, g === null ? y : g, z); }
+// Terrain nav: each cell is the highest floor in its column; neighbours connect when the slope is walkable,
+// the ground between them holds, and nothing blocks the way at knee and chest height
+function buildTerrainNav() {
+  const MAXS = 0.95, a = new V3(), b = new V3();
+  for (let r = 0; r < GD; r++) for (let c = 0; c < GW; c++) {
+    const x = cx(c), z = cz(r); let top = -Infinity, ny = 0;
+    tgEach(x, z, x, z, t => { const y = triYAt(TG.T, t * 9, x, z); if (y !== null && y > top) { top = y; ny = Math.abs(TG.NR[t * 3 + 1]); } });
+    if (top > -Infinity && ny >= 0.7 && top > waterAt(x, z) + 0.3) H[idx(c, r)] = top;
+  }
+  for (let r = 0; r < GD; r++) for (let c = 0; c < GW; c++) {
+    const i = idx(c, r); if (!walk0(i)) continue;
+    for (let k = 0; k < 8; k++) {
+      const nc = c + NB[k][0], nr = r + NB[k][1];
+      if (nc < 0 || nr < 0 || nc >= GW || nr >= GD) continue;
+      const j = idx(nc, nr); if (!walk0(j)) continue;
+      const dist = NB[k][2] * CS, lo = Math.min(H[i], H[j]);
+      if (Math.abs(H[j] - H[i]) > dist * MAXS) continue;
+      const mx = (cx(c) + cx(nc)) / 2, mz = (cz(r) + cz(nr)) / 2, gm = groundAt(mx, mz, Math.max(H[i], H[j]) + STEP);
+      if (gm === null || gm < lo - dist * 0.5 || gm <= waterAt(mx, mz) + 0.3) continue;
+      let ok = true;
+      for (const hy of [0.7, 1.5]) { a.set(cx(c), H[i] + hy, cz(r)); b.set(cx(nc), H[j] + hy, cz(nr)); if (!tgClear(a, b)) { ok = false; break; } }
+      if (ok) EDGE[i] |= 1 << k;
+    }
+  }
+}
+// Cells the attackers can reach from their spawns; the ones closest to the fort are where they head
+function findAssault() {
+  ASSAULT.length = 0;
+  const seen = new Uint8Array(N), q = [];
+  for (const s of ATK_SPAWNS) { const i = cellOf(s); if (walk0(i) && !seen[i]) { seen[i] = 1; q.push(i); } }
+  for (let h = 0; h < q.length; h++) {
+    const i = q[h], c = i % GW, r = (i / GW) | 0;
+    for (let k = 0; k < 8; k++) if (EDGE[i] >> k & 1) { const j = idx(c + NB[k][0], r + NB[k][1]); if (!seen[j]) { seen[j] = 1; q.push(j); } }
+  }
+  const [x0, x1, z0, z1] = LV.base, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+  const d = i => Math.hypot(cx(i % GW) - mx, cz((i / GW) | 0) - mz);
+  ASSAULT.push(...q.sort((a, b) => d(a) - d(b)).slice(0, 10));
 }
 
 // ---------- Pathfinding (A* over both floors) ----------
@@ -631,6 +955,15 @@ function findPath(s, g) {
     if (cur === g) break;
     if (closed[cur]) continue; closed[cur] = 1;
     const ci = cur % N, cc = ci % GW, cr = (ci / GW) | 0, la = cur >= N, off = la ? N : 0;
+    if (TG) { // terrain: open directions were worked out when the level loaded
+      for (let k = 0; k < 8; k++) {
+        if (!(EDGE[ci] >> k & 1)) continue;
+        const j = idx(cc + NB[k][0], cr + NB[k][1]); if (closed[j]) continue;
+        const ng = gs[cur] + NB[k][2] + Math.abs(H[j] - H[ci]) * 0.5;
+        if (ng < gs[j]) { gs[j] = ng; came[j] = cur; push(ng + hf(j), j); }
+      }
+      continue;
+    }
     for (const [dx, dy, cost] of NB) {
       const nc = cc + dx, nr = cr + dy;
       if (nc < 0 || nr < 0 || nc >= GW || nr >= GD) continue;
@@ -661,9 +994,18 @@ setDiff(3);
 $('sbots').oninput = e => $('obots').textContent = e.target.value;
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
+$('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
 let selLevel = 'complex';
-document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); });
-function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }); loadLevel(id); buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); }
+document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); });
+function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }); loadLevel(id); buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); updateGoal(); }
+// Start screen and results show the rules of the selected level's mode
+function updateGoal() {
+  const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
+  $('goal').textContent = def ? `Fortress defend: hold the fort through ${NET.role === 'host' ? +$('swaves').value : WAVES} waves of attackers coming up from behind the hills. Ammo and guns are inside.` : `First to ${KILL_LIMIT} kills wins.`;
+  $('mtitle').textContent = def ? 'Fortress defend' : 'Free for all';
+  $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = def ? '' : 'none';
+  $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
+}
 
 // ---------- Entities ----------
 function makeEntity(name, isPlayer) {
@@ -684,7 +1026,7 @@ function prepScene(sc) {
     const m = o.material;
     if (m.map) m.map.encoding = THREE.LinearEncoding;
     const color = m.color.clone(); if (!m.map) color.convertLinearToSRGB();
-    o.material = new THREE.MeshLambertMaterial({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh });
+    o.material = new THREE.MeshLambertMaterial({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh }); o.material.name = m.name;
     o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; o.frustumCulled = !o.isSkinnedMesh;
   });
   sc.updateMatrixWorld(true); return sc;
@@ -758,7 +1100,19 @@ function loadModels() {
       PROPS[n] = { proto, size: bb.getSize(new V3()) };
     }
   });
-  return Promise.all([soldiers, weps, props]);
+  // Level sets: recolour the plain Blender materials, mark the water (it bounds the island but is not solid)
+  const LEVEL_COLORS = { Fortress: 0x968d7c, 'dirt ground': 0x7d6a52, door: 0x6e4a2c, Metal: 0x4e555d };
+  const sets = parseGLB('Fortress').then(sc => {
+    sc.traverse(o => {
+      if (!o.isMesh) return;
+      const nm = o.material.name.replace(/^FX_/, '');
+      if (LEVEL_COLORS[nm] !== undefined) o.material.color.setHex(LEVEL_COLORS[nm]);
+      if (o.material.map) o.material.map.anisotropy = 8;
+      if (o.name === 'Water' || (o.parent && o.parent.name === 'Water')) { o.userData.water = true; o.material.color.setHex(0x4f79a6); o.castShadow = false; }
+    });
+    LEVEL_SCENES.Fortress = sc;
+  });
+  return Promise.all([soldiers, weps, props, sets]);
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -907,7 +1261,7 @@ function buildBots(n) {
   bots.forEach(b => scene.remove(b.mesh)); bots.length = 0;
   for (let i = 0; i < n; i++) {
     const [name] = BOT_DEFS[i];
-    const b = makeEntity(name, false); b.id = 'b' + i;
+    const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true;
     b.mesh = makeBotMesh(b, i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
       react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0 };
@@ -917,6 +1271,7 @@ function buildBots(n) {
 }
 
 function pickSpawn(e) {
+  if (MODE === 'defend' && e.bot) return attackerSpawn();
   let best = SPAWNS[0], bd = -1;
   for (const s of SPAWNS) {
     let md = 999;
@@ -931,11 +1286,13 @@ function respawn(e) {
   e.pos.copy(s); e.vel.set(0, 0, 0);
   e.health = 100; e.alive = true; e.h = STAND_H;
   e.ammo = MAG; e.reserve = START_RES; e.nades = 2; e.reloading = 0;
+  // Players look toward the middle of the map; fort defenders look out over the hills the attackers come from
+  const look = MODE === 'defend' ? Math.PI : Math.atan2(s.x, s.z);
   if (e.isRemote) {
-    e.yaw = e.yawV = Math.atan2(-s.x, -s.z); e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
+    e.yaw = e.yawV = look + Math.PI; e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
     e.inv = ['pistol']; e.ammoBy = { pistol: { mag: 12, res: 24 } }; e.wpn = 'pistol'; setRigWeapon(e.rig, 'pistol');
-    sendTo(e, { t: 'spawn', p: arr(s), y: Math.atan2(s.x, s.z), n: e.spawnSeq });
-  } else if (e.isPlayer) { e.yaw = Math.atan2(s.x, s.z); e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
+    sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq });
+  } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
   else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.lastSeenT = 0; botInitWeapons(e); }
 }
 
@@ -946,6 +1303,7 @@ const fwdOf = e => e.isPlayer ? new V3(-Math.sin(e.yaw), 0, -Math.cos(e.yaw)) : 
 const losRay = new THREE.Raycaster();
 function losPts(o, t) {
   const d = t.clone().sub(o); const dist = d.length(); if (dist < 1e-3) return true; d.divideScalar(dist);
+  if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist) >= dist;
   losRay.set(o, d); losRay.far = dist;
   return losRay.intersectObjects(W.meshes, false).length === 0;
 }
@@ -1056,9 +1414,48 @@ function updateChatbox() {
 
 // ---------- Combat ----------
 let matchOver = false;
+// ---------- Fortress defend: players hold the fort, bots attack in waves ----------
+// Attackers near the fort wear its health down; the next wave starts after a short break; survive them all to win
+let WAVES = 6;
+const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0 };
+const WAVE_BREAK = 12, SIEGE_RATE = 0.8; // seconds between waves; base health lost per second per attacker at the fort
+const waveSize = n => 4 + 3 * (n - 1);
+function inBase(e) { const [x0, x1, z0, z1, y0] = LV.base, m = 4; return e.pos.x > x0 - m && e.pos.x < x1 + m && e.pos.z > z0 - m && e.pos.z < z1 + m && e.pos.y > y0; }
+function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
+function startWave() {
+  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n);
+  bots.forEach(b => { b.respawnT = Math.random() * 3; });
+  waveNote(`Wave ${WAVE.n} of ${WAVES}: they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
+}
+function updateWaves(dt) {
+  if (MODE !== 'defend' || matchOver) return;
+  let alive = 0, siege = 0;
+  for (const b of bots) if (b.alive) { alive++; if (inBase(b)) siege++; }
+  WAVE.left = alive + WAVE.queue;
+  if (WAVE.phase === 'prep') { WAVE.t -= dt; if (WAVE.t <= 0) startWave(); return; }
+  if (siege) WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt);
+  if (WAVE.hp <= 0) { endMatch(null, false); return; }
+  if (!alive && WAVE.queue <= 0) {
+    if (WAVE.n >= WAVES) { endMatch(null, true); return; }
+    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = Math.min(100, WAVE.hp + 10);
+    waveNote(`Wave ${WAVE.n} cleared. Restock and get ready`); sTone([523, 659, 784], 0.12, 'square', 0.1);
+  }
+}
+// Attackers come out of cover behind the hills, spread a little around each spawn point
+function attackerSpawn() {
+  for (let k = 0; k < 12; k++) {
+    const s = ATK_SPAWNS[Math.random() * ATK_SPAWNS.length | 0];
+    const x = s.x + (Math.random() - 0.5) * 5, z = s.z + (Math.random() - 0.5) * 5, g = groundAt(x, z, s.y + 2);
+    if (g === null || Math.abs(g - s.y) > 1.5 || !onLand(x, z, g + 0.1)) continue;
+    const p = new V3(x, g, z);
+    if (!ents.some(o => o.alive && o.pos.distanceTo(p) < 1.6)) return p;
+  }
+  return ATK_SPAWNS[Math.random() * ATK_SPAWNS.length | 0].clone();
+}
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
+  if (MODE === 'defend' && attacker !== t && !!attacker.bot === !!t.bot) return; // no friendly fire
   t.health -= amt;
   if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
   if (t.isPlayer) hurtFx(amt);
@@ -1072,7 +1469,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (attacker.isRemote && attacker !== t) sendTo(attacker, { t: 'kill' });
     if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
-    if (attacker !== t && attacker.kills >= KILL_LIMIT) endMatch(attacker);
+    if (MODE !== 'defend' && attacker !== t && attacker.kills >= KILL_LIMIT) endMatch(attacker);
   }
 }
 function resetMatch() {
@@ -1082,20 +1479,33 @@ function resetMatch() {
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   GASCANS.forEach(g => { g.alive = true; g.o.visible = true; }); pendingGas.length = 0;
   clearCorpses();
-  ents.forEach(respawn); matchOver = false;
+  matchOver = false;
+  if (MODE === 'defend') {
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100 });
+    ents.forEach(e => { if (!e.bot) respawn(e); });
+    note('The first wave is on its way. Man the walls', 4);
+  } else ents.forEach(respawn);
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
-function endMatch(w) {
+// Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
+function endMatch(w, held) {
   matchOver = true;
-  sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  $('rtitle').textContent = w.isPlayer ? 'You win' : `${w.name} wins`;
-  const rows = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
-    .map((e, i) => `<tr class="${e.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td><td>${(e.kills / Math.max(1, e.deaths)).toFixed(2)}</td></tr>`).join('');
-  $('rtable').innerHTML = `<tr><th>#</th><th>Player</th><th>Kills</th><th>Deaths</th><th>K/D</th></tr>${rows}`;
+  const def = MODE === 'defend';
+  if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
+  const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : w.isPlayer ? 'You win' : `${w.name} wins`;
+  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `Overrun on wave ${WAVE.n} of ${WAVES}.`) : '';
+  const list = [...ents].filter(e => !def || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+  showResults(title, sub, list.map(e => [e.id, e.name, e.kills, e.deaths]), P.id);
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
-  $('results').style.display = 'flex';
-  broadcast({ t: 'end', wid: w.id, wn: w.name, rows: [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => [e.id, e.name, e.kills, e.deaths]) });
+  $('setnext').style.display = def ? 'none' : '';
+  broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name, e.kills, e.deaths]) });
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
+}
+function showResults(title, sub, rows, me) {
+  $('rtitle').textContent = title; $('rsub').textContent = sub;
+  $('rtable').innerHTML = `<tr><th>#</th><th>Player</th><th>Kills</th><th>Deaths</th><th>K/D</th></tr>` + rows.map((r, i) =>
+    `<tr class="${r[0] === me ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${(r[2] / Math.max(1, r[3])).toFixed(2)}</td></tr>`).join('');
+  $('results').style.display = 'flex';
 }
 
 function knifeAttack(att) {
@@ -1169,12 +1579,12 @@ const AMMO_MAT = new THREE.MeshLambertMaterial({ color: 0x4f5b34 }), BAND_MAT = 
 const NADE_MAT = new THREE.MeshLambertMaterial({ color: 0x33402a }), NBAND_MAT = new THREE.MeshLambertMaterial({ color: 0xc8402f });
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
-  for (const [nd, nade] of AMMO_NODES.map(x => [x, false]).concat(NADE_NODES.map(x => [x, true]))) {
-    const p = cellPos(nd), g = new THREE.Group();
+  for (const { pos: p, cell, nade } of AMMO_SPOTS) {
+    const g = new THREE.Group();
     const box = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.45, 0.3, 0.35) : new THREE.BoxGeometry(0.7, 0.35, 0.45), nade ? NADE_MAT : AMMO_MAT), band = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.47, 0.07, 0.37) : new THREE.BoxGeometry(0.72, 0.08, 0.47), nade ? NBAND_MAT : BAND_MAT);
     box.castShadow = true; g.add(box, band);
     g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
-    ammoBoxes.push({ pos: p, cell: nd, mesh: g, active: true, t: 0, nade });
+    ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade });
   }
 }
 buildAmmoBoxes();
@@ -1212,7 +1622,7 @@ function centeredClone(sc, yaw) {
   const g = new THREE.Group(), m = sc.clone(true); m.rotation.y = yaw || 0; g.add(m); g.updateMatrixWorld(true);
   const c = new THREE.Box3().setFromObject(g).getCenter(new V3()); m.position.sub(c); return g;
 }
-function buildPickups() { for (const [id, nd] of STATIC_PICKUPS) addPickup(id, cellPos(nd)); }
+function buildPickups() { for (const [id, p] of STATIC_PICKUPS) addPickup(id, p); }
 function updatePickups(dt, now) {
   for (let i = PICKUPS.length - 1; i >= 0; i--) {
     const pk = PICKUPS[i];
@@ -1235,6 +1645,7 @@ function placeProps() {
   if (propGroup) scene.remove(propGroup);
   propGroup = new THREE.Group(); scene.add(propGroup);
   GASCANS.length = 0; pendingGas.length = 0;
+  if (TG) return;
   let seed = 1337; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const keep = [...SPAWNS, ...ammoBoxes.map(a => a.pos), ...PICKUPS.map(pk => pk.pos)];
   const flatH = n => { const h = nodeH(n); return h === 0 || h === BASE || n >= N; };
@@ -1322,6 +1733,13 @@ function botInitWeapons(b) {
   b.ammo = WEAPONS.pistol.mag; b.reserve = WEAPONS.pistol.startRes;
   b.inv = ['pistol']; b.ammoBy = { pistol: { mag: b.ammo, res: b.reserve } }; b.wpn = 'pistol';
   botSelect(b, 'pistol');
+  if (MODE !== 'defend') return;
+  // Attackers carry full reserves (no ammo runs) and bring heavier guns as the waves go on
+  const w = WAVE.n, r = Math.random();
+  const id = w >= 4 && r < 0.12 ? 'rifle' : w >= 2 && r < 0.6 ? 'carbine' : w >= 3 && r < 0.75 ? 'shotgun' : null;
+  if (id) giveWeapon(b, id);
+  for (const k of b.inv) b.ammoBy[k].res = WEAPONS[k].maxRes;
+  b.reserve = b.ammoBy[b.wpn].res;
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
@@ -1351,7 +1769,7 @@ function dropWeapons(e) {
     if (id === 'pistol') continue;
     const a = e.ammoBy[id], ammo = a.mag + a.res; if (ammo <= 0) continue;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
-    pos.y = Math.max(BASE, nodeH(cellOf(e.pos)));
+    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
     addPickup(id, pos, { dropped: true, ammo, life: 30 });
   }
   e.inv = ['pistol'];
@@ -1476,9 +1894,10 @@ function botNade(b, t) {
   throwNade(b, o, new V3(dx / T * err, (tp.y - o.y + 0.5 * GRAV * T * T) / T, dz / T * err));
 }
 function findTarget(b) {
-  let best = null, bd = 55;
+  const def = MODE === 'defend';
+  let best = null, bd = def ? 80 : 55;
   for (const o of ents) {
-    if (o === b || !o.alive) continue;
+    if (o === b || !o.alive || (def && o.bot)) continue;
     const d = b.pos.distanceTo(o.pos);
     if (d < bd && los(b, o)) { bd = d; best = o; }
   }
@@ -1489,9 +1908,27 @@ function nearestBox(b) {
   for (const a of ammoBoxes) if (a.active && !a.nade) { const d = b.pos.distanceTo(a.pos); if (d < bd) { bd = d; best = a; } }
   return best;
 }
+// Walk the current path; returns once the next waypoint is reached or steering is set in wish
+function followPath(b, wish, dt, face) {
+  const ai = b.ai; if (!ai.path) return;
+  const p = cellPos(ai.path[ai.pi]);
+  const dx = p.x - b.pos.x, dz = p.z - b.pos.z;
+  if (Math.hypot(dx, dz) < (TG ? 0.9 : 0.45)) { ai.pi++; if (ai.pi >= ai.path.length) { ai.path = null; ai.lastSeenT = 0; } }
+  else { wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
+}
+// Attackers march on the fort: pick one of the spots outside it closest to the walls
+function planAssault(b) {
+  const ai = b.ai; if (!ASSAULT.length) return;
+  ai.path = findPath(cellOf(b.pos), ASSAULT[Math.random() * ASSAULT.length | 0]); ai.pi = 0;
+  if (ai.path && !ai.path.length) ai.path = null;
+}
 function updateBot(b, dt) {
-  if (!b.alive) { b.respawnT -= dt; if (b.respawnT <= 0) respawn(b); return; }
-  const ai = b.ai;
+  if (!b.alive) {
+    if (MODE !== 'defend') { b.respawnT -= dt; if (b.respawnT <= 0) respawn(b); }
+    else if (WAVE.phase === 'fight' && WAVE.queue > 0 && !matchOver) { b.respawnT -= dt; if (b.respawnT <= 0) { WAVE.queue--; respawn(b); } }
+    return;
+  }
+  const ai = b.ai, def = MODE === 'defend';
   if (b.reloading > 0) { b.reloading -= dt; if (b.reloading <= 0) { const take = Math.min(WEAPONS[b.wpn].mag - b.ammo, b.reserve); b.ammo += take; b.reserve -= take; } }
   else if (b.ammo === 0 && b.reserve > 0) b.reloading = WEAPONS[b.wpn].reload + 0.3;
   const noAmmo = b.ammo === 0 && b.reserve === 0;
@@ -1501,7 +1938,7 @@ function updateBot(b, dt) {
     const t = findTarget(b);
     if (t !== ai.target) { ai.target = t; ai.react = D.react * (0.7 + Math.random() * 0.6); ai.burst = 0; }
     botChooseWeapon(b, t ? b.pos.distanceTo(t.pos) : 12);
-    if (t) { ai.lastSeen = t.pos.clone(); ai.lastSeenT = 4; ai.path = null; }
+    if (t) { ai.lastSeen = t.pos.clone(); ai.lastSeenT = 4; if (!def) ai.path = null; }
   }
   if (ai.target && !ai.target.alive) ai.target = null;
   const fwd = new V3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new V3(Math.cos(b.yaw), 0, -Math.sin(b.yaw));
@@ -1517,8 +1954,13 @@ function updateBot(b, dt) {
     else {
       ai.strafeT -= dt;
       if (ai.strafeT <= 0) { ai.strafeT = 0.4 + Math.random() * 0.9; ai.strafeDir = Math.random() < 0.5 ? -1 : 1; }
-      wish.addScaledVector(right, ai.strafeDir);
-      if (dist > 18) wish.addScaledVector(fwd, 0.8); else if (dist < 5) wish.addScaledVector(fwd, -0.8);
+      if (def && dist > 12 && !inBase(b)) { // keep pushing up the hill while shooting
+        if (!ai.path) planAssault(b);
+        followPath(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
+      } else {
+        wish.addScaledVector(right, ai.strafeDir);
+        if (dist > 18) wish.addScaledVector(fwd, 0.8); else if (dist < 5) wish.addScaledVector(fwd, -0.8);
+      }
       speed = 3.5;
       ai.react -= dt; ai.fireCd -= dt;
       const bw = WEAPONS[b.wpn];
@@ -1534,7 +1976,8 @@ function updateBot(b, dt) {
     }
   } else {
     b.pitch *= 1 - Math.min(1, dt * 4);
-    if (!ai.path) {
+    if (!ai.path && def) planAssault(b);
+    else if (!ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
       if (goal === null && Math.random() < 0.6) { const pk = nearestPickup(b); if (pk) goal = cellOf(pk.pos); }
@@ -1543,19 +1986,14 @@ function updateBot(b, dt) {
       ai.path = findPath(cellOf(b.pos), goal); ai.pi = 0;
       if (!ai.path || !ai.path.length) { ai.path = null; ai.lastSeenT = 0; }
     }
-    if (ai.path) {
-      const p = cellPos(ai.path[ai.pi]);
-      const dx = p.x - b.pos.x, dz = p.z - b.pos.z;
-      if (Math.hypot(dx, dz) < 0.45) { ai.pi++; if (ai.pi >= ai.path.length) { ai.path = null; ai.lastSeenT = 0; } }
-      else { wish.set(dx, 0, dz).normalize(); b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
-    }
-    ai.stuckT += dt;
-    if (ai.stuckT > 1) {
-      const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-      if (moved < 0.4 && ai.path) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
-      else ai.stuckN = 0;
-      ai.lastPos.copy(b.pos); ai.stuckT = 0;
-    }
+    followPath(b, wish, dt, true);
+  }
+  ai.stuckT += dt;
+  if (ai.stuckT > 1) {
+    const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
+    if (moved < 0.4 && ai.path) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
+    else ai.stuckN = 0;
+    ai.lastPos.copy(b.pos); ai.stuckT = 0;
   }
   if (wish.lengthSq() > 0) wish.normalize();
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
@@ -1563,7 +2001,7 @@ function updateBot(b, dt) {
   b.vel.z += (wish.z * speed - b.vel.z) * k;
   bodyBlock(b, dt);
   physics(b, dt);
-  if (b.pos.y < -8) { damage(b, 999, b, 'fall', false); return; }
+  if (b.pos.y < KILL_Y) { damage(b, 999, b, 'fall', false); return; }
   stepSound(b, dt);
   b.mesh.position.copy(b.pos);
   b.mesh.rotation.y = b.yaw;
@@ -1620,13 +2058,15 @@ addEventListener('keydown', e => { if (away && e.code === 'Escape') setPlaying(f
 function updatePlayer(dt) {
   if (!P.alive) { if (NET.role !== 'guest') { P.respawnT -= dt; if (P.respawnT <= 0) respawn(P); } return; }
   if (keys.KeyC || tCrouch) P.h = CROUCH_H;
-  else if (P.h < STAND_H && !hitBox(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;
+  else if (P.h < STAND_H && !blockedAt(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;
   const crouched = P.h < STAND_H;
   const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const ff = f - joy.y, ss = s + joy.x;
   const sn = Math.sin(P.yaw), cs = Math.cos(P.yaw);
   let wx = -sn * ff + cs * ss, wz = -cs * ff - sn * ss;
   const len = Math.hypot(wx, wz); if (len > 1) { wx /= len; wz /= len; }
+  const lad = TG ? ladderAt(P.pos) : null;
+  P.climb = lad ? wx * lad.dir[0] + wz * lad.dir[1] : 0; P.climbUp = !!(lad && keys.Space);
   const running = (keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.9) && !crouched && adsK < 0.5;
   let speed = crouched ? 2.2 : running ? 6.8 : 4.2;
   if (adsK > 0.5) speed *= 0.75;
@@ -1636,7 +2076,7 @@ function updatePlayer(dt) {
   if (keys.Space && P.onGround) P.vel.y = JUMP;
   bodyBlock(P, dt);
   physics(P, dt);
-  if (P.pos.y < -8) damage(P, 999, P, 'fall', false);
+  if (P.pos.y < KILL_Y) damage(P, 999, P, 'fall', false);
   stepSound(P, dt);
 }
 function updateCamera(dt) {
@@ -1720,8 +2160,15 @@ function updateHUD(dt) {
   $('ammos').textContent = `/ ${P.reserve}`;
   $('wname').textContent = WP().name;
   $('nadev').textContent = `${P.nades} frag${P.nades === 1 ? '' : 's'}`;
-  const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-  $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
+  if (MODE === 'defend') {
+    const hp = Math.ceil(WAVE.hp), wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
+    $('top').textContent = `${wv}   ·   Fort ${hp}%   ·   You ${P.kills}/${P.deaths}`;
+    $('top').classList.toggle('alert', hp <= 30);
+  } else {
+    const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
+    $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
+    $('top').classList.remove('alert');
+  }
   hitT -= dt; $('hit').style.opacity = hitT > 0 ? 1 : 0;
   noteT -= dt; if (noteT <= 0) $('note').textContent = '';
   vig = Math.max(0, vig - dt * 1.1); $('vig').style.opacity = vig;
@@ -1737,7 +2184,7 @@ function updateHUD(dt) {
   const bd = $('board');
   bd.style.display = boardOpen ? 'block' : 'none';
   if (boardOpen) {
-    const rows = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
+    const rows = [...ents].filter(e => MODE !== 'defend' || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
       .map(e => `<tr class="${e.isPlayer ? 'me' : ''}"><td>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td></tr>`).join('');
     bd.innerHTML = `<table><tr><th>Player</th><th>Kills</th><th>Deaths</th></tr>${rows}</table>`;
   }
@@ -1755,13 +2202,17 @@ function applySettings() {
   setDiff(+$('sdiff').value);
   P.name = ($('pname').value.trim() || 'You').slice(0, 16);
   const lim = +$('sglimit').value;
-  if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; $('goal').textContent = `First to ${KILL_LIMIT} kills wins.`; }
+  if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; updateGoal(); }
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx }); return; }
-  if (selLevel !== curLevel) { switchLevel(selLevel); resetMatch(); }
-  const n = +$('sbots').value;
+  const waves = +$('swaves').value;
+  if (selLevel !== curLevel) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
+  else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
+  const n = botTarget();
   if (n !== bots.length) { buildBots(n); resetMatch(); }
 }
+// Fortress defend always has attackers: the slider is how many are on the field at once
+function botTarget() { const n = +$('sbots').value; return MODE === 'defend' ? Math.max(2, n) : n; }
 function setPlaying(on) {
   if (on) applySettings();
   locked = on;
@@ -1902,7 +2353,7 @@ $('next').onclick = () => {
   initAudio();
   KILL_LIMIT = +$('slimit').value;
   $('sglimit').value = KILL_LIMIT; $('oglimit').textContent = KILL_LIMIT;
-  $('goal').textContent = `First to ${KILL_LIMIT} kills wins.`;
+  updateGoal();
   $('results').style.display = 'none';
   resetMatch();
   if (isTouch) setPlaying(true);
@@ -2036,6 +2487,7 @@ function applyFx(m) {
     case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
+    case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
   }
 }
@@ -2123,6 +2575,7 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
+    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : -1] : null,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
@@ -2181,6 +2634,7 @@ function onHostMsg(m) {
 }
 function applySnapshot(s) {
   KILL_LIMIT = s.lim; matchOver = s.over;
+  if (Array.isArray(s.wv)) { const [n, total, left, hp, t] = s.wv; Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : 'fight', t: Math.max(0, +t || 0) }); if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); } }
   const seen = new Set();
   for (const d of s.e) {
     if (d.i === NET.myId) { P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
@@ -2190,7 +2644,7 @@ function applySnapshot(s) {
     if (!r || r.modelIdx !== mi) {
       if (r) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); }
       r = makeEntity(d.n, false);
-      Object.assign(r, { id: d.i, isReplica: true, target: v3(d.p), prev: v3(d.p), modelIdx: mi, wpn: null });
+      Object.assign(r, { id: d.i, isReplica: true, bot: String(d.i)[0] === 'b', target: v3(d.p), prev: v3(d.p), modelIdx: mi, wpn: null });
       r.pos.copy(r.target); r.mesh = makeBotMesh(r, mi); scene.add(r.mesh);
       replicas.set(d.i, r); ents.push(r);
     }
@@ -2229,11 +2683,10 @@ function updateReplicas(dt, now) {
 }
 function showGuestResults(m) {
   matchOver = true;
-  sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  $('rtitle').textContent = m.wid === NET.myId ? 'You win' : `${m.wn} wins`;
-  const rows = (m.rows || []).map((r, i) => `<tr class="${r[0] === NET.myId ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${(r[2] / Math.max(1, r[3])).toFixed(2)}</td></tr>`).join('');
-  $('rtable').innerHTML = `<tr><th>#</th><th>Player</th><th>Kills</th><th>Deaths</th><th>K/D</th></tr>${rows}`;
-  $('results').style.display = 'flex';
+  const lost = m.ttl === 'The fort has fallen';
+  if (lost) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
+  const title = m.ttl && MODE === 'defend' ? m.ttl : m.wid === NET.myId ? 'You win' : `${m.wn} wins`;
+  showResults(title, String(m.sub || ''), (m.rows || []).map(r => [r[0], String(r[1]), r[2] | 0, r[3] | 0]), NET.myId);
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
 function netTick(dt) {
@@ -2302,7 +2755,7 @@ loadModels().then(() => {
   const sel = $('schar'); MODELS.forEach((m, i) => sel.add(new Option(m.label, i)));
   setPlayerModel(0);
   buildViewmodels(); buildPickups(); placeProps();
-  if (NET.role === 'host') { buildBots(+$('sbots').value); bots.forEach(respawn); }
+  if (NET.role === 'host') { buildBots(botTarget()); bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play';
   initPreview();
@@ -2318,6 +2771,7 @@ function loop(now) {
     updatePlayer(dt);
     updateGun(dt);
     bots.forEach(b => updateBot(b, dt));
+    updateWaves(dt);
     updateRemotes(dt);
     updateNades(dt);
     updateAmmo(dt, now);
@@ -2334,6 +2788,7 @@ function loop(now) {
   updateVM(dt);
   updateHUD(dt);
   updateChatbox();
+  if (TG) { sun.position.set(camera.position.x + 25, camera.position.y + 50, camera.position.z + 15); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
