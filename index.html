@@ -18,7 +18,9 @@ canvas{display:block}
 #hit:before,#hit:after{content:"";position:absolute;background:var(--hit)}
 #hit:before{left:10px;top:0;width:2px;height:22px}#hit:after{top:10px;left:0;height:2px;width:22px}
 #hit.head:before,#hit.head:after{background:var(--head)}
-#vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(200,20,20,.85));opacity:0}
+#vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 30%,rgba(210,15,15,.95));opacity:0}
+#hurt{position:absolute;inset:0;background:rgba(220,20,20,.55);opacity:0}
+#low{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 25%,rgba(0,0,0,.92));opacity:0}
 #top{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--panel);padding:6px 14px;border-radius:4px;font-size:14px;white-space:nowrap}
 #feed{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:13px}
 #feed div{background:var(--panel);padding:4px 10px;border-radius:3px}
@@ -36,7 +38,7 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #msg{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:24px;text-shadow:0 2px 6px #000;text-align:center}
 #resume{position:absolute;top:44%;left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 16px;border-radius:4px;font-size:15px;display:none}
 #note{position:absolute;top:60%;left:50%;transform:translateX(-50%);font-size:16px;text-shadow:0 2px 6px #000}
-#board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);padding:16px 22px;border-radius:6px;display:none;min-width:320px}
+#board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);padding:16px 22px;border-radius:6px;display:none;min-width:320px;max-height:84vh;overflow:auto}
 #board table{width:100%;border-collapse:collapse;font-size:15px}
 #board th{text-align:left;opacity:.6;font-weight:500;padding:4px 8px}
 #board td{padding:5px 8px;font-variant-numeric:tabular-nums}
@@ -78,6 +80,16 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #play:disabled{opacity:.55;cursor:default}
 #play:focus-visible,#next:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .card small{display:block;margin-top:10px;opacity:.55;font-size:12px}
+#chatbox{display:none;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
+#chatbox>label{font-size:13px;opacity:.75}
+#chatbox.on{display:flex}
+#chatlog{height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px;background:rgba(255,255,255,.05);padding:8px 10px;border-radius:4px}
+#chatlog:empty::before{content:'No messages yet';opacity:.55}
+#chatlog div{white-space:pre-wrap;overflow-wrap:anywhere}
+#chatlog b{color:var(--accent);font-weight:600}
+#chatlog .me b{color:var(--hud)}
+#chatbox input{padding:7px 10px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit;font-size:14px;outline:none}
+#chatbox input:focus{border-color:var(--accent)}
 #results{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,14,18,.6);overflow:auto}
 .rt{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0 16px}
 .rt th{text-align:left;opacity:.6;font-weight:500;padding:4px 8px}
@@ -116,7 +128,9 @@ body.touch .card small.tc{display:block}
 <div id="hud">
   <div class="ch" id="c1"></div><div class="ch" id="c2"></div><div class="ch" id="c3"></div><div class="ch" id="c4"></div>
   <div id="hit"></div>
+  <div id="low"></div>
   <div id="vig"></div>
+  <div id="hurt"></div>
   <div id="top"></div>
   <div id="feed"></div>
   <div class="stat" id="hp"><span>Health</span><b id="hpv">100</b></div>
@@ -175,7 +189,7 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly"><label for="sbots">Bots <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="10" value="5"></div>
+  <div class="set hostonly"><label for="sbots">Bots <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly"><label for="sdiff">Bot difficulty <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   <div class="set hostonly"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
   <button id="play" disabled>Loading characters…</button>
@@ -196,6 +210,8 @@ body.touch .card small.tc{display:block}
   <button id="next" class="hostonly">Next round</button>
   <p class="guestonly">Waiting for the host to start the next round…</p>
 </div></div>
+
+<div id="chatbox"><label for="chatin2">Chat</label><div id="chatlog" aria-live="polite"></div><input id="chatin2" type="text" maxlength="120" placeholder="Chat with everyone (Enter to send)" autocomplete="off" spellcheck="false" aria-label="Chat message"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -562,6 +578,20 @@ function moveAxis(e, ax, d) {
   if (e.onGround && up > 0 && up <= STEP && !hitBox(nx, b.max.y + 0.001, nz, e.h)) { e.pos.x = nx; e.pos.z = nz; e.pos.y = b.max.y; return; }
   e.vel[ax] = 0;
 }
+// Players can't pass through each other: drop velocity heading into anyone in the way and ease apart any overlap
+function bodyBlock(e, dt) {
+  for (const o of ents) {
+    if (o === e || !o.alive || o.pos.y >= e.pos.y + e.h - 0.1 || e.pos.y >= o.pos.y + (o.h || STAND_H) - 0.1) continue;
+    let dx = e.pos.x - o.pos.x, dz = e.pos.z - o.pos.z, d = Math.hypot(dx, dz);
+    const nx = dx + e.vel.x * dt, nz = dz + e.vel.z * dt;
+    if (d >= 2 * R && Math.hypot(nx, nz) >= 2 * R) continue;
+    if (d < 1e-3) { const a = Math.random() * Math.PI * 2; dx = Math.cos(a); dz = Math.sin(a); d = 1e-3; } else { dx /= d; dz /= d; }
+    const vn = e.vel.x * dx + e.vel.z * dz;
+    const cut = vn + Math.max(0, d - 2 * R) / dt; // close the gap to contact, no further
+    if (vn < 0 && cut < 0) { e.vel.x -= dx * cut; e.vel.z -= dz * cut; }
+    if (d < 2 * R) { const k = Math.min(6, (2 * R - d) * 12); e.vel.x += dx * k; e.vel.z += dz * k; }
+  }
+}
 function physics(e, dt) {
   e.vel.y -= GRAV * dt;
   moveAxis(e, 'x', e.vel.x * dt);
@@ -868,7 +898,9 @@ function updatePlayerRig(dt) {
 const P = makeEntity('You', true);
 P.eyeCur = 1.6; P.viewY = 0;
 const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], ['Echo', 0x9b59b6], ['Havoc', 0x2ecc71],
-  ['Jinx', 0xe67e22], ['Talon', 0x1abc9c], ['Ghost', 0xbdc3c7], ['Blaze', 0xe84393], ['Atlas', 0x5d7a99]];
+  ['Jinx', 0xe67e22], ['Talon', 0x1abc9c], ['Ghost', 0xbdc3c7], ['Blaze', 0xe84393], ['Atlas', 0x5d7a99],
+  ...['Raven', 'Onyx', 'Spike', 'Wraith', 'Cobra', 'Flint', 'Nova', 'Reaper', 'Brick', 'Sable', 'Diesel', 'Hex', 'Mako', 'Rogue', 'Vandal',
+    'Kestrel', 'Bolt', 'Saber', 'Tundra', 'Ember', 'Grim', 'Lynx', 'Orbit', 'Quake', 'Shade', 'Torque', 'Vex', 'Warden', 'Zero', 'Cinder'].map(n => [n, 0])];
 const bots = [];
 let ents = [P];
 function buildBots(n) {
@@ -949,7 +981,14 @@ function updateFx(dt) {
   }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt * 14);
 }
-let hitT = 0, vig = 0, noteT = 0;
+let hitT = 0, vig = 0, noteT = 0, hurtT = 0, shake = 0, lowK = 0;
+// Getting hit: red edges and a full-screen flash scaled by the damage, plus a short camera jolt
+function hurtFx(amt) {
+  const k = Math.min(1, amt / 40);
+  vig = Math.min(1, vig + 0.35 + 0.5 * k);
+  hurtT = Math.max(hurtT, 0.25 + 0.6 * k);
+  shake = Math.min(0.06, shake + 0.012 + 0.03 * k);
+}
 function hitMarker(head) { $('hit').className = head ? 'head' : ''; hitT = 0.15; }
 function note(t, d = 1.5) { $('note').textContent = t; noteT = d; }
 const ICON = { gun: '›', head: '⌖', knife: '🔪', frag: '💥', fall: '⬇' };
@@ -970,6 +1009,11 @@ function chatLine(name, text, mine) {
   const f = $('feed'); f.prepend(d);
   while (f.children.length > 6) f.lastChild.remove();
   setTimeout(() => d.remove(), 9000);
+  // Full history for the pause and results screens
+  const l = $('chatlog'), atEnd = l.scrollTop + l.clientHeight >= l.scrollHeight - 4;
+  l.append(d.cloneNode(true));
+  while (l.children.length > 60) l.firstChild.remove();
+  if (atEnd) l.scrollTop = l.scrollHeight;
 }
 function openChat() {
   if (chatOpen) return;
@@ -983,14 +1027,32 @@ function closeChat() {
   const el = $('chatin'); el.classList.remove('on'); el.blur();
 }
 function sendChat() {
-  const text = $('chatin').value.replace(/\s+/g, ' ').trim().slice(0, 120);
-  closeChat();
+  const text = $('chatin').value;
+  closeChat(); postChat(text);
+}
+function postChat(raw) {
+  const text = raw.replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!text) return;
   chatLine(P.name, text, true);
   if (NET.role === 'host') broadcast({ t: 'chat', n: P.name, x: text });
   else if (NET.conn && NET.conn.open) NET.conn.send({ t: 'chat', x: text });
 }
 $('chatin').addEventListener('blur', () => setTimeout(closeChat, 0));
+// Chat panel shown on the pause and results screens
+$('chatin2').addEventListener('keydown', e => {
+  e.stopPropagation();
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.isComposing) { e.preventDefault(); postChat(e.target.value); e.target.value = ''; }
+  else if (e.code === 'Escape') e.target.blur();
+});
+$('chatin2').addEventListener('keyup', e => e.stopPropagation());
+function updateChatbox() {
+  const res = $('results').style.display === 'flex', show = !locked && !away && (res || $('overlay').style.display !== 'none');
+  const box = $('chatbox'), home = res ? $('results').querySelector('.card') : $('charcard');
+  if (show === box.classList.contains('on') && box.parentNode === home) return;
+  if (box.parentNode !== home) home.append(box);
+  box.classList.toggle('on', show);
+  if (show) { const l = $('chatlog'); l.scrollTop = l.scrollHeight; } else $('chatin2').blur();
+}
 
 // ---------- Combat ----------
 let matchOver = false;
@@ -998,8 +1060,8 @@ function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
   t.health -= amt;
-  if (t.isRemote) sendTo(t, { t: 'hurt' });
-  if (t.isPlayer) vig = Math.min(0.75, vig + 0.35);
+  if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
+  if (t.isPlayer) hurtFx(amt);
   if (t.health <= 0) {
     t.health = 0; t.alive = false; t.deaths++; t.respawnT = 3;
     dropWeapons(t);
@@ -1055,7 +1117,7 @@ function knifeAttack(att) {
 // Grenades
 const nades = [];
 const nadeGeo = new THREE.SphereGeometry(0.09, 10, 8), nadeMat = new THREE.MeshLambertMaterial({ color: 0x3d4a2a });
-function throwNade(owner, origin, vel, fuse = 3.0) {
+function throwNade(owner, origin, vel, fuse = NADE_FUSE) {
   if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(origin), v: arr(vel), f: fuse }); return; }
   const m = new THREE.Mesh(nadeGeo, nadeMat); m.castShadow = true; m.position.copy(origin); scene.add(m);
   nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m });
@@ -1075,7 +1137,7 @@ function boom(pos, owner, R, maxD) {
 }
 function explode(n) {
   if (NET.role === 'guest') { if (n.owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(n.pos), v: [0, 0, 0], f: 0.01 }); return; }
-  boom(n.pos, n.owner, 7, 130);
+  boom(n.pos, n.owner, 8.05, 130);
 }
 function registerGas(o) {
   if (!o || !PROPS.Gas_Can) return;
@@ -1362,7 +1424,7 @@ function playerKnife() {
   if (knifeAttack(P)) hitMarker(false);
 }
 function playerNade() { startCook(); }
-const NADE_FUSE = 3.0;
+const NADE_FUSE = 2.25;
 let cookT = -1, beepT = 0;
 function startCook() {
   if (!P.alive || P.nades <= 0 || throwT > 0 || knifeT > 0 || cookT >= 0) return;
@@ -1499,6 +1561,7 @@ function updateBot(b, dt) {
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
   b.vel.z += (wish.z * speed - b.vel.z) * k;
+  bodyBlock(b, dt);
   physics(b, dt);
   if (b.pos.y < -8) { damage(b, 999, b, 'fall', false); return; }
   stepSound(b, dt);
@@ -1571,6 +1634,7 @@ function updatePlayer(dt) {
   P.vel.x += (wx * speed - P.vel.x) * k;
   P.vel.z += (wz * speed - P.vel.z) * k;
   if (keys.Space && P.onGround) P.vel.y = JUMP;
+  bodyBlock(P, dt);
   physics(P, dt);
   if (P.pos.y < -8) damage(P, 999, P, 'fall', false);
   stepSound(P, dt);
@@ -1587,7 +1651,9 @@ function updateCamera(dt) {
     P.viewY = target < P.viewY ? target : P.viewY + (target - P.viewY) * Math.min(1, dt * 16);
   } else P.viewY = Math.max(P.pos.y + 0.4, P.viewY - dt * 3);
   camera.position.set(P.pos.x, P.viewY, P.pos.z);
-  camera.rotation.set(P.pitch + punch, P.yaw, 0);
+  shake *= Math.exp(-9 * dt);
+  const sx = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0, sy = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0;
+  camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   camera.updateMatrixWorld();
 }
 
@@ -1658,7 +1724,16 @@ function updateHUD(dt) {
   $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
   hitT -= dt; $('hit').style.opacity = hitT > 0 ? 1 : 0;
   noteT -= dt; if (noteT <= 0) $('note').textContent = '';
-  vig = Math.max(0, vig - dt * 0.9); $('vig').style.opacity = vig;
+  vig = Math.max(0, vig - dt * 1.1); $('vig').style.opacity = vig;
+  hurtT = Math.max(0, hurtT - dt * 3); $('hurt').style.opacity = hurtT;
+  // Below 25 health the world drains of colour and the edges close in, fully grey at 1 health or when dead
+  const lowTo = !P.alive ? 1 : P.health >= 25 ? 0 : Math.min(1, (25 - P.health) / 24);
+  if (lowK !== lowTo) {
+    const step = dt * (lowTo > lowK ? 3 : 1.2);
+    lowK = Math.abs(lowTo - lowK) <= step ? lowTo : lowK + Math.sign(lowTo - lowK) * step;
+    renderer.domElement.style.filter = lowK > 0 ? `saturate(${(1 - lowK).toFixed(3)})` : '';
+    $('low').style.opacity = lowK * 0.85;
+  }
   const bd = $('board');
   bd.style.display = boardOpen ? 'block' : 'none';
   if (boardOpen) {
@@ -2026,7 +2101,7 @@ function onGuestMsg(conn, m) {
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
-    case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(3, +m.f || 3))); break;
+    case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd') { applyFx(m.m); broadcast(m.m, conn); } break;
   }
 }
@@ -2093,7 +2168,7 @@ function onHostMsg(m) {
       P.alive = false; P.health = 0; sDeath();
       $('msg').textContent = m.self ? (m.w === 'fall' ? 'You fell out of the map' : 'You blew yourself up') : `Killed by ${m.by}`;
       break;
-    case 'hurt': vig = Math.min(0.75, vig + 0.35); break;
+    case 'hurt': hurtFx(Math.min(100, +m.a || 20)); break;
     case 'kill': sKill(); break;
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
@@ -2258,6 +2333,7 @@ function loop(now) {
   updateFx(dt);
   updateVM(dt);
   updateHUD(dt);
+  updateChatbox();
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
