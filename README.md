@@ -51,6 +51,23 @@ Press **Enter** to open the chat box, type, and press **Enter** again to send (E
 
 Shots leave bullet holes on walls and anything else they hit, so you can draw on walls by shooting. Grenades and gas cans leave a big black scorch mark on the floor and walls around the blast. Both stay for the whole round and clear when a new round starts or the level changes. Everyone sees everyone's marks, including players who join mid-round.
 
+## Muzzle flash and smoke
+
+Each gun has its own muzzle flash and smoke, seen on your own gun and on other players and bots:
+
+| Gun | Flash | Smoke |
+| --- | --- | --- |
+| Laser Pistol | Red energy ring with thin spikes | Glowing red sparks |
+| Midas Carbine | Four-pointed star | Small light puffs |
+| Master Rifle | Big flash with long side jets | Large white plume that lingers |
+| Double Barrel | Ragged fireball | Thick dark-grey cloud |
+
+These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle` or `shotgun`.
+
+- **Flash:** a square PNG (256×256 works well), centred, in full colour on a transparent or black background. It's drawn additively, so black shows as see-through. Each shot rotates it randomly.
+- **Smoke:** a square, centred PNG of one soft puff on a transparent background. Draw it white or light grey, because `color` in `GUN_FX` tints it. Several puffs are spawned per shot, then rotated, grown and faded.
+- `GUN_FX` also sets each gun's size, timing, puff count and drift, so you can tune those without new art. If a PNG fails to load, the built-in drawing stays and the console shows a warning.
+
 ## Controls
 
 WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click aim · R reload · F knife · G (hold) cook and throw grenade · Wheel / 1–4 switch weapon · M mute · Enter chat · Tab scores · Esc pause
