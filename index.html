@@ -2098,6 +2098,14 @@ function dropWeapons(e) {
 }
 function reload() { if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
 const shotRay = new THREE.Raycaster();
+// The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
+// and start the tracer on the main camera's ray through that same point, about as far away
+function vmMuzzleWorld() {
+  vm.updateMatrixWorld(true);
+  const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
+  const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
+  return camera.position.clone().addScaledVector(dir, dist);
+}
 function fire() {
   const w = WP();
   const hs = Math.hypot(P.vel.x, P.vel.z);
@@ -2108,7 +2116,7 @@ function fire() {
   const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
   for (const g of GASCANS) if (g.alive) targets.push(g.px);
-  const start = new V3(0.17 * (1 - adsK), -0.12, -((VMW[curW] ? VMW[curW].len : 0.5) + 0.2)).applyMatrix4(camera.matrixWorld);
+  const start = vmMuzzleWorld();
   const pellets = w.pellets || 1;
   let sp = spread + (w.cone || 0) * (1 - 0.35 * adsK);
   // Some guns lose accuracy with range: extra spread grows with distance to whatever is under the crosshair
