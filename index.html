@@ -1259,10 +1259,10 @@ function makeBotMesh(ent, mi) {
   ];
   return g;
 }
-// ---------- Name tags over other human players ----------
+// ---------- Name tags over other players ----------
 // Constant size on screen so names stay readable at a distance. Walls still
 // hide them (they're drawn like any other object), so they don't give away
-// positions. Bots don't get tags.
+// positions. Bots get a "(bot)" suffix.
 const TAG_FONT = '600 40px "Segoe UI",system-ui,-apple-system,sans-serif';
 function makeNameTag(text) {
   const c = document.createElement('canvas'), x = c.getContext('2d'), padX = 16, h = 56;
@@ -1281,8 +1281,8 @@ function makeNameTag(text) {
 }
 // Keep an entity's tag in sync with its current mesh and name (cheap; called every frame)
 function updateNameTag(e) {
-  if (!e.mesh || e.bot) return;
-  const name = e.name || 'Player';
+  if (!e.mesh) return;
+  const name = (e.name || 'Player') + (e.bot ? ' (bot)' : '');
   if (e.tag && e.tag.parent === e.mesh && e.tag.userData.text === name) return;
   if (e.tag) { if (e.tag.parent) e.tag.parent.remove(e.tag); e.tag.material.map.dispose(); e.tag.material.dispose(); }
   e.tag = makeNameTag(name);
@@ -2149,6 +2149,7 @@ function updateBot(b, dt) {
   b.mesh.position.copy(b.pos);
   b.mesh.rotation.y = b.yaw;
   animRig(b.rig, dt, Math.hypot(b.vel.x, b.vel.z), false, b.pitch);
+  updateNameTag(b);
 }
 
 // ---------- Input ----------
