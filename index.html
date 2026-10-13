@@ -1259,6 +1259,36 @@ function makeBotMesh(ent, mi) {
   ];
   return g;
 }
+// ---------- Name tags over other human players ----------
+// Constant size on screen so names stay readable at a distance. Walls still
+// hide them (they're drawn like any other object), so they don't give away
+// positions. Bots don't get tags.
+const TAG_FONT = '600 40px "Segoe UI",system-ui,-apple-system,sans-serif';
+function makeNameTag(text) {
+  const c = document.createElement('canvas'), x = c.getContext('2d'), padX = 16, h = 56;
+  x.font = TAG_FONT;
+  const w = Math.ceil(x.measureText(text).width) + padX * 2;
+  c.width = w; c.height = h;
+  x.fillStyle = 'rgba(15,19,24,0.55)';
+  const r = 12; x.beginPath(); x.moveTo(r, 0); x.arcTo(w, 0, w, h, r); x.arcTo(w, h, 0, h, r); x.arcTo(0, h, 0, 0, r); x.arcTo(0, 0, w, 0, r); x.fill();
+  x.font = TAG_FONT; x.fillStyle = '#eef3ea'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, w / 2, h / 2 + 2);
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, transparent: true, depthWrite: false }));
+  const H = 0.032; s.scale.set(H * w / h, H, 1);
+  s.renderOrder = 10; s.userData.text = text;
+  return s;
+}
+// Keep an entity's tag in sync with its current mesh and name (cheap; called every frame)
+function updateNameTag(e) {
+  if (!e.mesh || e.bot) return;
+  const name = e.name || 'Player';
+  if (e.tag && e.tag.parent === e.mesh && e.tag.userData.text === name) return;
+  if (e.tag) { if (e.tag.parent) e.tag.parent.remove(e.tag); e.tag.material.map.dispose(); e.tag.material.dispose(); }
+  e.tag = makeNameTag(name);
+  e.tag.position.y = (e.rig ? e.rig.model.headY : 1.7) + 0.5;
+  e.mesh.add(e.tag);
+}
 let playerModelIdx = -1;
 function setPlayerModel(i) {
   if (P.rig) scene.remove(P.rig.wrap);
@@ -2683,6 +2713,7 @@ function updateRemotes(dt) {
     r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
     animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
+    updateNameTag(r);
   }
 }
 function snapshot() {
@@ -2796,6 +2827,7 @@ function updateReplicas(dt, now) {
     r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
     animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
+    updateNameTag(r);
   }
   for (const a of ammoBoxes) if (a.active) { a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05; }
   for (const pk of PICKUPS) if (pk.active) { pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06; }
