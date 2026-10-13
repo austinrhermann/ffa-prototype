@@ -47,6 +47,10 @@ Every player connects audio directly to every other player. The browser asks for
 
 Press **Enter** to open the chat box, type, and press **Enter** again to send (Esc cancels). Messages appear for everyone in the kill feed. On mobile use the **Chat** button.
 
+## Bullet holes and scorch marks
+
+Shots leave bullet holes on walls and anything else they hit, so you can draw on walls by shooting. Grenades and gas cans leave a big black scorch mark on the floor and walls around the blast. Both stay for the whole round and clear when a new round starts or the level changes. Everyone sees everyone's marks, including players who join mid-round.
+
 ## Controls
 
 WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click aim · R reload · F knife · G (hold) cook and throw grenade · Wheel / 1–4 switch weapon · M mute · Enter chat · Tab scores · Esc pause

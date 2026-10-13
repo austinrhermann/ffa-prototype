@@ -461,7 +461,7 @@ function cellOf(p) {
 }
 
 // ---------- World meshes ----------
-const W = { meshes: [], colliders: [] };
+const W = { meshes: [], colliders: [], floors: [] }; // floors: tiled floor surfaces, hit by player shots and scorched, but not used for line of sight
 function gridTex() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -510,7 +510,7 @@ function makeLadder(l) {
 function buildWorld(L) {
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   levelGroup = new THREE.Group(); scene.add(levelGroup);
-  W.meshes.length = 0; W.colliders.length = 0;
+  W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0;
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
   camera.far = L.mesh ? 400 : 300; camera.updateProjectionMatrix();
   if (!L.mesh) { sun.position.set(25, 50, 15); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
@@ -615,14 +615,14 @@ function buildWorld(L) {
     g.setAttribute('position', new THREE.Float32BufferAttribute(S.pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(S.uv, 2));
     g.setIndex(S.ind); g.computeVertexNormals();
-    const fm = new THREE.Mesh(g, MAT[k]); fm.receiveShadow = true; levelGroup.add(fm);
+    const fm = new THREE.Mesh(g, MAT[k]); fm.receiveShadow = true; levelGroup.add(fm); fm.updateMatrixWorld(); W.floors.push(fm);
   }
   if (L.helipad) {
     const [hc, hr] = L.helipad, x = hc - 32, z = hr - 35;
     const pad = new THREE.Mesh(new THREE.CircleGeometry(5, 40), MAT.pad); pad.rotation.x = -Math.PI / 2; pad.position.set(x, 0.02, z); pad.receiveShadow = true;
-    levelGroup.add(pad);
+    levelGroup.add(pad); pad.updateMatrixWorld(); W.floors.push(pad);
     for (const [w, d, ox, oz] of [[0.6, 4, -1.2, 0], [0.6, 4, 1.2, 0], [2.4, 0.6, 0, 0]]) {
-      const b = new THREE.Mesh(new THREE.PlaneGeometry(w, d), MAT.padMark); b.rotation.x = -Math.PI / 2; b.position.set(x + ox, 0.03, z + oz); levelGroup.add(b);
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(w, d), MAT.padMark); b.rotation.x = -Math.PI / 2; b.position.set(x + ox, 0.03, z + oz); levelGroup.add(b); b.updateMatrixWorld(); W.floors.push(b);
     }
   }
 }
@@ -1028,7 +1028,7 @@ $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
 let selLevel = 'complex';
 document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); });
-function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }); loadLevel(id); buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); updateGoal(); }
+function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }); loadLevel(id); buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
@@ -1408,6 +1408,94 @@ function impact(p) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true }));
   m.position.copy(p); scene.add(m); fx.push({ o: m, life: 4, max: 4 });
 }
+// Bullet holes: every player's shots leave a mark on what they hit until the round resets, so walls can be drawn on.
+// All holes live in one instanced mesh; once it is full the oldest ones are reused.
+const HOLE_MAX = 4000, HOLE_R = 0.045, holes = [];
+const holeMesh = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(8,8,8,1)'); g.addColorStop(0.38, 'rgba(18,16,14,0.95)'); g.addColorStop(0.55, 'rgba(40,36,30,0.55)'); g.addColorStop(1, 'rgba(40,36,30,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(HOLE_R * 2, HOLE_R * 2), mat, HOLE_MAX);
+  m.count = 0; m.frustumCulled = false; m.renderOrder = 1; scene.add(m); return m;
+})();
+let holeNext = 0;
+const _hm = new THREE.Matrix4(), _hq = new THREE.Quaternion(), _hz = new V3(0, 0, 1), _hp = new V3(), _hn = new V3(), _hs = new V3(1, 1, 1);
+// h is [x, y, z, nx, ny, nz]
+function _addHole(h) {
+  _hn.set(h[3], h[4], h[5]); if (_hn.lengthSq() < 1e-6) return; _hn.normalize();
+  _hp.set(h[0], h[1], h[2]).addScaledVector(_hn, 0.004);
+  _hq.setFromUnitVectors(_hz, _hn);
+  const s = 0.85 + ((h[0] * 73.1 + h[2] * 19.7) % 1 + 1) % 1 * 0.3; _hs.set(s, s, 1);
+  holeMesh.setMatrixAt(holeNext, _hm.compose(_hp, _hq, _hs));
+  if (holes.length < HOLE_MAX) holes.push(h); else holes[holeNext] = h;
+  holeNext = (holeNext + 1) % HOLE_MAX; holeMesh.count = holes.length; holeMesh.instanceMatrix.needsUpdate = true;
+}
+function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); }
+const _r3 = v => Math.round(v * 1000) / 1000;
+// World-space hole from a raycast hit, facing back toward the shooter
+function holeFromHit(hit, dir) {
+  if (!hit.face) return null;
+  const n = hit.face.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+  if (n.dot(dir) > 0) n.negate();
+  return [_r3(hit.point.x), _r3(hit.point.y), _r3(hit.point.z), _r3(n.x), _r3(n.y), _r3(n.z)];
+}
+function addHoles(list) { if (!list.length) return; list.forEach(_addHole); netFx({ t: 'bh', h: list }); }
+// Scorch marks: explosions blacken every surface inside the blast sphere until the round resets.
+// Each surface gets the circle where the sphere cuts its plane, so marks wrap onto floors, walls and corners
+// and stop at edges instead of hanging in the air. Every client builds them from the same level geometry.
+const SCORCH_MAX = 60, scorches = [], scorchMeshes = [];
+let scorchSeq = 0;
+const scorchMat = (() => {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+  const x = c.getContext('2d'); let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const blob = (cx, cy, r, a) => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(6,5,4,${a})`); g.addColorStop(1, 'rgba(6,5,4,0)'); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); };
+  blob(S / 2, S / 2, S * 0.46, 0.95); blob(S / 2, S / 2, S * 0.3, 0.9);
+  for (let i = 0; i < 70; i++) { const a = rnd() * Math.PI * 2, d = Math.pow(rnd(), 0.7) * S * 0.36, r = S * (0.03 + rnd() * 0.08); blob(S / 2 + Math.cos(a) * d, S / 2 + Math.sin(a) * d, r, 0.35 + rnd() * 0.4); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+})();
+const _skA = new V3(), _skB = new V3(), _skC = new V3(), _skN = new V3(), _skQ = new V3(), _skT = new V3(), _skBt = new V3(), _skTri = new THREE.Triangle(), _skBox = new THREE.Box3(), _skUp = new V3(0, 1, 0), _skX = new V3(1, 0, 0);
+// s is [x, y, z, radius, spin]
+function _addScorch(s) {
+  const p = new V3(s[0], s[1], s[2]), r = s[3], rot = s[4], sph = new THREE.Sphere(p, r), pos = [], uv = [];
+  for (const m of [...W.meshes, ...W.floors]) {
+    const g = m.geometry, pa = g.attributes.position; if (!pa) continue;
+    if (!g.boundingBox) g.computeBoundingBox();
+    if (!_skBox.copy(g.boundingBox).applyMatrix4(m.matrixWorld).intersectsSphere(sph)) continue;
+    const idx = g.index, n = idx ? idx.count : pa.count, mw = m.matrixWorld;
+    for (let i = 0; i < n; i += 3) {
+      const i0 = idx ? idx.getX(i) : i, i1 = idx ? idx.getX(i + 1) : i + 1, i2 = idx ? idx.getX(i + 2) : i + 2;
+      _skA.fromBufferAttribute(pa, i0).applyMatrix4(mw); _skB.fromBufferAttribute(pa, i1).applyMatrix4(mw); _skC.fromBufferAttribute(pa, i2).applyMatrix4(mw);
+      _skTri.set(_skA, _skB, _skC); _skTri.getNormal(_skN);
+      const d = _skQ.copy(p).sub(_skA).dot(_skN);
+      if (d < -0.05 || d > r) continue; // facing away from the blast, or out of reach
+      if (_skTri.closestPointToPoint(p, _skQ).distanceTo(p) > r) continue;
+      // Planar basis from the face normal, so coplanar faces line up; the mark shrinks the further the surface is
+      _skT.crossVectors(_skN, Math.abs(_skN.y) > 0.9 ? _skX : _skUp).normalize(); _skBt.crossVectors(_skN, _skT);
+      const re = Math.sqrt(Math.max(0.01, r * r - d * d)), cs = Math.cos(rot), sn = Math.sin(rot);
+      for (const v of [_skA, _skB, _skC]) {
+        _skQ.copy(v).sub(p); const u0 = _skQ.dot(_skT), v0 = _skQ.dot(_skBt);
+        uv.push((u0 * cs - v0 * sn) / (2 * re) + 0.5, (u0 * sn + v0 * cs) / (2 * re) + 0.5);
+        pos.push(v.x + _skN.x * 0.006, v.y + _skN.y * 0.006, v.z + _skN.z * 0.006);
+      }
+    }
+  }
+  scorches.push(s);
+  if (pos.length) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    // Stacked coplanar surfaces (a block top under a floor tile) would darken twice; the stencil lets each mark cover a pixel once
+    const mat = scorchMat.clone(); Object.assign(mat, { stencilWrite: true, stencilRef: scorchSeq++ % 255 + 1, stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
+    const m = new THREE.Mesh(g, mat); m.renderOrder = 1; scene.add(m); scorchMeshes.push(m);
+  }
+  while (scorches.length > SCORCH_MAX) scorches.shift();
+  while (scorchMeshes.length > SCORCH_MAX) { const o = scorchMeshes.shift(); scene.remove(o); o.geometry.dispose(); o.material.dispose(); }
+}
+function clearScorches() { scorches.length = 0; for (const o of scorchMeshes) { scene.remove(o); o.geometry.dispose(); o.material.dispose(); } scorchMeshes.length = 0; }
+function addScorch(p, r) { const s = [_r3(p.x), _r3(p.y + 0.15), _r3(p.z), r, Math.round(Math.random() * 628) / 100]; _addScorch(s); netFx({ t: 'sc', s }); }
+const validScorch = s => Array.isArray(s) && s.length === 5 && s.every(Number.isFinite) && s[3] > 0 && s[3] <= 4;
 function _boomFx(p, s = 4) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, depthWrite: false }));
   m.position.copy(p); scene.add(m); fx.push({ o: m, life: 0.4, max: 0.4, grow: s });
@@ -1596,7 +1684,7 @@ function resetMatch() {
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   GASCANS.forEach(g => { g.alive = true; g.o.visible = true; }); pendingGas.length = 0;
   HEALS.forEach(h => setHeal(h, true));
-  clearCorpses();
+  clearCorpses(); clearHoles();
   matchOver = false;
   if (MODE === 'defend') {
     Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100, core: 100 }); setGate(true);
@@ -1652,6 +1740,7 @@ function throwNade(owner, origin, vel, fuse = NADE_FUSE) {
 }
 const GASCANS = [], pendingGas = [];
 function boom(pos, owner, R, maxD) {
+  addScorch(pos, R * 0.3);
   _boomFx(pos, R * 0.6); sBoom(vol(pos, 90)); netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
   const o = pos.clone(); o.y += 0.3;
   for (const e of ents) {
@@ -1923,7 +2012,7 @@ function fire() {
   let spread = w.spread + gun.spray * 0.028 + move + w.hip * (1 - adsK);
   if (P.h < STAND_H) spread *= 0.55;
   spread *= 1 - 0.55 * adsK;
-  const targets = W.meshes.slice();
+  const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
   for (const g of GASCANS) if (g.alive) targets.push(g.px);
   const start = new V3(0.17 * (1 - adsK), -0.12, -((VMW[curW] ? VMW[curW].len : 0.5) + 0.2)).applyMatrix4(camera.matrixWorld);
@@ -1935,7 +2024,7 @@ function fire() {
     const h0 = shotRay.intersectObjects(targets, false)[0];
     sp += w.rangeSpread * Math.min(1, (h0 ? h0.distance : 60) / 40) * (1 - 0.4 * adsK);
   }
-  const dmgBy = new Map(); let anyHead = false;
+  const dmgBy = new Map(), newHoles = []; let anyHead = false;
   for (let i = 0; i < pellets; i++) {
     const dir = new V3((Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp + gun.spray * 0.01, -1).normalize().applyQuaternion(camera.quaternion);
     shotRay.set(camera.position, dir); shotRay.far = 200;
@@ -1949,8 +2038,9 @@ function fire() {
       if (w.pellets) d *= Math.max(0.25, Math.min(1, 1 - (hit.distance - 8) / 24));
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
     } else if (ud.gas) shootGas(ud.gas, P);
-    else impact(hit.point);
+    else { const h = holeFromHit(hit, dir); if (h) newHoles.push(h); else impact(hit.point); }
   }
+  addHoles(newHoles);
   for (const [ent, d] of dmgBy) damage(ent, Math.round(d), P, 'gun', anyHead);
   if (dmgBy.size) hitMarker(anyHead);
   const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
@@ -2693,6 +2783,8 @@ function applyFx(m) {
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
+    case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
+    case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
     case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
   }
 }
@@ -2731,7 +2823,7 @@ function onGuestMsg(conn, m) {
       r = makeEntity(name, false);
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0 });
       remotes.push(r); setRemoteModel(r, m.model); ents.push(r);
-      sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
+      sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
       respawn(r);
       note(`${name} joined`, 2); updateRoster(); getMic();
     } else {
@@ -2819,6 +2911,8 @@ function onHostMsg(m) {
     case 'welcome':
       NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (m.level !== curLevel) switchLevel(m.level);
+      clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
+      (Array.isArray(m.holes) ? m.holes : []).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); });
       (m.peers || []).forEach(callPeer); updateMicHud();
       break;
     case 'level': switchLevel(m.id); break;
@@ -2836,7 +2930,7 @@ function onHostMsg(m) {
     case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
-    case 'reset': $('results').style.display = 'none'; matchOver = false; clearCorpses(); break;
+    case 'reset': $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles(); break;
     default: applyFx(m);
   }
 }
