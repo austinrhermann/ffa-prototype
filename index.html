@@ -1080,6 +1080,21 @@ const WEAPONS = {
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
 };
+// Muzzle flash and smoke for each gun. Until art is supplied each one is drawn in code from `style`.
+// To use a picture instead, put a PNG in fx/ and set `img` (e.g. img: 'fx/carbine_flash.png'); see README.
+//   flash: size = world size in metres (other players and bots), vmSize = size on your own gun, life = seconds on screen
+//   smoke: count = puffs per shot, size/grow = start size and growth in metres, life = seconds, speed = push along the shot,
+//          rise = upward drift, opacity = peak opacity, additive = glow instead of smoke; color tints the smoke picture
+const GUN_FX = {
+  pistol:  { flash: { img: null, style: 'ring',  color: '#ff3a2a', size: 0.32, vmSize: 0.13, life: 0.05 },
+             smoke: { img: null, style: 'spark', color: 0xff5040, count: 5, size: 0.06, grow: 0.12, life: 0.35, speed: 1.6, rise: 0.25, opacity: 0.9, additive: true } },
+  carbine: { flash: { img: null, style: 'star4', color: '#ffb23a', size: 0.42, vmSize: 0.22, life: 0.04 },
+             smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 2, size: 0.1,  grow: 0.45, life: 0.9, speed: 0.9, rise: 0.35, opacity: 0.32 } },
+  rifle:   { flash: { img: null, style: 'brake', color: '#ffe08a', size: 0.8,  vmSize: 0.3,  life: 0.06 },
+             smoke: { img: null, style: 'puff',  color: 0xeeeeea, count: 7, size: 0.16, grow: 1.1,  life: 2.4, speed: 1.4, rise: 0.25, opacity: 0.4 } },
+  shotgun: { flash: { img: null, style: 'bloom', color: '#ff7a1e', size: 0.7,  vmSize: 0.26, life: 0.06 },
+             smoke: { img: null, style: 'puff',  color: 0x8f8a84, count: 8, size: 0.14, grow: 0.9,  life: 1.6, speed: 2.2, rise: 0.3, opacity: 0.45 } },
+};
 const PROPS = {};
 function makeShotgun() {
   const g = new THREE.Group();
@@ -1397,13 +1412,16 @@ const los = (a, b) => losPts(eyePos(a), midPos(b));
 
 // ---------- FX ----------
 const fx = [];
-function _tracer(a, b, color = 0xffe08a, w = 0.02, life = 0.12) {
+// own: the local player's shot. Short tracers then ride along with the camera, so recoil kicking the view up
+// doesn't leave them trailing below the gun; long ones (the rifle's beam) stay put in the world
+function _tracer(a, b, color = 0xffe08a, w = 0.02, life = 0.12, own = false) {
   const d = b.clone().sub(a), len = d.length(); if (len < 0.01) return;
   const m = new THREE.Mesh(new THREE.CylinderGeometry(w, w, len, 6, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
   m.position.copy(a).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new V3(0, 1, 0), d.normalize());
-  scene.add(m); fx.push({ o: m, life, max: life });
+  scene.add(m); if (own && life <= 0.2) camera.attach(m);
+  fx.push({ o: m, life, max: life });
 }
-function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12) { _tracer(a, b, c, w, l); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l }); }
+function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l }); }
 function impact(p) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true }));
   m.position.copy(p); scene.add(m); fx.push({ o: m, life: 4, max: 4 });
@@ -1501,13 +1519,90 @@ function _boomFx(p, s = 4) {
   m.position.copy(p); scene.add(m); fx.push({ o: m, life: 0.4, max: 0.4, grow: s });
   boomLight.position.copy(p); boomLight.intensity = 4;
 }
+// ---------- Muzzle flash and smoke ----------
+// Built-in pictures, one per style. Flashes are drawn in colour; smoke is drawn white and tinted by GUN_FX color.
+function drawFxTex(style, color, key) {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const x = c.getContext('2d'), h = S / 2; x.translate(h, h); x.globalCompositeOperation = 'lighter';
+  const glow = (r, inner, outer) => { const g = x.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, inner); g.addColorStop(1, outer); x.fillStyle = g; x.beginPath(); x.arc(0, 0, r, 0, Math.PI * 2); x.fill(); };
+  const ray = (ang, len, w, col) => {
+    x.save(); x.rotate(ang); const g = x.createLinearGradient(0, 0, len, 0); g.addColorStop(0, '#fff'); g.addColorStop(0.25, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.beginPath(); x.moveTo(0, -w); x.lineTo(len, 0); x.lineTo(0, w); x.closePath(); x.fill(); x.restore();
+  };
+  const blob = (bx, by, r, a) => { const g = x.createRadialGradient(bx, by, 0, bx, by, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.beginPath(); x.arc(bx, by, r, 0, Math.PI * 2); x.fill(); };
+  let seed = 1; for (const ch of key) seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  if (style === 'ring') { // laser: hot core, crisp energy ring, thin spikes
+    glow(h * 0.45, '#fff', 'rgba(0,0,0,0)'); glow(h * 0.7, color, 'rgba(0,0,0,0)');
+    x.strokeStyle = color; x.lineWidth = 5; x.globalAlpha = 0.85; x.beginPath(); x.arc(0, 0, h * 0.55, 0, Math.PI * 2); x.stroke(); x.globalAlpha = 1;
+    for (let i = 0; i < 8; i++) ray(i * Math.PI / 4 + 0.2, h * (i % 2 ? 0.7 : 0.95), 2.5, color);
+  } else if (style === 'star4') { // carbine: four long prongs, four short ones
+    glow(h * 0.5, '#fff', 'rgba(0,0,0,0)');
+    for (let i = 0; i < 4; i++) { ray(i * Math.PI / 2, h * 0.98, 7, color); ray(i * Math.PI / 2 + Math.PI / 4, h * 0.5, 5, color); }
+  } else if (style === 'brake') { // rifle: muzzle brake throws two long side jets
+    glow(h * 0.6, '#fff', 'rgba(0,0,0,0)');
+    ray(0, h, 14, color); ray(Math.PI, h, 14, color); ray(Math.PI / 2, h * 0.55, 9, color); ray(-Math.PI / 2, h * 0.55, 9, color);
+    for (let i = 0; i < 6; i++) ray(i * Math.PI / 3 + Math.PI / 6, h * 0.45, 5, color);
+  } else if (style === 'bloom') { // shotgun: ragged ball of fire
+    for (let i = 0; i < 12; i++) ray(rnd() * Math.PI * 2, h * (0.55 + rnd() * 0.4), 4 + rnd() * 4, color);
+    for (let i = 0; i < 24; i++) { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * h * 0.5, r = h * (0.14 + rnd() * 0.22); const g = x.createRadialGradient(Math.cos(a) * d, Math.sin(a) * d, 0, Math.cos(a) * d, Math.sin(a) * d, r); g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.beginPath(); x.arc(Math.cos(a) * d, Math.sin(a) * d, r, 0, Math.PI * 2); x.fill(); }
+    glow(h * 0.45, '#fff', 'rgba(0,0,0,0)');
+  } else if (style === 'spark') { // laser residue: glowing mote with a cross glint
+    blob(0, 0, h * 0.55, 0.9); ray(0, h * 0.9, 2, '#fff'); ray(Math.PI, h * 0.9, 2, '#fff'); ray(Math.PI / 2, h * 0.9, 2, '#fff'); ray(-Math.PI / 2, h * 0.9, 2, '#fff');
+  } else { // puff: soft lumpy cloud
+    x.globalCompositeOperation = 'source-over';
+    blob(0, 0, h * 0.6, 0.35);
+    for (let i = 0; i < 22; i++) { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * h * 0.5; blob(Math.cos(a) * d, Math.sin(a) * d, h * (0.14 + rnd() * 0.26), 0.2 + rnd() * 0.3); }
+  }
+  return new THREE.CanvasTexture(c);
+}
+// The built-in picture is used at once; a PNG named in `img` replaces it when it loads
+function fxTexture(spec, key) {
+  const t = drawFxTex(spec.style, spec.color, key);
+  if (spec.img) new THREE.TextureLoader().load(spec.img, png => { t.image = png.image; t.needsUpdate = true; }, undefined, () => console.warn('Could not load ' + spec.img));
+  return t;
+}
+for (const [id, f] of Object.entries(GUN_FX)) { f.flash.tex = fxTexture(f.flash, id + 'flash'); f.smoke.tex = fxTexture(f.smoke, id + 'smoke'); }
+const puffs = [], PUFF_MAX = 300;
+function _puff(tex, p, size, life, opts) {
+  const m = new THREE.SpriteMaterial({ map: tex, color: opts.color === undefined ? 0xffffff : opts.color, transparent: true, depthWrite: false, opacity: 0, rotation: Math.random() * Math.PI * 2, blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  const o = new THREE.Sprite(m); o.position.copy(p); o.scale.setScalar(size); scene.add(o);
+  puffs.push({ o, t: 0, life, size, grow: opts.grow || 0, vel: opts.vel || new V3(), rise: opts.rise || 0, peak: opts.opacity === undefined ? 1 : opts.opacity, spin: (Math.random() - 0.5) * (opts.spin || 0), flash: !!opts.flash });
+  while (puffs.length > PUFF_MAX) { const q = puffs.shift(); scene.remove(q.o); q.o.material.dispose(); }
+}
+// p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
+function _muzzleFx(id, p, d, own) {
+  const f = GUN_FX[id]; if (!f) return;
+  if (!own) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
+  const sm = f.smoke;
+  for (let i = 0; i < sm.count; i++) {
+    const k = sm.count > 1 ? i / (sm.count - 1) : 0;
+    const at = p.clone().addScaledVector(d, (own ? 0.35 : 0.05) + k * 0.25);
+    const vel = d.clone().multiplyScalar(sm.speed * (0.4 + Math.random() * 0.6)).add(new V3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4));
+    _puff(sm.tex, at, sm.size * (0.8 + Math.random() * 0.4), sm.life * (0.75 + Math.random() * 0.5), { color: sm.color, additive: sm.additive, grow: sm.grow, vel, rise: sm.rise, opacity: sm.opacity * (own ? 0.7 : 1), spin: 1.2 });
+  }
+}
+function muzzleFx(id, p, d, own, shooter) { _muzzleFx(id, p, d, own); netFx({ t: 'mz', k: id, i: shooter, p: arr(p), d: [Math.round(d.x * 100) / 100, Math.round(d.y * 100) / 100, Math.round(d.z * 100) / 100] }); }
+function updatePuffs(dt) {
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const q = puffs[i]; q.t += dt;
+    const k = q.t / q.life;
+    if (k >= 1) { scene.remove(q.o); q.o.material.dispose(); puffs.splice(i, 1); continue; }
+    if (q.flash) { q.o.material.opacity = 1 - k; q.o.scale.setScalar(q.size * (0.8 + 0.4 * k)); continue; }
+    q.vel.multiplyScalar(Math.exp(-3 * dt)); q.vel.y += q.rise * dt;
+    q.o.position.addScaledVector(q.vel, dt);
+    q.o.scale.setScalar(q.size + q.grow * Math.sqrt(k));
+    q.o.material.rotation += q.spin * dt;
+    q.o.material.opacity = q.peak * Math.min(1, k * 8) * (1 - k) * (1 - k);
+  }
+}
 function updateFx(dt) {
+  updatePuffs(dt);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.life -= dt;
     const k = Math.max(0, f.life / f.max);
     f.o.material.opacity = k * 0.9;
     if (f.grow) f.o.scale.setScalar(0.5 + (1 - k) * f.grow);
-    if (f.life <= 0) { scene.remove(f.o); f.o.geometry.dispose(); f.o.material.dispose(); fx.splice(i, 1); }
+    if (f.life <= 0) { f.o.parent.remove(f.o); f.o.geometry.dispose(); f.o.material.dispose(); fx.splice(i, 1); }
   }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt * 14);
 }
@@ -1937,7 +2032,8 @@ function selectWeapon(id, instant) {
   syncAmmo();
   curW = id; P.ammo = P.ammoBy[id].mag; P.reserve = P.ammoBy[id].res; P.reloading = 0; clickQ = false;
   for (const k in VMW) VMW[k].holder.visible = k === id;
-  if (VMW[id]) { VMW[id].holder.add(flash); flash.position.set(0, VMW[id].muzzleY, VMW[id].muzzleZ); }
+  if (VMW[id]) { VMW[id].holder.add(flash); flash.position.set(VMW[id].muzzleX, VMW[id].muzzleY, VMW[id].muzzleZ); }
+  const gf = GUN_FX[id]; if (gf) { flash.material.map = gf.flash.tex; flash.material.needsUpdate = true; flash.scale.setScalar(gf.flash.vmSize / 0.14); }
   if (!instant) switchT = 0.3;
 }
 function nextWeapon(dir) {
@@ -2005,6 +2101,14 @@ function dropWeapons(e) {
 }
 function reload() { if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
 const shotRay = new THREE.Raycaster();
+// The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
+// and start the tracer on the main camera's ray through that same point, about as far away
+function vmMuzzleWorld() {
+  vm.updateMatrixWorld(true);
+  const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
+  const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
+  return camera.position.clone().addScaledVector(dir, dist);
+}
 function fire() {
   const w = WP();
   const hs = Math.hypot(P.vel.x, P.vel.z);
@@ -2015,7 +2119,7 @@ function fire() {
   const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
   for (const g of GASCANS) if (g.alive) targets.push(g.px);
-  const start = new V3(0.17 * (1 - adsK), -0.12, -((VMW[curW] ? VMW[curW].len : 0.5) + 0.2)).applyMatrix4(camera.matrixWorld);
+  const start = vmMuzzleWorld();
   const pellets = w.pellets || 1;
   let sp = spread + (w.cone || 0) * (1 - 0.35 * adsK);
   // Some guns lose accuracy with range: extra spread grows with distance to whatever is under the crosshair
@@ -2029,7 +2133,7 @@ function fire() {
     const dir = new V3((Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp + gun.spray * 0.01, -1).normalize().applyQuaternion(camera.quaternion);
     shotRay.set(camera.position, dir); shotRay.far = 200;
     const hit = shotRay.intersectObjects(targets, false)[0];
-    if (i < 4) tracer(start, hit ? hit.point : camera.position.clone().addScaledVector(dir, 200), w.tracer, w.trW, w.trLife);
+    if (i < 4) tracer(start, hit ? hit.point : camera.position.clone().addScaledVector(dir, 200), w.tracer, w.trW, w.trLife, true);
     if (!hit) continue;
     const ud = hit.object.userData;
     if (ud.ent) {
@@ -2047,7 +2151,8 @@ function fire() {
   gun.spray = Math.min(1, gun.spray + w.sprayAdd);
   P.pitch = Math.min(1.5, P.pitch + (w.kick * 0.35 + gun.spray * 0.006) * k);
   P.yaw += (Math.random() - 0.5) * (0.009 + 0.03 * gun.spray) * k;
-  punch += w.kick * 1.2 * k; vmKick = 1; flashT = 0.04;
+  punch += w.kick * 1.2 * k; vmKick = 1; flashT = GUN_FX[curW] ? GUN_FX[curW].flash.life : 0.04;
+  muzzleFx(curW, start, new V3(0, 0, -1).applyQuaternion(camera.quaternion), true, P.id);
   sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 60, g: 1 });
 }
 function updateGun(dt) {
@@ -2120,6 +2225,7 @@ function botShootCore(b, dt) {
   ai.fireCd = w.auto ? 0.15 : Math.max(w.rate, 0.3) + Math.random() * 0.3;
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0; const start = botMuzzle(b, w), marks = [];
+  muzzleFx(b.wpn, start, new V3(x, y, z).sub(start).normalize(), false, b.id);
   for (let i = 0; i < (w.pellets || 1); i++) {
     const hit = Math.random() < 0.6; let aim = new V3(x, y, z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.9)), marks);
@@ -2133,6 +2239,7 @@ function botShoot(b, t, dist) {
   if (b.ammo <= 0 || !los(b, t)) return;
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
+  muzzleFx(b.wpn, start, new V3(t.pos.x, t.pos.y + t.h * 0.65, t.pos.z).sub(start).normalize(), false, b.id);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0, head = false; const marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
@@ -2394,8 +2501,17 @@ function updateCamera(dt) {
 
 // ---------- Viewmodel ----------
 const vm = new THREE.Group();
-const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.14), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.14), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
 vm.add(flash);
+// Where the barrel ends: the average of the gun's frontmost vertices (the gun points down -z)
+function barrelTip(holder) {
+  holder.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(holder.matrixWorld).invert(), pts = [], v = new V3();
+  holder.traverse(o => { if (!o.isMesh) return; const pa = o.geometry.attributes.position, m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); for (let i = 0; i < pa.count; i++) pts.push(v.fromBufferAttribute(pa, i).applyMatrix4(m).clone()); });
+  if (!pts.length) return null;
+  const front = pts.reduce((m, p) => Math.min(m, p.z), Infinity), tip = pts.filter(p => p.z < front + 0.025);
+  return tip.reduce((a, p) => a.add(p), new V3()).divideScalar(tip.length);
+}
 function buildViewmodels() {
   for (const [id, w] of Object.entries(WEAPONS)) {
     const holder = centeredClone(w.scene, w.yaw);
@@ -2403,7 +2519,8 @@ function buildViewmodels() {
     const sz = new THREE.Box3().setFromObject(holder).getSize(new V3()), L = sz.z;
     holder.visible = false; vm.add(holder);
     w.len = L;
-    VMW[id] = { holder, len: L, hip: new V3(0.17, -0.17, -(0.16 + L / 2)), ads: new V3(0, -0.15, -(0.14 + L / 2)), muzzleZ: -L / 2 - 0.02, muzzleY: sz.y * 0.15 };
+    const tip = barrelTip(holder);
+    VMW[id] = { holder, len: L, hip: new V3(0.17, -0.17, -(0.16 + L / 2)), ads: new V3(0, -0.15, -(0.14 + L / 2)), muzzleZ: (tip ? tip.z : -L / 2) - 0.06, muzzleX: tip ? tip.x : 0, muzzleY: tip ? tip.y : sz.y * 0.15 };
   }
   selectWeapon(curW, true);
 }
@@ -2797,6 +2914,10 @@ function applyFx(m) {
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
+    case 'mz': if (GUN_FX[m.k] && Array.isArray(m.p) && Array.isArray(m.d)) {
+      const e = ents.find(o => o.id === m.i && o !== P), p = e && e.alive && e.rig && e.mesh ? botMuzzle(e, WEAPONS[m.k]) : v3(m.p);
+      _muzzleFx(m.k, p, v3(m.d).normalize(), false);
+    } break;
     case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
   }
 }
