@@ -32,10 +32,16 @@ canvas{display:block}
 #chatin.on{display:block}
 body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px + env(safe-area-inset-top,0px))}
 #tchat{left:calc(300px + env(safe-area-inset-left,0px))}
-.stat{position:absolute;bottom:18px;background:var(--panel);padding:8px 16px;border-radius:4px;display:flex;align-items:baseline;gap:8px}
-.stat b{font-size:30px;font-variant-numeric:tabular-nums}
-.stat span{opacity:.7;font-size:13px}
-#hp{left:18px}#ammo{right:18px}
+#ammo{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+#hpbar{width:160px;height:20px;display:flex;justify-content:flex-end}
+#hp{width:100%;height:100%;background:hsl(120,75%,45%)}
+#nades,#bullets{display:flex;gap:8px}
+#nades i{width:20px;height:20px;border-radius:50%;background:#fff}
+#bullets{gap:var(--bg,3px)}
+#bullets i{flex:none;width:var(--bw,8px);height:20px;border-radius:1px;background:#c4c8cc}
+#bullets i.m{background:#fff}
+#bullets.rl i.m{animation:rl .5s ease-in-out infinite alternate}
+@keyframes rl{to{opacity:.25}}
 #msg{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:24px;text-shadow:0 2px 6px #000;text-align:center}
 #resume{position:absolute;top:44%;left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 16px;border-radius:4px;font-size:15px;display:none}
 #note{position:absolute;top:60%;left:50%;transform:translateX(-50%);font-size:16px;text-shadow:0 2px 6px #000}
@@ -116,10 +122,10 @@ body.touch #touch{display:block}
 #joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(238,243,234,.35);background:rgba(14,18,22,.3);display:none}
 #knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(238,243,234,.55)}
 body.touch #top{top:calc(54px + env(safe-area-inset-top,0px));font-size:12px}
-body.touch #hp{left:50%;transform:translateX(calc(-100% - 6px))}
-body.touch #ammo{right:50%;transform:translateX(calc(100% + 6px))}
-body.touch .stat{bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:4px 12px}
-body.touch .stat b{font-size:22px}
+body.touch #ammo{right:50%;transform:translateX(calc(100% + 6px));bottom:calc(12px + env(safe-area-inset-bottom,0px));gap:6px}
+body.touch #hpbar{width:112px;height:14px}
+body.touch #nades i{width:14px;height:14px}
+body.touch #bullets i{height:14px}
 .card .tc,body.touch .card .kb{display:none}
 body.touch .card .tc{display:grid}
 body.touch .card small.tc{display:block}
@@ -134,8 +140,7 @@ body.touch .card small.tc{display:block}
   <div id="hurt"></div>
   <div id="top"></div>
   <div id="feed"></div>
-  <div class="stat" id="hp"><span>Health</span><b id="hpv">100</b></div>
-  <div class="stat" id="ammo"><span id="wname">Laser Pistol</span><b id="ammov">30</b><span id="ammos">/ 60</span><span id="nadev">2 frags</span></div>
+  <div id="ammo"><div id="hpbar" aria-label="Health"><div id="hp"></div></div><div id="nades"></div><div id="bullets"></div></div>
   <div id="msg"></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
@@ -1567,6 +1572,7 @@ function resetMatch() {
   ammoBoxes.forEach(a => { a.active = true; a.mesh.visible = true; });
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   GASCANS.forEach(g => { g.alive = true; g.o.visible = true; }); pendingGas.length = 0;
+  HEALS.forEach(h => setHeal(h, true));
   clearCorpses();
   matchOver = false;
   if (MODE === 'defend') {
@@ -1647,6 +1653,24 @@ function registerGas(o) {
 function shootGas(g, owner) { if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gas', i: GASCANS.indexOf(g) }); return; } if (!g.alive) return; g.alive = false; g.t = 90; g.o.visible = false; boom(g.pos.clone().setY(g.pos.y + 0.25), owner, 9, 200); }
 function updateGas(dt) {
   for (const g of GASCANS) if (!g.alive) { g.t -= dt; if (g.t <= 0) { g.alive = true; g.o.visible = true; } } for (let i = pendingGas.length - 1; i >= 0; i--) { const q = pendingGas[i]; q.t -= dt; if (q.t <= 0) { pendingGas.splice(i, 1); shootGas(q.g, q.owner); } } }
+// Health pickups: each pile of white bottles or yellow crab cans restores full health, then comes back after a while
+const HEALS = [];
+function registerHeal(objs, pos) { objs = objs.filter(Boolean); if (objs.length) HEALS.push({ objs, pos, active: true, t: 0 }); }
+function setHeal(h, on) { h.active = on; h.objs.forEach(o => { o.visible = on; }); }
+function updateHeals(dt) {
+  for (const h of HEALS) {
+    if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
+    for (const e of ents) {
+      if (!e.alive || e.health >= 100) continue;
+      if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
+        e.health = 100; setHeal(h, false); h.t = 30;
+        if (e.isRemote) sendTo(e, { t: 'heal' });
+        if (e.isPlayer) note('Health restored', 1);
+        break;
+      }
+    }
+  }
+}
 function updateNades(dt) {
   for (let i = nades.length - 1; i >= 0; i--) {
     const n = nades[i];
@@ -1733,7 +1757,7 @@ let propGroup = null;
 function placeProps() {
   if (propGroup) scene.remove(propGroup);
   propGroup = new THREE.Group(); scene.add(propGroup);
-  GASCANS.length = 0; pendingGas.length = 0;
+  GASCANS.length = 0; pendingGas.length = 0; HEALS.length = 0;
   if (TG) return;
   let seed = 1337; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const keep = [...SPAWNS, ...ammoBoxes.map(a => a.pos), ...PICKUPS.map(pk => pk.pos)];
@@ -1767,15 +1791,17 @@ function placeProps() {
         registerGas(put('Gas_Can', bx + tx * along - wx * out, p.y, bz + tz * along - wz * out, Math.atan2(wx, wz) + (rnd() - 0.5) * 0.5));
       }
     } else if (t < 0.6) {
-      const k = 1 + ((rnd() * 3) | 0);
-      for (let q = 0; q < k; q++) put('Officer_Bottle', bx + tx * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, p.y, bz + tz * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, rnd() * 6.28);
+      const k = 1 + ((rnd() * 3) | 0), objs = [];
+      for (let q = 0; q < k; q++) objs.push(put('Officer_Bottle', bx + tx * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, p.y, bz + tz * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, rnd() * 6.28));
+      registerHeal(objs, new V3(bx, p.y, bz));
     } else {
-      const cs = PROPS.Midas_Crab ? PROPS.Midas_Crab.size : new V3(0.19, 0.15, 0.19), w = cs.x + 0.01, h = cs.y;
+      const objs = [], cs = PROPS.Midas_Crab ? PROPS.Midas_Crab.size : new V3(0.19, 0.15, 0.19), w = cs.x + 0.01, h = cs.y;
       const rows = rnd() < 0.6 ? 3 : 1;
       for (let row = 0; row < rows; row++) for (let q = 0; q < (rows === 3 ? 3 - row : 1 + ((rnd() * 2) | 0)); q++) {
         const n = rows === 3 ? 3 - row : 2, off = (q - (n - 1) / 2) * w;
-        put('Midas_Crab', bx + tx * off, p.y + row * h, bz + tz * off, rnd() * 6.28);
+        objs.push(put('Midas_Crab', bx + tx * off, p.y + row * h, bz + tz * off, rnd() * 6.28));
       }
+      registerHeal(objs, new V3(bx, p.y, bz));
     }
   }
 }
@@ -2298,12 +2324,24 @@ function updateVM(dt) {
 }
 
 // ---------- HUD ----------
+const hud = { hp: -1, ammo: '', nades: -1 };
 function updateHUD(dt) {
-  $('hpv').textContent = Math.ceil(P.health);
-  $('ammov').textContent = P.reloading > 0 ? '··' : P.ammo;
-  $('ammos').textContent = `/ ${P.reserve}`;
-  $('wname').textContent = WP().name;
-  $('nadev').textContent = `${P.nades} frag${P.nades === 1 ? '' : 's'}`;
+  // Health: a bar that shrinks toward the right edge, green when full fading through yellow to red at 0
+  const hp = Math.max(0, Math.min(100, Math.ceil(P.health)));
+  if (hp !== hud.hp) { hud.hp = hp; const el = $('hp'); el.style.width = hp + '%'; el.style.background = `hsl(${hp * 1.2},75%,45%)`; }
+  // Ammo: one rectangle per round, white for the magazine then grey for reserve; grenades are dots above
+  const reloading = P.reloading > 0, key = `${P.ammo},${P.reserve},${reloading},${innerWidth}`;
+  if (key !== hud.ammo) {
+    hud.ammo = key;
+    // Rounds shrink to fit when you carry a lot, so the row never grows past maxW
+    const n = P.ammo + P.reserve, b = $('bullets'), gap = n > 60 ? 1 : n > 30 ? 2 : 3;
+    const maxW = Math.min(420, innerWidth * (document.body.classList.contains('touch') ? 0.5 : 1) - 100);
+    b.style.setProperty('--bg', gap + 'px');
+    b.style.setProperty('--bw', Math.max(1, Math.min(8, (maxW - gap * (n - 1)) / n)).toFixed(2) + 'px');
+    b.innerHTML = '<i class="m"></i>'.repeat(P.ammo) + '<i></i>'.repeat(P.reserve);
+    b.classList.toggle('rl', reloading);
+  }
+  if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
   if (MODE === 'defend') {
     const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep', down = gateOpen() && !prep, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
     $('top').textContent = `${wv}   ·   ${down ? 'Gate down' : prep ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   Computer ${core}%   ·   You ${P.kills}/${P.deaths}`;
@@ -2729,6 +2767,7 @@ function snapshot() {
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
     gs: GASCANS.map(g => (g.alive ? 1 : 0)),
+    hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
   };
 }
@@ -2771,6 +2810,7 @@ function onHostMsg(m) {
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
     case 'nade': P.nades = Math.min(MAX_NADES, P.nades + 1); note('+1 grenade', 1); break;
+    case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
     case 'reset': $('results').style.display = 'none'; matchOver = false; clearCorpses(); break;
@@ -2818,6 +2858,7 @@ function applySnapshot(s) {
   for (let i = PICKUPS.length - 1; i >= 0; i--) if (!keys.has(PICKUPS[i].key)) { scene.remove(PICKUPS[i].mesh); PICKUPS.splice(i, 1); }
   s.am.forEach((a, i) => { if (ammoBoxes[i]) { ammoBoxes[i].active = !!a; ammoBoxes[i].mesh.visible = !!a; } });
   s.gs.forEach((a, i) => { if (GASCANS[i]) { GASCANS[i].alive = !!a; GASCANS[i].o.visible = !!a; } });
+  (s.hl || []).forEach((a, i) => { if (HEALS[i] && HEALS[i].active !== !!a) setHeal(HEALS[i], !!a); });
   while (gNades.length < s.nd.length) { const m = new THREE.Mesh(nadeGeo, nadeMat); scene.add(m); gNades.push(m); }
   gNades.forEach((m, i) => { m.visible = i < s.nd.length; if (m.visible) m.position.set(s.nd[i][0], s.nd[i][1], s.nd[i][2]); });
 }
@@ -2929,6 +2970,7 @@ function loop(now) {
     updateAmmo(dt, now);
     updatePickups(dt, now);
     updateGas(dt);
+    updateHeals(dt);
     updateCook(dt);
     updateCorpses(dt);
   }
