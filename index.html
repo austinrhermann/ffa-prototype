@@ -1267,7 +1267,8 @@ function makeBotMesh(ent, mi) {
 // ---------- Name tags over other players ----------
 // Constant size on screen so names stay readable at a distance. Walls still
 // hide them (they're drawn like any other object), so they don't give away
-// positions. Bots get a "(bot)" suffix.
+// positions. Bots get a "(bot)" suffix. Hidden until you hold the crosshair
+// on someone for a moment, then they fade in semi-transparent.
 const TAG_FONT = '600 40px "Segoe UI",system-ui,-apple-system,sans-serif';
 function makeNameTag(text) {
   const c = document.createElement('canvas'), x = c.getContext('2d'), padX = 16, h = 56;
@@ -1281,7 +1282,7 @@ function makeNameTag(text) {
   const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, transparent: true, depthWrite: false }));
   const H = 0.032; s.scale.set(H * w / h, H, 1);
-  s.renderOrder = 10; s.userData.text = text;
+  s.renderOrder = 10; s.userData.text = text; s.material.opacity = 0; s.visible = false;
   return s;
 }
 // Keep an entity's tag in sync with its current mesh and name (cheap; called every frame)
@@ -1292,7 +1293,29 @@ function updateNameTag(e) {
   if (e.tag) { if (e.tag.parent) e.tag.parent.remove(e.tag); e.tag.material.map.dispose(); e.tag.material.dispose(); }
   e.tag = makeNameTag(name);
   e.tag.position.y = (e.rig ? e.rig.model.headY : 1.7) + 0.5;
+  e.tag.material.opacity = e.tagA || 0; e.tag.visible = e.tag.material.opacity > 0;
   e.mesh.add(e.tag);
+}
+const TAG_DWELL = 0.35, TAG_MAX = 0.55, TAG_FADE_IN = 0.25, TAG_FADE_OUT = 0.4;
+const tagRay = new THREE.Raycaster(), tagDir = new V3();
+// Show the tag of whoever is under the crosshair once it's been held there briefly
+function updateHoverTags(dt) {
+  let over = null;
+  const boxes = [];
+  for (const e of ents) if (e !== P && e.alive && e.hit && e.tag) boxes.push(...e.hit);
+  if (boxes.length) {
+    tagRay.set(camera.position, tagDir.set(0, 0, -1).applyQuaternion(camera.quaternion)); tagRay.far = 150;
+    const h = tagRay.intersectObjects(boxes, false)[0];
+    if (h && losPts(camera.position, h.point)) over = h.object.userData.ent;
+  }
+  for (const e of ents) {
+    if (e === P) continue;
+    e.tagDwell = e === over ? (e.tagDwell || 0) + dt : 0;
+    const want = e.alive && e.tagDwell >= TAG_DWELL ? TAG_MAX : 0;
+    const a = e.tagA || 0;
+    e.tagA = want > a ? Math.min(want, a + dt * TAG_MAX / TAG_FADE_IN) : Math.max(want, a - dt * TAG_MAX / TAG_FADE_OUT);
+    if (e.tag) { e.tag.material.opacity = e.tagA; e.tag.visible = e.tagA > 0; }
+  }
 }
 let playerModelIdx = -1;
 function setPlayerModel(i) {
@@ -2976,6 +2999,7 @@ function loop(now) {
   }
   netTick(dt);
   updateCamera(dt);
+  updateHoverTags(dt);
   updatePlayerRig(dt);
   renderPreview(dt);
   updateFx(dt);
