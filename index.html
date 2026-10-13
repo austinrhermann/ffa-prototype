@@ -2098,6 +2098,16 @@ function updateCook(dt) {
 
 // Bots
 const BOT_DMG = 0.55;
+// A missed bot bullet flies on past the aim point: the hole goes where it lands, and the tracer ends there
+const botRay = new THREE.Raycaster();
+function botMiss(start, aim, marks) {
+  const dir = aim.clone().sub(start).normalize();
+  botRay.set(start, dir); botRay.far = 200;
+  const hit = botRay.intersectObjects([...W.meshes, ...W.floors], false)[0];
+  if (!hit) return start.clone().addScaledVector(dir, 200);
+  const h = holeFromHit(hit, dir); if (h) marks.push(h);
+  return hit.point;
+}
 function botMuzzle(b, w) { const m = b.rig.model; return b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix)); }
 // Attackers that made it to the tower room turn on the computer (a still target: most shots land)
 function botShootCore(b, dt) {
@@ -2109,13 +2119,14 @@ function botShootCore(b, dt) {
   const w = WEAPONS[b.wpn]; b.ammo--;
   ai.fireCd = w.auto ? 0.15 : Math.max(w.rate, 0.3) + Math.random() * 0.3;
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
-  let total = 0; const start = botMuzzle(b, w);
+  let total = 0; const start = botMuzzle(b, w), marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
-    const hit = Math.random() < 0.6, aim = new V3(x, y, z);
-    if (!hit) aim.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.9));
+    const hit = Math.random() < 0.6; let aim = new V3(x, y, z);
+    if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.9)), marks);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
     if (hit) total += w.dmg;
   }
+  addHoles(marks);
   if (total) damageCore(total * BOT_DMG);
 }
 function botShoot(b, t, dist) {
@@ -2123,16 +2134,17 @@ function botShoot(b, t, dist) {
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
-  let total = 0, head = false;
+  let total = 0, head = false; const marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
     const base = w.pellets ? 0.75 - dist * 0.05 : 0.55 - dist * (0.011 + (w.rangeSpread ? 0.006 : 0));
     const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1)));
     const hit = Math.random() < acc, hd = hit && Math.random() < (w.pellets ? 0.05 : 0.1);
-    const aim = new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
-    if (!hit) aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6));
+    let aim = new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
+    if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
     if (hit) { total += hd ? w.head : w.dmg; head = head || hd; }
   }
+  addHoles(marks);
   if (total) damage(t, w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head);
 }
 function botNade(b, t) {
