@@ -2793,6 +2793,7 @@ function initAudio() {
       master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
       const len = AC.sampleRate * 2; noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      loadGunSamples();
     }
     if (AC.state === 'suspended') AC.resume();
   } catch (e) {}
@@ -2842,7 +2843,20 @@ function sGrunt(v) {
   noise(t, dur * 0.6, 0.16 * v, 2000, 500);
 }
 function sShotgun(v) { if (!AC || v < 0.02) return; const t = AC.currentTime; noise(t, 0.45, 1.0 * v, 2500, 90); thump(t, 0.35, 1.0 * v, 95, 28); }
-function sfx(k, v) { ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun })[k](v); }
+// Recorded gun shots in sounds/ (gun=carbine); the laser pistol stays synthesized; any that fail to load fall back to the synth above
+const GUN_SAMPLES = { gun: 'sounds/carbine.wav', rifle: 'sounds/rifle.wav', shotgun: 'sounds/shotgun.wav' }, sampleBuf = {}, SAMPLE_GAIN = { gun: 0.5, rifle: 1.2 };
+function loadGunSamples() {
+  for (const [k, url] of Object.entries(GUN_SAMPLES))
+    fetch(url).then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(buf => { sampleBuf[k] = buf; }).catch(() => {});
+}
+function playSample(buf, v) {
+  const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = buf; s.playbackRate.value = 0.96 + Math.random() * 0.08; g.gain.value = v;
+  s.connect(g); g.connect(master); s.start();
+}
+function sfx(k, v) {
+  if (sampleBuf[k]) { if (AC && v >= 0.02) playSample(sampleBuf[k], v * (SAMPLE_GAIN[k] || 1)); return; }
+  ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun })[k](v);
+}
 function sPin() {
   if (!AC) return; const t = AC.currentTime;
   noise(t, 0.04, 0.3, 7000, 3000);
