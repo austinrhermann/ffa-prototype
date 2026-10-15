@@ -1,6 +1,15 @@
-# FFA
+# The Space Explorers
 
 Browser free-for-all shooter built with three.js. Characters, weapons and props come from the Blender asset library (exported to `models/*.glb`).
+
+## Title page
+
+The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image) with two choices. Everything starts loading as soon as the page opens.
+
+- **Battle in the Arena**: free for all on Complex, Facility or Bunker.
+- **Defend the Fort**: the tower defense. Its menu has two invite buttons: **Invite an apprentice** (the normal invite) and **Invite pirates** (`&team=pirates`, joins as an attacker). The rules, role choice, difficulty and controls are behind the **Instructions and controls** switch.
+
+Invited friends skip the title page.
 
 ## Run locally
 
@@ -18,14 +27,14 @@ Import the repo in Vercel, framework preset **Other**, no build command, output 
 
 The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). If any defender dies, the fort is lost. The start screen has one setting, Difficulty; the pause screen has Restart game.
 
-- **The Master**: Master rifle, laser pistol, 4 grenades, double health (200). Plays alone if nobody else joins.
+- **The Master**: Master rifle (20 shots in the fort; an ammo box adds 10), laser pistol, 4 grenades, double health (200). Plays alone if nobody else joins.
 - **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate.
 - **The Computer**: always an NPC. Fires the cannon on the wall over the gate by itself (a grenade-sized blast, then 10 s to recharge), trucks first. It only engages targets more than 25 m out from the wall, so it never reaches the gate: up close, the defenders have to do the work.
 - Alone you're the Master. With a friend, the host picks Master or Apprentice and the friend gets the other. Everyone after the second joins the attackers as a Midas soldier (carbine and pistol); a dead attacker can press **E** to take over the NPC soldier closest to the gate.
 - **Trucks**: the attackers ride in, 4 to a truck, from the far hills and get out 20 to 30 m in front of the gate; the empty trucks stay as cover. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck burns, and anyone still in the back bails out hurt.
 - **Leaning out**: press up against the parapet on the wall walk (or the tower room's front window) and look down, and your head goes out over the edge so you can shoot the attackers at the gate.
 - Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads.
-- White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. No spare guns lie around and nobody drops guns.
+- White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. Dead pirates drop their carbines for the defenders to pick up, and there's a shotgun in the courtyard.
 - **Look**: Fortress uses a flat sun-and-shadow look copied from the Blender renders (lit surfaces show their texture colour, shadowed ones the texture times a shadow colour, with a ramp for the edge). Esc, then **Look**, to change the sun, shadow colour, edge and sky live; **Copy settings** copies them for `LOOK_DEFAULT`. The other levels keep the original lighting.
 
 The level comes from James's render set export, turned into two files by `tools/build_fortress.py` (run it in Blender; the command is at the top of the script):

@@ -86,6 +86,25 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:stretch;margin:16px}
 .cards .card{margin:0}
 #lookcard{display:none}
+#title{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:24px;box-sizing:border-box;background:#000 url(title.jpg) center/cover no-repeat}
+#title h1{margin:0;color:#fff;font:800 clamp(34px,7.5vw,96px)/1.05 system-ui,sans-serif;letter-spacing:.08em;text-align:center;text-shadow:0 3px 22px rgba(0,0,0,.55)}
+.tbtns{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.tbtns button{background:#000;color:#fff;border:0;border-radius:4px;padding:17px 30px;font:600 19px/1 system-ui,sans-serif;letter-spacing:.03em;cursor:pointer}
+.tbtns button:hover{background:#1f1f1f}
+#tload{color:#fff;opacity:.8;text-shadow:0 1px 6px #000;min-height:1em}
+body.guest #title{display:none}
+#maincard:not(.fort) .fort-only,#maincard.fort .arena-only{display:none!important}
+#maincard.fort:not(.fine) #fineprint{display:none}
+#fortintro{font-size:16px;line-height:1.45}
+.invbtns{display:flex;gap:10px;flex-wrap:wrap}
+.invbtns button{flex:1;min-width:140px;padding:10px 12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font:inherit;font-weight:600;cursor:pointer}
+.switch{display:flex;align-items:center;gap:10px;margin:4px 0 14px;cursor:pointer;font-size:14px}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch span{width:38px;height:22px;border-radius:11px;background:#3a424b;position:relative;transition:background .15s;flex:none}
+.switch span::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span::after{left:19px}
+.linkbtn{background:none;border:0;color:var(--hud);opacity:.75;font:inherit;font-size:14px;cursor:pointer;padding:0;margin:0 0 10px}
 #overlay.looking{background:transparent;justify-content:flex-end;align-items:flex-start}
 #overlay.looking .cards>.card{display:none}
 #overlay.looking #lookcard{display:block;max-width:300px}
@@ -176,13 +195,23 @@ body.touch .card small.tc{display:block}
   <div class="tt" id="tmic" data-act="mic">Mic</div>
   <div class="tt" id="tchat" data-act="chat">Chat</div>
 </div>
-<div id="overlay"><div class="cards"><div class="card">
+<div id="title">
+  <h1>THE SPACE EXPLORERS</h1>
+  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Defend the Fort</button></div>
+  <small id="tload">Loading…</small>
+</div>
+<div id="overlay"><div class="cards"><div class="card" id="maincard">
+  <button type="button" id="totitle" class="hostonly linkbtn">‹ Back</button>
   <h1 id="mtitle">Free for all</h1>
-  <p id="goal"></p>
-  <div class="set hostonly" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
-  <p class="guestonly">You're joining a friend's game. The host picks the level. On Fortress, if the tower has room you're the Master or the Apprentice; otherwise you join the attackers as a Midas soldier.</p>
+  <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
+  <div class="set hostonly fort-only" id="fortinv"><div class="invbtns"><button type="button" id="invapp">Invite an apprentice</button><button type="button" id="invpir">Invite pirates</button></div><small id="roster2"></small></div>
+  <div class="set hostonly arena-only" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
+  <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="set hostonly"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="fortress">Fortress</button></div></div>
+  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button></div></div>
+  <label class="switch fort-only"><input type="checkbox" id="finetoggle"><span></span>Instructions and controls</label>
+  <div id="fineprint">
+  <p id="goal"></p>
   <div class="set hostonly" id="setrole"><label>Your role with a friend</label><div class="levels" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
   <dl class="kb">
     <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
@@ -195,7 +224,7 @@ body.touch .card small.tc{display:block}
     <dt>Wheel, 1–4</dt><dd>Switch weapon</dd>
     <dt>F</dt><dd>Knife</dd>
     <dt>M</dt><dd>Mute or unmute your mic</dd>
-    <dt>E</dt><dd>Use the computer (tower room) or take over a soldier</dd>
+    <dt>E</dt><dd>Use the computer (tower room), or as a pirate, take over another</dd>
     <dt>Enter</dt><dd>Chat with everyone in the game</dd>
     <dt>G</dt><dd>Frag grenade</dd>
     <dt>Tab</dt><dd>Scoreboard</dd>
@@ -209,8 +238,9 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
+  </div>
+  <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
   <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
   <button id="play" disabled>Loading characters…</button>
@@ -475,7 +505,7 @@ function levelFortress() {
     atk: [[34, 64], [38, 70], [-4, 66], [-46, 46], [-52, 38], [24, 50]],
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1]],
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6]],
-    pickups: [], // loadouts are fixed by role
+    pickups: [['shotgun', -1.0, 34, 2.3]], // a shotgun in the courtyard; dead pirates drop their carbines too
     cannon: [-1.9, 37.5, 4.25], // the Computer's cannon on the wall walk over the gate
     ladders: [], // stairs everywhere now
     // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room.
@@ -1112,8 +1142,8 @@ function switchLevel(id) {
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
-  $('goal').textContent = def ? `Survive ${WAVES} waves of Midas soldiers (${WAVE_SIZES.join(', then ')}). The Master (rifle, pistol, 4 grenades, double health) holds the walls. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate by itself. The gate only breaks once. Once inside, the attackers hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.`;
-  $('mtitle').textContent = def ? 'Fortress defend' : 'Free for all';
+  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.`;
+  $('mtitle').textContent = def ? 'Defend the Fort' : 'Battle in the Arena'; $('maincard').classList.toggle('fort', def);
   $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
   // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
   for (const [id, show] of [['setrole', def], ['setbots', !def], ['setchar', !def], ['looklink', def]]) $(id).style.display = show ? '' : 'none';
@@ -1475,7 +1505,7 @@ function respawn(e, at, atYaw) { // at/atYaw: a set spot (taking over a soldier)
   if (e.isRemote) {
     e.yaw = e.yawV = look + Math.PI; e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
     const inv = k ? k.inv : ['pistol'];
-    e.inv = inv.slice(); e.ammoBy = {}; for (const id of inv) e.ammoBy[id] = { mag: WEAPONS[id].mag, res: WEAPONS[id].startRes };
+    e.inv = inv.slice(); e.ammoBy = {}; for (const id of inv) e.ammoBy[id] = { mag: WEAPONS[id].mag, res: ammoStart(id) };
     e.wpn = inv[0]; setRigWeapon(e.rig, e.wpn);
     sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq, k: e.role });
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit(); }
@@ -1778,7 +1808,7 @@ const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 
 const ROLES = {
   master:     { name: 'Master',        model: 6, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
   apprentice: { name: 'Apprentice',    model: 5, hp: 100, inv: ['pistol'],            nades: 0 },
-  atk:        { name: 'Midas soldier', model: 0, hp: 100, inv: ['carbine', 'pistol'], nades: 0 },
+  atk:        { name: 'Pirate',        model: 0, hp: 100, inv: ['carbine', 'pistol'], nades: 0 },
 };
 const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
 const isAtk = e => !!(e.bot || e.role === 'atk');
@@ -1806,7 +1836,7 @@ function applyPlayerKit() {
   const k = kitOf(P); if (!k) return;
   if (MODELS.length && playerModelIdx !== k.model) setPlayerModel(k.model);
   P.health = k.hp; P.nades = k.nades;
-  for (const id of k.inv) if (!P.ammoBy[id]) { P.inv.push(id); P.ammoBy[id] = { mag: WEAPONS[id].mag, res: WEAPONS[id].startRes }; }
+  for (const id of k.inv) if (!P.ammoBy[id]) { P.inv.push(id); P.ammoBy[id] = { mag: WEAPONS[id].mag, res: ammoStart(id) }; }
   P.inv = k.inv.filter(id => P.ammoBy[id]);
   selectWeapon(k.inv[0], true);
 }
@@ -2060,7 +2090,7 @@ function buildAmmoBoxes() {
   for (const { pos: p, cell, nade } of AMMO_SPOTS) {
     const g = new THREE.Group();
     const box = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.45, 0.3, 0.35) : new THREE.BoxGeometry(0.7, 0.35, 0.45), nade ? NADE_MAT : AMMO_MAT), band = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.47, 0.07, 0.37) : new THREE.BoxGeometry(0.72, 0.08, 0.47), nade ? NBAND_MAT : BAND_MAT);
-    box.castShadow = true; g.add(box, band);
+    box.castShadow = box.receiveShadow = band.receiveShadow = true; g.add(box, band);
     g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
     ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade });
   }
@@ -2130,7 +2160,7 @@ function placeProps() {
     for (const spot of LV.heals || []) {
       const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
       const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
-      bar1.position.y = bar2.position.y = 0.18; box.castShadow = true; g.add(box, bar1, bar2);
+      bar1.position.y = bar2.position.y = 0.18; box.castShadow = box.receiveShadow = bar1.receiveShadow = bar2.receiveShadow = true; g.add(box, bar1, bar2);
       g.position.set(p.x, p.y + 0.18, p.z); propGroup.add(g);
       registerHeal([g], p);
     }
@@ -2213,10 +2243,13 @@ function nextWeapon(dir) {
 }
 function curOf(e) { return e.isPlayer ? curW : e.wpn; }
 function syncE(e) { const id = curOf(e); if (e.ammoBy && e.ammoBy[id]) { e.ammoBy[id].mag = e.ammo; e.ammoBy[id].res = e.reserve; } }
-function needsAmmo(e) { if (!e.inv) return false; syncE(e); return e.inv.some(id => e.ammoBy[id].res < WEAPONS[id].maxRes); }
+// In the fort the Master's rifle carries 20 rounds (one in the chamber, 19 spare) and an ammo box gives it 10
+const fortRifle = id => MODE === 'defend' && id === 'rifle';
+const ammoCap = id => fortRifle(id) ? 19 : WEAPONS[id].maxRes, ammoGain = id => fortRifle(id) ? 10 : WEAPONS[id].mag, ammoStart = id => fortRifle(id) ? 19 : WEAPONS[id].startRes;
+function needsAmmo(e) { if (!e.inv) return false; syncE(e); return e.inv.some(id => e.ammoBy[id].res < ammoCap(id)); }
 function giveAmmoAll(e) {
   syncE(e);
-  for (const id of e.inv) e.ammoBy[id].res = Math.min(WEAPONS[id].maxRes, e.ammoBy[id].res + WEAPONS[id].mag);
+  for (const id of e.inv) e.ammoBy[id].res = Math.min(ammoCap(id), e.ammoBy[id].res + ammoGain(id));
   e.reserve = e.ammoBy[curOf(e)].res;
 }
 function botSelect(b, id) {
@@ -2243,20 +2276,20 @@ function botChooseWeapon(b, dist) {
 function giveWeapon(e, id, ammo) {
   const w = WEAPONS[id]; syncE(e);
   if (!e.inv.includes(id)) {
-    const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? w.startRes : Math.min(w.maxRes, ammo - mag);
+    const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
     e.inv.push(id); e.ammoBy[id] = { mag, res };
     if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
     return true;
   }
-  const a = e.ammoBy[id]; if (a.res >= w.maxRes) return false;
-  a.res = Math.min(w.maxRes, a.res + (ammo === undefined ? w.mag : ammo));
+  const a = e.ammoBy[id]; if (a.res >= ammoCap(id)) return false;
+  a.res = Math.min(ammoCap(id), a.res + (ammo === undefined ? ammoGain(id) : ammo));
   if (curOf(e) === id) e.reserve = a.res;
   if (e.isPlayer) note(`+${w.name} ammo`, 1);
   if (e.isRemote) sendTo(e, { t: 'give', id, ammo });
   return true;
 }
 function dropWeapons(e) {
-  if (!e.inv || MODE === 'defend') return; syncE(e); // Fortress loadouts are fixed: nobody drops guns
+  if (!e.inv || (MODE === 'defend' && !isAtk(e))) return; syncE(e); // in the fort only the attackers drop their guns
   let k = 0;
   for (const id of e.inv) {
     if (id === 'pistol') continue;
@@ -2894,7 +2927,7 @@ function applySettings() {
   const lim = +$('sglimit').value;
   if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; updateGoal(); }
   if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx }); return; }
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team') }); return; }
   const waves = MODE === 'defend' ? WAVE_SIZES.length : +$('swaves').value;
   if (selLevel !== curLevel) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
   else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
@@ -3047,6 +3080,27 @@ function renderPreview(dt) {
 // ---------- Round results ----------
 $('slimit').oninput = e => $('olimit').textContent = e.target.value;
 $('restart').onclick = () => $('next').onclick();
+// Title page: pick a game. Everything has been loading behind it since the page opened.
+function chooseMode(fort) {
+  selLevel = fort ? 'fortress' : selLevel === 'fortress' ? 'complex' : selLevel;
+  document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
+  updateGoal(); refreshPreview(); $('title').style.display = 'none';
+  // Get the chosen level ready behind the menu (the fort builds its walking map, a few seconds)
+  if (MODELS.length && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
+}
+$('goarena').onclick = () => chooseMode(false);
+$('gofort').onclick = () => chooseMode(true);
+$('totitle').onclick = () => { $('title').style.display = ''; };
+$('finetoggle').onchange = e => $('maincard').classList.toggle('fine', e.target.checked);
+// Fort invites: the apprentice link is the plain invite; the pirate link sends friends to the attackers
+function copyInvite(btn, team) {
+  const v = $('invlink').value, label = btn.textContent;
+  if (!v.startsWith('http')) { btn.textContent = 'Starting multiplayer…'; setTimeout(() => btn.textContent = label, 1500); return; }
+  const link = team ? v + '&team=' + team : v;
+  navigator.clipboard.writeText(link).then(() => { btn.textContent = 'Link copied'; setTimeout(() => btn.textContent = label, 1500); }).catch(() => prompt('Invite link', link));
+}
+$('invapp').onclick = e => copyInvite(e.target, null);
+$('invpir').onclick = e => copyInvite(e.target, 'pirates');
 // Look panel: opens over the paused game with the scene showing through
 const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v] };
 function showLook() {
@@ -3198,7 +3252,7 @@ const CN_METAL = toonMat({ color: 0x3b4148 }), CN_DARK = toonMat({ color: 0x2327
 const shellGeo = new THREE.SphereGeometry(0.16, 10, 8), shellMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
 function buildCannon(at) {
   const g = new THREE.Group(), pivotY = 1.35; g.position.copy(at); propGroup.add(g);
-  const mesh = (geo, mat, parent) => { const o = new THREE.Mesh(geo, mat); o.castShadow = true; parent.add(o); return o; };
+  const mesh = (geo, mat, parent) => { const o = new THREE.Mesh(geo, mat); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
   for (let i = 0; i < 3; i++) { // tripod legs from the pivot down to the roof
     const a = i * Math.PI * 2 / 3, foot = new V3(Math.sin(a) * 0.75, 0, Math.cos(a) * 0.75), top = new V3(0, pivotY, 0), mid = foot.clone().add(top).multiplyScalar(0.5);
     const leg = mesh(new THREE.CylinderGeometry(0.035, 0.045, foot.distanceTo(top), 6), CN_DARK, g);
@@ -3457,6 +3511,7 @@ function drawMap() {
 const params = new URLSearchParams(location.search);
 const NET = { role: params.get('join') ? 'guest' : 'host', hostId: params.get('join'), peer: null, conn: null, myId: 'h', joined: false, sendT: 0, nextRid: 1, spawnSeq: 0 };
 if (NET.role === 'guest') document.body.classList.add('guest');
+if (params.get('team') === 'pirates') $('guestinfo').textContent = "You're joining a friend's fort game as a pirate: ride in with the attackers and break in.";
 P.id = 'h';
 const remotes = [], replicas = new Map(), gNades = [];
 const ICE = { config: { iceServers: [
@@ -3491,6 +3546,7 @@ function applyFx(m) {
 function updateRoster() {
   const el = $('roster'); if (!el) return;
   el.textContent = remotes.length ? `In game: ${remotes.map(r => r.name).join(', ')}` : 'Send this link to friends. They join with their own name and character.';
+  $('roster2').textContent = remotes.length ? `In game: ${remotes.map(r => r.name + (MODE === 'defend' && ROLES[r.role] ? ' (' + ROLES[r.role].name + ')' : '')).join(', ')}` : '';
 }
 
 // ----- Host -----
@@ -3523,6 +3579,7 @@ function onGuestMsg(conn, m) {
       r = makeEntity(name, false);
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0 });
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
+      if (m.team === 'pirates') r.role = 'atk'; // invited as a pirate
       const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
       sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
       respawn(r);
@@ -3601,7 +3658,7 @@ function startGuest() {
   const peer = new Peer(undefined, ICE); NET.peer = peer;
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
-    conn.on('open', () => { $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx }); });
+    conn.on('open', () => { $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team') }); });
     conn.on('data', onHostMsg);
     conn.on('close', () => { NET.joined = false; $('netstat').textContent = 'Disconnected from host'; note('Disconnected from host', 6); });
   });
@@ -3783,6 +3840,9 @@ $('copyinv').onclick = () => { const v = $('invlink').value; if (v.startsWith('h
 respawn(P);
 loadModels().then(() => {
   const sel = $('schar'); MODELS.forEach((m, i) => sel.add(new Option(m.label, i)));
+  // The Master's rifle wears the laser pistol's finish
+  let pm = null; WEAPONS.pistol.scene.traverse(o => { if (!pm && o.isMesh) pm = o.material; });
+  if (pm) WEAPONS.rifle.scene.traverse(o => { if (o.isMesh) o.material = pm; });
   setPlayerModel(0);
   buildViewmodels();
   // Fortress is the only level: the host switches to it as soon as its mesh has loaded
@@ -3790,7 +3850,7 @@ loadModels().then(() => {
   else { buildPickups(); placeProps(); }
   if (NET.role === 'host') { buildBots(botTarget()); if (MODE !== 'defend') bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
-  $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play';
+  $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = '';
   initPreview();
 }).catch(e => { console.error(e); $('play').textContent = 'Characters failed to load'; });
 let last = performance.now();
