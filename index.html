@@ -498,7 +498,9 @@ function levelBunker() {
 function levelFortress() {
   return {
     mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'defend', look: true,
-    trucks: { drop: [20, 30] }, // attackers ride in and get out this far (m) from the gate
+    // Attackers ride in along the road (world [x, z], from its far end behind the hill up to the gate) and get out
+    // this far (m) from the gate, later trucks parking further back down the road
+    trucks: { drop: [20, 30], road: [[23.3, 60.8], [15, 57.5], [8.3, 54.2], [1, 49.8], [-5.8, 47], [-11, 43.8], [-15, 40.5], [-18, 37], [-19.5, 32], [-19.5, 27], [-18.3, 23.3], [-15, 21], [-11.7, 19.5], [-7.5, 17.5], [-4.5, 14], [-2.5, 10.8], [-1.6, 6.7]] },
     cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
     // Defenders: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room)
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2]],
@@ -1526,6 +1528,12 @@ function losPts(o, t) {
 const eyePos = e => new V3(e.pos.x, e.pos.y + (e.isPlayer ? e.h - 0.2 : 1.6), e.pos.z);
 const midPos = e => new V3(e.pos.x, e.pos.y + e.h * 0.7, e.pos.z);
 const los = (a, b) => losPts(eyePos(a), midPos(b));
+// Where a bot can see someone: the body, else just the head (over a parapet, or the local player leaning out); null if hidden
+function seenAt(b, t) {
+  const o = eyePos(b), m = midPos(t); if (losPts(o, m)) return { p: m, part: false };
+  const h = t.isPlayer && leanK > 0.3 ? camera.position.clone() : new V3(t.pos.x, t.pos.y + t.h - 0.15, t.pos.z);
+  return losPts(o, h) ? { p: h, part: true } : null;
+}
 
 // ---------- FX ----------
 const fx = [];
@@ -2066,14 +2074,23 @@ function updateHeals(dt) {
     }
   }
 }
+const NADE_BOUNCE = 0.2, NADE_SCRUB = 0.6, NADE_ROLL = 6; // share of speed kept bouncing off a surface, along it on impact, and rolling friction (/s)
 function updateNades(dt) {
   for (let i = nades.length - 1; i >= 0; i--) {
     const n = nades[i];
-    n.vel.y -= GRAV * dt;
-    for (const ax of ['x', 'y', 'z']) {
-      const p = n.pos.clone(); p[ax] += n.vel[ax] * dt;
-      if (solidPt(p.x, p.y, p.z, 0.09)) { n.vel[ax] *= -0.42; for (const o of ['x', 'y', 'z']) if (o !== ax) n.vel[o] *= 0.86; }
-      else n.pos[ax] = p[ax];
+    const sub = Math.max(1, Math.min(12, Math.ceil(n.vel.length() * dt / 0.12))), h = dt / sub; // small steps, so a fast grenade can't pass through thin ground
+    for (let k = 0; k < sub; k++) {
+      n.vel.y -= GRAV * h;
+      for (const ax of ['x', 'y', 'z']) {
+        const p = n.pos.clone(); p[ax] += n.vel[ax] * h;
+        if (solidPt(p.x, p.y, p.z, 0.09)) {
+          const hard = Math.abs(n.vel[ax]) > 2.5; // a real impact bounces a little; resting on the ground just rolls
+          n.vel[ax] = hard ? -n.vel[ax] * NADE_BOUNCE : 0;
+          const keep = hard ? NADE_SCRUB : Math.exp(-NADE_ROLL * h);
+          for (const o of ['x', 'y', 'z']) if (o !== ax) n.vel[o] *= keep;
+        }
+        else n.pos[ax] = p[ax];
+      }
     }
     n.mesh.position.copy(n.pos);
     n.t -= dt;
@@ -2439,17 +2456,17 @@ function botShootCore(b, dt) {
   if (total) damageCore(total * BOT_DMG);
 }
 function botShoot(b, t, dist) {
-  if (b.ammo <= 0 || !los(b, t)) return;
+  const seen = b.ammo > 0 && seenAt(b, t); if (!seen) return;
   const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
-  muzzleFx(b.wpn, start, new V3(t.pos.x, t.pos.y + t.h * 0.65, t.pos.z).sub(start).normalize(), false, b.id);
+  muzzleFx(b.wpn, start, seen.p.clone().sub(start).normalize(), false, b.id);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
   let total = 0, head = false; const marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
     const base = w.pellets ? 0.75 - dist * 0.05 : 0.55 - dist * (0.011 + (w.rangeSpread ? 0.006 : 0));
-    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1)));
-    const hit = Math.random() < acc, hd = hit && Math.random() < (w.pellets ? 0.05 : 0.1);
-    let aim = new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
+    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1))); // only a head showing: a smaller target
+    const hit = Math.random() < acc, hd = hit && !seen.part && Math.random() < (w.pellets ? 0.05 : 0.1);
+    let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
     if (hit) { total += hd ? w.head : w.dmg; head = head || hd; }
@@ -2470,7 +2487,7 @@ function findTarget(b) {
   for (const o of ents) {
     if (o === b || !o.alive || (def && isAtk(o))) continue;
     const d = b.pos.distanceTo(o.pos);
-    if (d < bd && los(b, o)) { bd = d; best = o; }
+    if (d < bd && seenAt(b, o)) { bd = d; best = o; }
   }
   return best;
 }
@@ -2784,18 +2801,24 @@ function updateCamera(dt) {
 
 // Lean out: pressed up against a parapet or window sill (something solid ahead at waist height, clear air at eye height)
 // and looking down, your head goes out over it, so you can see and shoot the foot of the wall. Shots leave from the head.
-let leanK = 0;
-const LEAN = { reach: 1.0, waist: 0.8, near: 0.9, look: -0.2 };
+// Once you're out, the lean holds its direction while you look left, right or up to level; backing away from the wall
+// (or walking off the end of it) brings you back in.
+let leanK = 0, leanDir = null;
+const LEAN = { reach: 1.0, waist: 0.8, near: 0.9, look: -0.2, hold: 0.25, back: 0.35 };
 function leanOut(dt) {
   let want = 0;
-  if (TG && P.alive && P.pitch < LEAN.look) {
-    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), e = camera.position;
-    const wall = tgRay(P.pos.x, P.pos.y + LEAN.waist, P.pos.z, fx, 0, fz, LEAN.near);
-    const air = tgRay(e.x, e.y, e.z, fx, 0, fz, LEAN.reach + 0.3);
-    if (wall < LEAN.near && air >= LEAN.reach + 0.3) want = LEAN.reach * Math.min(1, (LEAN.look - P.pitch) / 0.3);
-  }
+  const e = camera.position, ok = (fx, fz, near) => tgRay(P.pos.x, P.pos.y + LEAN.waist, P.pos.z, fx, 0, fz, near) < near && tgRay(e.x, e.y, e.z, fx, 0, fz, LEAN.reach + 0.3) >= LEAN.reach + 0.3;
+  if (TG && P.alive) {
+    if (leanDir && P.pitch < LEAN.hold && ok(leanDir.x, leanDir.z, LEAN.near + LEAN.back)) want = LEAN.reach; // still hanging over
+    else {
+      leanDir = null;
+      const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw);
+      if (P.pitch < LEAN.look && ok(fx, fz, LEAN.near)) { want = LEAN.reach * Math.min(1, (LEAN.look - P.pitch) / 0.3); if (want > LEAN.reach * 0.6) leanDir = { x: fx, z: fz }; }
+    }
+  } else leanDir = null;
   leanK += (want - leanK) * Math.min(1, dt * 8);
-  if (leanK > 0.01) { camera.position.x += -Math.sin(P.yaw) * leanK; camera.position.z += -Math.cos(P.yaw) * leanK; camera.position.y -= leanK * 0.15; }
+  const dx = leanDir ? leanDir.x : -Math.sin(P.yaw), dz = leanDir ? leanDir.z : -Math.cos(P.yaw);
+  if (leanK > 0.01) { camera.position.x += dx * leanK; camera.position.z += dz * leanK; camera.position.y -= leanK * 0.15; }
 }
 
 // ---------- Viewmodel ----------
@@ -3354,26 +3377,42 @@ function newTruck(at, seats) {
 }
 function clearTrucks() { for (const tr of trucks) scene.remove(tr.g); trucks.length = 0; }
 // Host: one truck per TRUCK.seats soldiers, leaving the far spawns a few seconds apart
+function roadRoute(k) {
+  const R = LV.trucks.road, [gx, gz] = LV.gate.at, pts = [];
+  for (let i = 0; i + 1 < R.length; i++) { // every 2 m along the road
+    const [x0, z0] = R[i], [x1, z1] = R[i + 1], m = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 2));
+    for (let j = 0; j < m; j++) pts.push(new V3(x0 + (x1 - x0) * j / m, 0, z0 + (z1 - z0) * j / m));
+  }
+  let end = pts.findIndex(p => Math.hypot(p.x - gx, p.z - gz) < LV.trucks.drop[0] + 3); if (end < 0) end = pts.length - 1;
+  pts.length = Math.max(2, end + 1 - (k % 3) * 4); // later trucks stop 8 m apart further down
+  for (const p of pts) p.y = groundAt(p.x, p.z, 120) || 0;
+  return pts;
+}
 function sendTrucks(n) {
   for (let k = 0; n > 0; k++) {
     const seats = Math.min(TRUCK.seats, n); n -= seats;
+    if (LV.trucks.road) {
+      const route = roadRoute(k), tr = newTruck(route[0].clone(), seats);
+      tr.route = route; tr.pi = 1; tr.yaw = Math.atan2(route[1].x - route[0].x, route[1].z - route[0].z); tr.wait = 1 + k * 4 + Math.random() * 1.5;
+      continue;
+    }
     // Not every spawn connects to every drop-off: try spawns and drop-offs until there's a road
     let from = ATK_SPAWNS[k % ATK_SPAWNS.length], path = null;
     for (let tries = 0; tries < 24 && !path; tries++) {
       const sp = ATK_SPAWNS[(k + (tries >> 2)) % ATK_SPAWNS.length], drop = DROPS.length ? DROPS[Math.random() * DROPS.length | 0] : ASSAULT[0];
       const pth = findPath(cellOf(sp), drop); if (pth && pth.length) { path = pth; from = sp; }
     }
-    const tr = newTruck(from.clone(), seats); tr.path = path; tr.pi = 0; tr.wait = 1 + k * 3 + Math.random() * 2;
+    const tr = newTruck(from.clone(), seats); tr.route = path && path.map(cellPos); tr.pi = 0; tr.wait = 1 + k * 3 + Math.random() * 2;
   }
 }
 // Host: drive, park, unload
 function updateTrucks(dt) {
   for (const tr of trucks) {
     if (!tr.alive) continue;
-    if (tr.state === 'wait') { if ((tr.wait -= dt) <= 0) tr.state = tr.path ? 'drive' : 'park'; continue; }
+    if (tr.state === 'wait') { if ((tr.wait -= dt) <= 0) tr.state = tr.route ? 'drive' : 'park'; continue; }
     if (tr.state === 'drive') {
-      const c = cellPos(tr.path[tr.pi]), dx = c.x - tr.pos.x, dz = c.z - tr.pos.z;
-      if (Math.hypot(dx, dz) < 1.8) { if (++tr.pi >= tr.path.length) tr.state = 'park'; continue; }
+      const c = tr.route[tr.pi], dx = c.x - tr.pos.x, dz = c.z - tr.pos.z;
+      if (Math.hypot(dx, dz) < 1.8) { if (++tr.pi >= tr.route.length) tr.state = 'park'; continue; }
       const want = Math.atan2(dx, dz); tr.yaw = turn(tr.yaw, want, TRUCK.turn * dt);
       const v = TRUCK.speed * (Math.abs(wrap(want - tr.yaw)) > 0.7 ? 0.35 : 1) * dt;
       tr.pos.x += Math.sin(tr.yaw) * v; tr.pos.z += Math.cos(tr.yaw) * v;
