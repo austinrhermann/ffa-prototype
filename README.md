@@ -16,25 +16,25 @@ Import the repo in Vercel, framework preset **Other**, no build command, output 
 
 ## Fortress defend
 
-The **Fortress** level is a hilltop fort on an island (from the Blender `Sets/Fortress` file), and it plays a co-op mode instead of free for all:
+The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). If any defender dies, the fort is lost. The start screen has one setting, Difficulty; the pause screen has Restart game.
 
-- All players are defenders and spawn inside the fort: the courtyard, the wall walk over the gate, the north building, the west wing, the tower room and the tower roof.
-- Bots attack in waves, coming up from behind the hills. Each wave is bigger and better armed. **Attackers at once** caps how many are on the field; **Waves to survive** sets the length of the match.
-- Attackers that reach the fort wear down its health (shown at the top of the screen). Hold out through every wave to win; if the fort reaches 0% it falls. Between waves the fort recovers a little.
-- The fort has ammo, grenade crates and guns: carbines, a shotgun, and rifles in the tower room and on the roof. Dropped attacker guns can be picked up outside.
-- Ladders: a doorway at the foot of the tower leads to a ladder up through the hatch into the tower room. A second ladder on the tower's courtyard wall goes to the roof. Walk into a ladder to climb and away from it to climb down.
-- No friendly fire between players.
+- **The Master**: Master rifle, laser pistol, 4 grenades, double health (200). Plays alone if nobody else joins.
+- **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate.
+- **The Computer**: always an NPC. Fires the cannon on the wall over the gate by itself at the closest attacker it can aim at (a grenade-sized blast, then 10 s to recharge). It only faces out over the hills and can't tilt down far enough to reach the foot of the wall.
+- Alone you're the Master. With a friend, the host picks Master or Apprentice and the friend gets the other. Everyone after the second joins the attackers as a Midas soldier (carbine and pistol); a dead attacker can press **E** to take over the NPC soldier closest to the gate.
+- Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads.
+- White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. No spare guns lie around and nobody drops guns.
+- **Look**: Fortress uses a flat sun-and-shadow look copied from the Blender renders (lit surfaces show their texture colour, shadowed ones the texture times a shadow colour, with a ramp for the edge). Esc, then **Look**, to change the sun, shadow colour, edge and sky live; **Copy settings** copies them for `LOOK_DEFAULT`. The other levels keep the original lighting.
 
-`models/Fortress.glb` is exported from the Blender file with `tools/export_fortress.py`, which applies modifiers, cuts the tower doorway and floors the open tower shaft:
+The level comes from James's render set export, turned into two files by `tools/build_fortress.py` (run it in Blender; the command is at the top of the script):
 
-```sh
-/Applications/Blender.app/Contents/MacOS/Blender -b "<Asset Library>/Sets/Fortress/Fortress.blend" --python tools/export_fortress.py
-```
+- `models/Fortress_v5.glb` is what you see: characters, render helpers and the render cannon removed, heavy plants simplified, objects merged by material, textures shrunk to JPEG, geometry Draco-compressed (63 MB down to about 6 MB).
+- `models/Fortress_v5_col.glb` is what everything collides with, shoots at and walks on: simplified terrain, the fort exact, props as boxes, no plants, the closed gate as a box named `Front_Gate`, every staircase replaced by a smooth ramp, and the way from the back corridor up to the wall walk trimmed open (`RAMPS` and `TRIM` in the script).
 
 ## Multiplayer
 
 - Open the site: you're the **host**. The start screen shows an invite link (`?join=<id>`) to send to friends.
-- The host's browser runs the match: level, bots, difficulty and score limit (or waves on Fortress), plus all scoring, waves, pickups, grenades and gas cans.
+- The host's browser runs the match: level, bots, difficulty and score limit (or the waves on Fortress), plus all scoring, waves, pickups, grenades and gas cans.
 - **Guests** opening the link only pick a name and character, then join.
 - Networking is peer-to-peer WebRTC via [PeerJS](https://peerjs.com). The free public PeerJS server is used only to introduce players; game traffic goes directly between browsers, with a public TURN relay as a fallback for strict networks.
 - If the host closes the tab, the match ends for everyone.

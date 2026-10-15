@@ -42,6 +42,9 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #bullets i.m{background:#fff}
 #bullets.rl i.m{animation:rl .5s ease-in-out infinite alternate}
 @keyframes rl{to{opacity:.25}}
+#cprompt{position:absolute;top:60%;left:50%;transform:translateX(-50%);background:var(--panel);padding:6px 14px;border-radius:4px;font-size:15px}
+#cpu{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,14,12,.92);border:2px solid #3fbf7f;border-radius:6px;padding:12px;color:#bff5d6;font:13px/1.5 ui-monospace,Menlo,monospace;text-align:center}
+#cpu canvas{display:block;width:336px;height:368px;image-rendering:pixelated;margin-bottom:8px}
 #msg{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:24px;text-shadow:0 2px 6px #000;text-align:center}
 #resume{position:absolute;top:44%;left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 16px;border-radius:4px;font-size:15px;display:none}
 #note{position:absolute;top:60%;left:50%;transform:translateX(-50%);font-size:16px;text-shadow:0 2px 6px #000}
@@ -82,6 +85,13 @@ body.guest .hostonly{display:none}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:stretch;margin:16px}
 .cards .card{margin:0}
+#lookcard{display:none}
+#overlay.looking{background:transparent;justify-content:flex-end;align-items:flex-start}
+#overlay.looking .cards>.card{display:none}
+#overlay.looking #lookcard{display:block;max-width:300px}
+#lookcard .row{display:flex;gap:8px;margin-top:8px}
+#lookcard .row button,#looklink{flex:1;padding:8px;border:1px solid rgba(238,243,234,.25);border-radius:4px;background:#1e252c;color:var(--hud);font:inherit;font-size:14px;cursor:pointer}
+#lookcard input[type=color]{height:30px;padding:0;border:0;background:none}
 #charcard{width:280px}
 #cprev{display:block;margin:4px auto 0;width:240px;height:280px;border-radius:6px;background:rgba(255,255,255,.05)}
 #play:disabled{opacity:.55;cursor:default}
@@ -142,6 +152,8 @@ body.touch .card small.tc{display:block}
   <div id="feed"></div>
   <div id="ammo"><div id="hpbar" aria-label="Health"><div id="hp"></div></div><div id="nades"></div><div id="bullets"></div></div>
   <div id="msg"></div>
+  <div id="cprompt" style="display:none">E: use the computer</div>
+  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div>Space: open or close the gate &middot; E: step away</div></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
   <div id="mic"></div>
@@ -166,11 +178,12 @@ body.touch .card small.tc{display:block}
 </div>
 <div id="overlay"><div class="cards"><div class="card">
   <h1 id="mtitle">Free for all</h1>
-  <p id="goal">First to 20 kills wins.</p>
+  <p id="goal"></p>
   <div class="set hostonly" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
-  <p class="guestonly">You're joining a friend's game. The host picks the level, bots and score limit.</p>
-  <p class="guestonly" id="netstat">Pick a name and character, then join.</p>
+  <p class="guestonly">You're joining a friend's game. The host picks the level. On Fortress, if the tower has room you're the Master or the Apprentice; otherwise you join the attackers as a Midas soldier.</p>
+  <p class="guestonly" id="netstat">Pick a name, then join.</p>
   <div class="set hostonly"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="fortress">Fortress</button></div></div>
+  <div class="set hostonly" id="setrole"><label>Your role with a friend</label><div class="levels" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
   <dl class="kb">
     <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
     <dt>Shift</dt><dd>Run</dd>
@@ -182,6 +195,7 @@ body.touch .card small.tc{display:block}
     <dt>Wheel, 1–4</dt><dd>Switch weapon</dd>
     <dt>F</dt><dd>Knife</dd>
     <dt>M</dt><dd>Mute or unmute your mic</dd>
+    <dt>E</dt><dd>Use the computer (tower room) or take over a soldier</dd>
     <dt>Enter</dt><dd>Chat with everyone in the game</dd>
     <dt>G</dt><dd>Frag grenade</dd>
     <dt>Tab</dt><dd>Scoreboard</dd>
@@ -195,18 +209,31 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
-  <div class="set hostonly"><label for="sdiff">Bot difficulty <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
+  <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
+  <div class="set hostonly"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
   <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
   <button id="play" disabled>Loading characters…</button>
-  <small class="kb">Needs a mouse and keyboard. Changing the bot count restarts the match.</small>
-  <small class="tc">Best in landscape. Changing the bot count restarts the match.</small>
+  <button id="restart" class="hostonly" style="display:none">Restart game</button>
+  <button id="looklink" type="button">Look</button>
+  <small class="kb">Needs a mouse and keyboard.</small>
+  <small class="tc">Best in landscape.</small>
+</div>
+<div class="card" id="lookcard">
+  <h1>Look</h1>
+  <div class="set"><label for="lkaz">Sun direction <output id="olkaz"></output></label><input type="range" id="lkaz" min="0" max="360" step="1"></div>
+  <div class="set"><label for="lkel">Sun height <output id="olkel"></output></label><input type="range" id="lkel" min="5" max="85" step="1"></div>
+  <div class="set"><label for="lkshadow">Shadow colour <output id="olkshadow"></output></label><input type="color" id="lkshadow"></div>
+  <div class="set"><label for="lkedge">Light and shadow edge <output id="olkedge"></output></label><input type="range" id="lkedge" min="0.2" max="0.8" step="0.01"></div>
+  <div class="set"><label for="lksoft">Edge softness <output id="olksoft"></output></label><input type="range" id="lksoft" min="0" max="0.4" step="0.01"></div>
+  <div class="set"><label for="lksky">Sky colour <output id="olksky"></output></label><input type="color" id="lksky"></div>
+  <small>Changes show straight away and are remembered on this computer.</small>
+  <div class="row"><button type="button" id="lkreset">Reset</button><button type="button" id="lkcopy">Copy settings</button><button type="button" id="lkback">Back</button></div>
 </div>
 <div class="card" id="charcard">
-  <h1>Your character</h1>
+  <h1 id="chartitle">Your character</h1>
   <div class="set"><label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false"></div>
-  <div class="set"><label for="schar">Character</label><select id="schar"></select></div>
+  <div class="set" id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
 </div>
 </div></div>
@@ -223,6 +250,7 @@ body.touch .card small.tc{display:block}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
@@ -246,9 +274,21 @@ scene.fog = new THREE.Fog(0x9db4c8, 35, 95);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xe4ecff, 0x4a5240, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(25, 50, 15);
+// ---------- Look: flat sun-and-shadow shading, like the Blender renders ----------
+// Lit surfaces show their texture colour; surfaces turned away from the sun, or in its shadow, show the texture times the
+// shadow colour. A ramp sets how sharply one turns into the other. Every material uses it, characters included, so they're
+// lit and shadowed the same way as the set. Tweak it from the Look panel on the pause screen.
+const LOOK_DEFAULT = { az: 210, el: 55, shadow: '#6a7488', edge: 0.5, soft: 0.06, sky: '#9db4c8' };
+let LOOK = { ...LOOK_DEFAULT };
+try { Object.assign(LOOK, JSON.parse(localStorage.getItem('fortressLook') || '{}')); } catch (e) {}
+const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
+RAMP.magFilter = RAMP.minFilter = THREE.LinearFilter; RAMP.generateMipmaps = false;
+const toonMat = params => new THREE.MeshToonMaterial({ gradientMap: RAMP, ...params });
+const shadeFill = new THREE.AmbientLight(0xffffff, 1); scene.add(shadeFill);
+const sky = new THREE.HemisphereLight(0xe4ecff, 0x4a5240, 0.9); scene.add(sky); // the original lighting, for levels without the look
+const LOOK_EXTRA = []; // other scenes' lights that follow the look: [fill, sun, sky, classic sun intensity, classic sky intensity]
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+const SUN_DIR = new THREE.Vector3();
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 150 });
@@ -257,8 +297,32 @@ const boomLight = new THREE.PointLight(0xffaa55, 0, 18); scene.add(boomLight);
 
 const vmScene = new THREE.Scene();
 const vmCam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 10);
-vmScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.9));
-const vmLight = new THREE.DirectionalLight(0xffffff, 0.6); vmLight.position.set(1, 2, 1); vmScene.add(vmLight);
+const vmFill = new THREE.AmbientLight(0xffffff, 1), vmSky = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9); vmScene.add(vmFill, vmSky);
+const vmLight = new THREE.DirectionalLight(0xffffff, 1); vmLight.position.set(1, 2, 1); vmScene.add(vmLight);
+LOOK_EXTRA.push([vmFill, vmLight, vmSky, 0.6, 0.9]);
+// Apply the look settings (ramp, light colours, sun direction, sky) on levels that use the look (LV.look); everywhere else
+// the original lighting: a sky light plus a sun, with the ramp set to plain diffuse shading
+function applyLook() {
+  const on = !!(LV && LV.look), lo = LOOK.edge - LOOK.soft / 2, hi = LOOK.edge + LOOK.soft / 2;
+  for (let i = 0; i < 256; i++) { // the ramp's input is 0.5 where a surface turns side-on to the sun
+    const t = i / 255, k = hi <= lo ? (t >= LOOK.edge ? 1 : 0) : Math.min(1, Math.max(0, (t - lo) / (hi - lo)));
+    const v = Math.round((on ? k * k * (3 - 2 * k) : Math.max(0, 2 * t - 1)) * 255);
+    RAMP.image.data.set([v, v, v, 255], i * 4);
+  }
+  RAMP.needsUpdate = true;
+  const sh = new THREE.Color(LOOK.shadow), lit = new THREE.Color(Math.max(0, 1 - sh.r), Math.max(0, 1 - sh.g), Math.max(0, 1 - sh.b));
+  for (const [f, d, k, dk, kk] of [[shadeFill, sun, sky, 0.8, 0.9], ...LOOK_EXTRA]) {
+    f.color.copy(sh); f.intensity = on ? 1 : 0;
+    d.color.copy(on ? lit : new THREE.Color(0xffffff)); d.intensity = on ? 1 : dk;
+    k.intensity = on ? 0 : kk;
+  }
+  if (on) { const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180; SUN_DIR.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)); }
+  else SUN_DIR.set(25, 50, 15).normalize();
+  scene.background.set(on ? LOOK.sky : 0x9db4c8); scene.fog.color.set(on ? LOOK.sky : 0x9db4c8);
+  // With the look, characters take shadows like the set does
+  const recv = o => { if (o.isSkinnedMesh) o.receiveShadow = on; };
+  MODELS.forEach(m => m.scene.traverse(recv)); scene.traverse(recv);
+}
 
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
@@ -400,21 +464,25 @@ function levelBunker() {
 }
 // Fortress (from the Blender set): a fort on a hilltop island. Fortress defend: players hold the fort while waves of bots
 // come up from behind the hills. Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it.
+// The set comes as two files built by tools/build_fortress.py: mesh is what's drawn, collide is what everything collides with.
 function levelFortress() {
   return {
-    mesh: 'Fortress', mode: 'defend', cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
-    // Defenders: courtyard, wall walk over the gate, north building upstairs, tower room, tower roof
-    spawns: [[-3, 34, -2], [0, 34, 0], [-1, 34, -4], [-3, 38, 3.6], [1, 38, 3.6], [-4, 38, -6], [5, 38, -4], [5.5, 45, 4.5], [5.3, 48.5, 2]],
+    mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'defend', look: true, cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
+    // Defenders: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room)
+    spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2]],
     atk: [[34, 64], [38, 70], [-4, 66], [-46, 46], [-52, 38], [24, 50]],
-    ammo: [[-4, 34, 1], [1, 34, -4], [-1, 38, 3.6], [6.2, 45, 5], [-9, 38, -7], [-2, 34, -5, 1], [6.6, 45, 4, 1]],
-    pickups: [['carbine', -2, 34, 0.5], ['carbine', 1, 38, 3.6], ['shotgun', 0, 34, -5], ['rifle', 5.8, 48.5, 4], ['rifle', 5.2, 45, 5.2]],
-    // Ladders: climb volume [x0, x1, z0, z1, y0, y1] and the way they face (up the tower shaft to the room hatch; outside up to the roof)
-    ladders: [{ box: [3.15, 4.05, 2.2, 2.95, 33.5, 44.9], dir: [0, 1] }, { box: [1.85, 2.8, 1.95, 2.85, 33.5, 48.6], dir: [1, 0] }],
-    // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room
-    gate: { mesh: 'Front_Gate', at: [-2.4, 6.5], drop: 6.4 },
-    core: { mesh: 'Computer', at: [5.29, 44.96, 1.4], hp: 260 },
-    // The way in, as [x, z, floor y]: outside the gate, the courtyard, round the boulder to the tower door, the ladder (climbed), the room
-    route: [[-2.4, 8, 33], [-2.4, 2.6, 33.5], [1.2, 1, 33.5], [3.6, 1, 33.5], [3.6, 2.6, 33.5, 1], [3.7, 3.7, 43.9], [4.4, 3.4, 43.9]],
+    ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1]],
+    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6]],
+    pickups: [], // loadouts are fixed by role
+    cannon: [-1.9, 37.5, 4.25], // the Computer's cannon on the wall walk over the gate
+    ladders: [], // stairs everywhere now
+    // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room.
+    // The gate is two doors at the courtyard end of the passage under the wall walk, hinged at the sides
+    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
+    core: { mesh: 'Important Computer', at: [5.29, 44.96, 1.4], hp: 260 },
+    // Inside the fort attackers find their way on a fine walking map of every floor, built from the collision set at load:
+    // area [x0, z0, x1, z1] (it takes in the approach to the gate), cell size, and the height range to look for floors in
+    fortNav: { box: [-7.5, -7.5, 8.5, 9.5], cell: 0.25, top: 50, bottom: 30 },
   };
 }
 const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, fortress: levelFortress };
@@ -423,7 +491,7 @@ function buildGrid(id) {
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
   MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
-  TG = L.mesh ? buildTG(LEVEL_SCENES[L.mesh]) : null;
+  TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
   if (TG) { buildTerrainNav(); WALK.length = 0; for (let n = 0; n < N; n++) if (walk0(n)) WALK.push(n); return L; }
   // Second-floor walls sit above ground cells that border second-floor walkways
   for (let r = 0; r < GD; r++) for (let c = 0; c < GW; c++) {
@@ -474,14 +542,14 @@ function gridTex() {
   return t;
 }
 const MAT = {
-  wall: new THREE.MeshLambertMaterial({ color: 0x8d949c }),
-  plat: new THREE.MeshLambertMaterial({ color: 0x69737f }),
-  stair: new THREE.MeshLambertMaterial({ color: 0x7d6e5c }),
-  crate: new THREE.MeshLambertMaterial({ color: 0xa8804a }),
-  floor: new THREE.MeshLambertMaterial({ map: gridTex() }),
-  snow: new THREE.MeshLambertMaterial({ color: 0xe8edf1 }),
-  pad: new THREE.MeshLambertMaterial({ color: 0x50555b }),
-  padMark: new THREE.MeshLambertMaterial({ color: 0xe0b52a }),
+  wall: toonMat({ color: 0x8d949c }),
+  plat: toonMat({ color: 0x69737f }),
+  stair: toonMat({ color: 0x7d6e5c }),
+  crate: toonMat({ color: 0xa8804a }),
+  floor: toonMat({ map: gridTex() }),
+  snow: toonMat({ color: 0xe8edf1 }),
+  pad: toonMat({ color: 0x50555b }),
+  padMark: toonMat({ color: 0xe0b52a }),
 };
 function boxMat(b0, b1) {
   if (b0 === F2 - SLAB) return MAT.plat;
@@ -513,12 +581,14 @@ function buildWorld(L) {
   W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0;
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
   camera.far = L.mesh ? 400 : 300; camera.updateProjectionMatrix();
-  if (!L.mesh) { sun.position.set(25, 50, 15); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
+  if (!L.mesh) { sun.position.copy(SUN_DIR).multiplyScalar(60); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
   sun.shadow.bias = L.mesh ? -0.0005 : 0; sun.shadow.normalBias = L.mesh ? 0.03 : 0;
   if (L.mesh) {
-    const sc = LEVEL_SCENES[L.mesh]; levelGroup.add(sc);
-    sc.traverse(o => { if (o.isMesh && !o.userData.water) W.meshes.push(o); });
+    const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
+    col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
+    col.traverse(o => { if (o.isMesh && !o.userData.water && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
     for (const l of L.ladders || []) levelGroup.add(makeLadder(l));
+    if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
     return;
   }
   MAT.wall.color.setHex(L.wall);
@@ -636,7 +706,7 @@ function loadLevel(id) {
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
     L.atk.forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
-    findAssault();
+    findAssault(); buildFortNav();
     return;
   }
   L.spawns.forEach(([c, r, l]) => SPAWNS.push(cellPos(node(c, r, l))));
@@ -1026,15 +1096,22 @@ $('sbots').oninput = e => $('obots').textContent = e.target.value;
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
-let selLevel = 'complex';
-document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); });
-function switchLevel(id) { if (NET.role === 'host') broadcast({ t: 'level', id }); loadLevel(id); buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); }
+let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'complex';
+document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
+document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); refreshPreview(); });
+function switchLevel(id) {
+  if (NET.role === 'host') broadcast({ t: 'level', id });
+  loadLevel(id); applyLook(); // Fortress turns the look on
+  if (NET.role === 'host') for (const r of remotes) { const mi = MODE === 'defend' ? ROLES[r.role].model : r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
-  $('goal').textContent = def ? `Fortress defend: survive ${NET.role === 'host' ? +$('swaves').value : WAVES} waves of attackers coming up from behind the hills. They batter down the front gate, then climb the tower for the computer. Lose the computer and the fort falls. Ammo and guns are inside.` : `First to ${KILL_LIMIT} kills wins.`;
+  $('goal').textContent = def ? `Survive ${WAVES} waves of Midas soldiers (${WAVE_SIZES.join(', then ')}). The Master (rifle, pistol, 4 grenades, double health) holds the walls. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate by itself. The gate only breaks once. Once inside, the attackers hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.`;
   $('mtitle').textContent = def ? 'Fortress defend' : 'Free for all';
-  $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = def ? '' : 'none';
+  $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
+  // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
+  for (const [id, show] of [['setrole', def], ['setbots', !def], ['setchar', !def], ['looklink', def]]) $(id).style.display = show ? '' : 'none';
+  $('ldiff').textContent = def ? 'Difficulty' : 'Bot difficulty'; $('chartitle').textContent = def ? 'You' : 'Your character';
   $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
 }
 
@@ -1057,13 +1134,14 @@ function prepScene(sc) {
     const m = o.material;
     if (m.map) m.map.encoding = THREE.LinearEncoding;
     const color = m.color.clone(); if (!m.map) color.convertLinearToSRGB();
-    o.material = new THREE.MeshLambertMaterial({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh }); o.material.name = m.name;
-    o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; o.frustumCulled = !o.isSkinnedMesh;
+    o.material = toonMat({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh }); o.material.name = m.name;
+    o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; o.frustumCulled = !o.isSkinnedMesh; // characters take shadows only with the look
   });
   sc.updateMatrixWorld(true); return sc;
 }
+const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 const parseGLB = key => fetch('models/' + key + '.glb').then(r => { if (!r.ok) throw new Error('Missing model ' + key); return r.arrayBuffer(); })
-  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', g => res(prepScene(g.scene)), rej)));
+  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', g => res(prepScene(g.scene)), rej)));
 // Weapon muzzle direction: the end with the smaller vertical profile (grips and stocks are tall)
 function orientWeapon(sc) {
   const pts = [], v = new V3();
@@ -1098,7 +1176,7 @@ const GUN_FX = {
 const PROPS = {};
 function makeShotgun() {
   const g = new THREE.Group();
-  const metal = new THREE.MeshLambertMaterial({ color: 0x3a3d42 }), wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
+  const metal = toonMat({ color: 0x3a3d42 }), wood = toonMat({ color: 0x7a4a26 });
   const add = (geo, mat, x, y, z, rx) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); if (rx) o.rotation.x = rx; o.castShadow = true; g.add(o); return o; };
   for (const x of [-0.023, 0.023]) add(new THREE.CylinderGeometry(0.021, 0.021, 0.62, 12).rotateX(Math.PI / 2), metal, x, 0.02, -0.33);
   add(new THREE.BoxGeometry(0.075, 0.07, 0.16), metal, 0, 0.005, 0.03);
@@ -1146,17 +1224,16 @@ function loadModels() {
       PROPS[n] = { proto, size: bb.getSize(new V3()) };
     }
   });
-  // Level sets: recolour the plain Blender materials, mark the water (it bounds the island but is not solid)
-  const LEVEL_COLORS = { Fortress: 0x968d7c, 'dirt ground': 0x7d6a52, door: 0x6e4a2c, Metal: 0x4e555d };
-  const sets = parseGLB('Fortress').then(sc => {
+  // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
+  const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
+  const sets = Promise.all([parseGLB('Fortress_v5'), parseGLB('Fortress_v5_col')]).then(([sc, col]) => {
     sc.traverse(o => {
       if (!o.isMesh) return;
-      const nm = o.material.name.replace(/^FX_/, '');
-      if (LEVEL_COLORS[nm] !== undefined) o.material.color.setHex(LEVEL_COLORS[nm]);
       if (o.material.map) o.material.map.anisotropy = 8;
-      if (o.name === 'Water' || (o.parent && o.parent.name === 'Water')) { o.userData.water = true; o.material.color.setHex(0x4f79a6); o.castShadow = false; }
+      if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
     });
-    LEVEL_SCENES.Fortress = sc;
+    col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
+    LEVEL_SCENES.Fortress_v5 = sc; LEVEL_SCENES.Fortress_v5_col = col;
   });
   return Promise.all([soldiers, weps, props, sets]);
 }
@@ -1349,6 +1426,7 @@ function updatePlayerRig(dt) {
 }
 
 const P = makeEntity('You', true);
+P.role = 'master';
 P.eyeCur = 1.6; P.viewY = 0;
 const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], ['Echo', 0x9b59b6], ['Havoc', 0x2ecc71],
   ['Jinx', 0xe67e22], ['Talon', 0x1abc9c], ['Ghost', 0xbdc3c7], ['Blaze', 0xe84393], ['Atlas', 0x5d7a99],
@@ -1370,7 +1448,7 @@ function buildBots(n) {
 }
 
 function pickSpawn(e) {
-  if (MODE === 'defend' && e.bot) return attackerSpawn();
+  if (MODE === 'defend' && isAtk(e)) return attackerSpawn();
   let best = SPAWNS[0], bd = -1;
   for (const s of SPAWNS) {
     let md = 999;
@@ -1380,19 +1458,22 @@ function pickSpawn(e) {
   }
   return best;
 }
-function respawn(e) {
-  const s = pickSpawn(e);
+function respawn(e, at, atYaw) { // at/atYaw: a set spot (taking over a soldier); ignored when called from forEach
+  const s = at && at.isVector3 ? at : pickSpawn(e), k = kitOf(e);
+  if (!(at && at.isVector3)) atYaw = undefined;
   e.pos.copy(s); e.vel.set(0, 0, 0);
-  e.health = 100; e.alive = true; e.h = STAND_H;
-  e.ammo = MAG; e.reserve = START_RES; e.nades = 2; e.reloading = 0;
+  e.health = maxHp(e); e.alive = true; e.h = STAND_H;
+  e.ammo = MAG; e.reserve = START_RES; e.nades = k ? k.nades : 2; e.reloading = 0;
   // Players look toward the middle of the map; fort defenders look out over the hills the attackers come from
-  const look = MODE === 'defend' ? Math.PI : Math.atan2(s.x, s.z);
+  const look = atYaw !== undefined ? atYaw : MODE === 'defend' && !isAtk(e) ? Math.PI : Math.atan2(s.x, s.z);
   if (e.isRemote) {
     e.yaw = e.yawV = look + Math.PI; e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
-    e.inv = ['pistol']; e.ammoBy = { pistol: { mag: 12, res: 24 } }; e.wpn = 'pistol'; setRigWeapon(e.rig, 'pistol');
-    sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq });
-  } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
-  else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.route = undefined; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e); }
+    const inv = k ? k.inv : ['pistol'];
+    e.inv = inv.slice(); e.ammoBy = {}; for (const id of inv) e.ammoBy[id] = { mag: WEAPONS[id].mag, res: WEAPONS[id].startRes };
+    e.wpn = inv[0]; setRigWeapon(e.rig, e.wpn);
+    sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq, k: e.role });
+  } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit(); }
+  else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e); }
 }
 
 // ---------- Helpers ----------
@@ -1684,10 +1765,52 @@ let matchOver = false;
 // ---------- Fortress defend: players hold the fort, bots attack in waves ----------
 // Attackers at the front gate wear it down (hp). When it breaks it drops into the ground and they head up the tower
 // to shoot the computer (core); lose the computer and the fort falls. Survive every wave to win.
-let WAVES = 6;
+let WAVES = 3;
 const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 };
+// Roles: the Master and the Apprentice hold the tower with the Computer (always an NPC). Alone you are the Master;
+// with a friend the host's pick holds and the friend takes the other role; anyone after that attacks as a Midas soldier.
+const ROLES = {
+  master:     { name: 'Master',        model: 6, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
+  apprentice: { name: 'Apprentice',    model: 5, hp: 100, inv: ['pistol'],            nades: 0 },
+  atk:        { name: 'Midas soldier', model: 0, hp: 100, inv: ['carbine', 'pistol'], nades: 0 },
+};
+const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
+const isAtk = e => !!(e.bot || e.role === 'atk');
+const maxHp = e => { const k = kitOf(e); return k ? k.hp : 100; };
+const maxNades = e => { const k = kitOf(e); return k ? k.nades : MAX_NADES; };
+let hostPick = 'master';
+// Host: returns the entities whose role changed so they can be re-equipped
+function assignRoles() {
+  const mate = remotes.find(r => r.role === 'master' || r.role === 'apprentice') || remotes.find(r => !r.role);
+  for (const r of remotes) if (r !== mate && !r.role) r.role = 'atk';
+  const mine = mate ? hostPick : 'master', theirs = mine === 'master' ? 'apprentice' : 'master', changed = [];
+  if (P.role !== mine) { P.role = mine; changed.push(P); }
+  if (mate && mate.role !== theirs) { mate.role = theirs; changed.push(mate); }
+  return changed;
+}
+function rekit(list) {
+  for (const e of list) {
+    if (e === P) { if (P.alive) applyPlayerKit(); else if (MODELS.length) setPlayerModel(ROLES[P.role].model); }
+    else if (e.isRemote) { setRemoteModel(e, ROLES[e.role].model); respawn(e); }
+  }
+  if (NET.role === 'host') refreshPreview();
+}
+// Your own loadout, health and look for your role (host or guest)
+function applyPlayerKit() {
+  const k = kitOf(P); if (!k) return;
+  if (MODELS.length && playerModelIdx !== k.model) setPlayerModel(k.model);
+  P.health = k.hp; P.nades = k.nades;
+  for (const id of k.inv) if (!P.ammoBy[id]) { P.inv.push(id); P.ammoBy[id] = { mag: WEAPONS[id].mag, res: WEAPONS[id].startRes }; }
+  P.inv = k.inv.filter(id => P.ammoBy[id]);
+  selectWeapon(k.inv[0], true);
+}
+document.querySelectorAll('#roles button').forEach(b => b.onclick = () => {
+  hostPick = b.dataset.role; document.querySelectorAll('#roles button').forEach(x => x.classList.toggle('on', x === b));
+  rekit(assignRoles());
+});
 const WAVE_BREAK = 12, SIEGE_RATE = 0.8; // seconds between waves; gate health lost per second per attacker at it
-const waveSize = n => 4 + 3 * (n - 1);
+const ATK_SPEED = 0.7; // attackers move at this fraction of normal bot speed
+const WAVE_SIZES = [4, 8, 12], waveSize = n => WAVE_SIZES[Math.min(n, WAVE_SIZES.length) - 1]; // attackers in each wave, all on the field at once
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
 // Outside the gate and close enough to be battering at it
 function atGate(e) { const [gx, gz] = LV.gate.at; return e.pos.z > gz - 1.5 && e.pos.y < 35 && Math.hypot(e.pos.x - gx, e.pos.z - gz) < 6.5; }
@@ -1709,36 +1832,61 @@ function setGate(open, breach) {
   setGateSolid(open);
   if (NET.role === 'host' && breach) { waveNote('The gate is down! Get to the tower and protect the computer'); sTone([392, 311, 262], 0.2, 'sawtooth', 0.12); }
 }
+// The front gate: two heavy doors hinged at the sides of the passage that swing into the courtyard (blown wide when broken)
+let DOORS = null;
+const DOOR_WOOD = toonMat({ color: 0x6b4a2e }), DOOR_IRON = toonMat({ color: 0x2c3034 });
+function buildDoors(d) {
+  const g = new THREE.Group(), w = (d.x1 - d.x0) / 2, h = d.y1 - d.y0, leaves = [];
+  for (const side of [1, -1]) {
+    const hinge = new THREE.Group(); hinge.position.set(side > 0 ? d.x0 : d.x1, d.y0, d.z); g.add(hinge);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w - 0.02, h, d.t), DOOR_WOOD); slab.position.set(side * w / 2, h / 2, d.t / 2);
+    slab.castShadow = slab.receiveShadow = true; hinge.add(slab);
+    for (const y of [0.5, h / 2, h - 0.5]) { // iron straps across each door
+      const band = new THREE.Mesh(new THREE.BoxGeometry(w - 0.1, 0.16, d.t + 0.04), DOOR_IRON); band.position.set(side * w / 2, y, d.t / 2); hinge.add(band);
+    }
+    leaves.push({ hinge, side });
+  }
+  DOORS = { g, leaves, a: 0 };
+  return g;
+}
 function updateGate(dt) {
   const g = TG && TG.gate; if (!g || !g.mesh) return;
   const want = g.open ? -LV.gate.drop : 0;
   if (g.y !== want) { g.y = want < g.y ? Math.max(want, g.y - dt * 4) : Math.min(want, g.y + dt * 4); g.mesh.position.y = g.mesh.userData.y0 + g.y; }
+  if (DOORS) {
+    const to = !g.open ? 0 : WAVE.broken ? 1.95 : 1.5, k = WAVE.broken && g.open ? 6 : 1.4;
+    DOORS.a += Math.max(-k * dt, Math.min(k * dt, to - DOORS.a));
+    for (const l of DOORS.leaves) { l.hinge.rotation.y = l.side * DOORS.a; l.hinge.rotation.z = WAVE.broken ? l.side * 0.06 : 0; }
+  }
   const cm = coreMesh();
   if (cm) { if (!cm.userData.mat) { cm.material = cm.material.clone(); cm.userData.mat = cm.material; } coreFlash = Math.max(0, coreFlash - dt); cm.material.emissive.setHex(coreFlash > 0 ? 0xff3010 : 0x000000); }
 }
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
 function startWave() {
-  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n); setGate(false);
+  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n); if (!WAVE.broken) setGate(false);
   bots.forEach(b => { b.respawnT = Math.random() * 3; });
-  waveNote(`Wave ${WAVE.n} of ${WAVES}: the gate is shut and they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
+  for (const r of remotes) if (r.role === 'atk' && !r.alive) respawn(r); // attacking players come back with each wave
+  waveNote(`Wave ${WAVE.n} of ${WAVES}: ${WAVE.broken ? 'the gate is gone' : 'the gate is shut'} and they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
 }
 function updateWaves(dt) {
   if (MODE !== 'defend' || matchOver) return;
   let alive = 0, siege = 0;
   for (const b of bots) if (b.alive) { alive++; if (atGate(b)) siege++; }
+  for (const r of remotes) if (r.alive && r.role === 'atk' && atGate(r)) siege++;
   WAVE.left = alive + WAVE.queue;
   if (WAVE.phase === 'prep') {
     const was = WAVE.t; WAVE.t -= dt;
-    if (was > 4 && WAVE.t <= 4) waveNote('The gate closes in 4 seconds');
+    if (was > 4 && WAVE.t <= 4 && !WAVE.broken) waveNote('The gate closes in 4 seconds');
     if (WAVE.t <= 0) startWave(); return;
   }
-  if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) setGate(true, true); }
+  if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) { WAVE.broken = true; setGate(true, true); } }
   if (!alive && WAVE.queue <= 0) {
     if (WAVE.n >= WAVES) { endMatch(null, true); return; }
-    // Between waves the gate is patched up (a broken one is rebuilt) and opened, and the computer is repaired a little
-    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = WAVE.hp <= 0 ? 40 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
-    setGate(true);
-    waveNote(`Wave ${WAVE.n} cleared. The gate is open: restock and get back inside`); sTone([523, 659, 784], 0.12, 'square', 0.1);
+    // Between waves the gate is patched up and opened (once broken it stays down for good), the computer is repaired a little
+    // and every health box is restocked
+    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = WAVE.broken ? 0 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
+    setGate(true); HEALS.forEach(h => setHeal(h, true));
+    waveNote(`Wave ${WAVE.n} cleared. ${WAVE.broken ? 'The gate is gone for good' : 'The gate is open'}: restock and get back inside`); sTone([523, 659, 784], 0.12, 'square', 0.1);
   }
 }
 // Attackers come out of cover behind the hills, spread a little around each spawn point
@@ -1755,7 +1903,7 @@ function attackerSpawn() {
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
-  if (MODE === 'defend' && attacker !== t && !!attacker.bot === !!t.bot) return; // no friendly fire
+  if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t)) return; // no friendly fire
   t.health -= amt;
   if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
   if (t.isPlayer) hurtFx(amt);
@@ -1770,6 +1918,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
     if (MODE !== 'defend' && attacker !== t && attacker.kills >= KILL_LIMIT) endMatch(attacker);
+    if (MODE === 'defend' && !isAtk(t)) { WAVE.fallen = t.name; endMatch(null, false); } // lose a defender, lose the fort
   }
 }
 function resetMatch() {
@@ -1782,7 +1931,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100, core: 100 }); setGate(true);
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; setGate(true);
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
   } else ents.forEach(respawn);
@@ -1794,11 +1943,11 @@ function endMatch(w, held) {
   const def = MODE === 'defend';
   if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : w.isPlayer ? 'You win' : `${w.name} wins`;
-  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `They destroyed the computer on wave ${WAVE.n} of ${WAVES}.`) : '';
+  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `${WAVE.fallen === P.name ? 'You' : WAVE.fallen || 'A defender'} fell on wave ${Math.max(1, WAVE.n)} of ${WAVES}.`) : '';
   const list = [...ents].filter(e => !def || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   showResults(title, sub, list.map(e => [e.id, e.name, e.kills, e.deaths]), P.id);
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
-  $('setnext').style.display = def ? 'none' : '';
+  $('setnext').style.display = def ? 'none' : ''; $('next').textContent = def ? 'Play again' : 'Next round';
   broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name, e.kills, e.deaths]) });
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
@@ -1827,7 +1976,7 @@ function knifeAttack(att) {
 
 // Grenades
 const nades = [];
-const nadeGeo = new THREE.SphereGeometry(0.09, 10, 8), nadeMat = new THREE.MeshLambertMaterial({ color: 0x3d4a2a });
+const nadeGeo = new THREE.SphereGeometry(0.09, 10, 8), nadeMat = toonMat({ color: 0x3d4a2a });
 function throwNade(owner, origin, vel, fuse = NADE_FUSE) {
   if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(origin), v: arr(vel), f: fuse }); return; }
   const m = new THREE.Mesh(nadeGeo, nadeMat); m.castShadow = true; m.position.copy(origin); scene.add(m);
@@ -1862,15 +2011,16 @@ function updateGas(dt) {
   for (const g of GASCANS) if (!g.alive) { g.t -= dt; if (g.t <= 0) { g.alive = true; g.o.visible = true; } } for (let i = pendingGas.length - 1; i >= 0; i--) { const q = pendingGas[i]; q.t -= dt; if (q.t <= 0) { pendingGas.splice(i, 1); shootGas(q.g, q.owner); } } }
 // Health pickups: each pile of white bottles or yellow crab cans restores full health, then comes back after a while
 const HEALS = [];
+const HEAL_MAT = toonMat({ color: 0xf2f0ea }), CROSS_MAT = toonMat({ color: 0xc8302f });
 function registerHeal(objs, pos) { objs = objs.filter(Boolean); if (objs.length) HEALS.push({ objs, pos, active: true, t: 0 }); }
 function setHeal(h, on) { h.active = on; h.objs.forEach(o => { o.visible = on; }); }
 function updateHeals(dt) {
   for (const h of HEALS) {
     if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
     for (const e of ents) {
-      if (!e.alive || e.health >= 100) continue;
+      if (!e.alive || e.health >= maxHp(e) || (MODE === 'defend' && isAtk(e))) continue;
       if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
-        e.health = 100; setHeal(h, false); h.t = 30;
+        e.health = maxHp(e); setHeal(h, false); h.t = 30;
         if (e.isRemote) sendTo(e, { t: 'heal' });
         if (e.isPlayer) note('Health restored', 1);
         break;
@@ -1895,8 +2045,8 @@ function updateNades(dt) {
 
 // Ammo boxes
 const ammoBoxes = [];
-const AMMO_MAT = new THREE.MeshLambertMaterial({ color: 0x4f5b34 }), BAND_MAT = new THREE.MeshLambertMaterial({ color: 0xe8c547 });
-const NADE_MAT = new THREE.MeshLambertMaterial({ color: 0x33402a }), NBAND_MAT = new THREE.MeshLambertMaterial({ color: 0xc8402f });
+const AMMO_MAT = toonMat({ color: 0x4f5b34 }), BAND_MAT = toonMat({ color: 0xe8c547 });
+const NADE_MAT = toonMat({ color: 0x33402a }), NBAND_MAT = toonMat({ color: 0xc8402f });
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
   for (const { pos: p, cell, nade } of AMMO_SPOTS) {
@@ -1913,7 +2063,7 @@ function updateAmmo(dt, now) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
     a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
-      if (!e.alive || (a.nade ? e.nades >= MAX_NADES : !needsAmmo(e))) continue;
+      if (!e.alive || (a.nade ? e.nades >= maxNades(e) : !needsAmmo(e))) continue;
       if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) < 1.0 && Math.abs(e.pos.y - a.pos.y) < 1.2) {
         if (a.nade) e.nades++; else giveAmmoAll(e);
         if (e.isRemote) sendTo(e, { t: a.nade ? 'nade' : 'ammo' });
@@ -1965,7 +2115,19 @@ function placeProps() {
   if (propGroup) scene.remove(propGroup);
   propGroup = new THREE.Group(); scene.add(propGroup);
   GASCANS.length = 0; pendingGas.length = 0; HEALS.length = 0;
-  if (TG) return;
+  // Mesh levels (Fortress): white health boxes with a red cross at the level's listed spots, and the Computer's cannon
+  CN = null; shells.forEach(sh => scene.remove(sh.mesh)); shells.length = 0; if (!(LV.gate && LV.gate.doors)) DOORS = null;
+  if (TG) {
+    if (LV.cannon) CN = buildCannon(settle(LV.cannon));
+    for (const spot of LV.heals || []) {
+      const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
+      const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
+      bar1.position.y = bar2.position.y = 0.18; box.castShadow = true; g.add(box, bar1, bar2);
+      g.position.set(p.x, p.y + 0.18, p.z); propGroup.add(g);
+      registerHeal([g], p);
+    }
+    return;
+  }
   let seed = 1337; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const keep = [...SPAWNS, ...ammoBoxes.map(a => a.pos), ...PICKUPS.map(pk => pk.pos)];
   const flatH = n => { const h = nodeH(n); return h === 0 || h === BASE || n >= N; };
@@ -2059,10 +2221,8 @@ function botInitWeapons(b) {
   b.inv = ['pistol']; b.ammoBy = { pistol: { mag: b.ammo, res: b.reserve } }; b.wpn = 'pistol';
   botSelect(b, 'pistol');
   if (MODE !== 'defend') return;
-  // Attackers carry full reserves (no ammo runs) and bring heavier guns as the waves go on
-  const w = WAVE.n, r = Math.random();
-  const id = w >= 4 && r < 0.12 ? 'rifle' : w >= 2 && r < 0.6 ? 'carbine' : w >= 3 && r < 0.75 ? 'shotgun' : null;
-  if (id) giveWeapon(b, id);
+  // Attackers all carry a Midas carbine with full reserves (no ammo runs)
+  giveWeapon(b, 'carbine');
   for (const k of b.inv) b.ammoBy[k].res = WEAPONS[k].maxRes;
   b.reserve = b.ammoBy[b.wpn].res;
 }
@@ -2088,7 +2248,7 @@ function giveWeapon(e, id, ammo) {
   return true;
 }
 function dropWeapons(e) {
-  if (!e.inv) return; syncE(e);
+  if (!e.inv || MODE === 'defend') return; syncE(e); // Fortress loadouts are fixed: nobody drops guns
   let k = 0;
   for (const id of e.inv) {
     if (id === 'pistol') continue;
@@ -2163,7 +2323,7 @@ function updateGun(dt) {
     if (P.reloading <= 0) { const take = Math.min(WP().mag - P.ammo, P.reserve); P.ammo += take; P.reserve -= take; }
     return;
   }
-  const want = WP().auto ? mouseDown : clickQ;
+  const want = !monitorOpen && (WP().auto ? mouseDown : clickQ);
   if (want && gun.cd <= 0 && P.alive && knifeT <= 0 && throwT <= 0 && switchT <= 0) {
     clickQ = false;
     if (P.ammo <= 0) { if (P.reserve > 0) reload(); else { note('Out of ammo — find an ammo box or pick up a weapon'); gun.cd = 0.4; } return; }
@@ -2263,9 +2423,9 @@ function botNade(b, t) {
 }
 function findTarget(b) {
   const def = MODE === 'defend';
-  let best = null, bd = def ? (b.ai.route >= LV.route.length ? 12 : 80) : 55; // in the tower room they only turn from the computer for close threats
+  let best = null, bd = def ? 80 : 55;
   for (const o of ents) {
-    if (o === b || !o.alive || (def && o.bot)) continue;
+    if (o === b || !o.alive || (def && isAtk(o))) continue;
     const d = b.pos.distanceTo(o.pos);
     if (d < bd && los(b, o)) { bd = d; best = o; }
   }
@@ -2284,34 +2444,111 @@ function followPath(b, wish, dt, face) {
   if (Math.hypot(dx, dz) < (TG ? 0.9 : 0.45)) { ai.pi++; if (ai.pi >= ai.path.length) { ai.path = null; ai.lastSeenT = 0; } }
   else { wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
 }
-// Once the gate is open, attackers walk the level's route (through the gate, across the courtyard, up the ladder).
-// ai.route is the next step; route.length means they've arrived. Off the route (knocked down the hatch, say) they rejoin
-// at the nearest step they can see on their floor, or head back round to the gate.
-function routeJoin(b) {
-  let best, bd = 7;
-  LV.route.forEach(([x, z, y], i) => {
-    const d = Math.hypot(x - b.pos.x, z - b.pos.z);
-    if (Math.abs(b.pos.y - y) < 2 && d < bd && losPts(new V3(b.pos.x, b.pos.y + 1, b.pos.z), new V3(x, y + 1, z))) { bd = d; best = i; }
-  });
+// ---------- Inside the fort: a fine walking map of every floor (courtyard, stairs, wall walk, corridors, tower) ----------
+// Each 0.25 m spot gets a node for every floor a body fits on there; neighbouring nodes join when the step between them is
+// small and nothing blocks the way. Attackers plan paths on it to the defender they're hunting. Host only.
+const FN = { nodes: [], cells: null };
+// Floor height that bridges the few-centimetre gaps between some steps in the set (a ray straight down a gap falls through)
+function bridgedFloor(x, z, top, offs) {
+  let best = null;
+  for (const [ox, oz] of offs) { const g = groundAt(x + ox, z + oz, top); if (g !== null && (best === null || g > best)) best = g; }
   return best;
 }
-function followRoute(b, wish, dt, face) {
-  const ai = b.ai, st = LV.route[ai.route]; if (!st) return;
-  const [x, z, y, ladder] = st, dx = x - b.pos.x, dz = z - b.pos.z;
-  if (!ladder && Math.abs(b.pos.y - y) > 2.5) { ai.route = undefined; b.climb = undefined; return; }
-  if (ladder) {
-    const l = LV.ladders.find(q => x > q.box[0] && x < q.box[1] && z > q.box[2] - 1 && z < q.box[3]);
-    if (b.pos.y > l.box[5] - 1.5 && !ladderAt(b.pos)) { ai.route++; b.climb = undefined; wish.set(l.dir[0], 0, l.dir[1]); return; }
-    b.climb = 1; // into the ladder and up; at the top keep walking off it onto the floor
-    if (ladderAt(b.pos)) { wish.set(l.dir[0], 0, l.dir[1]); if (face) b.yaw = turn(b.yaw, Math.atan2(l.dir[0], l.dir[1]), 6 * dt); return; }
-  } else if (Math.hypot(dx, dz) < 0.7) { ai.route++; return; }
-  wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
+const GAP2 = [[0, 0], [0.06, 0.06]], GAP5 = [[0, 0], [0.06, 0], [-0.06, 0], [0, 0.06], [0, -0.06]];
+function buildFortNav() {
+  FN.nodes = []; FN.cells = null;
+  const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
+  const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
+  const wasOpen = TG.gate && TG.gate.open; if (TG.gate) setGateSolid(true); // map the gate passage as open
+  const cells = new Array(nx * nz), N8 = [[1, 0], [0, 1], [1, 1], [1, -1]];
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const x = x0 + i * S, z = z0 + j * S, list = [];
+    for (let top = A.top, k = 0; k < 12; k++) {
+      const g = bridgedFloor(x, z, top, GAP2); if (g === null || g < A.bottom) break;
+      if (g > waterAt(x, z) + 0.3 && !meshBlocked(x, g + 0.05, z, STAND_H)) list.push(FN.nodes.push({ x, y: g, z, nb: [] }) - 1);
+      top = g - 0.5;
+    }
+    cells[j * nx + i] = list;
+  }
+  const v = new V3();
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) for (const a of cells[j * nx + i]) for (const [di, dj] of N8) {
+    const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
+    for (const b of cells[jj * nx + ii]) {
+      const na = FN.nodes[a], nb = FN.nodes[b]; if (Math.abs(na.y - nb.y) > STEP) continue;
+      const mx = (na.x + nb.x) / 2, mz = (na.z + nb.z) / 2, top = Math.max(na.y, nb.y) + 0.3;
+      let g = groundAt(mx, mz, top); if (g === null || Math.min(na.y, nb.y) - g > 0.3) g = bridgedFloor(mx, mz, top, GAP5);
+      if (g === null || Math.min(na.y, nb.y) - g > 0.3 || meshBlocked(mx, g + 0.05, mz, STAND_H)) continue;
+      na.nb.push(b); nb.nb.push(a);
+    }
+  }
+  if (TG.gate) setGateSolid(wasOpen);
+  // Nodes in the gate passage can only be used while it's open
+  const d = LV.gate && LV.gate.doors;
+  if (d) for (const n of FN.nodes) n.gate = n.x > d.x0 - 0.5 && n.x < d.x1 + 0.5 && n.z > d.z - 0.5 && n.z < d.z + d.t + 0.5 && n.y < d.y1;
+  Object.assign(FN, { x0, z0, S, nx, nz, cells });
 }
-// Attackers: to the gate, then (once it's down) along the route; returns true once they're in the tower room
+const inFort = p => FN.cells && p.x > FN.x0 && p.z > FN.z0 && p.x < FN.x0 + (FN.nx - 1) * FN.S && p.z < FN.z0 + (FN.nz - 1) * FN.S;
+// The node under a position: same floor (within a step or so), closest first; any floor if none is near
+function fortNode(p, anyFloor) {
+  const ci = Math.round((p.x - FN.x0) / FN.S), cj = Math.round((p.z - FN.z0) / FN.S);
+  let best = -1, bd = Infinity;
+  for (let r = 0; r <= 4 && best < 0; r++) for (let j = cj - r; j <= cj + r; j++) for (let i = ci - r; i <= ci + r; i++) {
+    if (i < 0 || j < 0 || i >= FN.nx || j >= FN.nz) continue;
+    for (const k of FN.cells[j * FN.nx + i]) {
+      const n = FN.nodes[k], dy = Math.abs(n.y - p.y); if (dy > 1.2) continue;
+      const d = Math.hypot(n.x - p.x, n.z - p.z) + dy; if (d < bd) { bd = d; best = k; }
+    }
+  }
+  if (best < 0 && anyFloor) for (let k = 0; k < FN.nodes.length; k++) { const n = FN.nodes[k], d = Math.hypot(n.x - p.x, n.y - p.y, n.z - p.z); if (d < bd) { bd = d; best = k; } }
+  return best < 0 ? null : best;
+}
+// A* from one node toward another (the gate passage only counts while the gate is open)
+function fortPath(from, to) {
+  const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
+  const open = gateOpen(), nodes = FN.nodes, g = new Map([[a, 0]]), came = new Map(), heap = [[0, a]], done = new Set(), goal = nodes[b];
+  const h = k => { const n = nodes[k]; return Math.hypot(n.x - goal.x, n.y - goal.y, n.z - goal.z); };
+  let near = a, nearH = h(a); // if the goal can't be reached, settle for the closest place that can
+  const push = e => { heap.push(e); let i = heap.length - 1; while (i) { const q = (i - 1) >> 1; if (heap[q][0] <= e[0]) break; heap[i] = heap[q]; i = q; } heap[i] = e; };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= heap.length) break; if (c + 1 < heap.length && heap[c + 1][0] < heap[c][0]) c++; if (heap[c][0] >= last[0]) break; heap[i] = heap[c]; i = c; } heap[i] = last; } return top; };
+  while (heap.length) {
+    const [, k] = pop(); if (done.has(k)) continue; done.add(k);
+    const hk = h(k); if (hk < nearH) { nearH = hk; near = k; }
+    if (k === b) break;
+    const n = nodes[k];
+    for (const m of n.nb) {
+      if (done.has(m) || (!open && nodes[m].gate)) continue;
+      const o = nodes[m], ng = g.get(k) + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z);
+      if (ng < (g.has(m) ? g.get(m) : Infinity)) { g.set(m, ng); came.set(m, k); push([ng + h(m), m]); }
+    }
+  }
+  const path = [near]; let c = near; while (came.has(c)) { c = came.get(c); path.push(c); }
+  return path.reverse();
+}
+// The defender an attacker goes after: the closest one alive
+function huntTarget(b) {
+  let best = null, bd = Infinity;
+  for (const e of ents) if (e.alive && !isAtk(e)) { const d = e.pos.distanceTo(b.pos); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
+// Inside the fort: walk the planned path toward the hunted defender, replanning every second or so
+function huntMove(b, wish, dt, face) {
+  const ai = b.ai;
+  if ((ai.huntT = (ai.huntT || 0) - dt) <= 0 || !ai.hpath) {
+    ai.huntT = 0.8 + Math.random() * 0.6; const q = ai.target || huntTarget(b);
+    ai.hpath = q ? fortPath(b.pos, q.pos) : null; ai.hi = 0;
+  }
+  const p = ai.hpath; if (!p || !p.length) return false;
+  let n = FN.nodes[p[ai.hi]];
+  while (ai.hi < p.length - 1 && Math.hypot(n.x - b.pos.x, n.z - b.pos.z) < 0.3) n = FN.nodes[p[++ai.hi]];
+  const dx = n.x - b.pos.x, dz = n.z - b.pos.z; if (Math.hypot(dx, dz) < 0.1) return false;
+  wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
+  return true;
+}
+// Attackers: to the gate while it's shut; once it's open, through it and after the defenders
 function botAdvance(b, wish, dt, face) {
   const ai = b.ai;
-  if (gateOpen() && ai.route === undefined) { const j = routeJoin(b); if (j !== undefined) { ai.route = j; ai.path = null; } }
-  if (ai.route !== undefined) { if (ai.route >= LV.route.length) return true; followRoute(b, wish, dt, face); return false; }
+  if (gateOpen() && inFort(b.pos)) { ai.path = null; return huntMove(b, wish, dt, face); }
+  ai.hpath = null;
   if (!ai.path) planAssault(b);
   followPath(b, wish, dt, face);
   return false;
@@ -2354,8 +2591,8 @@ function updateBot(b, dt) {
     else {
       ai.strafeT -= dt;
       if (ai.strafeT <= 0) { ai.strafeT = 0.4 + Math.random() * 0.9; ai.strafeDir = Math.random() < 0.5 ? -1 : 1; }
-      if (def && ai.route !== undefined && ai.route < LV.route.length) botAdvance(b, wish, dt, false); // inside: keep going, shooting on the move
-      else if (def && (gateOpen() || (dist > 12 && !atGate(b))) && !(ai.route >= LV.route.length)) { // keep pushing up the hill while shooting
+      if (def && gateOpen() && inFort(b.pos)) { if (Math.hypot(dist, t.pos.y - b.pos.y) > 2.5) botAdvance(b, wish, dt, false); } // inside: rush them, shooting on the move
+      else if (def && (gateOpen() || (dist > 12 && !atGate(b)))) { // keep pushing up the hill while shooting
         botAdvance(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
       } else {
         wish.addScaledVector(right, ai.strafeDir);
@@ -2369,14 +2606,14 @@ function updateBot(b, dt) {
         if (bw.auto) { ai.fireCd = 0.12; ai.burst++; if (ai.burst >= 3 + (Math.random() * 3 | 0)) { ai.burst = 0; ai.fireCd = 0.5 + Math.random() * 0.7; } }
         else ai.fireCd = Math.max(bw.rate, 0.3) + Math.random() * 0.35;
       }
-      if (b.nades > 0 && ai.nadeCd <= 0) {
+      if (!def && b.nades > 0 && ai.nadeCd <= 0) { // attackers don't throw grenades
         ai.nadeCd = 3 + Math.random() * 4;
         if (dist > 8 && dist < 26 && Math.random() < D.nade * 4) botNade(b, t);
       }
     }
   } else {
-    if (!def || !botAdvance(b, wish, dt, true)) b.pitch *= 1 - Math.min(1, dt * 4);
-    else botShootCore(b, dt);
+    if (def) botAdvance(b, wish, dt, true); // nobody in sight: march on the gate, or hunt the defenders inside
+    b.pitch *= 1 - Math.min(1, dt * 4);
     if (!def && !ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
@@ -2391,12 +2628,12 @@ function updateBot(b, dt) {
   ai.stuckT += dt;
   if (ai.stuckT > 1) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-    const routing = ai.route !== undefined && ai.route < LV.route.length && !b.climb;
-    if (moved < 0.4 && (ai.path || routing)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
+    if (moved < 0.4 && (ai.path || ai.hpath)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
     else ai.stuckN = 0;
     ai.lastPos.copy(b.pos); ai.stuckT = 0;
   }
   if (wish.lengthSq() > 0) wish.normalize();
+  if (def) speed *= ATK_SPEED;
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
   b.vel.z += (wish.z * speed - b.vel.z) * k;
@@ -2425,6 +2662,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') setMute(!VOICE.muted);
   if (e.code === 'KeyF') playerKnife();
   if (e.code === 'KeyG') playerNade();
+  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (monitorOpen || nearComputer(P)) setMonitor(!monitorOpen); }
+  if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
@@ -2462,7 +2701,7 @@ function updatePlayer(dt) {
   if (keys.KeyC || tCrouch) P.h = CROUCH_H;
   else if (P.h < STAND_H && !blockedAt(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;
   const crouched = P.h < STAND_H;
-  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const f = monitorOpen ? 0 : (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = monitorOpen ? 0 : (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); // standing at the computer
   const ff = f - joy.y, ss = s + joy.x;
   const sn = Math.sin(P.yaw), cs = Math.cos(P.yaw);
   let wx = -sn * ff + cs * ss, wz = -cs * ff - sn * ss;
@@ -2475,7 +2714,7 @@ function updatePlayer(dt) {
   const k = Math.min(1, (P.onGround ? 12 : 2.5) * dt);
   P.vel.x += (wx * speed - P.vel.x) * k;
   P.vel.z += (wz * speed - P.vel.z) * k;
-  if (keys.Space && P.onGround) P.vel.y = JUMP;
+  if (keys.Space && P.onGround && !monitorOpen) P.vel.y = JUMP;
   bodyBlock(P, dt);
   physics(P, dt);
   if (P.pos.y < KILL_Y) damage(P, 999, P, 'fall', false);
@@ -2527,8 +2766,8 @@ function buildViewmodels() {
 vmScene.add(vm);
 const knifeVM = new THREE.Group();
 {
-  const h = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.12), new THREE.MeshLambertMaterial({ color: 0x222222 }));
-  const bl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.2), new THREE.MeshLambertMaterial({ color: 0xc9ced4 }));
+  const h = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.12), toonMat({ color: 0x222222 }));
+  const bl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.2), toonMat({ color: 0xc9ced4 }));
   bl.position.z = -0.16; knifeVM.add(h, bl);
 }
 knifeVM.visible = false; vmScene.add(knifeVM);
@@ -2569,7 +2808,7 @@ function updateVM(dt) {
 const hud = { hp: -1, ammo: '', nades: -1 };
 function updateHUD(dt) {
   // Health: a bar that shrinks toward the right edge, green when full fading through yellow to red at 0
-  const hp = Math.max(0, Math.min(100, Math.ceil(P.health)));
+  const hp = Math.max(0, Math.min(100, Math.ceil(P.health / maxHp(P) * 100)));
   if (hp !== hud.hp) { hud.hp = hp; const el = $('hp'); el.style.width = hp + '%'; el.style.background = `hsl(${hp * 1.2},75%,45%)`; }
   // Ammo: one rectangle per round, white for the magazine then grey for reserve; grenades are dots above
   const reloading = P.reloading > 0, key = `${P.ammo},${P.reserve},${reloading},${innerWidth}`;
@@ -2585,9 +2824,9 @@ function updateHUD(dt) {
   }
   if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
   if (MODE === 'defend') {
-    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep', down = gateOpen() && !prep, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
-    $('top').textContent = `${wv}   ·   ${down ? 'Gate down' : prep ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   Computer ${core}%   ·   You ${P.kills}/${P.deaths}`;
-    $('top').classList.toggle('alert', !prep && (down || hp <= 30 || core < 100));
+    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep', down = gateOpen() && !prep && hp <= 0, ajar = gateOpen() && hp > 0, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
+    $('top').textContent = `${wv}   ·   ${hp <= 0 ? (down ? 'Gate down' : 'Gate destroyed') : ajar ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   You ${P.kills}/${P.deaths}`;
+    $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
     $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
@@ -2627,23 +2866,24 @@ function applySettings() {
   P.name = ($('pname').value.trim() || 'You').slice(0, 16);
   const lim = +$('sglimit').value;
   if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; updateGoal(); }
-  if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
+  if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx }); return; }
-  const waves = +$('swaves').value;
+  const waves = MODE === 'defend' ? WAVE_SIZES.length : +$('swaves').value;
   if (selLevel !== curLevel) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
   else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
+  if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   const n = botTarget();
   if (n !== bots.length) { buildBots(n); resetMatch(); }
 }
 // Fortress defend always has attackers: the slider is how many are on the field at once
-function botTarget() { const n = +$('sbots').value; return MODE === 'defend' ? Math.max(2, n) : n; }
+function botTarget() { return MODE === 'defend' ? Math.max(...WAVE_SIZES) : +$('sbots').value; }
 function setPlaying(on) {
   if (on) applySettings();
   locked = on;
   $('overlay').style.display = on || matchOver ? 'none' : 'flex';
-  $('play').textContent = 'Resume';
+  $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = '';
   if (!on) {
-    closeChat(); setAway(false);
+    closeChat(); setAway(false); setMonitor(false);
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = null;
     $('joy').style.display = 'none';
@@ -2651,7 +2891,7 @@ function setPlaying(on) {
 }
 $('play').onclick = () => {
   initAudio(); if (NET.role === 'guest' || remotes.length) getMic();
-  if (NET.role === 'guest') { P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); }
+  if (NET.role === 'guest') { P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); }
   if (!isTouch) { renderer.domElement.requestPointerLock(); return; }
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
@@ -2745,16 +2985,22 @@ tl.addEventListener('touchcancel', touchEnd);
 
 // ---------- Character preview ----------
 let prev = null;
+applyLook();
 function initPreview() {
   const r = new THREE.WebGLRenderer({ canvas: $('cprev'), antialias: true, alpha: true });
   r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(240, 280, false);
   const sc = new THREE.Scene();
-  sc.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.0));
-  const dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(1, 2, 2); sc.add(dl);
+  const pf = new THREE.AmbientLight(0xffffff, 1), ph = new THREE.HemisphereLight(0xffffff, 0x555555, 1.0), dl = new THREE.DirectionalLight(0xffffff, 1); dl.position.set(1, 2, 2); sc.add(pf, ph, dl);
+  LOOK_EXTRA.push([pf, dl, ph, 0.6, 1.0]);
   const cam = new THREE.PerspectiveCamera(30, 240 / 280, 0.05, 20);
-  prev = { r, sc, cam, rig: null };
-  setPreview(+$('schar').value);
-  $('schar').onchange = e => setPreview(+e.target.value);
+  prev = { r, sc, cam, rig: null }; applyLook();
+  refreshPreview();
+  $('schar').onchange = () => refreshPreview();
+}
+// The preview shows your role's character on Fortress, otherwise the character you picked
+function refreshPreview() {
+  const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
+  setPreview(def ? ROLES[NET.role === 'host' ? hostPick : P.role === 'atk' || P.role === 'master' ? P.role : 'apprentice'].model : +$('schar').value);
 }
 function setPreview(i) {
   if (!prev) return;
@@ -2773,6 +3019,20 @@ function renderPreview(dt) {
 
 // ---------- Round results ----------
 $('slimit').oninput = e => $('olimit').textContent = e.target.value;
+$('restart').onclick = () => $('next').onclick();
+// Look panel: opens over the paused game with the scene showing through
+const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v] };
+function showLook() {
+  for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) { $(id).value = LOOK[k]; $('o' + id).textContent = fmt(LOOK[k]); }
+}
+for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) $(id).oninput = e => {
+  const v = e.target.type === 'color' ? e.target.value : +e.target.value; LOOK[k] = v; $('o' + id).textContent = fmt(v);
+  applyLook(); try { localStorage.setItem('fortressLook', JSON.stringify(LOOK)); } catch (err) {}
+};
+$('looklink').onclick = () => { showLook(); $('overlay').classList.add('looking'); };
+$('lkback').onclick = () => $('overlay').classList.remove('looking');
+$('lkreset').onclick = () => { LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook'); } catch (e) {} applyLook(); showLook(); };
+$('lkcopy').onclick = () => { const t = JSON.stringify(LOOK); navigator.clipboard.writeText(t).then(() => note('Look settings copied', 1.5)).catch(() => prompt('Look settings', t)); };
 $('next').onclick = () => {
   initAudio();
   KILL_LIMIT = +$('slimit').value;
@@ -2899,6 +3159,162 @@ function stepSound(e, dt) {
 }
 function sDeath() { sTone([392, 294, 196], 0.12, 'triangle', 0.2); }
 
+// ---------- The Computer's cannon ----------
+// A heavy gun on a tripod on the wall walk over the gate. The Computer aims it at the closest attacker it can reach and fires a shell
+// that bursts like a grenade where it lands, then needs 10 s to recharge. It faces out over the hills (it can't turn round
+// into the fort) and can't tilt down far enough to hit the foot of the wall, so attackers at the gate are safe from it.
+const CANNON = { reload: 10, turn: 0.9, minPitch: -0.6, maxPitch: 0.4, maxYaw: 1.4, speed: 55, range: 170, R: 8.05, dmg: 130, len: 1.7 };
+const CPU = { name: 'Computer', role: 'computer', id: 'cpu', kills: 0, deaths: 0 };
+let CN = null;
+const shells = [];
+const CN_METAL = toonMat({ color: 0x3b4148 }), CN_DARK = toonMat({ color: 0x23272b });
+const shellGeo = new THREE.SphereGeometry(0.16, 10, 8), shellMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
+function buildCannon(at) {
+  const g = new THREE.Group(), pivotY = 1.35; g.position.copy(at); propGroup.add(g);
+  const mesh = (geo, mat, parent) => { const o = new THREE.Mesh(geo, mat); o.castShadow = true; parent.add(o); return o; };
+  for (let i = 0; i < 3; i++) { // tripod legs from the pivot down to the roof
+    const a = i * Math.PI * 2 / 3, foot = new V3(Math.sin(a) * 0.75, 0, Math.cos(a) * 0.75), top = new V3(0, pivotY, 0), mid = foot.clone().add(top).multiplyScalar(0.5);
+    const leg = mesh(new THREE.CylinderGeometry(0.035, 0.045, foot.distanceTo(top), 6), CN_DARK, g);
+    leg.position.copy(mid); leg.quaternion.setFromUnitVectors(new V3(0, 1, 0), top.clone().sub(foot).normalize());
+  }
+  const head = new THREE.Group(); head.position.y = pivotY; g.add(head);
+  mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.18, 12), CN_DARK, head);
+  const tilt = new THREE.Group(); head.add(tilt);
+  const barrel = mesh(new THREE.CylinderGeometry(0.11, 0.15, CANNON.len + 0.3, 14).rotateX(Math.PI / 2), CN_METAL, tilt); barrel.position.z = CANNON.len / 2 - 0.15;
+  mesh(new THREE.BoxGeometry(0.36, 0.32, 0.5), CN_METAL, tilt).position.z = -0.35;
+  const light = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x40ff80 })); light.position.set(0, 0.2, -0.35); tilt.add(light);
+  return { g, head, tilt, light, pivot: new V3(at.x, at.y + pivotY, at.z), yaw: 0, pitch: 0, cd: 0, target: null, scanT: 0 };
+}
+function cannonAim(p) { const d = p.clone().sub(CN.pivot); return [Math.atan2(d.x, d.z), Math.atan2(d.y, Math.hypot(d.x, d.z))]; }
+function cannonMuzzle(yaw = CN.yaw, pitch = CN.pitch) {
+  const c = Math.cos(pitch); return CN.pivot.clone().add(new V3(Math.sin(yaw) * c, Math.sin(pitch), Math.cos(yaw) * c).multiplyScalar(CANNON.len));
+}
+// The closest attacker the cannon can tilt to and see
+function cannonTarget() {
+  let best = null, bd = CANNON.range;
+  for (const e of ents) {
+    if (!e.alive || !isAtk(e)) continue;
+    const m = midPos(e), d = m.distanceTo(CN.pivot); if (d >= bd) continue;
+    const [yaw, pitch] = cannonAim(m);
+    if (pitch < CANNON.minPitch || pitch > CANNON.maxPitch || Math.abs(wrap(yaw)) > CANNON.maxYaw || !losPts(cannonMuzzle(yaw, pitch), m)) continue;
+    bd = d; best = e;
+  }
+  return best;
+}
+function updateCannon(dt) {
+  if (!CN || MODE !== 'defend') return;
+  CN.cd = Math.max(0, CN.cd - dt);
+  if ((CN.scanT -= dt) <= 0) { CN.scanT = 0.3; CN.target = cannonTarget(); }
+  const t = CN.target && CN.target.alive ? CN.target : null; if (!t) return;
+  const [yaw, pitch] = cannonAim(midPos(t)), step = CANNON.turn * dt;
+  CN.yaw = turn(CN.yaw, yaw, step); CN.pitch += Math.max(-step, Math.min(step, pitch - CN.pitch));
+  if (CN.cd <= 0 && Math.abs(wrap(yaw - CN.yaw)) < 0.015 && Math.abs(pitch - CN.pitch) < 0.015) fireCannon(t);
+}
+function fireCannon(t) {
+  CN.cd = CANNON.reload;
+  const o = cannonMuzzle(), dir = midPos(t).sub(o), dist = dir.length(); dir.divideScalar(dist);
+  const end = o.clone().addScaledVector(dir, Math.min(dist, tgRay(o.x, o.y, o.z, dir.x, dir.y, dir.z, dist)));
+  spawnShell(o, end, true); netFx({ t: 'cs', a: arr(o), b: arr(end) });
+}
+function spawnShell(a, b, live) {
+  const m = new THREE.Mesh(shellGeo, shellMat); m.position.copy(a); scene.add(m);
+  const dir = b.clone().sub(a), left = dir.length(); dir.divideScalar(left || 1);
+  shells.push({ mesh: m, dir, left, end: b, live });
+  _boomFx(a, 0.7); sBoom(vol(a, 160) * 0.8);
+}
+function updateShells(dt) {
+  for (let i = shells.length - 1; i >= 0; i--) {
+    const sh = shells[i], step = Math.min(sh.left, CANNON.speed * dt);
+    sh.mesh.position.addScaledVector(sh.dir, step); sh.left -= step;
+    if (sh.left > 0) continue;
+    scene.remove(sh.mesh); shells.splice(i, 1);
+    if (sh.live && NET.role === 'host') boom(sh.end, CPU, CANNON.R, CANNON.dmg);
+  }
+}
+function updateCannonVis() {
+  if (!CN) return;
+  CN.head.rotation.y = CN.yaw; CN.tilt.rotation.x = -CN.pitch;
+  CN.light.material.color.setHex(CN.cd > 0 ? 0xff5030 : 0x40ff80);
+}
+
+// ---------- The Computer's monitor: a map with the attackers on it, and the gate switch ----------
+let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
+function nearComputer(e) {
+  if (MODE !== 'defend' || !LV || !LV.core || !e.alive || isAtk(e)) return false;
+  const [x, y, z] = LV.core.at; return Math.hypot(e.pos.x - x, e.pos.z - z) < 2.2 && Math.abs(e.pos.y - y) < 2;
+}
+function setMonitor(on) {
+  monitorOpen = !!on; $('cpu').style.display = monitorOpen ? 'block' : 'none';
+  if (monitorOpen) { mouseDown = false; clickQ = false; drawMap(); }
+}
+function toggleGate() {
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gate' }); return; }
+  switchGate(P);
+}
+// Host: someone at the computer flips the gate
+function switchGate(e) {
+  if (!nearComputer(e) || matchOver) return;
+  if (WAVE.broken) { if (e === P) note('The gate is destroyed', 1.5); else sendTo(e, { t: 'wn', x: 'The gate is destroyed' }); return; }
+  const open = !gateOpen(); setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
+}
+// Host: a dead attacking player takes over the soldier closest to the gate
+function takeOver(r) {
+  if (MODE !== 'defend' || r.role !== 'atk' || r.alive || matchOver) return;
+  let best = null, bd = Infinity; const [gx, gz] = LV.gate.at;
+  for (const b of bots) if (b.alive) { const d = Math.hypot(b.pos.x - gx, b.pos.z - gz); if (d < bd) { bd = d; best = b; } }
+  if (!best) { sendTo(r, { t: 'wn', x: 'No soldiers left to take over. You come back with the next wave' }); return; }
+  const hp = best.health, at = best.pos.clone(), yaw = best.yaw + Math.PI;
+  best.alive = false; best.mesh.visible = false; best.respawnT = 2; // its slot sends in the next soldier of the wave
+  respawn(r, at, yaw); r.health = Math.min(hp, maxHp(r));
+  sendTo(r, { t: 'wn', x: `You took over ${best.name}` });
+}
+function updateComputer() {
+  const near = locked && !chatOpen && nearComputer(P);
+  if (monitorOpen && !near) setMonitor(false);
+  $('cprompt').style.display = near && !monitorOpen ? 'block' : 'none';
+  if (monitorOpen) drawMap();
+}
+// The level's floors as a top-down picture, attackers' side (+z) at the top, as seen looking out from the fort
+function buildMapBg() {
+  const c = document.createElement('canvas'); c.width = GW; c.height = GD;
+  const g = c.getContext('2d'), img = g.createImageData(GW, GD);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < N; i++) if (H[i] !== SOLID) { lo = Math.min(lo, H[i]); hi = Math.max(hi, H[i]); }
+  for (let r = 0; r < GD; r++) for (let col = 0; col < GW; col++) {
+    const h = H[idx(col, r)], o = ((GD - 1 - r) * GW + (GW - 1 - col)) * 4, t = (h - lo) / (hi - lo || 1);
+    if (h === SOLID) img.data.set([22, 38, 46, 255], o); else img.data.set([40 + 110 * t, 70 + 120 * t, 50 + 80 * t, 255], o);
+  }
+  g.putImageData(img, 0, 0);
+  // Crop to the land (plus a margin), keeping the canvas's shape
+  let c0 = GW, c1 = 0, r0 = GD, r1 = 0;
+  for (let r = 0; r < GD; r++) for (let col = 0; col < GW; col++) if (H[idx(col, r)] !== SOLID) { c0 = Math.min(c0, col); c1 = Math.max(c1, col); r0 = Math.min(r0, r); r1 = Math.max(r1, r); }
+  const cv = $('cmap'), aspect = cv.width / cv.height;
+  let w = c1 - c0 + 5, h = r1 - r0 + 5; if (w / h > aspect) h = w / aspect; else w = h * aspect;
+  const mc = (c0 + c1 + 1) / 2, mr = (r0 + r1 + 1) / 2;
+  mapBox = { x: GW - mc - w / 2, y: GD - mr - h / 2, w, h }; // in background pixels (flipped grid)
+  return c;
+}
+function drawMap() {
+  if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
+  const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
+  const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
+  g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
+  g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
+  const [gx, gz] = LV.gate.at, gateCol = WAVE.broken ? '#ff4b3a' : gateOpen() ? '#ffd23f' : '#9fd8ff';
+  g.fillStyle = gateCol; g.fillRect(X(gx) - 7, Z(gz) - 2, 14, 4);
+  const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
+  let n = 0;
+  for (const e of ents) {
+    if (!e.alive) continue;
+    const atk = isAtk(e); if (atk) n++;
+    g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
+    g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
+  }
+  const gate = WAVE.broken ? 'destroyed' : gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`;
+  const cannon = !CN ? '' : CN.cd > 0 ? `recharging ${Math.ceil(CN.cd)}s` : 'ready';
+  $('cpuinfo').textContent = `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}`;
+}
+
 // ---------- Multiplayer: host-in-browser P2P (PeerJS / WebRTC) + voice chat ----------
 // The host's browser runs the match (bots, scoring, pickups, grenades). Guests open ?join=<hostId>,
 // simulate their own movement and aim, report hits, and render everyone else from host snapshots.
@@ -2933,6 +3349,7 @@ function applyFx(m) {
       _muzzleFx(m.k, p, v3(m.d).normalize(), false);
     } break;
     case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
+    case 'cs': spawnShell(v3(m.a), v3(m.b), false); break;
   }
 }
 function updateRoster() {
@@ -2969,13 +3386,14 @@ function onGuestMsg(conn, m) {
     if (!r) {
       r = makeEntity(name, false);
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0 });
-      remotes.push(r); setRemoteModel(r, m.model); ents.push(r);
+      remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
+      const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
       sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
       respawn(r);
-      note(`${name} joined`, 2); updateRoster(); getMic();
+      note(MODE === 'defend' ? `${name} joined as the ${ROLES[r.role].name}` : `${name} joined`, 2); updateRoster(); getMic();
     } else {
       r.name = name;
-      if ((m.model | 0) !== r.modelIdx) setRemoteModel(r, m.model);
+      r.helloModel = m.model | 0; if (MODE !== 'defend' && (m.model | 0) !== r.modelIdx) setRemoteModel(r, m.model);
       updateRoster();
     }
     return;
@@ -2998,7 +3416,9 @@ function onGuestMsg(conn, m) {
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
-    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd') { applyFx(m.m); broadcast(m.m, conn); } break;
+    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
+    case 'gate': switchGate(r); break;
+    case 'take': takeOver(r); break;
   }
 }
 function removeRemote(conn) {
@@ -3006,10 +3426,11 @@ function removeRemote(conn) {
   const r = remotes[i]; remotes.splice(i, 1);
   scene.remove(r.mesh); const k = ents.indexOf(r); if (k >= 0) ents.splice(k, 1);
   note(`${r.name} left`, 2); updateRoster(); closeVoice(conn.peer);
+  rekit(assignRoles());
 }
 function updateRemotes(dt) {
   for (const r of remotes) {
-    if (!r.alive) { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); continue; }
+    if (!r.alive) { if (MODE !== 'defend' || r.role !== 'atk') { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); } continue; } // attackers wait for the next wave (or take over a soldier)
     r.pos.lerp(r.target, Math.min(1, dt * 14));
     r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
@@ -3021,10 +3442,11 @@ function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
     wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
+    cn: CN ? [+CN.yaw.toFixed(3), +CN.pitch.toFixed(3), +CN.cd.toFixed(1)] : null,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
-      hp: Math.ceil(e.health), k: e.kills, d: e.deaths,
+      hp: Math.ceil(e.health), k: e.kills, d: e.deaths, r: e.role || null,
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
@@ -3048,9 +3470,11 @@ function startGuest() {
   peer.on('call', answerCall);
   peer.on('error', e => { $('netstat').textContent = e.type === 'peer-unavailable' ? 'Host not found. Ask them for a fresh link.' : 'Connection problem (' + e.type + ')'; });
 }
-function guestSpawn(p, y) {
-  P.pos.copy(p); P.vel.set(0, 0, 0); P.health = 100; P.alive = true; P.h = STAND_H; P.yaw = y; P.pitch = 0; P.viewY = p.y + 1.6;
-  P.nades = 2; $('msg').textContent = ''; initPlayerWeapons();
+function guestSpawn(p, y, role) {
+  const was = P.role; if (ROLES[role]) P.role = role;
+  P.pos.copy(p); P.vel.set(0, 0, 0); P.health = maxHp(P); P.alive = true; P.h = STAND_H; P.yaw = y; P.pitch = 0; P.viewY = p.y + 1.6;
+  P.nades = 2; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit();
+  if (kitOf(P) && P.role !== was) { note(`You are the ${ROLES[P.role].name}`, 3); setPreview(ROLES[P.role].model); $('netstat').textContent = `You are the ${ROLES[P.role].name}`; }
 }
 function onHostMsg(m) {
   if (!m || typeof m !== 'object') return;
@@ -3064,16 +3488,18 @@ function onHostMsg(m) {
       break;
     case 'level': switchLevel(m.id); break;
     case 'sn': applySnapshot(m); break;
-    case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y); break;
+    case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y, m.k); break;
     case 'died':
       P.alive = false; P.health = 0; sDeath();
       $('msg').textContent = m.self ? (m.w === 'fall' ? 'You fell out of the map' : 'You blew yourself up') : `Killed by ${m.by}`;
+      if (MODE === 'defend' && P.role === 'atk') $('msg').textContent += '. Press E to take over a soldier, or wait for the next wave';
+      setMonitor(false);
       break;
     case 'hurt': hurtFx(Math.min(100, +m.a || 20)); break;
     case 'kill': sKill(); break;
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
-    case 'nade': P.nades = Math.min(MAX_NADES, P.nades + 1); note('+1 grenade', 1); break;
+    case 'nade': P.nades = Math.min(maxNades(P), P.nades + 1); note('+1 grenade', 1); break;
     case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
@@ -3086,10 +3512,12 @@ function applySnapshot(s) {
   if (Array.isArray(s.wv)) {
     const [n, total, left, hp, t, core, open] = s.wv, was = WAVE.core;
     Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
+    WAVE.broken = WAVE.hp <= 0; // the gate only breaks once, so a gate at 0% is gone for good
     if (WAVE.core < was) coreFlash = 0.12;
     setGate(!!open);
     if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); }
   }
+  if (s.cn && CN) { CN.yaw = +s.cn[0] || 0; CN.pitch = +s.cn[1] || 0; CN.cd = +s.cn[2] || 0; }
   const seen = new Set();
   for (const d of s.e) {
     if (d.i === NET.myId) { P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
@@ -3107,7 +3535,7 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
@@ -3211,8 +3639,11 @@ respawn(P);
 loadModels().then(() => {
   const sel = $('schar'); MODELS.forEach((m, i) => sel.add(new Option(m.label, i)));
   setPlayerModel(0);
-  buildViewmodels(); buildPickups(); placeProps();
-  if (NET.role === 'host') { buildBots(botTarget()); bots.forEach(respawn); }
+  buildViewmodels();
+  // Fortress is the only level: the host switches to it as soon as its mesh has loaded
+  if (NET.role === 'host') { WAVES = WAVE_SIZES.length; switchLevel(selLevel); resetMatch(); }
+  else { buildPickups(); placeProps(); }
+  if (NET.role === 'host') { buildBots(botTarget()); if (MODE !== 'defend') bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play';
   initPreview();
@@ -3229,6 +3660,7 @@ function loop(now) {
     updateGun(dt);
     bots.forEach(b => updateBot(b, dt));
     updateWaves(dt);
+    updateCannon(dt);
     updateRemotes(dt);
     updateNades(dt);
     updateAmmo(dt, now);
@@ -3245,10 +3677,13 @@ function loop(now) {
   renderPreview(dt);
   updateFx(dt);
   updateGate(dt);
+  updateShells(dt);
+  updateCannonVis();
+  updateComputer();
   updateVM(dt);
   updateHUD(dt);
   updateChatbox();
-  if (TG) { sun.position.set(camera.position.x + 25, camera.position.y + 50, camera.position.z + 15); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
+  if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
