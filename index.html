@@ -1423,7 +1423,8 @@ function loadModels() {
       for (const clip of pg.animations) {
         applyClipFirstFrame(pg.scene, defaults, clip);
         const pose = retargetToCharacter(pg.scene, sc, names);
-        const posed = Object.entries(pose).some(([n, t]) => t.quat.clone().normalize().angleTo(rest[n].quat.clone().normalize()) > 1e-3 || t.pos.distanceTo(rest[n].pos) > 1e-4);
+        // Rigify rest sampling adds small transform noise; authored poses must exceed it.
+        const posed = Object.entries(pose).some(([n, t]) => t.quat.clone().normalize().angleTo(rest[n].quat.clone().normalize()) > 0.01 || t.pos.distanceTo(rest[n].pos) > 1e-3);
         if (posed) poses[clip.name] = pose;
       }
       if (!Object.keys(poses).length) poses = null;
