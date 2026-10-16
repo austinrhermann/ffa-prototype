@@ -13,6 +13,53 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 
 Invited friends skip the title page. **Main menu** on the pause screen (every mode) goes back to the title page; a host leaving ends the game for everyone who joined.
 
+## Characters
+
+Seven characters and the Midas carbine come from the Blender asset library (`00_Exports`, T-pose Rigify rigs). `tools/build_characters.py` turns them into the game GLBs (body, head and worn gear skinned to the DEF- bones; handheld guns, mortar and shield left out):
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_characters.py -- "<00_Exports folder>" models [name ...]
+```
+
+Eli, Beto, Zeke and Deigo are `Soldier_2_heavy`, `Soldier_3_thin`, `Soldier_4_bigframe` and `Soldier_5_smallframe`; Apprentice, Master, Officer and `Midas_Carbine` keep their names. The new characters have no baked gun, so `poseArms` in `index.html` swings their arms down from the T-pose into a carbine grip when the models load. The Apprentice, Master and Officer faces use their painted head textures only: the projected face details (eyes, brows, mouth) don't export.
+
+### Posing characters (Blender Pose Kit)
+
+Real posing is deferred to animators. Normal play currently keeps the procedural poses; the committed Eli pose file is unposed and is ignored. Each weapon switches to an authored hold only when both its posed `hold_<weapon>` clip and matching `Socket_<weapon>` exist. Missing or unposed clips keep the procedural behavior, including crouch and death. First-person weapon placement is unchanged.
+
+For a future animator handoff, use Blender 5.0.1 at `/Applications/Blender.app`:
+
+1. Link **both** add-on files into Blender's add-ons folder. “Install from Disk” copies only one file and misses the shared `chars.py` dependency:
+
+   ```sh
+   mkdir -p "$HOME/Library/Application Support/Blender/5.0/scripts/addons"
+   ln -s /Users/austinhermann/Documents/GitHub/ffa-prototype/tools/ffa_pose_kit.py "$HOME/Library/Application Support/Blender/5.0/scripts/addons/"
+   ln -s /Users/austinhermann/Documents/GitHub/ffa-prototype/tools/chars.py "$HOME/Library/Application Support/Blender/5.0/scripts/addons/"
+   ```
+
+   Restart Blender, then enable **FFA Pose Kit** under Preferences → Add-ons.
+2. Run setup once per character, substituting the source folder and character name:
+
+   ```sh
+   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/ffa_pose_kit.py -- setup "<00_Exports folder>" "/Users/austinhermann/Documents/GitHub/ffa-prototype" Soldier_2_heavy
+   ```
+
+   The local source folder is `/Users/austinhermann/Downloads/Asset Library/00_Exports `, with a **trailing space**; preserve it inside the quotes. Setup creates `<source>/Poses/<Char>_poses.blend` without changing the source character file. Pose files already exist for Soldier_2_heavy and Master; the other five still need setup.
+3. Open that pose file and use the **FFA Pose Kit** tab in the viewport's N-panel. Choose a weapon and pose its Rigify controls at frame 1. Face the gun along Blender **−Y**, keeping it level. Move and rotate `Socket_<weapon>` to seat the gun; move the socket rather than the preview gun. Click **Key Pose** before changing poses, and **save the .blend** so future exports retain the work.
+4. Author `hold_pistol`, `hold_carbine`, `hold_rifle`, `hold_shotgun`, `crouch` and `death` as needed. Only the legs are used from crouch. Pose death standing upright; the game supplies the backwards fall. Keep action/socket names and DEF bone names unchanged. Partial posing is supported.
+5. Click **Export Poses** with the Game folder set to this repository, or run:
+
+   ```sh
+   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/ffa_pose_kit.py -- export "<00_Exports folder>" "/Users/austinhermann/Documents/GitHub/ffa-prototype" Soldier_2_heavy
+   python3 tools/inspect_poses.py Soldier_2_heavy
+   ```
+
+   Export writes `models/poses/<Char>.glb`. Check the inspector's rest/reachability results, inspect the game preview, then commit the GLB.
+
+To check poses, serve the repository and open `http://localhost:8000/?posecheck`. The character preview opens directly: select a character, press **1–4** for pistol/carbine/rifle/shotgun, **C** to toggle crouch, and **K** to replay a death. A corner label lists each pose's authored/procedural source. Changing weapons or toggling crouch returns from the death preview. Shortcuts work while the menu is visible and focus is outside a text field or selector.
+
+Use `http://localhost:8000/?posecheck&posefixture` to exercise the authored paths without Blender. **`?posefixture` is test data only**: it gives Eli a raised pistol hold, deeper crouch and asymmetric death pose; his other weapons and all other characters remain procedural. It writes no assets and has no effect when the flag is absent.
+
 ## Run locally
 
 Any static file server works (the game fetches `models/` at runtime, so opening the file directly won't load assets):

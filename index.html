@@ -249,6 +249,7 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
+  <div class="set hostonly"><label for="sgod">God mode (you take no damage) <input type="checkbox" id="sgod" style="width:auto"></label></div>
   <div class="set hostonly" id="setdiff"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   </div>
   <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
@@ -1174,6 +1175,8 @@ let D;
 function setDiff(v) { const t = (v - 1) / 4; D = { acc: 0.35 + 0.7 * t, react: 1.1 - 0.8 * t, turn: 3 + 5 * t, nade: 0.03 + 0.15 * t }; }
 setDiff(3);
 $('sbots').oninput = e => $('obots').textContent = e.target.value;
+let GOD = false;
+$('sgod').onchange = e => { GOD = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
@@ -1205,10 +1208,10 @@ function makeEntity(name, isPlayer) {
     onGround: false, respawnT: 0, ammo: MAG, reserve: START_RES, nades: 2, reloading: 0 };
 }
 // ---------- Character models (from the Blender soldier files) ----------
-// The first five are the bot soldiers; the rest are player-only choices
-const MODEL_DEFS = [['Soldier_1', 'Soldier'], ['Soldier_2_heavy', 'Heavy'], ['Soldier_3_thin', 'Thin'], ['Soldier_4_bigframe', 'Big frame'], ['Soldier_5_smallframe', 'Small frame'],
-  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer'], ['Pilot', 'Pilot'], ['Technician', 'Technician']];
-const SOLDIER_COUNT = 5;
+// The first four are the bot soldiers; the rest are player-only choices
+const MODEL_DEFS = [['Soldier_2_heavy', 'Eli'], ['Soldier_3_thin', 'Beto'], ['Soldier_4_bigframe', 'Zeke'], ['Soldier_5_smallframe', 'Deigo'],
+  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer']];
+const SOLDIER_COUNT = 4;
 const MODELS = [];
 const LEG_BONES = { thighL: 'DEF-Thigh_1L', thighR: 'DEF-Thigh_1R', kneeL: 'DEF-Knee_1L', kneeR: 'DEF-Knee_1R' };
 function b64ToBuf(str) { const bin = atob(str), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
@@ -1226,6 +1229,11 @@ function prepScene(sc) {
 const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 const parseGLB = key => fetch('models/' + key + '.glb').then(r => { if (!r.ok) throw new Error('Missing model ' + key); return r.arrayBuffer(); })
   .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', g => res(prepScene(g.scene)), rej)));
+// Authored pose kit (models/poses/<key>.glb): the whole gltf (scene + clips), not just the scene. A 404 or parse error
+// just means this character has no authored poses yet, so it resolves to null instead of rejecting.
+const parsePoses = key => fetch('models/poses/' + key + '.glb').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', res, rej)))
+  .catch(() => null);
 // Weapon muzzle direction: the end with the smaller vertical profile (grips and stocks are tall)
 function orientWeapon(sc) {
   const pts = [], v = new V3();
@@ -1242,6 +1250,7 @@ const WEAPONS = {
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
 };
+for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Muzzle flash and smoke for each gun. Until art is supplied each one is drawn in code from `style`.
 // To use a picture instead, put a PNG in fx/ and set `img` (e.g. img: 'fx/carbine_flash.png'); see README.
 //   flash: size = world size in metres (other players and bots), vmSize = size on your own gun, life = seconds on screen
@@ -1276,8 +1285,146 @@ function principalAxis(pts, c) {
   for (let i = 0; i < 40; i++) v = new V3(xx * v.x + xy * v.y + xz * v.z, xy * v.x + yy * v.y + yz * v.z, xz * v.x + yz * v.y + zz * v.z).normalize();
   return v;
 }
+// The new library characters come in T-pose with no gun in their hands: swing both arms down with a two-bone aim
+// (shoulder, elbow, wrist) so the right hand holds the gun out front and the left arm hangs at the side. Returns where the gun sits.
+function poseArms(sc) {
+  const get = n => sc.getObjectByName(n), wp = n => get(n).getWorldPosition(new V3()), q = new THREE.Quaternion();
+  const tpose = {};   // the arms and hands as exported, kept for the death pose (arms flung out flat)
+  sc.traverse(o => { if (o.isBone && /^DEF-(UpperArm|Forearm|Wrist|Finger)/.test(o.name)) tpose[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
+  const sh = { L: wp('DEF-UpperArm_1L'), R: wp('DEF-UpperArm_1R') }, mid = sh.L.clone().add(sh.R).multiplyScalar(0.5), sw = sh.L.distanceTo(sh.R) / 2;
+  const a = sh.R.distanceTo(wp('DEF-Forearm_1R')), b = wp('DEF-Forearm_1R').distanceTo(wp('DEF-WristR')), L = a + b;
+  const dir = new V3(0, 0, 1), tR = new V3(mid.x - 0.85 * sw - 0.06, sh.R.y - 0.45 * L, sh.R.z + 0.7 * L);
+  const tL = new V3(sh.L.x + 0.04 * L, sh.L.y - 0.97 * L, sh.L.z - 0.02 * L);   // left arm hangs at the side
+  const aim = (name, S, T, pole) => {
+    const up = get('DEF-UpperArm_1' + name), fo = get('DEF-Forearm_1' + name);
+    const d = T.clone().sub(S), D = Math.min(d.length(), (L - 0.01)); d.normalize();
+    const ca = (a * a + D * D - b * b) / (2 * a * D), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
+    const perp = pole.clone().addScaledVector(d, -pole.dot(d)).normalize();
+    const E = S.clone().addScaledVector(d, a * ca).addScaledVector(perp, a * sa);
+    const turn = (bone, from, to) => {   // rotate a bone in world space so its Y axis goes from one direction to another
+      sc.updateMatrixWorld(true);
+      const wq = bone.getWorldQuaternion(new THREE.Quaternion()), pq = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+      bone.quaternion.copy(pq.invert().multiply(q.setFromUnitVectors(from, to).multiply(wq)));
+    };
+    const y = bone => new V3(0, 1, 0).applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()));
+    turn(up, y(up), E.clone().sub(S).normalize());
+    turn(fo, y(fo), T.clone().sub(E).normalize());
+    sc.updateMatrixWorld(true);
+  };
+  // The finger chains hang off the rig node, not the wrist, so they follow the hand by the wrist's own move
+  const hands = side => {
+    const wr = get('DEF-Wrist' + side); sc.updateMatrixWorld(true);
+    const old = wr.matrixWorld.clone(), fingers = [];
+    sc.traverse(o => { if (o.isBone && o.name.startsWith('DEF-Finger_') && o.name.endsWith(side) && !o.parent.name.startsWith('DEF-Finger_')) fingers.push([o, o.matrixWorld.clone()]); });
+    return () => {
+      sc.updateMatrixWorld(true);
+      const d = wr.matrixWorld.clone().multiply(old.clone().invert()), m = new THREE.Matrix4(), pi = new THREE.Matrix4(), s1 = new V3();
+      for (const [f, w0] of fingers) {
+        m.copy(d).multiply(w0); pi.copy(f.parent.matrixWorld).invert(); m.premultiply(pi).decompose(f.position, f.quaternion, s1);
+      }
+    };
+  };
+  const doneR = hands('R'), doneL = hands('L');
+  aim('R', sh.R, tR, new V3(-1, -0.35, -0.1)); aim('L', sh.L, tL, new V3(0.3, 0, -1)); doneR(); doneL(); sc.updateMatrixWorld(true);
+  // Point the hand straight along the gun (the T-pose hand angles in toward the body): turn the wrist about the vertical
+  const done2 = hands('R'), wr0 = get('DEF-WristR'), hv = wp('DEF-Finger_Middle3R').sub(wp('DEF-WristR'));
+  const wq = wr0.getWorldQuaternion(new THREE.Quaternion()), pq = wr0.parent.getWorldQuaternion(new THREE.Quaternion());
+  wr0.quaternion.copy(pq.invert().multiply(q.setFromAxisAngle(new V3(0, 1, 0), -Math.atan2(hv.x, hv.z)).multiply(wq)));
+  done2(); sc.updateMatrixWorld(true);
+  // ...then roll it about the barrel axis until the knuckle line (pinky to index) is vertical: palm facing in, thumb up
+  const done3 = hands('R'), kv = wp('DEF-Finger_Index1R').sub(wp('DEF-Finger_Pinky1R'));
+  const wq2 = wr0.getWorldQuaternion(new THREE.Quaternion()), pq2 = wr0.parent.getWorldQuaternion(new THREE.Quaternion());
+  wr0.quaternion.copy(pq2.invert().multiply(q.setFromAxisAngle(new V3(0, 0, 1), Math.atan2(kv.x, kv.y)).multiply(wq2)));
+  done3(); sc.updateMatrixWorld(true);
+  // Curl the fingers (not the thumb) round the grip
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) [[1, 0.7], [2, 0.9], [3, 0.6]].forEach(([n, ang]) => {
+    const b = get('DEF-Finger_' + f + n + 'R'); if (b) b.quaternion.multiply(q.setFromAxisAngle(new V3(1, 0, 0), ang));
+  });
+  sc.updateMatrixWorld(true);
+  const wr = get('DEF-WristR'), hand = wp('DEF-WristR').lerp(wp('DEF-Finger_Middle1R'), 0.55);   // the palm, not the wrist
+  return { dir, hand, inv: wr.matrixWorld.clone().invert(), muzzle: hand.clone().addScaledVector(dir, 0.9), boneName: wr.name, tpose };
+}
+// ---------- Authored pose kit: bake Blender-posed clips from a poses GLB onto a character ----------
+// Each node's local TRS as exported (the clip's rest state), so a clip can be applied from a clean slate each time.
+function poseDefaults(scene) { const d = {}; scene.traverse(o => { if (o.name) d[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; }); return d; }
+// A clip has one keyframe per track (tools/ffa_pose_kit.py exports single-frame actions): reset every node to its
+// default, then set the first keyframe's value on whichever nodes the clip's tracks target.
+function applyClipFirstFrame(scene, defaults, clip) {
+  scene.traverse(o => { const d = defaults[o.name]; if (d) { o.position.copy(d.pos); o.quaternion.copy(d.quat); } });
+  for (const tr of clip.tracks) {
+    const dot = tr.name.lastIndexOf('.'), name = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1);
+    const o = scene.getObjectByName(name); if (!o) continue;
+    if (prop === 'position') o.position.fromArray(tr.values.slice(0, 3));
+    else if (prop === 'quaternion') o.quaternion.fromArray(tr.values.slice(0, 4));
+  }
+  scene.updateMatrixWorld(true);
+}
+// The poses GLB keeps a few Rigify control bones (HIP-Spine1, CHST-Spine1, FK-OS-Spine3, FK-Shoulder.R → stripped to
+// FK-ShoulderR) as parents of several root-level DEF bones; the character GLB parents those same DEF bones directly
+// to the rig (tools/inspect_poses.py's rest-check amendment). So a bone's pose is read in model (world) space here and
+// re-derived against its REAL parent, from this character's own T-pose skeleton - never copied as a raw local transform.
+function retargetToCharacter(posesScene, charScene, names) {
+  const out = {};
+  for (const name of names) {
+    const bone = posesScene.getObjectByName(name), charBone = charScene.getObjectByName(name);
+    if (!bone || !charBone || !charBone.parent) continue;
+    const parent = posesScene.getObjectByName(charBone.parent.name); if (!parent) continue;
+    const local = parent.matrixWorld.clone().invert().multiply(bone.matrixWorld);
+    const pos = new V3(), quat = new THREE.Quaternion(), scl = new V3(); local.decompose(pos, quat, scl);
+    out[name] = { pos, quat };
+  }
+  return out;
+}
+// Socket_<weapon> is a direct child of DEF-Wrist.R in the poses GLB, so its local matrix (relative to the wrist) is
+// the same no matter which hold pose is active - no need to pose anything first.
+function socketLocalMatrix(posesScene, name) {
+  const o = posesScene.getObjectByName(name); if (!o) return null;
+  return new THREE.Matrix4().compose(o.position, o.quaternion, new V3(1, 1, 1));
+}
+// Test fixtures rotate independent root bones together; descendants follow their parents as usual.
+function rotateAbout(pose, names, pivot, axis, ang) {
+  const out = {}, selected = new Set(names), q = new THREE.Quaternion().setFromAxisAngle(axis, ang);
+  for (const [name, t] of Object.entries(pose)) {
+    const pos = t.pos.clone(), quat = t.quat.clone();
+    if (selected.has(name)) { pos.sub(pivot).applyQuaternion(q).add(pivot); quat.premultiply(q); }
+    out[name] = { pos, quat };
+  }
+  return out;
+}
+// Where a weapon's own barrel ends, in its native (unrotated, uncentred) frame: the far end along the muzzle axis,
+// which is -Z rotated back by the yaw orientWeapon() would otherwise apply to point it that way.
+function nativeMuzzlePoint(sc, yaw) {
+  sc.updateMatrixWorld(true);
+  const pts = [], v = new V3();
+  sc.traverse(o => { if (o.isMesh) { const a = o.geometry.attributes.position; for (let i = 0; i < a.count; i++) pts.push(v.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld).clone()); } });
+  const axis = new V3(0, 0, -1).applyAxisAngle(new V3(0, 1, 0), -(yaw || 0));
+  let lo = Infinity, hi = -Infinity; for (const p of pts) { const d = p.dot(axis); if (d < lo) lo = d; if (d > hi) hi = d; }
+  const thresh = hi - 0.15 * (hi - lo), far = pts.filter(p => p.dot(axis) > thresh), avg = new V3();
+  far.forEach(p => avg.add(p)); return avg.divideScalar(far.length || 1);
+}
+// Bot aim point for an authored model's hold_<id> pose: pose the shared scene with that clip, seat the weapon's own
+// barrel-end under its socket, and record where that lands in model space. Restores the procedural hold afterwards.
+function computeModelGuns(m) {
+  const names = []; m.scene.traverse(o => { if (o.isBone) names.push(o.name); });
+  const bake = t => {
+    if (!t) return;
+    for (const n of names) { const v = t[n]; if (!v) continue; const b = m.scene.getObjectByName(n); b.position.copy(v.pos); b.quaternion.copy(v.quat); }
+    m.scene.updateMatrixWorld(true);
+  };
+  m.guns = {};
+  for (const id of Object.keys(WEAPONS)) {
+    const w = WEAPONS[id]; if (!w.scene) continue;
+    const hold = m.poses['hold_' + id], sockMat = m.sockets && m.sockets[id]; if (!hold || !sockMat) continue;
+    bake(m.procHold);
+    bake(hold);
+    const wrist = m.scene.getObjectByName('DEF-WristR'); if (!wrist) continue;
+    const socketWorld = wrist.matrixWorld.clone().multiply(sockMat);
+    m.guns[id] = { muzzle: nativeMuzzlePoint(w.scene, w.yaw).applyMatrix4(socketWorld) };
+  }
+  bake(m.procHold);
+}
 function loadModels() {
-  const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => parseGLB(key).then(sc => {
+  const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => Promise.all([parseGLB(key), parsePoses(key)]).then(([sc, pg]) => {
     const hp = new V3(0, 1.64, 0), head = sc.getObjectByName('DEF-Head'); if (head) head.getWorldPosition(hp);
     const muzzle = new V3(0.1, 1.3, 0.9), gunObj = sc.getObjectByName('Carbine');
     if (gunObj) { const bb = new THREE.Box3().setFromObject(gunObj); muzzle.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z); }
@@ -1292,7 +1439,52 @@ function loadModels() {
       gunHand = c.clone().addScaledVector(gunDir, hand.clone().sub(c).dot(gunDir));
       gunBoneInv = gunObj.parent.matrixWorld.clone().invert();
     }
-    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv };
+    let sway = false, tpose = null, gunBoneName = gunObj && gunObj.parent ? gunObj.parent.name : null;
+    const rest = {};
+    sc.traverse(o => { if (o.isBone) rest[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
+    if (sc.getObjectByName('DEF-WristR')) {
+      tpose = {};
+      for (const [n, t] of Object.entries(rest)) if (/^DEF-(UpperArm|Forearm|Wrist|Finger)/.test(n)) tpose[n] = t;
+    }
+    let procHold = null;
+    // Authored poses: one retargeted {pos,quat} per DEF bone per clip, plus each weapon socket's local matrix
+    let poses = null, sockets = null, names = null;
+    if (pg) {
+      names = []; sc.traverse(o => { if (o.isBone) names.push(o.name); });
+      const defaults = poseDefaults(pg.scene);
+      poses = {};
+      for (const clip of pg.animations) {
+        applyClipFirstFrame(pg.scene, defaults, clip);
+        const pose = retargetToCharacter(pg.scene, sc, names);
+        // Rigify rest sampling adds small transform noise; authored poses must exceed it.
+        const posed = Object.entries(pose).some(([n, t]) => t.quat.clone().normalize().angleTo(rest[n].quat.clone().normalize()) > 0.01 || t.pos.distanceTo(rest[n].pos) > 1e-3);
+        if (posed) poses[clip.name] = pose;
+      }
+      if (!Object.keys(poses).length) poses = null;
+      sockets = {};
+      for (const id of Object.keys(WEAPONS)) { const sm = socketLocalMatrix(pg.scene, 'Socket_' + id); if (sm) sockets[id] = sm; }
+    }
+    if (!gunObj && sc.getObjectByName('DEF-WristR')) {
+      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true;
+      procHold = {};
+      sc.traverse(o => { if (o.isBone) procHold[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
+    }
+    if (key === 'Soldier_2_heavy' && params.has('posefixture')) {
+      const shoulder = sc.getObjectByName('DEF-UpperArm_1R'), spine = sc.getObjectByName('DEF-Spine1');
+      const rightArm = spine.parent.children.filter(o => o.isBone && /^DEF-(UpperArm|Finger)/.test(o.name) && o.name.endsWith('R')).map(o => o.name);
+      poses = { hold_pistol: rotateAbout(procHold, rightArm, shoulder.position, new V3(1, 0, 0), -0.6) };
+      const leftArm = spine.parent.children.filter(o => o.isBone && /^DEF-(UpperArm|Finger)/.test(o.name) && o.name.endsWith('L')).map(o => o.name);
+      poses.crouch = {};
+      poses.death = rotateAbout(tpose, leftArm, tpose['DEF-UpperArm_1L'].pos, new V3(0, 0, 1), 0.8);
+      for (const [k, n] of Object.entries(LEG_BONES)) {
+        const b = sc.getObjectByName(n), axis = new V3(1, 0, 0).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()).invert());
+        for (const [clip, angles, scale] of [['crouch', CROUCH_POSE, 1.3], ['death', LIMP_POSE, 1.5]]) {
+          poses[clip][n] = { pos: rest[n].pos.clone(), quat: rest[n].quat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis, angles[k] * scale)) };
+        }
+      }
+      sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
+    }
+    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
   }))).then(ms => MODELS.push(...ms));
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
@@ -1320,7 +1512,19 @@ function loadModels() {
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
-  return Promise.all([soldiers, weps, props, sets]);
+  // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
+  const guns = Promise.all([soldiers, weps]).then(() => {
+    if (params.has('posefixture')) {
+      const m = MODELS[0], w = WEAPONS.pistol, gr = GRIPS.pistol, at = m.gunHand.clone();
+      at.addScaledVector(m.gunDir, gr.z).y -= gr.y;
+      const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
+      const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
+      // Convert the procedural centred gun into a native-frame socket, fixed relative to the wrist.
+      m.sockets.pistol = m.gunBoneInv.clone().multiply(T).multiply(child.matrix);
+    }
+    for (const m of MODELS) if (m.poses) computeModelGuns(m);
+  });
+  return Promise.all([soldiers, weps, props, sets, guns]);
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -1329,10 +1533,12 @@ function makeRig(mi) {
   for (const [k, n] of Object.entries(LEG_BONES)) {
     const b = root.getObjectByName(n); if (!b) continue;
     b.getWorldQuaternion(q);
-    bones[k] = { b, rest: b.quaternion.clone(), axis: new V3(1, 0, 0).applyQuaternion(q.clone().invert()) };
+    const rest = b.quaternion.clone(), axis = new V3(1, 0, 0).applyQuaternion(q.clone().invert());
+    const authored = model.poses && model.poses.crouch && model.poses.crouch[n];
+    bones[k] = { b, rest, axis, crouch: authored ? authored.quat.clone() : rest.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis, CROUCH_POSE[k])), crouchAngle: authored ? undefined : CROUCH_POSE[k] };
   }
   const car = root.getObjectByName('Carbine'); let gunBone = null;
-  if (car) { gunBone = car.parent; car.visible = false; }
+  if (car) { gunBone = car.parent; car.visible = false; } else if (model.gunBoneName) gunBone = root.getObjectByName(model.gunBoneName);
   // The exported skeleton is flat (every DEF bone hangs off the rig node), so the upper body is posed as a rigid group:
   // level 1 (spine, shoulders) bends at the hips; arms and hands (2) and neck and head (3) pivot again at the shoulders
   const spine = root.getObjectByName('DEF-Spine1'), upper = [];
@@ -1351,7 +1557,16 @@ function makeRig(mi) {
   if (piv1) { const c = new V3(piv1.x, 0, piv1.z).applyAxisAngle(new V3(0, 1, 0), RIG_TURN); root.position.set(-c.x, 0, -c.z); }
   // The soldiers hold the gun at low ready; raise the arms so a level gaze gives a level gun
   const raise = model.gunDir ? Math.asin(Math.max(-1, Math.min(1, model.gunDir.y))) : 0;
-  const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null };
+  const armBones = [];
+  if (model.tpose) root.traverse(o => { const t = model.tpose[o.name]; if (o.isBone && t) armBones.push({ b: o, t, stand: { pos: o.position.clone(), quat: o.quaternion.clone() }, top: upper.some(u => u.b === o) }); });
+  const deathBones = [];
+  if (model.poses && model.poses.death) {
+    for (const [name, target] of Object.entries(model.poses.death)) {
+      const b = root.getObjectByName(name); if (!b || !b.isBone) continue;
+      deathBones.push({ b, target, stand: { pos: b.position.clone(), quat: b.quaternion.clone() }, arm: armBones.find(a => a.b === b), upper: upper.find(u => u.b === b), leg: Object.entries(bones).find(([, bn]) => bn.b === b) });
+    }
+  }
+  const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null, armBones, deathBones };
   if (model.crouchDrop === undefined) model.crouchDrop = measureCrouch(r);
   return r;
 }
@@ -1362,18 +1577,39 @@ function measureCrouch(r) {
   const fL = r.root.getObjectByName('DEF-FootL'), fR = r.root.getObjectByName('DEF-FootR');
   if (!fL || !fR) return 0.45;
   const y0 = Math.min(fL.getWorldPosition(new V3()).y, fR.getWorldPosition(new V3()).y);
-  for (const k in CROUCH_POSE) setBone(r.bones[k], CROUCH_POSE[k]);
+  for (const k in CROUCH_POSE) setBone(r.bones[k], 0, 1);
   r.root.updateMatrixWorld(true);
   const y1 = Math.min(fL.getWorldPosition(new V3()).y, fR.getWorldPosition(new V3()).y);
   for (const k in CROUCH_POSE) setBone(r.bones[k], 0);
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 } };
 function setRigWeapon(rig, id) {
-  const m = rig.model; if (!rig.gunBone || !m.gunDir) return;
+  const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
+  // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
+  const authored = m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id];
+  const hold = authored ? m.poses['hold_' + id] : m.procHold;
+  if (hold) {
+    for (const u of rig.upper) { const t = hold[u.b.name]; if (t) { u.pos.copy(t.pos); u.rest.copy(t.quat); } }
+    for (const a of rig.armBones) { const t = hold[a.b.name]; if (t) { a.stand.pos.copy(t.pos); a.stand.quat.copy(t.quat); } }
+    // Authored holds are already level; procedural holds retain their original low-ready correction.
+    rig.raise = authored ? 0 : m.gunDir ? Math.asin(Math.max(-1, Math.min(1, m.gunDir.y))) : 0;
+  }
+  if (authored) {
+    const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
+    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
+    rig.gunBone.add(holder); rig.gunVis = holder;
+    return;
+  }
+  if (!m.gunDir) return;
   const w = WEAPONS[id], holder = new THREE.Group(); holder.add(centeredClone(w.scene, w.yaw));
-  const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.3));
+  // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
+  // barrel along the aim direction. The baked-gun characters keep the old centred placement.
+  const gr = m.sway && GRIPS[id], at = m.gunHand.clone();
+  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
+  const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
   holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T);
   rig.gunBone.add(holder); rig.gunVis = holder;
 }
@@ -1388,28 +1624,74 @@ function spawnCorpseAt(mi, pos, yaw) {
   const r = makeRig(mi);
   r.wrap.rotation.order = 'YXZ';
   r.wrap.position.copy(pos); r.wrap.rotation.y = yaw;
-  scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0 });
+  scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0, r });
   if (corpses.length > 30) scene.remove(corpses.shift().w);
 }
-function updateCorpses(dt) { for (const c of corpses) if (c.t < 0.5) { c.t += dt; const f = Math.min(1, c.t / 0.5); c.w.rotation.x = -f * f * Math.PI / 2; } }
+// They drop backwards in half a second: the arms and hands fly out and land flat (the library characters; the older ones just
+// let theirs swing down), the legs splay and the knees give
+const LIMP_POSE = { thighL: -0.5, kneeL: 0.9, thighR: 0.35, kneeR: 0.6 };
+function updateCorpses(dt, list = corpses) {
+  for (const c of list) {
+    if (c.t >= 1.8) continue;
+    c.t += dt;
+    const fall = Math.min(1, c.t / 0.5); c.w.rotation.x = -fall * fall * Math.PI / 2;
+    const r = c.r; if (!r) continue;
+    const f = 1 - Math.exp(-c.t * 4), wob = Math.exp(-c.t * 2.5) * Math.sin(c.t * 13) * 0.5;
+    if (r.model.poses && r.model.poses.death) {
+      poseUpper(r, 0, 0);
+      const g = Math.min(1, c.t / 0.45) - 1, k = 1 + 2.2 * g * g * g + 1.2 * g * g;
+      // Authored deaths replace the limp hinges and diagonal-arm twist. The body still falls backwards.
+      for (const key in r.bones) setBone(r.bones[key], (key[0] === 't' ? 0.12 : 0.2) * wob);
+      for (const d of r.deathBones) {
+        const stand = d.arm ? d.arm.stand : d.upper ? { pos: d.upper.pos, quat: d.upper.rest } : d.stand;
+        const ease = d.leg ? f : k, rest = d.leg ? d.leg[1].rest : stand.quat;
+        d.b.position.lerpVectors(stand.pos, d.target.pos, ease);
+        d.b.quaternion.copy(rest).slerp(d.target.quat, ease);
+        if (d.leg) d.b.quaternion.multiply(_q.setFromAxisAngle(d.leg[1].axis, (d.leg[0][0] === 't' ? 0.12 : 0.2) * wob));
+      }
+      continue;
+    }
+    for (const k in LIMP_POSE) setBone(r.bones[k], LIMP_POSE[k] * f + (k[0] === 't' ? 0.12 : 0.2) * wob);
+    poseUpper(r, 0, 0);
+    if (r.armBones.length) {   // arms and hands fly out and land flat on the ground
+      const g = Math.min(1, c.t / 0.45) - 1, k = 1 + 2.2 * g * g * g + 1.2 * g * g;   // ease out with a little overshoot
+      for (const a of r.armBones) {
+        a.b.quaternion.copy(a.stand.quat).slerp(a.t.quat, k);
+        if (a.top) a.b.position.lerpVectors(a.stand.pos, a.t.pos, k);
+      }
+      // One arm up by the head, the other down by the hip, so the two make a diagonal
+      for (const [side, ang] of [['L', 0.7], ['R', 0.3]]) {
+        const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) continue;
+        _qa.setFromAxisAngle(_Z, ang * Math.min(k, 1.1)); _p2.copy(sh.position);
+        for (const a of r.armBones) if (a.top && a.b.name.endsWith(side)) { a.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); a.b.quaternion.premultiply(_qa); }
+      }
+    } else { swayArm(r, 1.1 * f + 0.3 * wob, 'R'); swayArm(r, 0.9 * f - 0.3 * wob, 'L'); }
+  }
+}
 function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.length = 0; }
 const _q = new THREE.Quaternion();
-function setBone(bn, ang) { if (bn) bn.b.quaternion.copy(bn.rest).multiply(_q.setFromAxisAngle(bn.axis, ang)); }
+function setBone(bn, ang, C = 0) {
+  if (!bn) return;
+  // Same-axis procedural interpolation reduces to adding hinge angles; retain the original arithmetic exactly.
+  if (bn.crouchAngle !== undefined) bn.b.quaternion.copy(bn.rest).multiply(_q.setFromAxisAngle(bn.axis, ang + C * bn.crouchAngle));
+  else bn.b.quaternion.copy(bn.rest).slerp(bn.crouch, C).multiply(_q.setFromAxisAngle(bn.axis, ang));
+}
 // Walk cycle, crouch and aim pitch (camera convention: positive pitch looks up)
 function animRig(r, dt, speed, crouch, pitch) {
   r.amp += (Math.min(1, speed / 4.5) - r.amp) * Math.min(1, dt * 8);
   r.phase += dt * speed * 2.6;
   r.cr += ((crouch ? 1 : 0) - r.cr) * Math.min(1, dt * 12);
   r.pt += (Math.max(-1.2, Math.min(1.2, pitch || 0)) - r.pt) * Math.min(1, dt * 14);
-  const C = r.cr, s = Math.sin(r.phase), c = Math.cos(r.phase), A = r.amp * (1 - 0.5 * C), CP = CROUCH_POSE;
-  setBone(r.bones.thighL, -s * 0.6 * A + C * CP.thighL); setBone(r.bones.thighR, s * 0.6 * A + C * CP.thighR);
-  setBone(r.bones.kneeL, Math.max(0, c) * A + C * CP.kneeL); setBone(r.bones.kneeR, Math.max(0, -c) * A + C * CP.kneeR);
+  const C = r.cr, s = Math.sin(r.phase), c = Math.cos(r.phase), A = r.amp * (1 - 0.5 * C);
+  setBone(r.bones.thighL, -s * 0.6 * A, C); setBone(r.bones.thighR, s * 0.6 * A, C);
+  setBone(r.bones.kneeL, Math.max(0, c) * A, C); setBone(r.bones.kneeR, Math.max(0, -c) * A, C);
   r.root.position.y = Math.abs(c) * 0.035 * A - C * r.model.crouchDrop;
   // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
   const lean = 0.3 * C;
   poseUpper(r, lean - r.pt * 0.4, -lean - r.pt * 0.6);
+  if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
-const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _p2 = new V3();
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
 function poseUpper(r, a1, a2) {
   if (!r.upper.length) return;
   _qa.setFromAxisAngle(_X, a1); _qb.setFromAxisAngle(_X, a2 + r.raise); _qc.setFromAxisAngle(_X, a2);
@@ -1418,6 +1700,14 @@ function poseUpper(r, a1, a2) {
     u.b.position.copy(u.pos).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
     u.b.quaternion.copy(u.rest).premultiply(_qa);
     if (u.lv > 1) { const q = u.lv === 2 ? _qb : _qc; u.b.position.sub(_p2).applyQuaternion(q).add(_p2); u.b.quaternion.premultiply(q); }
+  }
+}
+// The free (left) arm of the library characters swings with the walk, opposite its own leg: the arm and hand bones turn about the shoulder
+function swayArm(r, ang, side = 'L') {
+  const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) return;
+  _qa.setFromAxisAngle(_X, ang); _p2.copy(sh.position);
+  for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith(side)) {
+    u.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); u.b.quaternion.premultiply(_qa);
   }
 }
 // Hit boxes shrink with the crouch so shots line up with the lowered body
@@ -1861,8 +2151,8 @@ const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 
 // Roles: the Master and the Apprentice hold the tower with the Computer (always an NPC). Alone you are the Master;
 // with a friend the host's pick holds and the friend takes the other role; anyone after that attacks as a Midas soldier.
 const ROLES = {
-  master:     { name: 'Master',        model: 6, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
-  apprentice: { name: 'Apprentice',    model: 5, hp: 100, inv: ['pistol'],            nades: 0 },
+  master:     { name: 'Master',        model: 5, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
+  apprentice: { name: 'Apprentice',    model: 4, hp: 100, inv: ['pistol'],            nades: 0 },
   atk:        { name: 'Pirate',        model: 0, hp: 100, inv: ['carbine', 'pistol'], nades: 0 },
 };
 const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
@@ -1995,6 +2285,7 @@ function attackerSpawn() {
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
+  if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
   if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t)) return; // no friendly fire
   t.health -= amt;
   if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
@@ -2481,7 +2772,11 @@ function botMiss(start, aim, marks) {
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
-function botMuzzle(b, w) { const m = b.rig.model; return b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix)); }
+function botMuzzle(b, w) {
+  const m = b.rig.model, g = m.guns && m.guns[w.id];
+  const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
+  return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
+}
 // Attackers that made it to the tower room turn on the computer (a still target: most shots land)
 function botShootCore(b, dt) {
   const ai = b.ai, [x, y, z] = LV.core.at, dx = x - b.pos.x, dz = z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
@@ -2784,6 +3079,7 @@ const keys = {};
 let locked = false, boardOpen = false, tCrouch = false, tAim = false;
 const SENS = 0.0022;
 addEventListener('keydown', e => {
+  if (handlePoseCheckKey(e)) return;
   const enter = e.code === 'Enter' || e.code === 'NumpadEnter';
   if (chatOpen) { if (enter && !e.isComposing) { e.preventDefault(); sendChat(); } else if (e.code === 'Escape') closeChat(); return; }
   if (enter && locked && !e.repeat) { e.preventDefault(); openChat(); return; }
@@ -3153,9 +3449,16 @@ function initPreview() {
   const pf = new THREE.AmbientLight(0xffffff, 1), ph = new THREE.HemisphereLight(0xffffff, 0x555555, 1.0), dl = new THREE.DirectionalLight(0xffffff, 1); dl.position.set(1, 2, 2); sc.add(pf, ph, dl);
   LOOK_EXTRA.push([pf, dl, ph, 0.6, 1.0]);
   const cam = new THREE.PerspectiveCamera(30, 240 / 280, 0.05, 20);
-  prev = { r, sc, cam, rig: null }; applyLook();
+  prev = { r, sc, cam, rig: null, weapon: 'carbine', crouch: false, corpse: null }; applyLook();
+  if (params.has('posecheck')) {
+    r.setSize(240, 340, false); $('cprev').style.height = '340px'; cam.aspect = 240 / 340; cam.updateProjectionMatrix();
+    const label = document.createElement('div'); label.id = 'posecheck';
+    label.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:40;padding:10px;border-radius:6px;background:rgba(8,12,16,.94);color:#eef3ea;font:12px/1.5 system-ui;white-space:pre-line;pointer-events:none;max-width:calc(100vw - 44px)';
+    document.body.appendChild(label); prev.label = label;
+  }
   refreshPreview();
   $('schar').onchange = () => refreshPreview();
+  if (params.has('posecheck')) chooseMode('arena');
 }
 // The preview shows your role's character on Fortress, otherwise the character you picked
 function refreshPreview() {
@@ -3164,16 +3467,63 @@ function refreshPreview() {
 }
 function setPreview(i) {
   if (!prev) return;
+  clearPreviewCorpse();
   if (prev.rig) prev.sc.remove(prev.rig.wrap);
-  prev.rig = makeRig(i); setRigWeapon(prev.rig, 'carbine');
+  prev.modelIndex = i;
+  prev.rig = makeRig(i); setRigWeapon(prev.rig, params.has('posecheck') ? prev.weapon : 'carbine');
   prev.rig.wrap.rotation.y = 0.6;
   prev.sc.add(prev.rig.wrap);
   const hy = MODELS[i].headY, ty = hy - 0.18, span = hy * 0.5 + 0.35, dist = span / 2 / Math.tan(15 * Math.PI / 180) * 1.05;
   prev.cam.position.set(0, ty + 0.12, dist); prev.cam.lookAt(0, ty, 0);
+  if (params.has('posecheck')) {
+    framePoseCheck();
+    animRig(prev.rig, 0, 0, prev.crouch, 0); updatePoseCheckLabel();
+  }
+}
+function framePoseCheck() {
+  const hy = prev.rig.model.headY, dead = !!prev.corpse;
+  const dist = (hy + 0.8) / 2 / Math.tan(15 * Math.PI / 180) * 1.15;
+  // The falling body's outstretched arms need a wider view than its standing hold.
+  prev.cam.position.set(0, hy * 0.85, dist * (dead ? 1.9 : 1));
+  prev.cam.lookAt(0, hy * (dead ? 0.1 : 0.4), -hy * 0.3);
+}
+function clearPreviewCorpse() {
+  if (!prev || !prev.corpse) return;
+  prev.sc.remove(prev.corpse.w); prev.corpse = null;
+  if (prev.rig) prev.rig.wrap.visible = true;
+}
+function updatePoseCheckLabel() {
+  if (!prev || !prev.label || !prev.rig) return;
+  const m = prev.rig.model, source = id => m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id] ? 'authored' : 'procedural';
+  const clip = id => m.poses && m.poses[id] ? 'authored' : 'procedural';
+  prev.label.textContent = `${m.label}${params.has('posefixture') ? ' · Fixture test data' : ''}\nPistol: ${source('pistol')} · Carbine: ${source('carbine')}\nRifle: ${source('rifle')} · Shotgun: ${source('shotgun')}\nCrouch: ${clip('crouch')} · Death: ${clip('death')}\n1–4: weapon · C: crouch · K: death\nViewing: ${prev.corpse ? 'death' : prev.crouch ? 'crouch' : 'standing'} · ${WEAPONS[prev.weapon].name}`;
+}
+function handlePoseCheckKey(e) {
+  if (!params.has('posecheck') || !prev || !prev.rig || locked || $('overlay').style.display === 'none' || $('title').style.display !== 'none') return false;
+  if (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return false;
+  const id = { Digit1: 'pistol', Digit2: 'carbine', Digit3: 'rifle', Digit4: 'shotgun' }[e.code];
+  if (!id && e.code !== 'KeyC' && e.code !== 'KeyK') return false;
+  e.preventDefault(); if (e.repeat) return true;
+  clearPreviewCorpse();
+  if (id) { prev.weapon = id; setRigWeapon(prev.rig, id); }
+  else if (e.code === 'KeyC') prev.crouch = !prev.crouch;
+  else {
+    const r = makeRig(prev.modelIndex); setRigWeapon(r, prev.weapon);
+    if (r.gunVis) r.gunVis.visible = false;
+    r.wrap.rotation.order = 'YXZ'; r.wrap.rotation.y = prev.rig.wrap.rotation.y;
+    prev.corpse = { w: r.wrap, r, t: 0 }; prev.sc.add(r.wrap); prev.rig.wrap.visible = false;
+  }
+  framePoseCheck(); updatePoseCheckLabel(); return true;
 }
 function renderPreview(dt) {
-  if (!prev || $('overlay').style.display === 'none') return;
-  prev.rig.wrap.rotation.y += dt * 0.25;
+  if (!prev) return;
+  const visible = $('overlay').style.display !== 'none';
+  if (prev.label) prev.label.hidden = !visible || $('title').style.display !== 'none';
+  if (!visible) return;
+  if (params.has('posecheck')) {
+    if (prev.corpse) updateCorpses(dt, [prev.corpse]);
+    else { animRig(prev.rig, dt, 0, prev.crouch, 0); prev.rig.wrap.rotation.y += dt * 0.25; }
+  } else prev.rig.wrap.rotation.y += dt * 0.25;
   prev.r.render(prev.sc, prev.cam);
 }
 
