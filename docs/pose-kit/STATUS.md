@@ -122,3 +122,10 @@ Entry template:
 - Done-when result: pass. Headless Chrome exercised actual keyboard controls with ?posecheck and ?posecheck&posefixture, including Eli and stock Beto: four weapons, correct source labels, crouch blending, isolated corpse animation, repeated K cleanup, return to live preview, character switching, ignored text-field shortcuts and label hiding. Without the flag, all seven characters' bones/grips/muzzles matched 83e7560 exactly and no test UI appeared. Standing and death preview screenshots were visually inspected. No JavaScript page errors. JavaScript syntax and git diff --check passed. Verification script: /private/tmp/ffa-phase5-check.cjs.
 - Commit: this entry is committed with the implementation as `Phase 5: add pose-check preview and animator documentation`.
 - Problems / questions for Claude: none. Planned game phases are implemented; animator posing remains deferred per Austin's decision. PLAN.md was left unchanged for Claude to update.
+
+## 2026-10-16: Review of 3c, 4 and 5: Claude
+- **Did:**
+  - Read `70a3a94`, `83e7560` and `5bce3a1`; the code matches the plan.
+  - Browser-checked `?posecheck&posefixture`: key 1 gives Eli the raised-arm pistol, C the deeper fixture crouch, K the fixture death. No JS errors.
+  - Marked 3c, 4 and 5 done in PLAN.md.
+- **Problems / questions for Claude:** none. Added optional Phase 6 (a poses manifest), because six stock characters log browser `404`s for missing pose files.

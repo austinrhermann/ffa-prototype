@@ -12,12 +12,13 @@
 | 3 | Game: hold poses + weapon sockets | done | `a88443b` |
 | 3b | Game: per-weapon fallback, ignore unposed clips, keep T-pose | done (procedural path verified) | `3191f8c` |
 | 3b.1 | Loosen the unposed-clip threshold | done | `da45bd6` |
-| 3c | `?posefixture`: synthetic authored poses, no Blender needed | **next** | — |
-| 4 | Game: crouch + death from clips (verify with the fixture) | after 3c | — |
-| 5 | `?posecheck` view + README docs | after 4 | — |
+| 3c | `?posefixture`: synthetic authored poses, no Blender needed | done | `70a3a94` |
+| 4 | Game: crouch + death from clips (verify with the fixture) | done | `83e7560` |
+| 5 | `?posecheck` view + README docs | done | `5bce3a1` |
+| 6 | Optional: `models/poses/index.json` manifest so stock characters don't log 404s | optional, not started | — |
 | A | Animators: pose every character and gun | **deferred**; not blocking any phase | — |
 
-Run the first phase that isn't done. 3c → 4 → 5 all edit `index.html`, so run them one at a time.
+**All planned game phases are done** (reviewed by Claude on 2026-10-16: code read and browser-checked with `?posecheck&posefixture`). Only the optional Phase 6 and the deferred animator posing (A) remain.
 
 **Decision (2026-10-16, Austin):** no Blender posing happens during this plan. Every character keeps its current procedural pose; the committed `models/poses/Soldier_2_heavy.glb` is unposed and is ignored (`model.poses === null`). The authored code paths are verified with the `?posefixture` test data from Phase 3c instead. **No phase may wait on, or ask for, a real pose export.**
 
@@ -192,6 +193,15 @@ The clips are already in `model.poses.crouch` and `model.poses.death` once Phase
 2. **`README.md`:** add a "Posing characters (Blender Pose Kit)" section under Characters, covering the animator handoff below.
 
 **Done when:** `?posecheck` works with and without `?posefixture` (use `?posecheck&posefixture` to see the authored path on Eli), and the README section exists. The README says that `?posefixture` is test data only.
+
+## Phase 6 (optional): poses manifest
+
+The browser logs six `404` network errors on every load, because the stock characters have no `models/poses/<Char>.glb`. The game handles them fine, but they're noise in the console.
+
+- Add `models/poses/index.json`, a JSON array of the characters that have a poses file (today `["Soldier_2_heavy"]`).
+- `parsePoses` fetches only the listed ones. A missing or unreadable manifest falls back to today's behaviour.
+- `ffa_pose_kit.py export` adds the character to the manifest, keeping it sorted and without duplicates.
+- **Done when:** a load shows no `404`s for `models/poses/`, and `?posecheck` behaves as before.
 
 ## Animator handoff (Phase A, deferred to later animators; nothing here blocks the phases above)
 
