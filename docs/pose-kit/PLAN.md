@@ -10,7 +10,7 @@
 | 1 | Blender pose kit add-on + CLI (`tools/ffa_pose_kit.py`) | done | `de24491`, `cb3f7a3`, `d3b8195` |
 | 2 | GLB inspector (`tools/inspect_poses.py`) | done | `de24491`, `cb3f7a3` |
 | 3 | Game: hold poses + weapon sockets | done | `a88443b` |
-| 3b | Game: ignore unposed clips, keep the T-pose for authored models | **next** | — |
+| 3b | Game: per-weapon fallback, ignore unposed clips, keep T-pose (rev 2, unblocked) | **next** | — |
 | 4 | Game: crouch + death from clips | after 3b | — |
 | 5 | `?posecheck` view + README docs | after 4 | — |
 | A | Animators: pose every character and gun | ongoing, in Blender | — |
@@ -67,22 +67,43 @@ First-person viewmodel placement is out of scope.
 - **Weapon native frame:** guns sit under the socket as authored in their own GLB, with no recentring and no `orientWeapon` yaw. The shotgun is the group `makeShotgun()` returns.
 - Use Blender 5.0.1 at `/Applications/Blender.app`. Exporter option names change between versions.
 
-## Phase 3b: ignore unposed clips, keep the T-pose (next)
+## Phase 3b: per-weapon fallback, ignore unposed clips, keep the T-pose (next)
 
-Both gaps were found reviewing `a88443b`.
+This is revision 2. It answers Codex's 2026-10-16 question in STATUS.md, because revision 1 contradicted itself.
 
-1. **Unposed clips.** `setup` creates all six actions, and one that nobody has posed exports as the **T-pose**. `setRigWeapon` and `computeModelGuns` treat that as a real pose today. Example: Soldier_2_heavy has only `hold_pistol` posed, so its carbine, rifle and shotgun holds are T-poses.
-   - **Fix:** in `loadModels`, after retargeting, drop any clip in which every bone's `quat` is within ~1e-3 (angle) of the character's T-pose local quaternion. Then the "missing clip" fallbacks apply.
-   - **Hold fallback order:** `hold_<id>`, then `hold_carbine`, then any remaining `hold_*`.
-   - **If no hold clip survives,** treat the model as non-authored for holds: set `poses` to null for hold purposes, so `poseArms` and `GRIPS` run as before. Crouch and death clips can still be used.
-   - Socket fallback stays `m.sockets[id] || m.sockets.carbine`. A socket is only used together with an authored hold of that weapon; otherwise use the procedural `GRIPS` path.
-2. **No T-pose saved.** `model.tpose` is only filled by `poseArms`, so authored models have `tpose = null`, `rig.armBones` is empty, and their deaths fall through to the old `swayArm` branch.
-   - **Fix:** capture `tpose` for every model with `DEF-WristR` before any pose is applied, using the same regex as `poseArms` L1263–1264.
+**The rule: every weapon decides on its own.**
+- If `hold_<id>` is authored (posed), use that clip's arm pose and seat the gun on `Socket_<id>`.
+- Otherwise use the original procedural hold for that weapon: the `poseArms` arm pose, with `GRIPS` / `gunHand` placement.
+- **Never borrow another weapon's authored pose or socket.** The `hold_carbine` fallback and the `m.sockets.carbine` fallback are removed.
+
+Animators fill in weapons one at a time, and each one switches over as soon as it's posed.
+
+**Steps in `index.html`:**
+
+1. **Capture the T-pose first.** In `loadModels`, for every model with `DEF-WristR`, record `tpose` before any pose is applied. Use the same regex as `poseArms` (L1263–1264). This also fixes deaths for authored models.
+2. **Run the procedural pose for every library character, whether or not it has a poses file.**
+   - Run `poseArms(sc)` and keep its outputs on the model as today: `gunDir`, `gunHand`, `gunBoneInv`, `gunBoneName`, `muzzle`, `sway = true`.
+   - Snapshot the posed bones as `model.procHold = { <bone name>: {pos, quat} }` for every bone, read from `sc` right after `poseArms`.
+   - The shared scene stays in this procedural pose. **Don't bake `hold_carbine` onto it any more.**
+3. **Drop unposed clips.**
+   - After retargeting, delete any clip in which every bone's quaternion is within 1e-3 rad of the T-pose local quaternion and every position is within 1e-4 of it.
+   - Compare against the character's T-pose locals, captured before step 2.
+   - If no clips survive, set `model.poses = null`.
+4. **`setRigWeapon(rig, id)`:** set `authored = m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id]`.
+   - **Authored:** write the clip into `rig.upper[].rest/pos` and seat a native clone of the gun under `m.sockets[id]` (the current authored branch, minus the fallbacks).
+   - **Otherwise:** write `m.procHold` into `rig.upper[].rest/pos`, then run the existing `GRIPS` path unchanged.
+   - Either way, update the matching `rig.armBones[].stand` as well, so the death pose starts from the hold the character actually has.
+5. **`computeModelGuns`:**
+   - Compute `m.guns[id]` only for authored weapons.
+   - Bake `m.procHold` back onto the shared scene when it's done, instead of `hold_carbine`.
+   - `botMuzzle` already falls back to the `gunHand` / `gunDir` formula when `m.guns[id]` is missing; keep that.
 
 **Done when:**
-- Soldier_2_heavy holds the pistol from its Blender pose and holds the other three guns with the procedural grip (not T-posed).
+- Soldier_2_heavy holds the pistol in its Blender pose.
+- Its carbine, rifle and shotgun use exactly the old procedural arm pose and grip, the same as a stock character's.
 - Its death flings the arms out like the stock characters.
 - Characters without a poses file look unchanged.
+- Bot tracers start at the muzzle for both the authored pistol and the procedural guns.
 
 ## Phase 4: crouch + death from clips
 
@@ -137,7 +158,7 @@ The clips are already in `model.poses.crouch` and `model.poses.death` once Phase
    - Crouch: only the legs are used. Death: pose it standing; the game tips the body over.
 4. **Export and check:**
    - Press **Export Poses** (set the Game folder once), then run `python3 tools/inspect_poses.py <Char>`. Commit `models/poses/<Char>.glb`.
-   - Any pose left unposed is ignored by the game once Phase 3b lands, so partial work is safe to commit.
+   - Any weapon left unposed keeps the procedural hold once Phase 3b lands, so partial work is safe to commit.
 
 ## Verification (end to end)
 
