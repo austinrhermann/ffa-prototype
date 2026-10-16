@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """Inspects an authored character's pose kit GLB against its base character GLB.
 
-Parses the GLB container by hand (12-byte header + chunks) and reads only the JSON chunk - no
-glTF library, no deps. Node TRS and matrices live directly in the JSON, so the binary chunk is
-never needed here.
+Parses the GLB container by hand (12-byte header + JSON + optional BIN chunk) - no glTF library,
+no deps. Node TRS and hierarchy live in the JSON chunk; animation keyframe values live in the BIN
+chunk via accessors, which the posed-vs-rest report reads directly (FLOAT accessors only, no
+sparse accessors, no byteStride beyond standard tight packing - all true of Blender's GLB export).
 
 Reports:
   - animation clips: track count and the bones each one touches
   - Socket_* nodes: parent node and local TRS
-  - rest check: every node name shared by both files must have the same default (bind-pose)
-    transform within 1e-4, as a 4x4 matrix comparison (robust to the rotation/-rotation quaternion
-    double-cover that a raw component compare would flag as a false mismatch). This is the
-    guarantee that the poses line up with the character's skeleton; a mismatch means the exporter
-    settings drifted between the two GLBs, not something to patch around in the game.
+  - posed-vs-rest: per clip, how many of its bones differ from that node's default (rest) value
+    at the clip's first keyframe. 0 means the clip hasn't been posed yet.
+  - rest check: every node name shared by both files must land at the same default (bind-pose)
+    position in *model space* (its own local transform composed with every ancestor's, up to the
+    scene root) within 1e-4, as a 4x4 matrix comparison (robust to the rotation/-rotation
+    quaternion double-cover that a raw component compare would flag as a false mismatch).
+    Model space, not local space: the poses file keeps Rigify control bones (HIP-Spine1,
+    CHST-Spine1, FK-OS-Spine3, FK-Shoulder.R) as parents of several root-level DEF bones, while
+    the character file parents those same DEF bones directly to the rig, so comparing local
+    transforms would be comparing numbers expressed relative to different parents. Model space
+    is the guarantee that actually matters: that the poses line up with the character's skeleton
+    in world terms. A mismatch means the exporter settings drifted between the two GLBs, not
+    something to patch around in the game.
 
 Usage:
   python3 tools/inspect_poses.py <CharName> [models_dir]
@@ -25,9 +34,13 @@ import struct
 import sys
 
 TOLERANCE = 1e-4
+ROT_TOLERANCE = 1e-4
+
+COMPONENT_TYPES = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
+TYPE_COUNTS = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
 
 
-def load_glb_json(path):
+def load_glb(path):
     with open(path, 'rb') as f:
         data = f.read()
     if len(data) < 12:
@@ -36,14 +49,30 @@ def load_glb_json(path):
     if magic != b'glTF':
         raise ValueError(f'{path}: not a GLB file (bad magic {magic!r})')
     offset = 12
+    doc, bin_chunk = None, None
     while offset + 8 <= length:
         chunk_len, chunk_type = struct.unpack_from('<I4s', data, offset)
         offset += 8
         chunk_data = data[offset:offset + chunk_len]
         offset += chunk_len
         if chunk_type == b'JSON':
-            return json.loads(chunk_data)
-    raise ValueError(f'{path}: no JSON chunk found')
+            doc = json.loads(chunk_data)
+        elif chunk_type == b'BIN\x00':
+            bin_chunk = chunk_data
+    if doc is None:
+        raise ValueError(f'{path}: no JSON chunk found')
+    return doc, bin_chunk
+
+
+def read_accessor_values(doc, bin_chunk, idx):
+    acc = doc['accessors'][idx]
+    num_comp = TYPE_COUNTS[acc['type']]
+    fmt_char, comp_size = COMPONENT_TYPES[acc['componentType']]
+    bv = doc['bufferViews'][acc['bufferView']]
+    base_offset = bv.get('byteOffset', 0) + acc.get('byteOffset', 0)
+    stride = bv.get('byteStride') or num_comp * comp_size
+    return [struct.unpack_from('<' + fmt_char * num_comp, bin_chunk, base_offset + i * stride)
+            for i in range(acc['count'])]
 
 
 def node_name(nodes, idx):
@@ -116,9 +145,68 @@ def report_sockets(doc, parent_of):
         print('  (no Socket_* nodes found)')
 
 
+def report_pose_diffs(doc, bin_chunk):
+    nodes = doc.get('nodes', [])
+    anims = doc.get('animations', [])
+    if not anims:
+        print('  (no animation clips)')
+        return
+    if bin_chunk is None:
+        print('  (no binary chunk - cannot read keyframe values)')
+        return
+    for anim in anims:
+        samplers = anim.get('samplers', [])
+        posed, total = set(), set()
+        for ch in anim.get('channels', []):
+            target = ch.get('target', {})
+            node_idx, path = target.get('node'), target.get('path')
+            if node_idx is None or path not in ('translation', 'rotation', 'scale'):
+                continue
+            bname = node_name(nodes, node_idx)
+            total.add(bname)
+            values = read_accessor_values(doc, bin_chunk, samplers[ch['sampler']]['output'])
+            if not values:
+                continue
+            first = values[0]
+            default_key = path if path != 'rotation' else 'rotation'
+            if path == 'rotation':
+                default = tuple(nodes[node_idx].get('rotation', [0.0, 0.0, 0.0, 1.0]))
+                dot = sum(a * b for a, b in zip(first, default))
+                changed = abs(dot) < 1 - ROT_TOLERANCE
+            else:
+                default = tuple(nodes[node_idx].get(default_key, [0.0, 0.0, 0.0] if path == 'translation' else [1.0, 1.0, 1.0]))
+                changed = max(abs(a - b) for a, b in zip(first, default)) > TOLERANCE
+            if changed:
+                posed.add(bname)
+        note = ' (not posed yet)' if not posed else ''
+        print(f"  {anim.get('name', '<unnamed>')!r}: {len(posed)}/{len(total)} bone(s) differ from rest{note}")
+
+
+def mat_mul(a, b):
+    # column-major 4x4, as glTF stores them
+    return tuple(sum(a[k * 4 + r] * b[c * 4 + k] for k in range(4)) for c in range(4) for r in range(4))
+
+
+def model_space_matrices(doc):
+    """Each named node's matrix in the scene's space (parents walked up to the root). The poses export keeps a few Rigify
+    control bones (HIP-Spine1, FK-OS-Spine3, ...) as extra parents that the character GLB doesn't have, so local transforms
+    differ by parent while the bones still sit in the same place: compare where they are, not their raw local TRS."""
+    nodes = doc.get('nodes', [])
+    parent_of = build_parent_map(doc)
+    cache = {}
+
+    def world(i):
+        if i not in cache:
+            m = node_matrix(nodes[i])
+            p = parent_of.get(i)
+            cache[i] = mat_mul(world(p), m) if p is not None else m
+        return cache[i]
+    return {n['name']: world(i) for i, n in enumerate(nodes) if 'name' in n}
+
+
 def rest_check(base_doc, poses_doc):
-    base_by_name = {n['name']: node_matrix(n) for n in base_doc.get('nodes', []) if 'name' in n}
-    pose_by_name = {n['name']: node_matrix(n) for n in poses_doc.get('nodes', []) if 'name' in n}
+    base_by_name = model_space_matrices(base_doc)
+    pose_by_name = model_space_matrices(poses_doc)
     common = sorted(set(base_by_name) & set(pose_by_name))
     mismatches = []
     for name in common:
@@ -142,8 +230,8 @@ def main():
             print(f'ERROR: missing {p}', file=sys.stderr)
             sys.exit(1)
 
-    base_doc = load_glb_json(base_path)
-    poses_doc = load_glb_json(poses_path)
+    base_doc, _base_bin = load_glb(base_path)
+    poses_doc, poses_bin = load_glb(poses_path)
     parent_of = build_parent_map(poses_doc)
 
     print(f'=== {char} ===')
@@ -156,7 +244,10 @@ def main():
     print('\nSockets:')
     report_sockets(poses_doc, parent_of)
 
-    print(f'\nRest check (poses vs base, tol={TOLERANCE}):')
+    print('\nPosed vs rest (first keyframe vs node default, per clip):')
+    report_pose_diffs(poses_doc, poses_bin)
+
+    print(f'\nRest check (poses vs base, model space, tol={TOLERANCE}):')
     common, mismatches = rest_check(base_doc, poses_doc)
     print(f'  {len(common)} shared node names checked')
     if mismatches:

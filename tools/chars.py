@@ -50,14 +50,30 @@ def nearest_def_bone(rig, o):
 
 def reparent_extra_bones(rig):
     """Deform bones that aren't DEF- bones (the Master's Sleeve.L/R) hang off control bones that don't get exported, so they'd
-    sit still at the rig root. Parent each to the nearest DEF bone so it follows the arm."""
+    sit still at the rig root. Parent each to the nearest DEF bone so it follows the arm.
+
+    Returns the bones' original parent names (None for no parent), so a caller that must leave the open file as it found it
+    (ffa_pose_kit's export, which can run against the artist's open _poses.blend) can pass this to restore_bone_parents."""
     extra = [b.name for b in rig.data.bones if b.use_deform and not b.name.startswith('DEF-')]
-    if not extra: return
+    if not extra: return []
     defs = [b.name for b in rig.data.bones if b.name.startswith('DEF-') and 'Finger' not in b.name]
     select_only([rig]); bpy.ops.object.mode_set(mode='EDIT')
     eb = rig.data.edit_bones
+    saved = [(n, eb[n].parent.name if eb[n].parent else None) for n in extra]
     for n in extra:
         head = eb[n].head
         eb[n].parent = eb[min(defs, key=lambda d: (eb[d].head - head).length)]
         print('  reparented', n, '->', eb[n].parent.name)
     bpy.ops.object.mode_set(mode='OBJECT')
+    return saved
+
+
+def restore_bone_parents(rig, saved):
+    """Undoes reparent_extra_bones using the list it returned."""
+    if not saved: return
+    select_only([rig]); bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    for n, parent_name in saved:
+        eb[n].parent = eb[parent_name] if parent_name else None
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print('  restored', len(saved), 'bone parent(s)')

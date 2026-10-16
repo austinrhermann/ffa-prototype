@@ -23,7 +23,7 @@ import bpy, sys, os, math, json, struct
 from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from chars import CHARS, select_only, unhide, reparent_extra_bones
+from chars import CHARS, select_only, unhide, reparent_extra_bones, restore_bone_parents
 
 POSE_NAMES = ['hold_pistol', 'hold_carbine', 'hold_rifle', 'hold_shotgun', 'crouch', 'death']
 WEAPON_IDS = ['pistol', 'carbine', 'rifle', 'shotgun']
@@ -343,7 +343,9 @@ def export_current_file(game, char):
     if rig.animation_data:
         rig.animation_data.action = None
     rig.data.pose_position = 'POSE'
-    reparent_extra_bones(rig)
+    # export_current_file can run against the artist's already-open <Char>_poses.blend (the add-on's Export Poses button), so
+    # the reparenting this needs for a correct export must not stick around afterwards - restore it once the export is done.
+    reparented = reparent_extra_bones(rig)
 
     anchor = bpy.data.objects.get(ANCHOR_NAME)
     select_only([rig] + ([anchor] if anchor else []))
@@ -359,6 +361,7 @@ def export_current_file(game, char):
         export_force_sampling=True, export_optimize_animation_size=False,
         export_rest_position_armature=True, export_yup=True, export_materials='NONE')
     inject_sockets(outpath, socket_data)
+    restore_bone_parents(rig, reparented)
 
     clips = [t.name for t in rig.animation_data.nla_tracks] if rig.animation_data else []
     print('WROTE', outpath, os.path.getsize(outpath))
