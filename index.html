@@ -4226,7 +4226,10 @@ function onHostMsg(m) {
     case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
-    case 'reset': $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles(); break;
+    case 'reset': // the host started a new round: the round's end let go of the mouse, so offer it back
+      $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
+      if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
+      break;
     default: applyFx(m);
   }
 }
