@@ -208,7 +208,7 @@ body.touch .card small.tc{display:block}
   <div class="set hostonly arena-only" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button></div></div>
+  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button></div></div>
   <label class="switch fort-only"><input type="checkbox" id="finetoggle"><span></span>Instructions and controls</label>
   <div id="fineprint">
   <p id="goal"></p>
@@ -394,6 +394,7 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {}, ATK_SPAWNS = [], ASSAULT = [];
+const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
 // Helpers that shift a level's local coordinates into the grid
 function shifted(ox, oy) {
@@ -519,7 +520,24 @@ function levelFortress() {
     fortNav: { box: [-7.5, -7.5, 8.5, 9.5], cell: 0.25, top: 50, bottom: 30 },
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, fortress: levelFortress };
+// Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
+// base at each end (rooms on the ground floor, ramps up the sides to the roof, a raised platform at the back). Free for all.
+// Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it. The two halves mirror each other.
+function levelCreek() {
+  const both = list => list.flatMap(([x, y, z, ...r]) => [[x, y, z, ...r], [-x, y, -z, ...r]]);
+  return {
+    mesh: 'Creek', collide: 'Creek_col', mode: 'ffa',
+    cs: 2, ox: -64, oz: -70, killY: -8, fog: [60, 220], top: 0, wall: 0,
+    spawns: both([[26, 0.1, -6], [37, 0.1, 6], [27, 3.9, 3], [38, 5.4, -3], [42.5, 0.1, 0], [14, 0.5, 1], [9, 0.5, 9], [19, 0.5, -17], [7, 0.5, -19], [12, 0.5, -6]]),
+    ammo: both([[24, 0.1, 8], [34, 0.1, -7], [25, 3.9, -7], [10, 0.5, -5], [16, 0.5, 18], [37, 0.1, 7, 1]]),
+    heals: both([[38.5, 0.1, 8.5], [6, 0.5, 9.5]]),
+    pickups: [['rifle', 0, 3.4, 0], ['shotgun', 36, 0.1, 0], ['shotgun', -36, 0.1, 0], ['carbine', 38, 5.4, 3], ['carbine', -38, 5.4, -3]], // the rifle on top of the arch
+    ladders: [],
+    // Bots find their way on a fine walking map of every floor (inside the bases, the roofs, the arch), built at load
+    fortNav: { box: [-46, -23, 46, 23], cell: 0.5, top: 7, bottom: -1.6 },
+  };
+}
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress };
 function buildGrid(id) {
   H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
@@ -734,13 +752,15 @@ function loadLevel(id) {
   const L = buildGrid(id);
   buildWorld(L);
   SPAWNS.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
+  FN.nodes = []; FN.cells = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
     L.spawns.forEach(p => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else SPAWNS.push(s); });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
-    L.atk.forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
-    findAssault(); buildFortNav();
+    (L.atk || []).forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
+    if (L.gate) findAssault(); else { ASSAULT.length = 0; DROPS.length = 0; }
+    buildFortNav();
     return;
   }
   L.spawns.forEach(([c, r, l]) => SPAWNS.push(cellPos(node(c, r, l))));
@@ -931,7 +951,10 @@ function pushOut(e) {
       const ny = Math.abs(TG.NR[t * 3 + 1]); if (ny < 0.15 || ny >= FLOOR_NY || q.y > _sc.y || d < 1e-5) return;
       const nx = (_sc.x - q.x) / d, nyy = (_sc.y - q.y) / d, nz = (_sc.z - q.z) / d, push = R - d;
       e.pos.x += nx * push; e.pos.y += nyy * push; e.pos.z += nz * push; _sc.set(e.pos.x, e.pos.y + R, e.pos.z);
-      const vn = e.vel.x * nx + e.vel.y * nyy + e.vel.z * nz; if (vn < 0) { e.vel.x -= vn * nx; e.vel.y -= vn * nyy; e.vel.z -= vn * nz; }
+      // Stop moving into it sideways, but leave the vertical speed alone: turning sideways speed into upward speed made
+      // walking into a steep slope a climb that kept speeding up wherever the contact held (a crevice, a crate edge),
+      // and launched bodies into the sky
+      const vn = e.vel.x * nx + e.vel.y * nyy + e.vel.z * nz; if (vn < 0) { e.vel.x -= vn * nx; e.vel.z -= vn * nz; }
     });
   }
   for (let it = 0; it < 2; it++) for (const sy of bodySpheres(e.pos.y, e.h)) {
@@ -1264,15 +1287,16 @@ function loadModels() {
   });
   // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
   const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
-  const sets = Promise.all([parseGLB('Fortress_v5'), parseGLB('Fortress_v5_col')]).then(([sc, col]) => {
+  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
     sc.traverse(o => {
       if (!o.isMesh) return;
       if (o.material.map) o.material.map.anisotropy = 8;
       if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
+      if (o.material.name === 'Creek_Water') o.castShadow = false;
     });
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
-    LEVEL_SCENES.Fortress_v5 = sc; LEVEL_SCENES.Fortress_v5_col = col;
-  });
+    LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
+  })));
   return Promise.all([soldiers, weps, props, sets]);
 }
 function makeRig(mi) {
@@ -2504,10 +2528,10 @@ function followPath(b, wish, dt, face) {
   if (Math.hypot(dx, dz) < (TG ? 0.9 : 0.45)) { ai.pi++; if (ai.pi >= ai.path.length) { ai.path = null; ai.lastSeenT = 0; } }
   else { wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
 }
-// ---------- Inside the fort: a fine walking map of every floor (courtyard, stairs, wall walk, corridors, tower) ----------
-// Each 0.25 m spot gets a node for every floor a body fits on there; neighbouring nodes join when the step between them is
-// small and nothing blocks the way. Attackers plan paths on it to the defender they're hunting. Host only.
-const FN = { nodes: [], cells: null };
+// ---------- A fine walking map of every floor (Fortress: courtyard, stairs, wall walk, corridors, tower; Creek: everywhere) ----------
+// Each spot on a fine grid gets a node for every floor a body fits on there; neighbouring nodes join when the step between
+// them is small and nothing blocks the way. Fortress attackers plan paths on it to the defender they're hunting; Creek's
+// free-for-all bots roam on it. Host only.
 // Floor height that bridges the few-centimetre gaps between some steps in the set (a ray straight down a gap falls through)
 function bridgedFloor(x, z, top, offs) {
   let best = null;
@@ -2597,7 +2621,25 @@ function huntMove(b, wish, dt, face) {
     ai.huntT = 0.8 + Math.random() * 0.6; const q = ai.target || huntTarget(b);
     ai.hpath = q ? fortPath(b.pos, q.pos) : null; ai.hi = 0;
   }
-  const p = ai.hpath; if (!p || !p.length) return false;
+  return walkFine(b, wish, dt, face);
+}
+// Free for all on a mesh level with a fine walking map (Creek): with nobody in sight, head for ammo when low, a weapon
+// lying about, where someone was last seen, one of the level's key spots, or anywhere at all
+function roamFine(b, wish, dt, face = true) {
+  const ai = b.ai;
+  if (ai.hpath && walkFine(b, wish, dt, face)) return;
+  let goal = null;
+  if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.pos; }
+  if (!goal && Math.random() < 0.5) { const pk = nearestPickup(b); if (pk) goal = pk.pos; }
+  if (!goal && ai.lastSeenT > 0 && ai.lastSeen) goal = ai.lastSeen;
+  if (!goal && Math.random() < 0.6) goal = SPAWNS[Math.random() * SPAWNS.length | 0]; // the level's key spots: rooms, roofs, platforms
+  if (!goal) { const n = FN.nodes[Math.random() * FN.nodes.length | 0]; goal = new V3(n.x, n.y, n.z); }
+  ai.lastSeenT = 0; ai.hpath = fortPath(b.pos, goal); ai.hi = 0;
+  if (ai.hpath && ai.hpath.length > 1) walkFine(b, wish, dt, face); else ai.hpath = null;
+}
+// Follow a path on the fine walking map; false once it's walked (or there is none)
+function walkFine(b, wish, dt, face) {
+  const ai = b.ai, p = ai.hpath; if (!p || !p.length) return false;
   let n = FN.nodes[p[ai.hi]];
   while (ai.hi < p.length - 1 && Math.hypot(n.x - b.pos.x, n.z - b.pos.z) < 0.3) n = FN.nodes[p[++ai.hi]];
   const dx = n.x - b.pos.x, dz = n.z - b.pos.z; if (Math.hypot(dx, dz) < 0.1) return false;
@@ -2654,6 +2696,8 @@ function updateBot(b, dt) {
       if (def && gateOpen() && inFort(b.pos)) { if (Math.hypot(dist, t.pos.y - b.pos.y) > 2.5) botAdvance(b, wish, dt, false); } // inside: rush them, shooting on the move
       else if (def && (gateOpen() || (dist > 12 && !atGate(b)))) { // keep pushing up the hill while shooting
         botAdvance(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
+      } else if (!def && FN.cells && dist > 6) { // free for all on a fine-mapped level: keep going where you were going, shooting
+        roamFine(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.4);
       } else {
         wish.addScaledVector(right, ai.strafeDir);
         if (dist > 18) wish.addScaledVector(fwd, 0.8); else if (dist < 5) wish.addScaledVector(fwd, -0.8);
@@ -2674,7 +2718,8 @@ function updateBot(b, dt) {
   } else {
     if (def) botAdvance(b, wish, dt, true); // nobody in sight: march on the gate, or hunt the defenders inside
     b.pitch *= 1 - Math.min(1, dt * 4);
-    if (!def && !ai.path) {
+    if (!def && FN.cells) roamFine(b, wish, dt);
+    else if (!def && !ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
       if (goal === null && Math.random() < 0.6) { const pk = nearestPickup(b); if (pk) goal = cellOf(pk.pos); }
@@ -2683,12 +2728,12 @@ function updateBot(b, dt) {
       ai.path = findPath(cellOf(b.pos), goal); ai.pi = 0;
       if (!ai.path || !ai.path.length) { ai.path = null; ai.lastSeenT = 0; }
     }
-    if (!def) followPath(b, wish, dt, true);
+    if (!def && !FN.cells) followPath(b, wish, dt, true);
   }
   ai.stuckT += dt;
   if (ai.stuckT > 1) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-    if (moved < 0.4 && (ai.path || ai.hpath)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.stuckN = 0; } }
+    if (moved < 0.4 && (ai.path || ai.hpath)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.hpath = null; ai.stuckN = 0; } }
     else ai.stuckN = 0;
     ai.lastPos.copy(b.pos); ai.stuckT = 0;
   }
