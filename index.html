@@ -1206,6 +1206,11 @@ function prepScene(sc) {
 const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 const parseGLB = key => fetch('models/' + key + '.glb').then(r => { if (!r.ok) throw new Error('Missing model ' + key); return r.arrayBuffer(); })
   .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', g => res(prepScene(g.scene)), rej)));
+// Authored pose kit (models/poses/<key>.glb): the whole gltf (scene + clips), not just the scene. A 404 or parse error
+// just means this character has no authored poses yet, so it resolves to null instead of rejecting.
+const parsePoses = key => fetch('models/poses/' + key + '.glb').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', res, rej)))
+  .catch(() => null);
 // Weapon muzzle direction: the end with the smaller vertical profile (grips and stocks are tall)
 function orientWeapon(sc) {
   const pts = [], v = new V3();
@@ -1222,6 +1227,7 @@ const WEAPONS = {
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
 };
+for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Muzzle flash and smoke for each gun. Until art is supplied each one is drawn in code from `style`.
 // To use a picture instead, put a PNG in fx/ and set `img` (e.g. img: 'fx/carbine_flash.png'); see README.
 //   flash: size = world size in metres (other players and bots), vmSize = size on your own gun, life = seconds on screen
@@ -1315,8 +1321,76 @@ function poseArms(sc) {
   const wr = get('DEF-WristR'), hand = wp('DEF-WristR').lerp(wp('DEF-Finger_Middle1R'), 0.55);   // the palm, not the wrist
   return { dir, hand, inv: wr.matrixWorld.clone().invert(), muzzle: hand.clone().addScaledVector(dir, 0.9), boneName: wr.name, tpose };
 }
+// ---------- Authored pose kit: bake Blender-posed clips from a poses GLB onto a character ----------
+// Each node's local TRS as exported (the clip's rest state), so a clip can be applied from a clean slate each time.
+function poseDefaults(scene) { const d = {}; scene.traverse(o => { if (o.name) d[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; }); return d; }
+// A clip has one keyframe per track (tools/ffa_pose_kit.py exports single-frame actions): reset every node to its
+// default, then set the first keyframe's value on whichever nodes the clip's tracks target.
+function applyClipFirstFrame(scene, defaults, clip) {
+  scene.traverse(o => { const d = defaults[o.name]; if (d) { o.position.copy(d.pos); o.quaternion.copy(d.quat); } });
+  for (const tr of clip.tracks) {
+    const dot = tr.name.lastIndexOf('.'), name = tr.name.slice(0, dot), prop = tr.name.slice(dot + 1);
+    const o = scene.getObjectByName(name); if (!o) continue;
+    if (prop === 'position') o.position.fromArray(tr.values.slice(0, 3));
+    else if (prop === 'quaternion') o.quaternion.fromArray(tr.values.slice(0, 4));
+  }
+  scene.updateMatrixWorld(true);
+}
+// The poses GLB keeps a few Rigify control bones (HIP-Spine1, CHST-Spine1, FK-OS-Spine3, FK-Shoulder.R → stripped to
+// FK-ShoulderR) as parents of several root-level DEF bones; the character GLB parents those same DEF bones directly
+// to the rig (tools/inspect_poses.py's rest-check amendment). So a bone's pose is read in model (world) space here and
+// re-derived against its REAL parent, from this character's own T-pose skeleton - never copied as a raw local transform.
+function retargetToCharacter(posesScene, charScene, names) {
+  const out = {};
+  for (const name of names) {
+    const bone = posesScene.getObjectByName(name), charBone = charScene.getObjectByName(name);
+    if (!bone || !charBone || !charBone.parent) continue;
+    const parent = posesScene.getObjectByName(charBone.parent.name); if (!parent) continue;
+    const local = parent.matrixWorld.clone().invert().multiply(bone.matrixWorld);
+    const pos = new V3(), quat = new THREE.Quaternion(), scl = new V3(); local.decompose(pos, quat, scl);
+    out[name] = { pos, quat };
+  }
+  return out;
+}
+// Socket_<weapon> is a direct child of DEF-Wrist.R in the poses GLB, so its local matrix (relative to the wrist) is
+// the same no matter which hold pose is active - no need to pose anything first.
+function socketLocalMatrix(posesScene, name) {
+  const o = posesScene.getObjectByName(name); if (!o) return null;
+  return new THREE.Matrix4().compose(o.position, o.quaternion, new V3(1, 1, 1));
+}
+// Where a weapon's own barrel ends, in its native (unrotated, uncentred) frame: the far end along the muzzle axis,
+// which is -Z rotated back by the yaw orientWeapon() would otherwise apply to point it that way.
+function nativeMuzzlePoint(sc, yaw) {
+  sc.updateMatrixWorld(true);
+  const pts = [], v = new V3();
+  sc.traverse(o => { if (o.isMesh) { const a = o.geometry.attributes.position; for (let i = 0; i < a.count; i++) pts.push(v.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld).clone()); } });
+  const axis = new V3(0, 0, -1).applyAxisAngle(new V3(0, 1, 0), -(yaw || 0));
+  let lo = Infinity, hi = -Infinity; for (const p of pts) { const d = p.dot(axis); if (d < lo) lo = d; if (d > hi) hi = d; }
+  const thresh = hi - 0.15 * (hi - lo), far = pts.filter(p => p.dot(axis) > thresh), avg = new V3();
+  far.forEach(p => avg.add(p)); return avg.divideScalar(far.length || 1);
+}
+// Bot aim point for an authored model's hold_<id> pose: pose the shared scene with that clip, seat the weapon's own
+// barrel-end under its socket, and record where that lands in model space. Leaves the scene posed with hold_carbine.
+function computeModelGuns(m) {
+  const names = []; m.scene.traverse(o => { if (o.isBone) names.push(o.name); });
+  const bake = clip => {
+    const t = m.poses[clip]; if (!t) return;
+    for (const n of names) { const v = t[n]; if (!v) continue; const b = m.scene.getObjectByName(n); b.position.copy(v.pos); b.quaternion.copy(v.quat); }
+    m.scene.updateMatrixWorld(true);
+  };
+  m.guns = {};
+  for (const id of Object.keys(WEAPONS)) {
+    const w = WEAPONS[id]; if (!w.scene) continue;
+    const sockMat = m.sockets[id] || m.sockets.carbine; if (!sockMat) continue;
+    bake(m.poses['hold_' + id] ? 'hold_' + id : 'hold_carbine');
+    const wrist = m.scene.getObjectByName('DEF-WristR'); if (!wrist) continue;
+    const socketWorld = wrist.matrixWorld.clone().multiply(sockMat);
+    m.guns[id] = { muzzle: nativeMuzzlePoint(w.scene, w.yaw).applyMatrix4(socketWorld) };
+  }
+  bake('hold_carbine');
+}
 function loadModels() {
-  const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => parseGLB(key).then(sc => {
+  const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => Promise.all([parseGLB(key), parsePoses(key)]).then(([sc, pg]) => {
     const hp = new V3(0, 1.64, 0), head = sc.getObjectByName('DEF-Head'); if (head) head.getWorldPosition(hp);
     const muzzle = new V3(0.1, 1.3, 0.9), gunObj = sc.getObjectByName('Carbine');
     if (gunObj) { const bb = new THREE.Box3().setFromObject(gunObj); muzzle.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z); }
@@ -1332,10 +1406,28 @@ function loadModels() {
       gunBoneInv = gunObj.parent.matrixWorld.clone().invert();
     }
     let sway = false, tpose = null, gunBoneName = gunObj && gunObj.parent ? gunObj.parent.name : null;
-    if (!gunObj && sc.getObjectByName('DEF-WristR')) {
+    // Authored poses: one retargeted {pos,quat} per DEF bone per clip, plus each weapon socket's local matrix
+    let poses = null, sockets = null, names = null;
+    if (pg) {
+      names = []; sc.traverse(o => { if (o.isBone) names.push(o.name); });
+      const defaults = poseDefaults(pg.scene);
+      poses = {};
+      for (const clip of pg.animations) { applyClipFirstFrame(pg.scene, defaults, clip); poses[clip.name] = retargetToCharacter(pg.scene, sc, names); }
+      sockets = {};
+      for (const id of Object.keys(WEAPONS)) { const sm = socketLocalMatrix(pg.scene, 'Socket_' + id); if (sm) sockets[id] = sm; }
+    }
+    if (!gunObj && sc.getObjectByName('DEF-WristR') && !poses) {
       const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true; tpose = g.tpose;
     }
-    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose };
+    if (poses) {
+      // Default pose on the shared scene: hold_carbine (or the first hold_* clip), baked onto the T-pose bones so
+      // every rig cloned from this model starts from it. A level gaze gives a level gun, so no extra raise.
+      const holdClip = poses.hold_carbine ? 'hold_carbine' : Object.keys(poses).find(n => n.startsWith('hold_'));
+      for (const n of names) { const t = holdClip && poses[holdClip][n]; if (t) { const b = sc.getObjectByName(n); b.position.copy(t.pos); b.quaternion.copy(t.quat); } }
+      sc.updateMatrixWorld(true);
+      sway = true; gunDir = new V3(0, 0, 1); gunBoneName = 'DEF-WristR';
+    }
+    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets };
   }))).then(ms => MODELS.push(...ms));
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
@@ -1363,7 +1455,9 @@ function loadModels() {
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
-  return Promise.all([soldiers, weps, props, sets]);
+  // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
+  const guns = Promise.all([soldiers, weps]).then(() => { for (const m of MODELS) if (m.poses) computeModelGuns(m); });
+  return Promise.all([soldiers, weps, props, sets, guns]);
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -1416,8 +1510,19 @@ function measureCrouch(r) {
 }
 const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 } };
 function setRigWeapon(rig, id) {
-  const m = rig.model; if (!rig.gunBone || !m.gunDir) return;
+  const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
+  // Authored model: the weapon sits under Socket_<id>'s own matrix, in its native frame (no centering, no yaw),
+  // and the upper body re-poses from the hold_<id> clip (falling back to hold_carbine for both).
+  if (m.poses) {
+    const clip = m.poses['hold_' + id] ? 'hold_' + id : 'hold_carbine';
+    for (const u of rig.upper) { const t = m.poses[clip][u.b.name]; if (t) { u.pos.copy(t.pos); u.rest.copy(t.quat); } }
+    const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
+    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id] || m.sockets.carbine);
+    rig.gunBone.add(holder); rig.gunVis = holder;
+    return;
+  }
+  if (!m.gunDir) return;
   const w = WEAPONS[id], holder = new THREE.Group(); holder.add(centeredClone(w.scene, w.yaw));
   // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
   // barrel along the aim direction. The baked-gun characters keep the old centred placement.
@@ -2566,7 +2671,11 @@ function botMiss(start, aim, marks) {
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
-function botMuzzle(b, w) { const m = b.rig.model; return b.mesh.localToWorld((m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone()).applyMatrix4(b.rig.root.matrix)); }
+function botMuzzle(b, w) {
+  const m = b.rig.model, g = m.guns && m.guns[w.id];
+  const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
+  return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
+}
 // Attackers that made it to the tower room turn on the computer (a still target: most shots land)
 function botShootCore(b, dt) {
   const ai = b.ai, [x, y, z] = LV.core.at, dx = x - b.pos.x, dz = z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
