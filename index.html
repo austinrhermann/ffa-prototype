@@ -1370,24 +1370,25 @@ function nativeMuzzlePoint(sc, yaw) {
   far.forEach(p => avg.add(p)); return avg.divideScalar(far.length || 1);
 }
 // Bot aim point for an authored model's hold_<id> pose: pose the shared scene with that clip, seat the weapon's own
-// barrel-end under its socket, and record where that lands in model space. Leaves the scene posed with hold_carbine.
+// barrel-end under its socket, and record where that lands in model space. Restores the procedural hold afterwards.
 function computeModelGuns(m) {
   const names = []; m.scene.traverse(o => { if (o.isBone) names.push(o.name); });
-  const bake = clip => {
-    const t = m.poses[clip]; if (!t) return;
+  const bake = t => {
+    if (!t) return;
     for (const n of names) { const v = t[n]; if (!v) continue; const b = m.scene.getObjectByName(n); b.position.copy(v.pos); b.quaternion.copy(v.quat); }
     m.scene.updateMatrixWorld(true);
   };
   m.guns = {};
   for (const id of Object.keys(WEAPONS)) {
     const w = WEAPONS[id]; if (!w.scene) continue;
-    const sockMat = m.sockets[id] || m.sockets.carbine; if (!sockMat) continue;
-    bake(m.poses['hold_' + id] ? 'hold_' + id : 'hold_carbine');
+    const hold = m.poses['hold_' + id], sockMat = m.sockets && m.sockets[id]; if (!hold || !sockMat) continue;
+    bake(m.procHold);
+    bake(hold);
     const wrist = m.scene.getObjectByName('DEF-WristR'); if (!wrist) continue;
     const socketWorld = wrist.matrixWorld.clone().multiply(sockMat);
     m.guns[id] = { muzzle: nativeMuzzlePoint(w.scene, w.yaw).applyMatrix4(socketWorld) };
   }
-  bake('hold_carbine');
+  bake(m.procHold);
 }
 function loadModels() {
   const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => Promise.all([parseGLB(key), parsePoses(key)]).then(([sc, pg]) => {
@@ -1406,28 +1407,35 @@ function loadModels() {
       gunBoneInv = gunObj.parent.matrixWorld.clone().invert();
     }
     let sway = false, tpose = null, gunBoneName = gunObj && gunObj.parent ? gunObj.parent.name : null;
+    const rest = {};
+    sc.traverse(o => { if (o.isBone) rest[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
+    if (sc.getObjectByName('DEF-WristR')) {
+      tpose = {};
+      for (const [n, t] of Object.entries(rest)) if (/^DEF-(UpperArm|Forearm|Wrist|Finger)/.test(n)) tpose[n] = t;
+    }
+    let procHold = null;
     // Authored poses: one retargeted {pos,quat} per DEF bone per clip, plus each weapon socket's local matrix
     let poses = null, sockets = null, names = null;
     if (pg) {
       names = []; sc.traverse(o => { if (o.isBone) names.push(o.name); });
       const defaults = poseDefaults(pg.scene);
       poses = {};
-      for (const clip of pg.animations) { applyClipFirstFrame(pg.scene, defaults, clip); poses[clip.name] = retargetToCharacter(pg.scene, sc, names); }
+      for (const clip of pg.animations) {
+        applyClipFirstFrame(pg.scene, defaults, clip);
+        const pose = retargetToCharacter(pg.scene, sc, names);
+        const posed = Object.entries(pose).some(([n, t]) => t.quat.clone().normalize().angleTo(rest[n].quat.clone().normalize()) > 1e-3 || t.pos.distanceTo(rest[n].pos) > 1e-4);
+        if (posed) poses[clip.name] = pose;
+      }
+      if (!Object.keys(poses).length) poses = null;
       sockets = {};
       for (const id of Object.keys(WEAPONS)) { const sm = socketLocalMatrix(pg.scene, 'Socket_' + id); if (sm) sockets[id] = sm; }
     }
-    if (!gunObj && sc.getObjectByName('DEF-WristR') && !poses) {
-      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true; tpose = g.tpose;
+    if (!gunObj && sc.getObjectByName('DEF-WristR')) {
+      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true;
+      procHold = {};
+      sc.traverse(o => { if (o.isBone) procHold[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
     }
-    if (poses) {
-      // Default pose on the shared scene: hold_carbine (or the first hold_* clip), baked onto the T-pose bones so
-      // every rig cloned from this model starts from it. A level gaze gives a level gun, so no extra raise.
-      const holdClip = poses.hold_carbine ? 'hold_carbine' : Object.keys(poses).find(n => n.startsWith('hold_'));
-      for (const n of names) { const t = holdClip && poses[holdClip][n]; if (t) { const b = sc.getObjectByName(n); b.position.copy(t.pos); b.quaternion.copy(t.quat); } }
-      sc.updateMatrixWorld(true);
-      sway = true; gunDir = new V3(0, 0, 1); gunBoneName = 'DEF-WristR';
-    }
-    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets };
+    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
   }))).then(ms => MODELS.push(...ms));
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
@@ -1512,13 +1520,18 @@ const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 } }
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
-  // Authored model: the weapon sits under Socket_<id>'s own matrix, in its native frame (no centering, no yaw),
-  // and the upper body re-poses from the hold_<id> clip (falling back to hold_carbine for both).
-  if (m.poses) {
-    const clip = m.poses['hold_' + id] ? 'hold_' + id : 'hold_carbine';
-    for (const u of rig.upper) { const t = m.poses[clip][u.b.name]; if (t) { u.pos.copy(t.pos); u.rest.copy(t.quat); } }
+  // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
+  const authored = m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id];
+  const hold = authored ? m.poses['hold_' + id] : m.procHold;
+  if (hold) {
+    for (const u of rig.upper) { const t = hold[u.b.name]; if (t) { u.pos.copy(t.pos); u.rest.copy(t.quat); } }
+    for (const a of rig.armBones) { const t = hold[a.b.name]; if (t) { a.stand.pos.copy(t.pos); a.stand.quat.copy(t.quat); } }
+    // Authored holds are already level; procedural holds retain their original low-ready correction.
+    rig.raise = authored ? 0 : m.gunDir ? Math.asin(Math.max(-1, Math.min(1, m.gunDir.y))) : 0;
+  }
+  if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
-    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id] || m.sockets.carbine);
+    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
     rig.gunBone.add(holder); rig.gunVis = holder;
     return;
   }

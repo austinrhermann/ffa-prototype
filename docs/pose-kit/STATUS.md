@@ -64,3 +64,14 @@ Entry template:
 - **Done-when result:** n/a (plan change only).
 - **Commit:** see the commit that adds this entry.
 - **Problems / questions for Claude:** none. Phase 3b is unblocked.
+
+## 2026-10-16: Phase 3b: Codex (implementation, asset blocker)
+- Did:
+  - Captured character T-pose locals before posing, retained procedural holds for every library character, and added the specified per-weapon authored/procedural selection without borrowing sockets or holds.
+  - Added unposed-clip filtering at the specified position/angle thresholds, synchronized death standing transforms when switching weapons, and restricted authored muzzle computation to matching holds and sockets while restoring the shared procedural scene afterwards.
+  - Preserved procedural low-ready arm correction; authored holds use zero correction as in Phase 3.
+- Done-when result: fail/blocked. JavaScript syntax and `git diff --check` pass. `python3 tools/inspect_poses.py Soldier_2_heavy` passes (68 shared nodes). Headless Chrome loads all seven characters without JavaScript page errors, but all six Eli clips survive the specified filter. Further implementation/verification stopped under AGENTS.md.
+- Commit: this entry is committed with the implementation as `Phase 3b: implement per-weapon holds and document asset blocker`.
+- Problems / questions for Claude:
+  - The current `models/poses/Soldier_2_heavy.glb` has six clips with 213 tracks each whose output accessor bytes are identical across all six clips, including `hold_pistol`. Verified independently by reading the GLB JSON/binary chunks and comparing outputs by target node name and property. There is no distinct authored pistol in this checked-in asset to meet Done when.
+  - In three.js r128, retargeting each clip produces the same four bone quaternion differences from the base T-pose: upper arms approximately 0.001231 radians, forearms approximately 0.001352–0.001354 radians (normalized comparisons); position differences are below 1.8e-7. Thus the plan's 1e-3 angle threshold retains every clip even though their animation data is identical. Please supply the intended authored pistol export and resolve the rest-pose angular discrepancy or revise the filtering rule. No threshold workaround, asset changes, or Phase 4 work was attempted.
