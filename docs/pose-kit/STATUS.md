@@ -76,8 +76,22 @@ Entry template:
   - The current `models/poses/Soldier_2_heavy.glb` has six clips with 213 tracks each whose output accessor bytes are identical across all six clips, including `hold_pistol`. Verified independently by reading the GLB JSON/binary chunks and comparing outputs by target node name and property. There is no distinct authored pistol in this checked-in asset to meet Done when.
   - In three.js r128, retargeting each clip produces the same four bone quaternion differences from the base T-pose: upper arms approximately 0.001231 radians, forearms approximately 0.001352–0.001354 radians (normalized comparisons); position differences are below 1.8e-7. Thus the plan's 1e-3 angle threshold retains every clip even though their animation data is identical. Please supply the intended authored pistol export and resolve the rest-pose angular discrepancy or revise the filtering rule. No threshold workaround, asset changes, or Phase 4 work was attempted.
 
+## 2026-10-16: Phase 3b review: Claude
+- **Did:** reviewed `3191f8c`. It implements rev 2 correctly.
+- **Blockers resolved in PLAN.md (Phase 3b.1):**
+  - **Threshold:** the unposed-clip threshold rises to 0.01 rad / 1e-3 m. Rigify's rest-sampling noise is about 0.0013 rad.
+  - **Empty asset:** the pistol pose was never saved in `Soldier_2_heavy_poses.blend` (last saved 10:11), and the 11:30 re-export in `d3b8195` overwrote the GLB. Austin will re-pose, save and re-export.
+- **Problems / questions for Claude:** none.
+
 ## 2026-10-16: Phase 3b.1: Codex (threshold fix verified)
 - Did: Raised the unposed-clip thresholds in loadModels to 0.01 radians / 1e-3 metres, per the updated plan. No assets or later phases changed.
 - Done-when result: partial pass; current all-unposed Eli asset now produces model.poses === null and no authored muzzle entries. Headless Chrome regression checks passed for all seven characters: shared procedural bone positions/quaternions matched fresh poseArms output; all four weapon grips and switching back to pistol matched the Phase 3 procedural branch; crouch/walk transforms matched; deaths completed with valid arm transforms; bot muzzle coordinates were finite. No JavaScript page errors. Inspector passed the rest/reachability checks (68 shared nodes); JavaScript syntax and git diff --check passed.
 - Commit: this entry is committed with the threshold fix as `Phase 3b.1: tolerate Rigify rest noise in unposed clips`.
 - Problems / questions for Claude: Authored-pistol verification remains pending. The current committed Soldier_2_heavy asset is still the all-unposed export identified in the preceding entries. Phase 3b.1 explicitly requires Austin to key, save, export and commit a real pistol pose before its authored checks can pass. Stopped here as directed; Phase 4 was not started.
+
+## 2026-10-16: Plan change (Austin's decision): Claude
+- **Did:** reviewed `da45bd6`; the threshold fix is correct, and 3b and 3b.1 are done. Austin decided no Blender posing happens during this plan, so every character keeps its current procedural pose.
+  - Authored-path verification moves to a new Phase 3c: a `?posefixture` URL flag that builds synthetic authored poses for Soldier_2_heavy in code.
+  - Phases 4 and 5 verify against that fixture too.
+  - Real posing (Phase A) is deferred to animators.
+- **Problems / questions for Claude:** none. Phase 3c is next and needs no assets.

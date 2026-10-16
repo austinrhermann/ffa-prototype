@@ -10,12 +10,16 @@
 | 1 | Blender pose kit add-on + CLI (`tools/ffa_pose_kit.py`) | done | `de24491`, `cb3f7a3`, `d3b8195` |
 | 2 | GLB inspector (`tools/inspect_poses.py`) | done | `de24491`, `cb3f7a3` |
 | 3 | Game: hold poses + weapon sockets | done | `a88443b` |
-| 3b | Game: per-weapon fallback, ignore unposed clips, keep T-pose (rev 2, unblocked) | **next** | — |
-| 4 | Game: crouch + death from clips | after 3b | — |
+| 3b | Game: per-weapon fallback, ignore unposed clips, keep T-pose | done (procedural path verified) | `3191f8c` |
+| 3b.1 | Loosen the unposed-clip threshold | done | `da45bd6` |
+| 3c | `?posefixture`: synthetic authored poses, no Blender needed | **next** | — |
+| 4 | Game: crouch + death from clips (verify with the fixture) | after 3c | — |
 | 5 | `?posecheck` view + README docs | after 4 | — |
-| A | Animators: pose every character and gun | ongoing, in Blender | — |
+| A | Animators: pose every character and gun | **deferred**; not blocking any phase | — |
 
-Run the first phase that isn't done. 3b → 4 → 5 all edit `index.html`, so run them one at a time.
+Run the first phase that isn't done. 3c → 4 → 5 all edit `index.html`, so run them one at a time.
+
+**Decision (2026-10-16, Austin):** no Blender posing happens during this plan. Every character keeps its current procedural pose; the committed `models/poses/Soldier_2_heavy.glb` is unposed and is ignored (`model.poses === null`). The authored code paths are verified with the `?posefixture` test data from Phase 3c instead. **No phase may wait on, or ask for, a real pose export.**
 
 ## Context
 
@@ -67,7 +71,7 @@ First-person viewmodel placement is out of scope.
 - **Weapon native frame:** guns sit under the socket as authored in their own GLB, with no recentring and no `orientWeapon` yaw. The shotgun is the group `makeShotgun()` returns.
 - Use Blender 5.0.1 at `/Applications/Blender.app`. Exporter option names change between versions.
 
-## Phase 3b: per-weapon fallback, ignore unposed clips, keep the T-pose (next)
+## Phase 3b: per-weapon fallback, ignore unposed clips, keep the T-pose (done)
 
 This is revision 2. It answers Codex's 2026-10-16 question in STATUS.md, because revision 1 contradicted itself.
 
@@ -105,6 +109,51 @@ Animators fill in weapons one at a time, and each one switches over as soon as i
 - Characters without a poses file look unchanged.
 - Bot tracers start at the muzzle for both the authored pistol and the procedural guns.
 
+## Phase 3b.1: unposed-clip threshold (done)
+
+Codex implemented 3b in `3191f8c` and it matches rev 2. Two things blocked its "Done when":
+
+1. **The threshold was too tight (a plan bug).**
+   - Unposed clips differ from the T-pose by about 0.0012–0.0014 rad on the upper-arm and forearm bones. That's Rigify noise in the sampled rest pose.
+   - The 1e-3 cutoff counts that noise as posing, so empty clips survive.
+   - **Fix in `loadModels`:** a clip counts as posed only if some bone differs by more than **0.01 rad** (about 0.6°) or **1e-3 m**. Real posing is far larger than that.
+2. **The committed asset has no pose in it (not a code bug).**
+   - `Soldier_2_heavy_poses.blend` was never saved after Austin posed the pistol.
+   - The 11:30 re-export (`d3b8195`) overwrote `models/poses/Soldier_2_heavy.glb` from that unposed file.
+   - **Deferred (for the animators, later):** pose `hold_pistol` again, click **Key Pose** and **save the .blend**, then **Export Poses** and commit the GLB. Saving after an export is safe now: `cb3f7a3` restores the bone parents.
+   - **Superseded on 2026-10-16:** there will be no re-pose for now. Verification moved to `?posefixture` (Phase 3c).
+
+**Done when:**
+- With only the threshold change applied, the current all-unposed asset leaves `model.poses === null`, so the character is fully procedural.
+- With Austin's new export, the Phase 3b "Done when" passes.
+
+## Phase 3c: `?posefixture` synthetic authored poses (next)
+
+Real pose data will come from animators later. To exercise the authored code paths now, generate test poses in code, but **only when the URL has `?posefixture`**. Without the flag, nothing changes.
+
+In `loadModels`, after `procHold` and `tpose` are captured, and only for `Soldier_2_heavy` with the flag set, build `poses` and `sockets` as if they came from a poses GLB. They go in the same format as `retargetToCharacter` produces: `{ <bone>: {pos, quat} }`, character-local.
+
+1. **`hold_pistol`:** `procHold` with the whole right arm raised.
+   - Rotate every root-level right-arm bone by −0.6 rad about world X, around `DEF-UpperArm_1R`'s position: the `upper` level-2 bones ending in `R`, which are `DEF-UpperArm_1R` and the `DEF-Finger_*` roots ending in `R`.
+   - Rotate both the position and the quaternion, the same way `swayArm` rotates bones. Child bones follow their parents.
+2. **`Socket_pistol`:** a wrist-local matrix that reproduces today's procedural pistol grip in that hand.
+   - Socket = `gunBoneInv × T × C`:
+     - `gunBoneInv × T` is the `setRigWeapon` GRIPS math for `pistol` in the `procHold` pose.
+     - `C` is the local matrix of the child inside `centeredClone(w.scene, w.yaw)`, i.e. its yaw and recentre.
+   - `C` is needed because the socket holds the weapon in its native frame, while the GRIPS math assumes the centred clone.
+   - The authored branch must then place the pistol exactly where the procedural one does, relative to the wrist.
+   - Compute this after the weapons have loaded, in the same place `computeModelGuns` runs, before it is called.
+3. **The other three guns get no fixture entries,** so they stay procedural. Phase 4 adds `crouch` and `death` fixture clips.
+
+Write a small helper `rotateAbout(pose, names, pivot, axis, ang)` that returns a new pose object. Phase 4 reuses it.
+
+**Done when:**
+- With `?posefixture`, Eli's pistol arm is visibly raised and the pistol still sits in the palm, following the hand.
+- Bot pistol tracers start at that raised muzzle.
+- Eli's carbine, rifle and shotgun are exactly procedural.
+- Without the flag, every character matches `da45bd6` exactly, checked the same way Codex did in 3b.1 (bone transforms, grips, muzzles).
+- No console errors.
+
 ## Phase 4: crouch + death from clips
 
 The clips are already in `model.poses.crouch` and `model.poses.death` once Phase 3b has dropped the unposed ones, retargeted to character-local `{pos, quat}`.
@@ -125,9 +174,13 @@ The clips are already in `model.poses.crouch` and `model.poses.death` once Phase
    - Skip `LIMP_POSE` and the hardcoded "diagonal arms" twist.
    - The backwards fall (`c.w.rotation.x`) stays procedural. **Death is posed standing upright** in Blender, and the game tips the body over.
 
+3. **Fixture clips** (only with `?posefixture`, only for `Soldier_2_heavy`):
+   - `crouch`: the rest leg pose with `CROUCH_POSE` angles × 1.3, deliberately deeper than procedural, so the difference is visible.
+   - `death`: the `tpose` arm bones (arms flung flat), with `rotateAbout` applied to the left arm by +0.8 rad about Z, and the legs at `LIMP_POSE` × 1.5.
+
 **Done when:**
-- A character with posed `crouch` and `death` clips crouches and dies into its Blender poses.
-- Characters with neither clip, or without a poses file, behave exactly as before.
+- With `?posefixture`, Eli crouches deeper than the stock characters and dies into the fixture death pose.
+- Without the flag, every character crouches and dies exactly as at the end of 3c.
 
 ## Phase 5: check view + docs
 
@@ -138,9 +191,9 @@ The clips are already in `model.poses.crouch` and `model.poses.death` once Phase
    - a corner label shows the character name and which clips are authored or procedural.
 2. **`README.md`:** add a "Posing characters (Blender Pose Kit)" section under Characters, covering the animator handoff below.
 
-**Done when:** `?posecheck` works for an authored and a non-authored character, and the README section exists.
+**Done when:** `?posecheck` works with and without `?posefixture` (use `?posecheck&posefixture` to see the authored path on Eli), and the README section exists. The README says that `?posefixture` is test data only.
 
-## Animator handoff (Phase A, ongoing)
+## Animator handoff (Phase A, deferred to later animators; nothing here blocks the phases above)
 
 1. **Install the add-on by linking it, not with "Install from Disk".** Install from Disk copies only one file, and the add-on also needs `chars.py`:
    ```bash
