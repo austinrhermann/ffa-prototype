@@ -1607,8 +1607,8 @@ function spawnCorpseAt(mi, pos, yaw) {
 // They drop backwards in half a second: the arms and hands fly out and land flat (the library characters; the older ones just
 // let theirs swing down), the legs splay and the knees give
 const LIMP_POSE = { thighL: -0.5, kneeL: 0.9, thighR: 0.35, kneeR: 0.6 };
-function updateCorpses(dt) {
-  for (const c of corpses) {
+function updateCorpses(dt, list = corpses) {
+  for (const c of list) {
     if (c.t >= 1.8) continue;
     c.t += dt;
     const fall = Math.min(1, c.t / 0.5); c.w.rotation.x = -fall * fall * Math.PI / 2;
@@ -3052,6 +3052,7 @@ const keys = {};
 let locked = false, boardOpen = false, tCrouch = false, tAim = false;
 const SENS = 0.0022;
 addEventListener('keydown', e => {
+  if (handlePoseCheckKey(e)) return;
   const enter = e.code === 'Enter' || e.code === 'NumpadEnter';
   if (chatOpen) { if (enter && !e.isComposing) { e.preventDefault(); sendChat(); } else if (e.code === 'Escape') closeChat(); return; }
   if (enter && locked && !e.repeat) { e.preventDefault(); openChat(); return; }
@@ -3416,9 +3417,16 @@ function initPreview() {
   const pf = new THREE.AmbientLight(0xffffff, 1), ph = new THREE.HemisphereLight(0xffffff, 0x555555, 1.0), dl = new THREE.DirectionalLight(0xffffff, 1); dl.position.set(1, 2, 2); sc.add(pf, ph, dl);
   LOOK_EXTRA.push([pf, dl, ph, 0.6, 1.0]);
   const cam = new THREE.PerspectiveCamera(30, 240 / 280, 0.05, 20);
-  prev = { r, sc, cam, rig: null }; applyLook();
+  prev = { r, sc, cam, rig: null, weapon: 'carbine', crouch: false, corpse: null }; applyLook();
+  if (params.has('posecheck')) {
+    r.setSize(240, 340, false); $('cprev').style.height = '340px'; cam.aspect = 240 / 340; cam.updateProjectionMatrix();
+    const label = document.createElement('div'); label.id = 'posecheck';
+    label.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:40;padding:10px;border-radius:6px;background:rgba(8,12,16,.94);color:#eef3ea;font:12px/1.5 system-ui;white-space:pre-line;pointer-events:none;max-width:calc(100vw - 44px)';
+    document.body.appendChild(label); prev.label = label;
+  }
   refreshPreview();
   $('schar').onchange = () => refreshPreview();
+  if (params.has('posecheck')) chooseMode(false);
 }
 // The preview shows your role's character on Fortress, otherwise the character you picked
 function refreshPreview() {
@@ -3427,16 +3435,63 @@ function refreshPreview() {
 }
 function setPreview(i) {
   if (!prev) return;
+  clearPreviewCorpse();
   if (prev.rig) prev.sc.remove(prev.rig.wrap);
-  prev.rig = makeRig(i); setRigWeapon(prev.rig, 'carbine');
+  prev.modelIndex = i;
+  prev.rig = makeRig(i); setRigWeapon(prev.rig, params.has('posecheck') ? prev.weapon : 'carbine');
   prev.rig.wrap.rotation.y = 0.6;
   prev.sc.add(prev.rig.wrap);
   const hy = MODELS[i].headY, ty = hy - 0.18, span = hy * 0.5 + 0.35, dist = span / 2 / Math.tan(15 * Math.PI / 180) * 1.05;
   prev.cam.position.set(0, ty + 0.12, dist); prev.cam.lookAt(0, ty, 0);
+  if (params.has('posecheck')) {
+    framePoseCheck();
+    animRig(prev.rig, 0, 0, prev.crouch, 0); updatePoseCheckLabel();
+  }
+}
+function framePoseCheck() {
+  const hy = prev.rig.model.headY, dead = !!prev.corpse;
+  const dist = (hy + 0.8) / 2 / Math.tan(15 * Math.PI / 180) * 1.15;
+  // The falling body's outstretched arms need a wider view than its standing hold.
+  prev.cam.position.set(0, hy * 0.85, dist * (dead ? 1.9 : 1));
+  prev.cam.lookAt(0, hy * (dead ? 0.1 : 0.4), -hy * 0.3);
+}
+function clearPreviewCorpse() {
+  if (!prev || !prev.corpse) return;
+  prev.sc.remove(prev.corpse.w); prev.corpse = null;
+  if (prev.rig) prev.rig.wrap.visible = true;
+}
+function updatePoseCheckLabel() {
+  if (!prev || !prev.label || !prev.rig) return;
+  const m = prev.rig.model, source = id => m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id] ? 'authored' : 'procedural';
+  const clip = id => m.poses && m.poses[id] ? 'authored' : 'procedural';
+  prev.label.textContent = `${m.label}${params.has('posefixture') ? ' · Fixture test data' : ''}\nPistol: ${source('pistol')} · Carbine: ${source('carbine')}\nRifle: ${source('rifle')} · Shotgun: ${source('shotgun')}\nCrouch: ${clip('crouch')} · Death: ${clip('death')}\n1–4: weapon · C: crouch · K: death\nViewing: ${prev.corpse ? 'death' : prev.crouch ? 'crouch' : 'standing'} · ${WEAPONS[prev.weapon].name}`;
+}
+function handlePoseCheckKey(e) {
+  if (!params.has('posecheck') || !prev || !prev.rig || locked || $('overlay').style.display === 'none' || $('title').style.display !== 'none') return false;
+  if (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return false;
+  const id = { Digit1: 'pistol', Digit2: 'carbine', Digit3: 'rifle', Digit4: 'shotgun' }[e.code];
+  if (!id && e.code !== 'KeyC' && e.code !== 'KeyK') return false;
+  e.preventDefault(); if (e.repeat) return true;
+  clearPreviewCorpse();
+  if (id) { prev.weapon = id; setRigWeapon(prev.rig, id); }
+  else if (e.code === 'KeyC') prev.crouch = !prev.crouch;
+  else {
+    const r = makeRig(prev.modelIndex); setRigWeapon(r, prev.weapon);
+    if (r.gunVis) r.gunVis.visible = false;
+    r.wrap.rotation.order = 'YXZ'; r.wrap.rotation.y = prev.rig.wrap.rotation.y;
+    prev.corpse = { w: r.wrap, r, t: 0 }; prev.sc.add(r.wrap); prev.rig.wrap.visible = false;
+  }
+  framePoseCheck(); updatePoseCheckLabel(); return true;
 }
 function renderPreview(dt) {
-  if (!prev || $('overlay').style.display === 'none') return;
-  prev.rig.wrap.rotation.y += dt * 0.25;
+  if (!prev) return;
+  const visible = $('overlay').style.display !== 'none';
+  if (prev.label) prev.label.hidden = !visible || $('title').style.display !== 'none';
+  if (!visible) return;
+  if (params.has('posecheck')) {
+    if (prev.corpse) updateCorpses(dt, [prev.corpse]);
+    else { animRig(prev.rig, dt, 0, prev.crouch, 0); prev.rig.wrap.rotation.y += dt * 0.25; }
+  } else prev.rig.wrap.rotation.y += dt * 0.25;
   prev.r.render(prev.sc, prev.cam);
 }
 
