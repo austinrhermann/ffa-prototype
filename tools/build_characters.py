@@ -12,37 +12,13 @@
 # Run (from the game folder):
 #   /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_characters.py -- "<00_Exports folder>" models [only-name ...]
 import bpy, sys, os
-from mathutils import Vector
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chars import CHARS, select_only, unhide, relink_images, nearest_def_bone, reparent_extra_bones
 
 args = sys.argv[sys.argv.index('--') + 1:]
 SRC, OUT, ONLY = args[0], args[1], set(args[2:])
 TEXDIR = os.path.join(SRC, 'Textures')
-
-# name: (blend file, rig, meshes to keep, {material: texture file} to replace with a plain textured material)
-CHARS = {
-    'Soldier_2_heavy': ('Soldier_2_Eli.blend', 'RIG-Soldier2',
-                        ['Body', 'Head', 'Back Canister', 'Backpack', 'Flare', 'Front Pouch', 'radio', 'Side Pouch'], {}),
-    'Soldier_3_thin': ('Soldier_3_Beto.blend', 'RIG-Soldier3', ['Body', 'Head', 'Cube'], {}),
-    'Soldier_4_bigframe': ('Soldier_4_Zeke.blend', 'RIG-Soldier 4', ['Body', 'Head', 'Largo Hand v3', 'pouch'], {}),
-    'Soldier_5_smallframe': ('Soldier_10_Deigo.blend', 'RIG-Soldier 10', ['Body', 'Head', 'Cube'], {}),
-    'Apprentice': ('C_Apprentice.blend', 'RIG-Cloud_Human', ['Body Apprentice', 'Apprentice Head v3.001'],
-                   {'Head and Eyes': 'Apprentice_Head_base.png'}),
-    'Master': ('Master_v2.blend', 'RIG-Cloud_Master', ['Body Master', 'head master v2', 'Cigarette', 'Glasses'],
-               {'Mat_Master': 'master_head_color.png'}),
-    'Officer': ('Officer.blend', 'RIG-Cloud_Officer', ['Officer Body', 'Officer Head'],
-                {'Officer Head': 'Officer_Head-Color_v2.png'}),
-}
 TEX_MAX = 1024   # body textures; heads and gear get half
-
-
-def select_only(objs):
-    for o in bpy.context.view_layer.objects: o.select_set(False)
-    for o in objs: o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-
-
-def unhide(o):
-    o.hide_set(False); o.hide_viewport = False; o.hide_render = False
 
 
 def textured_material(name, tex):
@@ -68,41 +44,6 @@ def baked_material(o, slot, camera, size=1024):
     t = m.node_tree.nodes.new('ShaderNodeTexImage'); t.image = img
     m.node_tree.links.new(t.outputs['Color'], m.node_tree.nodes['Principled BSDF'].inputs['Base Color'])
     return m
-
-
-def relink_images():
-    for im in bpy.data.images:
-        if im.packed_file or im.source != 'FILE': continue
-        base = os.path.basename(bpy.path.abspath(im.filepath)).replace('\\', '/')
-        p = os.path.join(TEXDIR, base)
-        if os.path.exists(p): im.filepath = p; im.reload()
-
-
-def nearest_def_bone(rig, o):
-    pts = [o.matrix_world @ Vector(c) for c in o.bound_box]
-    ctr = sum(pts, Vector()) / 8
-    best, bd = None, 1e9
-    for b in rig.data.bones:
-        if not b.name.startswith('DEF-') or 'Finger' in b.name: continue
-        c = rig.matrix_world @ ((b.head_local + b.tail_local) / 2)
-        d = (c - ctr).length
-        if d < bd: best, bd = b.name, d
-    return best
-
-
-def reparent_extra_bones(rig):
-    """Deform bones that aren't DEF- bones (the Master's Sleeve.L/R) hang off control bones that don't get exported, so they'd
-    sit still at the rig root. Parent each to the nearest DEF bone so it follows the arm."""
-    extra = [b.name for b in rig.data.bones if b.use_deform and not b.name.startswith('DEF-')]
-    if not extra: return
-    defs = [b.name for b in rig.data.bones if b.name.startswith('DEF-') and 'Finger' not in b.name]
-    select_only([rig]); bpy.ops.object.mode_set(mode='EDIT')
-    eb = rig.data.edit_bones
-    for n in extra:
-        head = eb[n].head
-        eb[n].parent = eb[min(defs, key=lambda d: (eb[d].head - head).length)]
-        print('  reparented', n, '->', eb[n].parent.name)
-    bpy.ops.object.mode_set(mode='OBJECT')
 
 
 def prep_mesh(o, rig):
@@ -151,7 +92,7 @@ def export(path, objs, **kw):
 def build_char(out, spec):
     blend, rigname, keep, retex = spec
     bpy.ops.wm.open_mainfile(filepath=os.path.join(SRC, blend))
-    relink_images()
+    relink_images(TEXDIR)
     rig = bpy.data.objects[rigname]; unhide(rig)
     rig.data.pose_position = 'REST'   # T-pose; prop rigs stay posed so glasses and the like sit where they were placed
     bpy.context.view_layer.update()
@@ -166,7 +107,7 @@ def build_char(out, spec):
 
 def build_carbine():
     bpy.ops.wm.open_mainfile(filepath=os.path.join(SRC, 'midas-carbine-v2.blend'))
-    relink_images()
+    relink_images(TEXDIR)
     o = bpy.data.objects['Midas Carbine']; unhide(o); select_only([o])
     for m in list(o.modifiers):
         if m.type == 'ARMATURE': o.modifiers.remove(m); continue
