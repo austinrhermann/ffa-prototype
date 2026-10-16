@@ -11,6 +11,16 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 
 Invited friends skip the title page.
 
+## Characters
+
+Seven characters and the Midas carbine come from the Blender asset library (`00_Exports`, T-pose Rigify rigs). `tools/build_characters.py` turns them into the game GLBs (body, head and worn gear skinned to the DEF- bones; handheld guns, mortar and shield left out):
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_characters.py -- "<00_Exports folder>" models [name ...]
+```
+
+Eli, Beto, Zeke and Deigo are `Soldier_2_heavy`, `Soldier_3_thin`, `Soldier_4_bigframe` and `Soldier_5_smallframe`; Apprentice, Master, Officer and `Midas_Carbine` keep their names. The new characters have no baked gun, so `poseArms` in `index.html` swings their arms down from the T-pose into a carbine grip when the models load. The Apprentice, Master and Officer faces use their painted head textures only: the projected face details (eyes, brows, mouth) don't export.
+
 ## Run locally
 
 Any static file server works (the game fetches `models/` at runtime, so opening the file directly won't load assets):

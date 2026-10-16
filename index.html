@@ -238,6 +238,7 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
+  <div class="set hostonly"><label for="sgod">God mode (you take no damage) <input type="checkbox" id="sgod" style="width:auto"></label></div>
   <div class="set hostonly"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   </div>
   <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
@@ -1153,6 +1154,8 @@ let D;
 function setDiff(v) { const t = (v - 1) / 4; D = { acc: 0.35 + 0.7 * t, react: 1.1 - 0.8 * t, turn: 3 + 5 * t, nade: 0.03 + 0.15 * t }; }
 setDiff(3);
 $('sbots').oninput = e => $('obots').textContent = e.target.value;
+let GOD = false;
+$('sgod').onchange = e => { GOD = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
@@ -1182,10 +1185,10 @@ function makeEntity(name, isPlayer) {
     onGround: false, respawnT: 0, ammo: MAG, reserve: START_RES, nades: 2, reloading: 0 };
 }
 // ---------- Character models (from the Blender soldier files) ----------
-// The first five are the bot soldiers; the rest are player-only choices
-const MODEL_DEFS = [['Soldier_1', 'Soldier'], ['Soldier_2_heavy', 'Heavy'], ['Soldier_3_thin', 'Thin'], ['Soldier_4_bigframe', 'Big frame'], ['Soldier_5_smallframe', 'Small frame'],
-  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer'], ['Pilot', 'Pilot'], ['Technician', 'Technician']];
-const SOLDIER_COUNT = 5;
+// The first four are the bot soldiers; the rest are player-only choices
+const MODEL_DEFS = [['Soldier_2_heavy', 'Eli'], ['Soldier_3_thin', 'Beto'], ['Soldier_4_bigframe', 'Zeke'], ['Soldier_5_smallframe', 'Deigo'],
+  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer']];
+const SOLDIER_COUNT = 4;
 const MODELS = [];
 const LEG_BONES = { thighL: 'DEF-Thigh_1L', thighR: 'DEF-Thigh_1R', kneeL: 'DEF-Knee_1L', kneeR: 'DEF-Knee_1R' };
 function b64ToBuf(str) { const bin = atob(str), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
@@ -1253,6 +1256,65 @@ function principalAxis(pts, c) {
   for (let i = 0; i < 40; i++) v = new V3(xx * v.x + xy * v.y + xz * v.z, xy * v.x + yy * v.y + yz * v.z, xz * v.x + yz * v.y + zz * v.z).normalize();
   return v;
 }
+// The new library characters come in T-pose with no gun in their hands: swing both arms down with a two-bone aim
+// (shoulder, elbow, wrist) so the right hand holds the gun out front and the left arm hangs at the side. Returns where the gun sits.
+function poseArms(sc) {
+  const get = n => sc.getObjectByName(n), wp = n => get(n).getWorldPosition(new V3()), q = new THREE.Quaternion();
+  const tpose = {};   // the arms and hands as exported, kept for the death pose (arms flung out flat)
+  sc.traverse(o => { if (o.isBone && /^DEF-(UpperArm|Forearm|Wrist|Finger)/.test(o.name)) tpose[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
+  const sh = { L: wp('DEF-UpperArm_1L'), R: wp('DEF-UpperArm_1R') }, mid = sh.L.clone().add(sh.R).multiplyScalar(0.5), sw = sh.L.distanceTo(sh.R) / 2;
+  const a = sh.R.distanceTo(wp('DEF-Forearm_1R')), b = wp('DEF-Forearm_1R').distanceTo(wp('DEF-WristR')), L = a + b;
+  const dir = new V3(0, 0, 1), tR = new V3(mid.x - 0.85 * sw - 0.06, sh.R.y - 0.45 * L, sh.R.z + 0.7 * L);
+  const tL = new V3(sh.L.x + 0.04 * L, sh.L.y - 0.97 * L, sh.L.z - 0.02 * L);   // left arm hangs at the side
+  const aim = (name, S, T, pole) => {
+    const up = get('DEF-UpperArm_1' + name), fo = get('DEF-Forearm_1' + name);
+    const d = T.clone().sub(S), D = Math.min(d.length(), (L - 0.01)); d.normalize();
+    const ca = (a * a + D * D - b * b) / (2 * a * D), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
+    const perp = pole.clone().addScaledVector(d, -pole.dot(d)).normalize();
+    const E = S.clone().addScaledVector(d, a * ca).addScaledVector(perp, a * sa);
+    const turn = (bone, from, to) => {   // rotate a bone in world space so its Y axis goes from one direction to another
+      sc.updateMatrixWorld(true);
+      const wq = bone.getWorldQuaternion(new THREE.Quaternion()), pq = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+      bone.quaternion.copy(pq.invert().multiply(q.setFromUnitVectors(from, to).multiply(wq)));
+    };
+    const y = bone => new V3(0, 1, 0).applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()));
+    turn(up, y(up), E.clone().sub(S).normalize());
+    turn(fo, y(fo), T.clone().sub(E).normalize());
+    sc.updateMatrixWorld(true);
+  };
+  // The finger chains hang off the rig node, not the wrist, so they follow the hand by the wrist's own move
+  const hands = side => {
+    const wr = get('DEF-Wrist' + side); sc.updateMatrixWorld(true);
+    const old = wr.matrixWorld.clone(), fingers = [];
+    sc.traverse(o => { if (o.isBone && o.name.startsWith('DEF-Finger_') && o.name.endsWith(side) && !o.parent.name.startsWith('DEF-Finger_')) fingers.push([o, o.matrixWorld.clone()]); });
+    return () => {
+      sc.updateMatrixWorld(true);
+      const d = wr.matrixWorld.clone().multiply(old.clone().invert()), m = new THREE.Matrix4(), pi = new THREE.Matrix4(), s1 = new V3();
+      for (const [f, w0] of fingers) {
+        m.copy(d).multiply(w0); pi.copy(f.parent.matrixWorld).invert(); m.premultiply(pi).decompose(f.position, f.quaternion, s1);
+      }
+    };
+  };
+  const doneR = hands('R'), doneL = hands('L');
+  aim('R', sh.R, tR, new V3(-1, -0.35, -0.1)); aim('L', sh.L, tL, new V3(0.3, 0, -1)); doneR(); doneL(); sc.updateMatrixWorld(true);
+  // Point the hand straight along the gun (the T-pose hand angles in toward the body): turn the wrist about the vertical
+  const done2 = hands('R'), wr0 = get('DEF-WristR'), hv = wp('DEF-Finger_Middle3R').sub(wp('DEF-WristR'));
+  const wq = wr0.getWorldQuaternion(new THREE.Quaternion()), pq = wr0.parent.getWorldQuaternion(new THREE.Quaternion());
+  wr0.quaternion.copy(pq.invert().multiply(q.setFromAxisAngle(new V3(0, 1, 0), -Math.atan2(hv.x, hv.z)).multiply(wq)));
+  done2(); sc.updateMatrixWorld(true);
+  // ...then roll it about the barrel axis until the knuckle line (pinky to index) is vertical: palm facing in, thumb up
+  const done3 = hands('R'), kv = wp('DEF-Finger_Index1R').sub(wp('DEF-Finger_Pinky1R'));
+  const wq2 = wr0.getWorldQuaternion(new THREE.Quaternion()), pq2 = wr0.parent.getWorldQuaternion(new THREE.Quaternion());
+  wr0.quaternion.copy(pq2.invert().multiply(q.setFromAxisAngle(new V3(0, 0, 1), Math.atan2(kv.x, kv.y)).multiply(wq2)));
+  done3(); sc.updateMatrixWorld(true);
+  // Curl the fingers (not the thumb) round the grip
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) [[1, 0.7], [2, 0.9], [3, 0.6]].forEach(([n, ang]) => {
+    const b = get('DEF-Finger_' + f + n + 'R'); if (b) b.quaternion.multiply(q.setFromAxisAngle(new V3(1, 0, 0), ang));
+  });
+  sc.updateMatrixWorld(true);
+  const wr = get('DEF-WristR'), hand = wp('DEF-WristR').lerp(wp('DEF-Finger_Middle1R'), 0.55);   // the palm, not the wrist
+  return { dir, hand, inv: wr.matrixWorld.clone().invert(), muzzle: hand.clone().addScaledVector(dir, 0.9), boneName: wr.name, tpose };
+}
 function loadModels() {
   const soldiers = Promise.all(MODEL_DEFS.map(([key, label]) => parseGLB(key).then(sc => {
     const hp = new V3(0, 1.64, 0), head = sc.getObjectByName('DEF-Head'); if (head) head.getWorldPosition(hp);
@@ -1269,7 +1331,11 @@ function loadModels() {
       gunHand = c.clone().addScaledVector(gunDir, hand.clone().sub(c).dot(gunDir));
       gunBoneInv = gunObj.parent.matrixWorld.clone().invert();
     }
-    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv };
+    let sway = false, tpose = null, gunBoneName = gunObj && gunObj.parent ? gunObj.parent.name : null;
+    if (!gunObj && sc.getObjectByName('DEF-WristR')) {
+      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true; tpose = g.tpose;
+    }
+    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose };
   }))).then(ms => MODELS.push(...ms));
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
@@ -1309,7 +1375,7 @@ function makeRig(mi) {
     bones[k] = { b, rest: b.quaternion.clone(), axis: new V3(1, 0, 0).applyQuaternion(q.clone().invert()) };
   }
   const car = root.getObjectByName('Carbine'); let gunBone = null;
-  if (car) { gunBone = car.parent; car.visible = false; }
+  if (car) { gunBone = car.parent; car.visible = false; } else if (model.gunBoneName) gunBone = root.getObjectByName(model.gunBoneName);
   // The exported skeleton is flat (every DEF bone hangs off the rig node), so the upper body is posed as a rigid group:
   // level 1 (spine, shoulders) bends at the hips; arms and hands (2) and neck and head (3) pivot again at the shoulders
   const spine = root.getObjectByName('DEF-Spine1'), upper = [];
@@ -1328,7 +1394,9 @@ function makeRig(mi) {
   if (piv1) { const c = new V3(piv1.x, 0, piv1.z).applyAxisAngle(new V3(0, 1, 0), RIG_TURN); root.position.set(-c.x, 0, -c.z); }
   // The soldiers hold the gun at low ready; raise the arms so a level gaze gives a level gun
   const raise = model.gunDir ? Math.asin(Math.max(-1, Math.min(1, model.gunDir.y))) : 0;
-  const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null };
+  const armBones = [];
+  if (model.tpose) root.traverse(o => { const t = model.tpose[o.name]; if (o.isBone && t) armBones.push({ b: o, t, stand: { pos: o.position.clone(), quat: o.quaternion.clone() }, top: upper.some(u => u.b === o) }); });
+  const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null, armBones };
   if (model.crouchDrop === undefined) model.crouchDrop = measureCrouch(r);
   return r;
 }
@@ -1346,11 +1414,16 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 } };
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone || !m.gunDir) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
   const w = WEAPONS[id], holder = new THREE.Group(); holder.add(centeredClone(w.scene, w.yaw));
-  const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.3));
+  // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
+  // barrel along the aim direction. The baked-gun characters keep the old centred placement.
+  const gr = m.sway && GRIPS[id], at = m.gunHand.clone();
+  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
+  const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
   holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T);
   rig.gunBone.add(holder); rig.gunVis = holder;
 }
@@ -1365,10 +1438,36 @@ function spawnCorpseAt(mi, pos, yaw) {
   const r = makeRig(mi);
   r.wrap.rotation.order = 'YXZ';
   r.wrap.position.copy(pos); r.wrap.rotation.y = yaw;
-  scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0 });
+  scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0, r });
   if (corpses.length > 30) scene.remove(corpses.shift().w);
 }
-function updateCorpses(dt) { for (const c of corpses) if (c.t < 0.5) { c.t += dt; const f = Math.min(1, c.t / 0.5); c.w.rotation.x = -f * f * Math.PI / 2; } }
+// They drop backwards in half a second: the arms and hands fly out and land flat (the library characters; the older ones just
+// let theirs swing down), the legs splay and the knees give
+const LIMP_POSE = { thighL: -0.5, kneeL: 0.9, thighR: 0.35, kneeR: 0.6 };
+function updateCorpses(dt) {
+  for (const c of corpses) {
+    if (c.t >= 1.8) continue;
+    c.t += dt;
+    const fall = Math.min(1, c.t / 0.5); c.w.rotation.x = -fall * fall * Math.PI / 2;
+    const r = c.r; if (!r) continue;
+    const f = 1 - Math.exp(-c.t * 4), wob = Math.exp(-c.t * 2.5) * Math.sin(c.t * 13) * 0.5;
+    for (const k in LIMP_POSE) setBone(r.bones[k], LIMP_POSE[k] * f + (k[0] === 't' ? 0.12 : 0.2) * wob);
+    poseUpper(r, 0, 0);
+    if (r.armBones.length) {   // arms and hands fly out and land flat on the ground
+      const g = Math.min(1, c.t / 0.45) - 1, k = 1 + 2.2 * g * g * g + 1.2 * g * g;   // ease out with a little overshoot
+      for (const a of r.armBones) {
+        a.b.quaternion.copy(a.stand.quat).slerp(a.t.quat, k);
+        if (a.top) a.b.position.lerpVectors(a.stand.pos, a.t.pos, k);
+      }
+      // One arm up by the head, the other down by the hip, so the two make a diagonal
+      for (const [side, ang] of [['L', 0.7], ['R', 0.3]]) {
+        const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) continue;
+        _qa.setFromAxisAngle(_Z, ang * Math.min(k, 1.1)); _p2.copy(sh.position);
+        for (const a of r.armBones) if (a.top && a.b.name.endsWith(side)) { a.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); a.b.quaternion.premultiply(_qa); }
+      }
+    } else { swayArm(r, 1.1 * f + 0.3 * wob, 'R'); swayArm(r, 0.9 * f - 0.3 * wob, 'L'); }
+  }
+}
 function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.length = 0; }
 const _q = new THREE.Quaternion();
 function setBone(bn, ang) { if (bn) bn.b.quaternion.copy(bn.rest).multiply(_q.setFromAxisAngle(bn.axis, ang)); }
@@ -1385,8 +1484,9 @@ function animRig(r, dt, speed, crouch, pitch) {
   // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
   const lean = 0.3 * C;
   poseUpper(r, lean - r.pt * 0.4, -lean - r.pt * 0.6);
+  if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
-const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _p2 = new V3();
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
 function poseUpper(r, a1, a2) {
   if (!r.upper.length) return;
   _qa.setFromAxisAngle(_X, a1); _qb.setFromAxisAngle(_X, a2 + r.raise); _qc.setFromAxisAngle(_X, a2);
@@ -1395,6 +1495,14 @@ function poseUpper(r, a1, a2) {
     u.b.position.copy(u.pos).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
     u.b.quaternion.copy(u.rest).premultiply(_qa);
     if (u.lv > 1) { const q = u.lv === 2 ? _qb : _qc; u.b.position.sub(_p2).applyQuaternion(q).add(_p2); u.b.quaternion.premultiply(q); }
+  }
+}
+// The free (left) arm of the library characters swings with the walk, opposite its own leg: the arm and hand bones turn about the shoulder
+function swayArm(r, ang, side = 'L') {
+  const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) return;
+  _qa.setFromAxisAngle(_X, ang); _p2.copy(sh.position);
+  for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith(side)) {
+    u.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); u.b.quaternion.premultiply(_qa);
   }
 }
 // Hit boxes shrink with the crouch so shots line up with the lowered body
@@ -1838,8 +1946,8 @@ const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 
 // Roles: the Master and the Apprentice hold the tower with the Computer (always an NPC). Alone you are the Master;
 // with a friend the host's pick holds and the friend takes the other role; anyone after that attacks as a Midas soldier.
 const ROLES = {
-  master:     { name: 'Master',        model: 6, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
-  apprentice: { name: 'Apprentice',    model: 5, hp: 100, inv: ['pistol'],            nades: 0 },
+  master:     { name: 'Master',        model: 5, hp: 200, inv: ['rifle', 'pistol'],   nades: 4 },
+  apprentice: { name: 'Apprentice',    model: 4, hp: 100, inv: ['pistol'],            nades: 0 },
   atk:        { name: 'Pirate',        model: 0, hp: 100, inv: ['carbine', 'pistol'], nades: 0 },
 };
 const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
@@ -1972,6 +2080,7 @@ function attackerSpawn() {
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
+  if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
   if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t)) return; // no friendly fire
   t.health -= amt;
   if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
