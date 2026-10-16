@@ -94,7 +94,7 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .tbtns button:hover{background:#1f1f1f}
 #tload{color:#fff;opacity:.8;text-shadow:0 1px 6px #000;min-height:1em}
 body.guest #title{display:none}
-#maincard:not(.fort) .fort-only,#maincard.fort .arena-only{display:none!important}
+#maincard:not(.fort) .fort-only,#maincard.fort .arena-only,#maincard.drive .arena-only,#maincard:not(.drive) .drive-only{display:none!important}
 #maincard.fort:not(.fine) #fineprint{display:none}
 #fortintro{font-size:16px;line-height:1.45}
 .invbtns{display:flex;gap:10px;flex-wrap:wrap}
@@ -198,12 +198,13 @@ body.touch .card small.tc{display:block}
 </div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
-  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Defend the Fort</button></div>
+  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Defend the Fort</button><button type="button" id="godrive">Driving Sim</button></div>
   <small id="tload">Loading…</small>
 </div>
 <div id="overlay"><div class="cards"><div class="card" id="maincard">
   <button type="button" id="totitle" class="hostonly linkbtn">‹ Back</button>
   <h1 id="mtitle">Free for all</h1>
+  <p class="drive-only" id="driveintro">A big flat test ground for vehicles. Walk up to the car, the truck, the motorcycle or the plane and press E to get in.</p>
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
   <div class="set hostonly fort-only" id="fortinv"><div class="invbtns"><button type="button" id="invapp">Invite an apprentice</button><button type="button" id="invpir">Invite pirates</button></div><small id="roster2"></small></div>
   <div class="set hostonly arena-only" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
@@ -231,6 +232,15 @@ body.touch .card small.tc{display:block}
     <dt>Tab</dt><dd>Scoreboard</dd>
     <dt>Esc</dt><dd>Pause and settings</dd>
   </dl>
+  <dl class="kb drive-only">
+    <dt>E</dt><dd>Get in or out (slow down first)</dd>
+    <dt>W / S</dt><dd>Throttle and brake, reverse when stopped (plane: throttle up and down)</dd>
+    <dt>A / D</dt><dd>Steer (plane: rudder, and the nose wheel on the ground)</dd>
+    <dt>Space</dt><dd>Handbrake, for sliding round corners (plane: wheel brakes)</dd>
+    <dt>Mouse</dt><dd>Look around (plane: the stick, pull back to climb, sideways to roll)</dd>
+    <dt>V</dt><dd>Chase view or driver's seat</dd>
+    <dt>W in the air</dt><dd>Dip the nose off a jump (S lifts it)</dd>
+  </dl>
   <dl class="tc">
     <dt>Left side</dt><dd>Drag to move, push fully to run</dd>
     <dt>Right side</dt><dd>Drag to look</dd>
@@ -239,7 +249,7 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
+  <div class="set hostonly" id="setdiff"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   </div>
   <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
@@ -539,7 +549,16 @@ function levelCreek() {
     fortNav: { box: [-46, -23, 46, 23], cell: 0.5, top: 7, bottom: -1.6 },
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress };
+// Driving Sim (vehicles.js builds the ground and the vehicles): a 2 km flat test ground with a vehicle lot, a runway and
+// hangar, a loop track, a jump park and a few buildings. No bots, no score; just driving and flying.
+function levelDrive() {
+  return {
+    mesh: 'DriveFlat', collide: 'DriveFlat_col', mode: 'drive', vehicles: true,
+    cs: 4, ox: -128, oz: -140, killY: -30, fog: [250, 1300], far: 1800, top: 0, wall: 0,
+    spawns: [[-4, 0.5, -6], [0, 0.5, -6], [4, 0.5, -6]], ammo: [], heals: [], pickups: [], ladders: [],
+  };
+}
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, drive: levelDrive };
 function buildGrid(id) {
   H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
@@ -634,7 +653,7 @@ function buildWorld(L) {
   levelGroup = new THREE.Group(); scene.add(levelGroup);
   W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0;
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
-  camera.far = L.mesh ? 400 : 300; camera.updateProjectionMatrix();
+  camera.far = L.far || (L.mesh ? 400 : 300); camera.updateProjectionMatrix();
   if (!L.mesh) { sun.position.copy(SUN_DIR).multiplyScalar(60); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
   sun.shadow.bias = L.mesh ? -0.0005 : 0; sun.shadow.normalBias = L.mesh ? 0.03 : 0;
   if (L.mesh) {
@@ -1165,15 +1184,17 @@ function switchLevel(id) {
   clearTrucks();
   if (NET.role === 'host') broadcast({ t: 'level', id });
   loadLevel(id); applyLook(); // Fortress turns the look on
-  if (NET.role === 'host') for (const r of remotes) { const mi = MODE === 'defend' ? ROLES[r.role].model : r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); }
+  if (NET.role === 'host') for (const r of remotes) { const mi = MODE === 'defend' ? ROLES[r.role].model : r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
-  const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
+  const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, def = mode === 'defend', drive = mode === 'drive';
   $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.`;
-  $('mtitle').textContent = def ? 'Defend the Fort' : 'Battle in the Arena'; $('maincard').classList.toggle('fort', def);
-  $('setlimit').style.display = def ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
+  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Driving Sim' : 'Battle in the Arena'; $('maincard').classList.toggle('fort', def); $('maincard').classList.toggle('drive', drive);
+  if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
+  for (const id of ['setbots', 'setdiff']) $(id).style.display = drive ? 'none' : '';
+  $('setlimit').style.display = def || drive ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
   // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
-  for (const [id, show] of [['setrole', def], ['setbots', !def], ['setchar', !def], ['looklink', def]]) $(id).style.display = show ? '' : 'none';
+  for (const [id, show] of [['setrole', def], ['setbots', !def && !drive], ['setchar', !def], ['looklink', def]]) $(id).style.display = show ? '' : 'none';
   $('ldiff').textContent = def ? 'Difficulty' : 'Bot difficulty'; $('chartitle').textContent = def ? 'You' : 'Your character';
   $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
 }
@@ -2005,7 +2026,7 @@ function resetMatch() {
     Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); setGate(false); // the gate starts shut
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
-  } else ents.forEach(respawn);
+  } else { ents.forEach(respawn); VEH.onLevel(); } // the vehicles go back to the lot
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
 // Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
@@ -2354,6 +2375,7 @@ function vmMuzzleWorld() {
   return camera.position.clone().addScaledVector(dir, dist);
 }
 function fire() {
+  if (VEH.cur) return;
   const w = WP();
   const hs = Math.hypot(P.vel.x, P.vel.z);
   const move = !P.onGround ? 0.12 : hs > 5 ? 0.16 : hs > 0.5 ? 0.012 : 0;
@@ -2754,6 +2776,9 @@ function updateBot(b, dt) {
   updateNameTag(b);
 }
 
+// ---------- Vehicles (vehicles.js fills this in; the Driving Sim) ----------
+const VEH = { cur: null, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, camera() {}, after() {}, exit() {} };
+
 // ---------- Input ----------
 const keys = {};
 let locked = false, boardOpen = false, tCrouch = false, tAim = false;
@@ -2765,6 +2790,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Tab') { e.preventDefault(); boardOpen = true; }
   if (!locked || e.repeat) return;
+  if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
   if (e.code === 'KeyR') reload();
   if (e.code === 'KeyM') setMute(!VOICE.muted);
   if (e.code === 'KeyF') playerKnife();
@@ -2781,6 +2807,7 @@ addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   if (!locked) return;
+  if (VEH.mouse(e.movementX, e.movementY)) return;
   const s = SENS * camera.fov / 75;
   P.yaw -= e.movementX * s;
   P.pitch = Math.max(-1.5, Math.min(1.5, P.pitch - e.movementY * s));
@@ -2805,6 +2832,7 @@ addEventListener('keydown', e => { if (away && e.code === 'Escape') setPlaying(f
 // ---------- Player ----------
 function updatePlayer(dt) {
   if (!P.alive) { if (NET.role !== 'guest') { P.respawnT -= dt; if (P.respawnT <= 0) respawn(P); } return; }
+  if (VEH.cur) return; // riding: the vehicle moves you
   if (keys.KeyC || tCrouch) P.h = CROUCH_H;
   else if (P.h < STAND_H && !blockedAt(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;
   const crouched = P.h < STAND_H;
@@ -2824,6 +2852,7 @@ function updatePlayer(dt) {
   if (keys.Space && P.onGround && !monitorOpen) P.vel.y = JUMP;
   bodyBlock(P, dt);
   physics(P, dt);
+  VEH.block(P);
   if (P.pos.y < KILL_Y) damage(P, 999, P, 'fall', false);
   stepSound(P, dt);
 }
@@ -2844,6 +2873,7 @@ function updateCamera(dt) {
   const sx = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0, sy = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0;
   camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   camera.updateMatrixWorld();
+  VEH.camera(dt);
 }
 
 // Lean out: pressed up against a parapet or window sill (something solid ahead at waist height, clear air at eye height)
@@ -2959,7 +2989,7 @@ function updateHUD(dt) {
     $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-    $('top').textContent = `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
+    $('top').textContent = MODE === 'drive' ? 'Driving Sim' : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
     $('top').classList.remove('alert');
   }
   hitT -= dt; $('hit').style.opacity = hitT > 0 ? 1 : 0;
@@ -3006,7 +3036,7 @@ function applySettings() {
   if (n !== bots.length) { buildBots(n); resetMatch(); }
 }
 // Fortress defend always has attackers: the slider is how many are on the field at once
-function botTarget() { return MODE === 'defend' ? Math.max(...WAVE_SIZES) : +$('sbots').value; }
+function botTarget() { return MODE === 'defend' ? Math.max(...WAVE_SIZES) : MODE === 'drive' ? 0 : +$('sbots').value; }
 function setPlaying(on) {
   if (on) applySettings();
   locked = on;
@@ -3156,15 +3186,16 @@ $('tomenu').onclick = () => {
   location.assign(location.pathname);
 };
 // Title page: pick a game. Everything has been loading behind it since the page opened.
-function chooseMode(fort) {
-  selLevel = fort ? 'fortress' : selLevel === 'fortress' ? 'complex' : selLevel;
+function chooseMode(kind) {
+  selLevel = kind === 'fort' ? 'fortress' : kind === 'drive' ? 'drive' : selLevel === 'fortress' || selLevel === 'drive' ? 'complex' : selLevel;
   document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
   updateGoal(); refreshPreview(); $('title').style.display = 'none';
   // Get the chosen level ready behind the menu (the fort builds its walking map, a few seconds)
   if (MODELS.length && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
-$('goarena').onclick = () => chooseMode(false);
-$('gofort').onclick = () => chooseMode(true);
+$('goarena').onclick = () => chooseMode('arena');
+$('gofort').onclick = () => chooseMode('fort');
+$('godrive').onclick = () => chooseMode('drive');
 $('totitle').onclick = () => { $('title').style.display = ''; };
 $('finetoggle').onchange = e => $('maincard').classList.toggle('fine', e.target.checked);
 // Fort invites: the apprentice link is the plain invite; the pirate link sends friends to the attackers
@@ -3955,6 +3986,7 @@ function loop(now) {
     updateReplicas(dt, now); updateCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
+    VEH.update(dt);
     updateGun(dt);
     bots.forEach(b => updateBot(b, dt));
     updateWaves(dt);
@@ -3981,6 +4013,7 @@ function loop(now) {
   updateTrucksVis(dt);
   updateComputer();
   updateVM(dt);
+  VEH.after(dt);
   updateHUD(dt);
   updateChatbox();
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
@@ -3991,5 +4024,6 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
+<script src="vehicles.js"></script>
 </body>
 </html>
