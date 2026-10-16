@@ -1358,6 +1358,16 @@ function socketLocalMatrix(posesScene, name) {
   const o = posesScene.getObjectByName(name); if (!o) return null;
   return new THREE.Matrix4().compose(o.position, o.quaternion, new V3(1, 1, 1));
 }
+// Test fixtures rotate independent root bones together; descendants follow their parents as usual.
+function rotateAbout(pose, names, pivot, axis, ang) {
+  const out = {}, selected = new Set(names), q = new THREE.Quaternion().setFromAxisAngle(axis, ang);
+  for (const [name, t] of Object.entries(pose)) {
+    const pos = t.pos.clone(), quat = t.quat.clone();
+    if (selected.has(name)) { pos.sub(pivot).applyQuaternion(q).add(pivot); quat.premultiply(q); }
+    out[name] = { pos, quat };
+  }
+  return out;
+}
 // Where a weapon's own barrel ends, in its native (unrotated, uncentred) frame: the far end along the muzzle axis,
 // which is -Z rotated back by the yaw orientWeapon() would otherwise apply to point it that way.
 function nativeMuzzlePoint(sc, yaw) {
@@ -1436,6 +1446,12 @@ function loadModels() {
       procHold = {};
       sc.traverse(o => { if (o.isBone) procHold[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
     }
+    if (key === 'Soldier_2_heavy' && params.has('posefixture')) {
+      const shoulder = sc.getObjectByName('DEF-UpperArm_1R'), spine = sc.getObjectByName('DEF-Spine1');
+      const rightArm = spine.parent.children.filter(o => o.isBone && /^DEF-(UpperArm|Finger)/.test(o.name) && o.name.endsWith('R')).map(o => o.name);
+      poses = { hold_pistol: rotateAbout(procHold, rightArm, shoulder.position, new V3(1, 0, 0), -0.6) };
+      sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
+    }
     return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
   }))).then(ms => MODELS.push(...ms));
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
@@ -1465,7 +1481,17 @@ function loadModels() {
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
   // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
-  const guns = Promise.all([soldiers, weps]).then(() => { for (const m of MODELS) if (m.poses) computeModelGuns(m); });
+  const guns = Promise.all([soldiers, weps]).then(() => {
+    if (params.has('posefixture')) {
+      const m = MODELS[0], w = WEAPONS.pistol, gr = GRIPS.pistol, at = m.gunHand.clone();
+      at.addScaledVector(m.gunDir, gr.z).y -= gr.y;
+      const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
+      const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
+      // Convert the procedural centred gun into a native-frame socket, fixed relative to the wrist.
+      m.sockets.pistol = m.gunBoneInv.clone().multiply(T).multiply(child.matrix);
+    }
+    for (const m of MODELS) if (m.poses) computeModelGuns(m);
+  });
   return Promise.all([soldiers, weps, props, sets, guns]);
 }
 function makeRig(mi) {

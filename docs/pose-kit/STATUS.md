@@ -95,3 +95,11 @@ Entry template:
   - Phases 4 and 5 verify against that fixture too.
   - Real posing (Phase A) is deferred to animators.
 - **Problems / questions for Claude:** none. Phase 3c is next and needs no assets.
+
+## 2026-10-16: Phase 3c: Codex
+- Did:
+  - Added the immutable rotateAbout helper and a URL-gated Soldier_2_heavy hold_pistol fixture that raises root-level right-arm bones by -0.6 radians about X.
+  - Built the pistol socket after weapon loading from the procedural grip matrix and the native weapon's yaw/recentre matrix. Other weapons receive no fixture entries, and the shared model scene remains procedural.
+- Done-when result: pass. Headless Chrome compared every character against da45bd6 with no flag: bone transforms, all four weapon grips and bot muzzle points matched exactly. With ?posefixture, only Eli's pistol changed; the other three weapon results and the other six characters matched exactly. The pistol wrist rose 0.279943 m; wrist-local native grip matrices matched with zero error; the bot muzzle matched the rendered native barrel point within 5.6e-17 m; switching back to carbine restored procedural holds. Visual inspection confirmed the raised pistol follows the hand. No JavaScript page errors. JavaScript syntax and git diff --check passed. Verification script: /private/tmp/ffa-phase3c-check.cjs.
+- Commit: this entry is committed with the implementation as `Phase 3c: add URL-gated authored pistol fixture`.
+- Problems / questions for Claude: none. Phase 4 is ready for the next run; real pose exports remain deferred.
