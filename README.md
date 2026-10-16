@@ -9,7 +9,9 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
 - **Defend the Fort**: the tower defense. Its menu has two invite buttons: **Invite an apprentice** (the normal invite) and **Invite pirates** (`&team=pirates`, joins as an attacker). The rules, role choice, difficulty and controls are behind the **Instructions and controls** switch.
 
-Invited friends skip the title page.
+- **Driving Sim**: a test ground for vehicles (see below), where the vehicle mechanics get worked out before they go into the other games.
+
+Invited friends skip the title page. **Main menu** on the pause screen (every mode) goes back to the title page; a host leaving ends the game for everyone who joined.
 
 ## Characters
 
@@ -70,6 +72,16 @@ npx serve .
 
 Import the repo in Vercel, framework preset **Other**, no build command, output directory `.`. Every push to `main` redeploys.
 
+## Driving Sim
+
+A 2 km flat test ground (open it directly with `?level=drive`): a vehicle lot, a 600 m runway with a hangar, a paved loop track, a jump park (three ramp sizes, and a kicker with a landing ramp), a few buildings and a pair of pylons to fly between. Walk up to a vehicle and press **E** to get in; **V** switches between the chase view and the driver's seat. No bots and no score yet, and it's single player for now (friends can't join a Driving Sim game).
+
+All of it lives in `vehicles.js` (the main game calls into it through `VEH`):
+
+- **Car, truck, motorcycle**: arcade driving physics. Throttle and brakes (reverse once stopped), steering that tightens at low speed, tyre grip that caps how hard you can corner, and a handbrake (Space) that lets the back slide out. Suspension follows the ground under the wheels, so ramps launch you; W and S tip the nose in the air. Vehicles bump off walls and each other (the heavy truck shoves the car), and people on foot can't walk through them. The motorcycle leans into turns and sits on its kickstand when stopped. The engine note climbs through the gears, and the tyres squeal when you slide.
+- **Plane**: W/S throttle, the mouse is the stick (pull back to climb, sideways to roll), A/D the rudder in the air and the nose wheel on the ground, Space the wheel brakes. Lift grows with speed and with the nose up (it lifts off at about 125 km/h), banking turns you, slow flight stalls and the nose drops, and a hard or crooked landing (or hitting a building) is a crash; the plane goes back to the runway after a few seconds.
+- The ground and buildings are generated in `vehicles.js`, not loaded from a file.
+
 ## Creek
 
 An outdoor free-for-all map (open it directly with `?level=creek`): a canyon ringed by cliffs, a creek winding across the middle that you can wade through, a rock arch over it with the Master rifle on top, boulders and low barriers for cover, and a base at each end (orange and teal trim). Each base has a front room and a back room on the ground floor (shotgun in the back room), ramps up both outside walls to a roof with a parapet, and a raised platform at the back of the roof (carbine). The two halves mirror each other.
@@ -78,13 +90,13 @@ It's an original map in the spirit of the classic two-base canyon maps; everythi
 
 ## Fortress defend
 
-The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). If any defender dies, the fort is lost. The start screen has one setting, Difficulty; the pause screen has Restart game.
+The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). Each wave sets off as soon as the last one is beaten; the trucks' drive in is the only breather. If any defender dies, the fort is lost. The start screen has one setting, Difficulty; the pause screen has Restart game.
 
 - **The Master**: Master rifle (20 shots in the fort; an ammo box adds 10), laser pistol, 4 grenades, double health (200). Plays alone if nobody else joins.
-- **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate.
+- **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate. The gate starts shut and never moves by itself.
 - **The Computer**: always an NPC. Fires the cannon on the wall over the gate by itself (a grenade-sized blast, then 10 s to recharge), trucks first. It only engages targets more than 25 m out from the wall, so it never reaches the gate: up close, the defenders have to do the work.
 - Alone you're the Master. With a friend, the host picks Master or Apprentice and the friend gets the other. Everyone after the second joins the attackers as a Midas soldier (carbine and pistol); a dead attacker can press **E** to take over the NPC soldier closest to the gate.
-- **Trucks**: the attackers ride in, 4 to a truck, along the road from behind the hill (out of sight from the fort for the first half of the drive) and get out 20 to 30 m in front of the gate; the empty trucks stay as cover. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck burns, and anyone still in the back bails out hurt.
+- **Trucks**: the attackers ride in, 4 to a truck, along the road from behind the hill (out of sight from the fort for the first half of the drive) and get out 20 to 30 m in front of the gate; the empty trucks stay as cover, and later trucks stop and unload behind any truck already on the road. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck burns, and anyone still in the back bails out hurt.
 - **Leaning out**: press up against the parapet on the wall walk (or the tower room's front window) and look down, and your head goes out over the edge so you can shoot the attackers at the gate. Once you're out you can look left, right and up without pulling back in; step back from the wall to come in.
 - Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads.
 - White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. They shoot whenever they can see any of you, on the way up as well as inside: a head over the parapet or someone leaning out is a smaller target, but not a safe one. Dead pirates drop their carbines for the defenders to pick up, and there's a shotgun in the courtyard.

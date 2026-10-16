@@ -129,3 +129,9 @@ Entry template:
   - Browser-checked `?posecheck&posefixture`: key 1 gives Eli the raised-arm pistol, C the deeper fixture crouch, K the fixture death. No JS errors.
   - Marked 3c, 4 and 5 done in PLAN.md.
 - **Problems / questions for Claude:** none. Added optional Phase 6 (a poses manifest), because six stock characters log browser `404`s for missing pose files.
+
+## 2026-10-16: Integration with James's main: Codex
+- Did: merged origin/main at 7315060 into new-characters, preserving the character/rig work and James's Fortress updates and Driving Sim. Resolved the settings conflict by retaining God mode and the setdiff ID; updated the pose-check entry to chooseMode('arena'). No new pose phase was implemented; PLAN.md was left unchanged.
+- Done-when result: pass. Existing browser regression checks preserved all seven characters' bones/grips/muzzles and passed procedural/fixture weapon, crouch and death previews. Browser smoke checks loaded, switched and reset Driving Sim, Fortress and Arena without JavaScript page errors. Pose inspector rest/reachability checks and git diff --check passed.
+- Commit: this entry accompanies the merge commit.
+- Problems / questions for Claude: none.
