@@ -1,4 +1,4 @@
-// Driving Sim: vehicles you can get into (car, truck, motorcycle, plane) and the flat test ground they live on.
+// Test Drive (the Driving Sim): vehicles you can get into (car, truck, motorcycle, plane) and the flat test ground they live on.
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, TG, groundAt, toonMat, ...).
 // The game calls into VEH (declared in index.html) from its loop, input and camera; everything here is local to the host
 // for now (no multiplayer yet).
@@ -486,7 +486,7 @@
       if (code === 'KeyE') { if (cur) leave(false); else { const v = nearest(); if (!v || !P.alive) return false; enter(v); } return true; }
       if (!cur) return false;
       if (code === 'KeyV') { view = view === 'chase' ? 'cockpit' : 'chase'; setSelf(view === 'chase' && cur.def.seatShow); return true; }
-      return ['KeyR', 'KeyF', 'KeyG', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'KeyC'].includes(code); // no guns at the wheel
+      return ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'KeyC'].includes(code); // no guns at the wheel
     },
     // Camera: a chase view that swings round behind, or the driver's seat
     camera(dt) {

@@ -9,7 +9,9 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
 - **Defend the Fort**: the tower defense. Its menu has two invite buttons: **Invite an apprentice** (the normal invite) and **Invite pirates** (`&team=pirates`, joins as an attacker). The rules, role choice, difficulty and controls are behind the **Instructions and controls** switch.
 
-- **Driving Sim**: a test ground for vehicles (see below), where the vehicle mechanics get worked out before they go into the other games.
+- **Test Drive**: a sandbox for vehicles (see below), where the vehicle mechanics get worked out before they go into the other games.
+
+Each menu shows only what you need to start (the arena: level and Play); everything else is behind its **Options and controls** switch, including mouse sensitivity and whether right click holds or toggles aim (remembered in your browser). **Play again** on the title page starts the last game you hosted.
 
 Invited friends skip the title page. **Main menu** on the pause screen (every mode) goes back to the title page; a host leaving ends the game for everyone who joined.
 
@@ -72,9 +74,9 @@ npx serve .
 
 Import the repo in Vercel, framework preset **Other**, no build command, output directory `.`. Every push to `main` redeploys.
 
-## Driving Sim
+## Test Drive
 
-A 2 km flat test ground (open it directly with `?level=drive`): a vehicle lot, a 600 m runway with a hangar, a paved loop track, a jump park (three ramp sizes, and a kicker with a landing ramp), a few buildings and a pair of pylons to fly between. Walk up to a vehicle and press **E** to get in; **V** switches between the chase view and the driver's seat. No bots and no score yet, and it's single player for now (friends can't join a Driving Sim game).
+A 2 km flat test ground (open it directly with `?level=drive`): a vehicle lot, a 600 m runway with a hangar, a paved loop track, a jump park (three ramp sizes, and a kicker with a landing ramp), a few buildings and a pair of pylons to fly between. Walk up to a vehicle and press **E** to get in; **V** switches between the chase view and the driver's seat. No bots and no score yet, and it's single player for now (friends can't join a Test Drive game).
 
 All of it lives in `vehicles.js` (the main game calls into it through `VEH`):
 
@@ -146,4 +148,6 @@ These are drawn in code for now. To use your own art, add PNGs to an `fx/` folde
 
 ## Controls
 
-WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click aim · R reload · F knife · G (hold) cook and throw grenade · Wheel / 1–4 switch weapon · M mute · Enter chat · Tab scores · Esc pause
+WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–4 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · Enter chat · Tab scores · Esc pause
+
+Every action has a key, so a one-button Mac mouse or a trackpad can play everything. A scroll-wheel swipe switches weapon once, however long the swipe keeps scrolling. Short hints appear the moment they matter (the keys, low ammo, the wall walk, the computer, the vehicles) a few times per browser, then stop.
