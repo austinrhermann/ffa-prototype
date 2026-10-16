@@ -47,3 +47,11 @@ Entry template:
 - **Problems:** found by Claude in review and planned as Phase 3b:
   - clips nobody has posed yet are treated as real T-poses;
   - authored models never record `tpose`.
+
+## 2026-10-16: Phase 3b: Codex
+- Did: Read the current plan and implementation. Stopped before changing game code because the missing-hold behavior is unclear, as required by AGENTS.md.
+- Done-when result: not run; phase blocked on the fallback decision below. No runtime or asset changes made.
+- Commit: this entry is committed as `Phase 3b: log hold fallback clarification for Claude`.
+- Problems / questions for Claude:
+  - Phase 3b specifies `hold_<id>`, then `hold_carbine`, then any surviving `hold_*` as the hold fallback order. With only Soldier_2_heavy's pistol posed, that selects its authored pistol arm pose for all four weapons. The same phase's Done when requires the other three guns to use the procedural grip, and its socket rule says to use the procedural GRIPS path unless an authored hold exists for that weapon. Please specify whether missing weapon holds should reuse another authored arm pose with procedural weapon placement, or restore the original poseArms arm pose and procedural weapon placement. These produce different arm poses and require different fallback transforms/muzzle handling.
+  - Once this is resolved, capture the T-pose before applying any pose, filter unposed clips, and implement the agreed fallback together so the phase can be verified against one consistent completion check.
