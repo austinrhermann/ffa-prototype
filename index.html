@@ -64,6 +64,7 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 .set label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
 .set output{color:var(--accent)}
 .set input{width:100%;accent-color:#9dff7a}
+#restart,#tomenu{width:100%;padding:10px;border:1px solid rgba(238,243,234,.25);border-radius:4px;background:#1e252c;color:var(--hud);font:inherit;font-size:15px;cursor:pointer;margin-top:6px}
 #play,#next{width:100%;padding:12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font-size:16px;font-weight:600;cursor:pointer;margin-top:4px}
 .set input[type=text],.set select{width:100%;padding:7px 8px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit}
 .levels{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -245,6 +246,7 @@ body.touch .card small.tc{display:block}
   <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
   <button id="play" disabled>Loading characters…</button>
   <button id="restart" class="hostonly" style="display:none">Restart game</button>
+  <button id="tomenu" type="button" style="display:none">Main menu</button>
   <button id="looklink" type="button">Look</button>
   <small class="kb">Needs a mouse and keyboard.</small>
   <small class="tc">Best in landscape.</small>
@@ -1876,7 +1878,7 @@ document.querySelectorAll('#roles button').forEach(b => b.onclick = () => {
   hostPick = b.dataset.role; document.querySelectorAll('#roles button').forEach(x => x.classList.toggle('on', x === b));
   rekit(assignRoles());
 });
-const WAVE_BREAK = 12, SIEGE_RATE = 0.8; // seconds between waves; gate health lost per second per attacker at it
+const SIEGE_RATE = 0.8; // gate health lost per second per attacker at it
 const ATK_SPEED = 0.7; // attackers move at this fraction of normal bot speed
 const WAVE_SIZES = [4, 8, 12], waveSize = n => WAVE_SIZES[Math.min(n, WAVE_SIZES.length) - 1]; // attackers in each wave, all on the field at once
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
@@ -1894,7 +1896,7 @@ function damageCore(amt) {
   }
 }
 // Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match.
-// It stands open between waves so anyone who fell outside can get back in, and shuts when a wave starts.
+// It starts shut and only moves when the Apprentice works it from the computer (or when the attackers break it).
 function setGate(open, breach) {
   if (!TG || !TG.gate || TG.gate.open === open) return;
   setGateSolid(open);
@@ -1931,11 +1933,11 @@ function updateGate(dt) {
 }
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
 function startWave() {
-  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n); if (!WAVE.broken) setGate(false);
+  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n);
   if (LV.trucks) sendTrucks(WAVE.queue);
   bots.forEach(b => { b.respawnT = Math.random() * 3; });
   for (const r of remotes) if (r.role === 'atk' && !r.alive) respawn(r); // attacking players come back with each wave
-  waveNote(`Wave ${WAVE.n} of ${WAVES}: ${WAVE.broken ? 'the gate is gone' : 'the gate is shut'} and they're coming over the hills`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
+  waveNote(`Wave ${WAVE.n} of ${WAVES}: trucks on the road${WAVE.broken ? ', and the gate is gone' : gateOpen() ? ', and the gate is open' : ''}`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
 }
 function updateWaves(dt) {
   if (MODE !== 'defend' || matchOver) return;
@@ -1945,17 +1947,17 @@ function updateWaves(dt) {
   WAVE.left = alive + WAVE.queue;
   if (WAVE.phase === 'prep') {
     const was = WAVE.t; WAVE.t -= dt;
-    if (was > 4 && WAVE.t <= 4 && !WAVE.broken) waveNote('The gate closes in 4 seconds');
     if (WAVE.t <= 0) startWave(); return;
   }
   if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) { WAVE.broken = true; setGate(true, true); } }
   if (!alive && WAVE.queue <= 0) {
     if (WAVE.n >= WAVES) { endMatch(null, true); return; }
-    // Between waves the gate is patched up and opened (once broken it stays down for good), the computer is repaired a little
-    // and every health box is restocked
-    WAVE.phase = 'prep'; WAVE.t = WAVE_BREAK; WAVE.hp = WAVE.broken ? 0 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
-    setGate(true); HEALS.forEach(h => setHeal(h, true));
-    waveNote(`Wave ${WAVE.n} cleared. ${WAVE.broken ? 'The gate is gone for good' : 'The gate is open'}: restock and get back inside`); sTone([523, 659, 784], 0.12, 'square', 0.1);
+    // The next wave sets off straight away (the trucks' drive in is the breather). The gate is patched up a little (once
+    // broken it stays down for good), the computer is repaired a little and every health box is restocked
+    WAVE.hp = WAVE.broken ? 0 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
+    HEALS.forEach(h => setHeal(h, true));
+    sTone([523, 659, 784], 0.12, 'square', 0.1);
+    startWave(); waveNote(`Wave ${WAVE.n - 1} beaten. Wave ${WAVE.n} of ${WAVES} is on the road`);
   }
 }
 // Attackers come out of cover behind the hills, spread a little around each spawn point
@@ -2000,7 +2002,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 8, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); setGate(true);
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); setGate(false); // the gate starts shut
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
   } else ents.forEach(respawn);
@@ -3009,7 +3011,7 @@ function setPlaying(on) {
   if (on) applySettings();
   locked = on;
   $('overlay').style.display = on || matchOver ? 'none' : 'flex';
-  $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = '';
+  $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
   if (!on) {
     closeChat(); setAway(false); setMonitor(false);
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
@@ -3148,6 +3150,11 @@ function renderPreview(dt) {
 // ---------- Round results ----------
 $('slimit').oninput = e => $('olimit').textContent = e.target.value;
 $('restart').onclick = () => $('next').onclick();
+// Back to the title page: a fresh start (a host leaving ends the game for everyone who joined; a guest just leaves)
+$('tomenu').onclick = () => {
+  if (NET.role === 'host' && remotes.length && !confirm('Leave the game? Everyone who joined you will be disconnected.')) return;
+  location.assign(location.pathname);
+};
 // Title page: pick a game. Everything has been loading behind it since the page opened.
 function chooseMode(fort) {
   selLevel = fort ? 'fortress' : selLevel === 'fortress' ? 'complex' : selLevel;
@@ -3458,6 +3465,8 @@ function updateTrucks(dt) {
     if (tr.state === 'drive') {
       const c = tr.route[tr.pi], dx = c.x - tr.pos.x, dz = c.z - tr.pos.z;
       if (Math.hypot(dx, dz) < 1.8) { if (++tr.pi >= tr.route.length) tr.state = 'park'; continue; }
+      const fx = Math.sin(tr.yaw), fz = Math.cos(tr.yaw);
+      if (trucks.some(o => o !== tr && o.state !== 'wait' && o.state !== 'drive' && Math.hypot(o.pos.x - tr.pos.x, o.pos.z - tr.pos.z) < TRUCK.len + 3 && (o.pos.x - tr.pos.x) * fx + (o.pos.z - tr.pos.z) * fz > 0)) { tr.state = 'park'; continue; }
       const want = Math.atan2(dx, dz); tr.yaw = turn(tr.yaw, want, TRUCK.turn * dt);
       const v = TRUCK.speed * (Math.abs(wrap(want - tr.yaw)) > 0.7 ? 0.35 : 1) * dt;
       tr.pos.x += Math.sin(tr.yaw) * v; tr.pos.z += Math.cos(tr.yaw) * v;
