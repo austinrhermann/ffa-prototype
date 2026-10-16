@@ -311,6 +311,49 @@ def _write_glb(path, gltf, bin_chunk):
         f.write(body)
 
 
+def attach_orphan_bones(path, rig_name):
+    """Blender 5.0.1's glTF exporter, with pose_position='POSE' + export_rest_position_armature=True + NLA-track animations
+    (what a posed, animated export needs), keeps a handful of non-deform Rigify control bones in the output to preserve the
+    DEF bones' true parent chain - but fails to attach some of them as a child of anything, including the armature's own
+    root node. Three.js's GLTFLoader (like any correct glTF consumer) only instantiates nodes reachable from scene.nodes, so
+    those bones - and every DEF bone beneath them - are invisible to the game, even though the GLB technically "has" them.
+
+    The orphaned bones' own local transforms are still correct: inspect_poses.py's model-space rest check, which treats an
+    unparented node as already being in its own root space, matches the character GLB on every shared bone name regardless.
+    So the fix is purely structural - reattach each orphan under the rig root without touching any transform."""
+    gltf, bin_chunk = _read_glb(path)
+    nodes = gltf['nodes']
+    rig_idx = next((i for i, n in enumerate(nodes) if n.get('name') == rig_name), None)
+    if rig_idx is None:
+        print('WARNING:', rig_name, 'not found in', path, '- cannot fix orphan bones'); return
+
+    def reachable():
+        roots = gltf['scenes'][gltf.get('scene', 0)]['nodes']
+        seen, stack = set(), list(roots)
+        while stack:
+            i = stack.pop()
+            if i in seen: continue
+            seen.add(i)
+            stack.extend(nodes[i].get('children', []))
+        return seen
+
+    reattached = []
+    for _ in range(len(nodes)):
+        seen = reachable()
+        if len(seen) == len(nodes):
+            break
+        child_of = {c for n in nodes for c in n.get('children', [])}
+        orphan_roots = [i for i in range(len(nodes)) if i not in seen and i not in child_of and i != rig_idx]
+        if not orphan_roots:
+            break   # nodes are unreachable but all have a (likewise unreachable) parent - nothing safe to patch
+        for i in orphan_roots:
+            nodes[rig_idx].setdefault('children', []).append(i)
+            reattached.append(nodes[i].get('name'))
+    if reattached:
+        print('  reattached orphaned bone node(s) under', rig_name + ':', reattached)
+        _write_glb(path, gltf, bin_chunk)
+
+
 def inject_sockets(path, socket_data):
     gltf, bin_chunk = _read_glb(path)
     nodes = gltf['nodes']
@@ -360,6 +403,7 @@ def export_current_file(game, char):
         export_animations=True, export_animation_mode='NLA_TRACKS',
         export_force_sampling=True, export_optimize_animation_size=False,
         export_rest_position_armature=True, export_yup=True, export_materials='NONE')
+    attach_orphan_bones(outpath, rig.name)
     inject_sockets(outpath, socket_data)
     restore_bone_parents(rig, reparented)
 

@@ -11,6 +11,13 @@ Reports:
   - Socket_* nodes: parent node and local TRS
   - posed-vs-rest: per clip, how many of its bones differ from that node's default (rest) value
     at the clip's first keyframe. 0 means the clip hasn't been posed yet.
+  - reachability check: every one of the skin's joints must be reachable from scenes[0].nodes by
+    walking "children" arrays. A glTF consumer (three.js's GLTFLoader included) only instantiates
+    nodes it can reach from the scene root; a joint that technically exists in the JSON but isn't
+    wired into that tree is invisible to the game even though this file's rest check and clip data
+    look fine. Blender 5.0.1's exporter has been seen doing exactly this - keeping a few non-deform
+    Rigify control bones in the output without attaching them (or the DEF bones under them) to
+    anything - so this check exists specifically to catch that class of bug again.
   - rest check: every node name shared by both files must land at the same default (bind-pose)
     position in *model space* (its own local transform composed with every ancestor's, up to the
     scene root) within 1e-4, as a 4x4 matrix comparison (robust to the rotation/-rotation
@@ -26,7 +33,8 @@ Reports:
 Usage:
   python3 tools/inspect_poses.py <CharName> [models_dir]
 
-Exits non-zero if either file is missing or the rest check fails.
+Exits non-zero if either file is missing, a skin joint is unreachable from the scene root, or the
+rest check fails.
 """
 import json
 import os
@@ -182,6 +190,30 @@ def report_pose_diffs(doc, bin_chunk):
         print(f"  {anim.get('name', '<unnamed>')!r}: {len(posed)}/{len(total)} bone(s) differ from rest{note}")
 
 
+def reachable_from_scene(doc):
+    nodes = doc.get('nodes', [])
+    scenes = doc.get('scenes', [])
+    roots = scenes[doc.get('scene', 0)]['nodes'] if scenes else []
+    seen, stack = set(), list(roots)
+    while stack:
+        i = stack.pop()
+        if i in seen: continue
+        seen.add(i)
+        stack.extend(nodes[i].get('children', []))
+    return seen
+
+
+def reachability_check(doc):
+    nodes = doc.get('nodes', [])
+    seen = reachable_from_scene(doc)
+    unreachable = []
+    for skin in doc.get('skins', []):
+        for j in skin.get('joints', []):
+            if j not in seen:
+                unreachable.append(node_name(nodes, j))
+    return unreachable
+
+
 def mat_mul(a, b):
     # column-major 4x4, as glTF stores them
     return tuple(sum(a[k * 4 + r] * b[c * 4 + k] for k in range(4)) for c in range(4) for r in range(4))
@@ -247,15 +279,30 @@ def main():
     print('\nPosed vs rest (first keyframe vs node default, per clip):')
     report_pose_diffs(poses_doc, poses_bin)
 
+    print('\nReachability check (every skin joint reachable from the scene root):')
+    unreachable_joints = reachability_check(poses_doc)
+    failed = False
+    if unreachable_joints:
+        failed = True
+        print(f'  FAIL: {len(unreachable_joints)} joint(s) not reachable from scenes[0].nodes:')
+        for name in unreachable_joints:
+            print(f'    {name}')
+    else:
+        print('  OK: every joint is reachable')
+
     print(f'\nRest check (poses vs base, model space, tol={TOLERANCE}):')
     common, mismatches = rest_check(base_doc, poses_doc)
     print(f'  {len(common)} shared node names checked')
     if mismatches:
+        failed = True
         print(f'  FAIL: {len(mismatches)} mismatch(es):')
         for name, diff in mismatches:
             print(f'    {name}: max abs diff {diff:.6f}')
+    else:
+        print('  OK: all shared nodes match within tolerance')
+
+    if failed:
         sys.exit(1)
-    print('  OK: all shared nodes match within tolerance')
 
 
 if __name__ == '__main__':
