@@ -254,8 +254,8 @@
     if (touching) {
       if (inp.thr > 0 && !inp.hand) vf += (vf < -0.5 ? p.brake : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt; // the handbrake cuts the engine
       else if (inp.thr < 0) vf -= (vf > 0.5 ? p.brake : p.power * 0.5 * Math.max(0, 1 + vf / rev)) * -inp.thr * dt;
+      vf -= G * Math.sin(v.pitch) * dt; // rolling up and down slopes and ramps (before the brakes, so a handbrake holds on a hill)
       const res = (0.5 + (inp.hand ? p.hand : 0)) * dt; vf -= Math.sign(vf) * Math.min(Math.abs(vf), res);
-      vf -= G * Math.sin(v.pitch) * dt; // rolling up and down slopes and ramps
       vr *= Math.exp(-(inp.hand ? p.slide : p.grip) * dt);
     }
     vf -= 0.0009 * vf * Math.abs(vf) * dt;

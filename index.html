@@ -520,7 +520,7 @@ function levelFortress() {
     mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'defend', look: true,
     // Attackers ride in along the road (world [x, z], from its far end behind the hill up to the gate) and get out
     // this far (m) from the gate, later trucks parking further back down the road
-    trucks: { drop: [20, 30], road: [[23.3, 60.8], [15, 57.5], [8.3, 54.2], [1, 49.8], [-5.8, 47], [-11, 43.8], [-15, 40.5], [-18, 37], [-19.5, 32], [-19.5, 27], [-18.3, 23.3], [-15, 21], [-11.7, 19.5], [-7.5, 17.5], [-4.5, 14], [-2.5, 10.8], [-1.6, 6.7]] },
+    trucks: { drop: [20, 30], near: 3, road: [[23.3, 60.8], [15, 57.5], [8.3, 54.2], [1, 49.8], [-5.8, 47], [-11, 43.8], [-15, 40.5], [-18, 37], [-19.5, 32], [-19.5, 27], [-18.3, 23.3], [-15, 21], [-11.7, 19.5], [-7.5, 17.5], [-4.5, 14], [-2.5, 10.8], [-1.6, 6.7]] },
     cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
     // Defenders: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room)
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2]],
@@ -530,7 +530,15 @@ function levelFortress() {
     pickups: [['shotgun', -1.0, 34, 2.3]], // a shotgun in the courtyard; dead pirates drop their carbines too
     vehicles: [['sport', -2.6, -2.2, 0]], // a motorcycle in the courtyard, facing the gate (vehicles.js); the trucks come with the waves
     cannon: [-1.9, 37.5, 4.25], // the Computer's cannon on the wall walk over the gate
-    ladders: [], // stairs everywhere now
+    // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
+    ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
+    window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
+    balcony: { x0: 4.2, x1: 7.1, z0: -2.9, z1: -1.6, y: 44.95 },
+    // An invisible fence along the rim of the valley between the fort and the hill (soldiers kept falling in): [x, z, top]
+    fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
+      [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
+    // A door at the tower's entrance from the back corridor: open until a defender locks it (E); attackers break it down
+    towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
     // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room.
     // The gate is two doors at the courtyard end of the passage under the wall walk, hinged at the sides
     gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
@@ -572,7 +580,9 @@ function buildGrid(id) {
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
   MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
+  if (L.mesh) addSetExtras(L);
   TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
+  if (TG && L.towerDoor) setSolid('door', true); // the door starts open
   if (TG) { buildTerrainNav(); WALK.length = 0; for (let n = 0; n < N; n++) if (walk0(n)) WALK.push(n); return L; }
   // Second-floor walls sit above ground cells that border second-floor walkways
   for (let r = 0; r < GD; r++) for (let c = 0; c < GW; c++) {
@@ -585,6 +595,27 @@ function buildGrid(id) {
   for (let i = 0; i < N; i++) if (walk0(i)) { if (H[i] < 0 && !STAIR[i]) OVER[i] = 0; else if (U[i]) OVER[i] = F2 - SLAB; else if (UW[i]) OVER[i] = F2; }
   WALK.length = 0; for (let n = 0; n < 2 * N; n++) if (nodeValid(n)) WALK.push(n);
   return L;
+}
+// Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
+function addSetExtras(L) {
+  const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
+  if (!col || col.userData.extras) return; col.userData.extras = true;
+  const cm = new THREE.MeshBasicMaterial({ visible: false }), wood = toonMat({ color: 0x6b4a2e }), dark = toonMat({ color: 0x3e2a1a });
+  const box = (g, m, x0, x1, y0, y1, z0, z1) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.castShadow = o.receiveShadow = true; g.add(o); o.updateMatrixWorld(); return o; };
+  const both = (x0, x1, y0, y1, z0, z1, m = wood) => { box(col, cm, x0, x1, y0, y1, z0, z1); box(draw, m, x0, x1, y0, y1, z0, z1); };
+  if (L.fence) for (let i = 0; i + 1 < L.fence.length; i++) { // tall see-through panels from the valley floor up past head height
+    const [x0, z0, t0] = L.fence[i], [x1, z1, t1] = L.fence[i + 1], len = Math.hypot(x1 - x0, z1 - z0) + 0.3, top = Math.max(t0, t1), bot = 8;
+    const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
+  }
+  if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
+  if (L.balcony) {
+    const b = L.balcony, y = b.y;
+    both(b.x0, b.x1, y - 0.18, y, b.z0, b.z1); // the deck
+    both(b.x0, b.x1, y + 0.9, y + 1.0, b.z0, b.z0 + 0.08, dark); both(b.x0, b.x0 + 0.08, y + 0.9, y + 1.0, b.z0, b.z1, dark); both(b.x1 - 0.08, b.x1, y + 0.9, y + 1.0, b.z0, b.z1, dark); // rails
+    box(col, cm, b.x0, b.x1, y, y + 0.9, b.z0, b.z0 + 0.08); box(col, cm, b.x0, b.x0 + 0.08, y, y + 0.9, b.z0, b.z1); box(col, cm, b.x1 - 0.08, b.x1, y, y + 0.9, b.z0, b.z1); // no falling off
+    for (const [x, z] of [[b.x0, b.z0], [b.x1, b.z0], [b.x0, b.z1], [b.x1, b.z1], [(b.x0 + b.x1) / 2, b.z0]]) box(draw, dark, x - 0.05, x + 0.05, y, y + 0.95, z - 0.05, z + 0.05); // posts
+    for (const x of [b.x0 + 0.3, b.x1 - 0.3]) { const o = box(draw, dark, x - 0.05, x + 0.05, y - 1.3, y - 0.18, b.z1 - 0.9, b.z1 - 0.8); o.rotation.x = 0.7; } // braces
+  }
 }
 // ===LEVELS-END
 
@@ -670,6 +701,7 @@ function buildWorld(L) {
     col.traverse(o => { if (o.isMesh && !o.userData.water && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
     for (const l of L.ladders || []) levelGroup.add(makeLadder(l));
     if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
+    if (L.towerDoor) levelGroup.add(buildTowerDoor(L.towerDoor));
     return;
   }
   MAT.wall.color.setHex(L.wall);
@@ -855,7 +887,7 @@ function buildTG(root) {
   const gm = LV.gate ? root.getObjectByName(LV.gate.mesh) : null;
   if (gm) { if (gm.userData.y0 === undefined) gm.userData.y0 = gm.position.y; gm.position.y = gm.userData.y0; }
   root.updateMatrixWorld(true);
-  const T = [], B = [], NR = [], water = [], OUT = [], gate = [];
+  const T = [], B = [], NR = [], water = [], OUT = [], gate = [], toggles = {};
   const a = new V3(), b = new V3(), c = new V3(), e1 = new V3(), e2 = new V3(), n = new V3();
   root.traverse(m => {
     if (!m.isMesh) return;
@@ -867,6 +899,7 @@ function buildTG(root) {
       n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a)); const l = n.length(); if (l < 1e-9) continue; n.divideScalar(l);
       if (m.userData.water) { water.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); continue; }
       if (m === gm) gate.push(NR.length / 3);
+      if (m.userData.toggle) (toggles[m.userData.toggle] = toggles[m.userData.toggle] || []).push(NR.length / 3);
       T.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); NR.push(n.x, n.y, n.z); OUT.push(m.material.name === 'FX_Ground' ? 1 : 0);
       B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
     }
@@ -885,11 +918,21 @@ function buildTG(root) {
   for (let t = 0; t < nt; t++) each(t, k => { list[fillAt[k]++] = t; });
   const G = { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
   G.gate = { mesh: gm, tris: gate, T: gate.map(t => G.T.slice(t * 9, t * 9 + 9)), B: gate.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false, y: 0 };
+  G.toggles = {}; for (const [k, tris] of Object.entries(toggles)) G.toggles[k] = { tris, T: tris.map(t => G.T.slice(t * 9, t * 9 + 9)), B: tris.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false };
   return G;
 }
 // Opening the gate takes its triangles out of play (collapsed to a point far away, so floors, walls and rays all miss them)
 function setGateSolid(open) {
   const g = TG && TG.gate; if (!g || g.open === open) return;
+  g.open = open;
+  g.tris.forEach((t, k) => {
+    if (open) { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); }
+    else { TG.T.set(g.T[k], t * 9); TG.B.set(g.B[k], t * 6); }
+  });
+}
+// Switch a named piece of collision (the tower door) between solid and open
+function setSolid(name, open) {
+  const g = TG && TG.toggles && TG.toggles[name]; if (!g || g.open === open) return;
   g.open = open;
   g.tris.forEach((t, k) => {
     if (open) { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); }
@@ -2260,7 +2303,7 @@ function startWave() {
   waveNote(`Wave ${WAVE.n} of ${WAVES}: trucks on the road${WAVE.broken ? ', and the gate is gone' : gateOpen() ? ', and the gate is open' : ''}`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
 }
 function updateWaves(dt) {
-  if (MODE !== 'defend' || matchOver) return;
+  if (MODE !== 'defend' || matchOver || WAVE.phase === 'won') return;
   let alive = 0, siege = 0;
   for (const b of bots) if (b.alive) { alive++; if (atGate(b)) siege++; }
   for (const r of remotes) if (r.alive && r.role === 'atk' && atGate(r)) siege++;
@@ -2271,7 +2314,10 @@ function updateWaves(dt) {
   }
   if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) { WAVE.broken = true; setGate(true, true); } }
   if (!alive && WAVE.queue <= 0) {
-    if (WAVE.n >= WAVES) { endMatch(null, true); return; }
+    if (WAVE.n >= WAVES) { // won: no results screen, just the island to explore in peace (Esc, then Play again)
+      WAVE.phase = 'won'; sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
+      waveNote('The fort held! The island is yours: explore it in peace. Esc, then Play again, for another go'); return;
+    }
     // The next wave sets off straight away (the trucks' drive in is the breather). The gate is patched up a little (once
     // broken it stays down for good), the computer is repaired a little and every health box is restocked
     WAVE.hp = WAVE.broken ? 0 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
@@ -2310,7 +2356,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
     if (MODE !== 'defend' && attacker !== t && attacker.kills >= KILL_LIMIT) endMatch(attacker);
-    if (MODE === 'defend' && !isAtk(t)) { WAVE.fallen = t.name; endMatch(null, false); } // lose a defender, lose the fort
+    if (MODE === 'defend' && !isAtk(t) && WAVE.phase !== 'won') { WAVE.fallen = t.name; endMatch(null, false); } // lose a defender, lose the fort (not after you've won)
   }
 }
 function resetMatch() {
@@ -2323,7 +2369,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); // the gate starts shut; the bike goes back to the courtyard
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open; the bike goes back to the courtyard
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
   } else { ents.forEach(respawn); VEH.onLevel(); } // the vehicles go back to the lot
@@ -3117,7 +3163,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else playerKnife(); }
+  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P))) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
@@ -3328,8 +3374,8 @@ function updateHUD(dt) {
   }
   if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
   if (MODE === 'defend') {
-    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep', down = gateOpen() && !prep && hp <= 0, ajar = gateOpen() && hp > 0, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
-    $('top').textContent = `${wv}   ·   ${hp <= 0 ? (down ? 'Gate down' : 'Gate destroyed') : ajar ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   You ${P.kills}/${P.deaths}`;
+    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep' || WAVE.phase === 'won', down = gateOpen() && !prep && hp <= 0, ajar = gateOpen() && hp > 0, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
+    $('top').textContent = WAVE.phase === 'won' ? `The fort held   ·   The island is yours   ·   Esc, then Play again   ·   You ${P.kills}/${P.deaths}` : `${wv}   ·   ${hp <= 0 ? (down ? 'Gate down' : 'Gate destroyed') : ajar ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   You ${P.kills}/${P.deaths}`;
     $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
@@ -3386,6 +3432,7 @@ function setPlaying(on) {
   locked = on;
   $('overlay').style.display = on || matchOver ? 'none' : 'flex';
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
+  $('restart').textContent = MODE === 'defend' && WAVE.phase === 'won' ? 'Play again' : 'Restart game';
   if (!on) {
     closeChat(); setAway(false); setMonitor(false);
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
@@ -3760,7 +3807,7 @@ function sDeath() { sTone([392, 294, 196], 0.12, 'triangle', 0.2); }
 // A heavy gun on a tripod on the wall walk over the gate. The Computer aims it at the closest attacker it can reach and fires a shell
 // that bursts like a grenade where it lands, then needs 10 s to recharge. It faces out over the hills (it can't turn round
 // into the fort) and can't tilt down far enough to hit the foot of the wall, so attackers at the gate are safe from it.
-const CANNON = { reload: 10, turn: 0.9, minPitch: -0.6, maxPitch: 0.4, maxYaw: 1.4, minRange: 25, speed: 55, range: 170, R: 8.05, dmg: 130, len: 1.7 };
+const CANNON = { reload: 10, turn: 0.9, minPitch: -0.6, maxPitch: 0.4, maxYaw: 1.4, minRange: 25, speed: 55, range: 170, R: 5.7, dmg: 130, len: 1.7 }; // R: blast radius (half the area it used to cover)
 const CPU = { name: 'Computer', role: 'computer', id: 'cpu', kills: 0, deaths: 0 };
 let CN = null;
 const shells = [];
@@ -3868,8 +3915,9 @@ function roadRoute(k) {
     const [x0, z0] = R[i], [x1, z1] = R[i + 1], m = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 2));
     for (let j = 0; j < m; j++) pts.push(new V3(x0 + (x1 - x0) * j / m, 0, z0 + (z1 - z0) * j / m));
   }
-  let end = pts.findIndex(p => Math.hypot(p.x - gx, p.z - gz) < LV.trucks.drop[0] + 3); if (end < 0) end = pts.length - 1;
-  pts.length = Math.max(2, end + 1 - (k % 3) * 4); // later trucks stop 8 m apart further down
+  // Right up to the gate (inside the cannon's minimum range); later trucks stop behind the ones already there
+  let end = pts.findIndex(p => Math.hypot(p.x - gx, p.z - gz) < LV.trucks.near); if (end < 0) end = pts.length - 1;
+  pts.length = Math.max(2, end + 1);
   for (const p of pts) p.y = groundAt(p.x, p.z, 120) || 0;
   return pts;
 }
@@ -3960,6 +4008,67 @@ function updateTrucksVis(dt) {
   }
 }
 
+// ---------- The tower door: open until a defender locks it; attackers pressed against it break it down ----------
+const TDOOR = { state: 'open', hp: 0, a: -Math.PI / 2, hinge: null, panel: null };
+function buildTowerDoor(d) {
+  const g = new THREE.Group(), hinge = new THREE.Group(), w = d.x1 - d.x0, h = d.y1 - d.y0;
+  hinge.position.set(d.x0, d.y0, d.z); g.add(hinge);
+  const add = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); return o; };
+  add(DOOR_WOOD, w / 2, h / 2, 0, w - 0.04, h - 0.03, 0.09);
+  for (const y of [0.35, h / 2, h - 0.35]) add(DOOR_IRON, w / 2, y, 0.05, w - 0.1, 0.09, 0.02);
+  add(DOOR_IRON, w - 0.18, h * 0.48, 0.07, 0.06, 0.18, 0.05); // the handle
+  TDOOR.hinge = hinge; TDOOR.panel = hinge; return g;
+}
+function resetTowerDoor() { TDOOR.state = 'open'; TDOOR.hp = LV && LV.towerDoor ? LV.towerDoor.hp : 0; setSolid('door', true); }
+function setTowerDoor(state) {
+  if (TDOOR.state === state) return;
+  TDOOR.state = state; setSolid('door', state !== 'closed');
+  const d = LV.towerDoor, p = new V3((d.x0 + d.x1) / 2, d.y0 + 1.1, d.z);
+  if (state === 'broken') { _boomFx(p, 0.8); sBoom(vol(p, 60) * 0.5); }
+  else if (AC && vol(p, 40) > 0.02) thump(AC.currentTime, 0.25, 0.8 * vol(p, 40), 140, 50); // a wooden thud
+}
+const nearTowerDoor = e => { const d = LV && LV.towerDoor; return !!d && e.alive && Math.hypot(e.pos.x - (d.x0 + d.x1) / 2, e.pos.z - d.z) < 1.8 && Math.abs(e.pos.y - d.y0) < 1.5; };
+// E at the door: a defender locks it shut or opens it again (the host decides)
+function useTowerDoor(e) {
+  if (TDOOR.state === 'broken' || isAtk(e)) return false;
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'tdoor' }); return true; }
+  setTowerDoor(TDOOR.state === 'open' ? 'closed' : 'open');
+  waveNote(TDOOR.state === 'closed' ? `${e.name === 'You' && e.isPlayer ? 'You' : e.name} locked the tower door` : `The tower door is open`);
+  return true;
+}
+// Host: attackers on the corridor side of a locked door batter it
+function updateTowerDoor(dt) {
+  const d = LV && LV.towerDoor; if (!d || NET.role === 'guest' || TDOOR.state !== 'closed' || matchOver) return;
+  let n = 0; const cx = (d.x0 + d.x1) / 2;
+  for (const e of ents) if (e.alive && isAtk(e) && e.pos.z < d.z && Math.hypot(e.pos.x - cx, e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5) n++;
+  if (!n) return;
+  TDOOR.hp -= n * dt;
+  if (TDOOR.hp <= 0) { TDOOR.hp = 0; setTowerDoor('broken'); waveNote('They broke down the tower door'); }
+}
+// Everyone: swing the panel to where the door is (broken: knocked flat into the room)
+function updateTowerDoorVis(dt) {
+  if (!TDOOR.hinge || !LV || !LV.towerDoor) return;
+  const want = TDOOR.state === 'closed' ? 0 : -Math.PI / 2;
+  TDOOR.a += Math.max(-4 * dt, Math.min(4 * dt, want - TDOOR.a));
+  TDOOR.hinge.rotation.set(TDOOR.state === 'broken' ? 1.45 : 0, TDOOR.state === 'broken' ? -0.2 : TDOOR.a, 0);
+  TDOOR.hinge.visible = true;
+}
+
+// ---------- 5. The tower's back window: climb out onto the balcony (and the ladder to the roof), or back in ----------
+function windowSide(e) {
+  const w = LV && LV.window; if (!w || !e.alive) return null;
+  const [ix, iy, iz] = w.inside, [ox, oy, oz] = w.outside;
+  if (Math.hypot(e.pos.x - ix, e.pos.z - iz) < 1.0 && Math.abs(e.pos.y - iy) < 1) return 'out';
+  if (Math.hypot(e.pos.x - ox, e.pos.z - oz) < 1.1 && Math.abs(e.pos.y - oy) < 1) return 'in';
+  return null;
+}
+function climbWindow(side) {
+  const w = LV.window, [x, y, z] = side === 'out' ? w.outside : w.inside;
+  P.pos.set(x, y + 0.02, z); P.vel.set(0, 0, 0); P.viewY = y + 1.6;
+  P.yaw = side === 'out' ? -Math.PI / 2 : Math.PI; P.pitch = 0; // out: facing the ladder; in: facing into the room
+  if (side === 'out') hint('roofladder', 'The ladder beside the window goes up to the roof: walk into it to climb', 4);
+}
+
 // ---------- The Computer's monitor: a map with the attackers on it, and the gate switch ----------
 let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
 function nearComputer(e) {
@@ -3994,7 +4103,12 @@ function takeOver(r) {
 function updateComputer() {
   const near = locked && !chatOpen && nearComputer(P);
   if (monitorOpen && !near) setMonitor(false);
-  $('cprompt').style.display = near && !monitorOpen ? 'block' : 'none';
+  // What E does here: the window, the computer, the tower door
+  let text = null; const ws = locked && !chatOpen && !monitorOpen ? windowSide(P) : null;
+  if (ws) text = ws === 'out' ? 'E: climb out the window' : 'E: climb back in';
+  else if (near && !monitorOpen) text = 'E: use the computer';
+  else if (locked && !chatOpen && nearTowerDoor(P) && TDOOR.state !== 'broken' && !isAtk(P)) text = TDOOR.state === 'open' ? 'E: close and lock the door' : 'E: open the door';
+  $('cprompt').style.display = text ? 'block' : 'none'; if (text) $('cprompt').textContent = text;
   if (monitorOpen) drawMap();
 }
 // The level's floors as a top-down picture, attackers' side (+z) at the top, as seen looking out from the fort
@@ -4146,6 +4260,7 @@ function onGuestMsg(conn, m) {
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
+    case 'tdoor': if (nearTowerDoor(r)) useTowerDoor(r); break;
     case 'take': takeOver(r); break;
     case 'thit': { const tr = trucks[m.i | 0]; if (tr && r.alive) damageTruck(tr, Math.min(200, Math.max(0, +m.amt || 0))); break; }
     default: VEH.onGuestMsg(r, m);
@@ -4171,7 +4286,7 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
-    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
+    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : WAVE.phase === 'won' ? -2 : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
     cn: CN ? [+CN.yaw.toFixed(3), +CN.pitch.toFixed(3), +CN.cd.toFixed(1)] : null,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
@@ -4184,6 +4299,7 @@ function snapshot() {
     hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
     vh: VEH.netSnapshot(),
+    td: LV && LV.towerDoor ? ['open', 'closed', 'broken'].indexOf(TDOOR.state) : null,
   };
 }
 
@@ -4245,7 +4361,7 @@ function applySnapshot(s) {
   KILL_LIMIT = s.lim; matchOver = s.over;
   if (Array.isArray(s.wv)) {
     const [n, total, left, hp, t, core, open] = s.wv, was = WAVE.core;
-    Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
+    Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : t === -2 ? 'won' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
     WAVE.broken = WAVE.hp <= 0; // the gate only breaks once, so a gate at 0% is gone for good
     if (WAVE.core < was) coreFlash = 0.12;
     setGate(!!open);
@@ -4275,6 +4391,7 @@ function applySnapshot(s) {
   }
   for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); }
   VEH.applyNet(s.vh); syncGuestTrucks();
+  if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
   const keys = new Set();
   for (const [key, wid, p, a] of s.pk) {
     keys.add(key);
@@ -4399,6 +4516,7 @@ function loop(now) {
     updateGun(dt);
     bots.forEach(b => updateBot(b, dt));
     updateWaves(dt);
+    updateTowerDoor(dt);
     updateCannon(dt);
     updateTrucks(dt);
     updateRemotes(dt);
@@ -4417,6 +4535,7 @@ function loop(now) {
   renderPreview(dt);
   updateFx(dt);
   updateGate(dt);
+  updateTowerDoorVis(dt);
   updateShells(dt);
   updateCannonVis();
   updateTrucksVis(dt);
