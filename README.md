@@ -9,7 +9,7 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
 - **Defend the Fort**: the tower defense. Its menu has two invite buttons: **Invite an apprentice** (the normal invite) and **Invite pirates** (`&team=pirates`, joins as an attacker). The rules, role choice, difficulty and controls are behind the **Instructions and controls** switch.
 
-- **Test Drive**: a sandbox for vehicles (see below), where the vehicle mechanics get worked out before they go into the other games.
+- **Test Drive**: a little stadium oval with cars and motorcycles to drive, tune and crash, with friends (see below). It's where the vehicle mechanics get worked out before they go into the other games.
 
 Each menu shows only what you need to start (the arena: level and Play); everything else is behind its **Options and controls** switch, including mouse sensitivity and whether right click holds or toggles aim (remembered in your browser). **Play again** on the title page starts the last game you hosted.
 
@@ -76,13 +76,14 @@ Import the repo in Vercel, framework preset **Other**, no build command, output 
 
 ## Test Drive
 
-A 2 km flat test ground (open it directly with `?level=drive`): a vehicle lot, a 600 m runway with a hangar, a paved loop track, a jump park (three ramp sizes, and a kicker with a landing ramp), a few buildings and a pair of pylons to fly between. Walk up to a vehicle and press **E** to get in; **V** switches between the chase view and the driver's seat. No bots and no score yet, and it's single player for now (friends can't join a Test Drive game).
+A little stadium oval (open it directly with `?level=drive`): two 120 m straights and banked turns, a tall outer wall with a catch fence so nobody leaves the track, a low inner wall with a gap onto the infield, and three ramps on the straights (each covers half the track, so you can hit it or drive round it). The infield parking lot has six open-chassis cars (Kart, two Roadsters, Muscle, Buggy, Hauler) and two motorcycles (Sport bike, Dirt bike). Nobody carries a gun, and on foot you're in third person. Walk up to a vehicle and press **E**.
 
-All of it lives in `vehicles.js` (the main game calls into it through `VEH`):
+- **Cars** are bare chassis: frame, floor, two seats, a steering wheel and four wheels, so the driver's-seat view (**V**) has nothing in the way. The bikes lean into turns.
+- **Driving**: W/S throttle, brake and reverse; A/D steer; Space handbrake; R puts you back on your wheels where you are. Wheels follow the banking and ramps, you fly off ramp lips, W/S tip the nose in the air, and the body dives, squats, rolls and bounces on its suspension. A lap timer runs from the line on the front straight (last and best lap in the corner).
+- **Tuning (Tab in a vehicle)**: sliders for acceleration, top speed, brakes, reverse, handbrake power and grip, steering lock (with the turning radius it gives) and how it fades with speed, tyre grip and cornering limit, weight, length, width, wheel size, suspension stiffness, damping and travel, lean (bikes), gravity, nose control in the air and how hard you bounce off walls. Changes apply as you drag, to that vehicle, for everyone in the game. **Use these on every car** copies them across; **Copy settings** puts the numbers on the clipboard. Tab again (or Drive) goes back to driving.
+- **Multiplayer**: the normal invite link. Whoever drives a vehicle simulates it on their own machine and sends its state; the host simulates the parked ones and relays everything. In a crash each machine pushes the vehicles it simulates using the other's reported speed and weight, so both cars react. Other drivers are seen sitting in their seats.
 
-- **Car, truck, motorcycle**: arcade driving physics. Throttle and brakes (reverse once stopped), steering that tightens at low speed, tyre grip that caps how hard you can corner, and a handbrake (Space) that lets the back slide out. Suspension follows the ground under the wheels, so ramps launch you; W and S tip the nose in the air. Vehicles bump off walls and each other (the heavy truck shoves the car), and people on foot can't walk through them. The motorcycle leans into turns and sits on its kickstand when stopped. The engine note climbs through the gears, and the tyres squeal when you slide.
-- **Plane**: W/S throttle, the mouse is the stick (pull back to climb, sideways to roll), A/D the rudder in the air and the nose wheel on the ground, Space the wheel brakes. Lift grows with speed and with the nose up (it lifts off at about 125 km/h), banking turns you, slow flight stalls and the nose drops, and a hard or crooked landing (or hitting a building) is a crash; the plane goes back to the runway after a few seconds.
-- The ground and buildings are generated in `vehicles.js`, not loaded from a file.
+All of it lives in `vehicles.js` (the main game calls into it through `VEH`); the stadium is generated there too, not loaded from a file. The earlier truck and plane are in the git history (commit 7315060).
 
 ## Creek
 

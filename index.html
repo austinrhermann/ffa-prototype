@@ -94,7 +94,8 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .tbtns button:hover{background:#1f1f1f}
 #tload{color:#fff;opacity:.8;text-shadow:0 1px 6px #000;min-height:1em}
 body.guest #title{display:none}
-#maincard:not(.fort) .fort-only,#maincard.fort .arena-only,#maincard.drive .arena-only,#maincard:not(.drive) .drive-only{display:none!important}
+#maincard.drive .nodrive{display:none!important}
+#maincard:not(.fort) .fort-only,#maincard.fort .arena-only,#maincard.drive .arena-only:not(.drive-show),#maincard:not(.drive) .drive-only{display:none!important}
 #maincard:not(.fine) #fineprint{display:none}
 #goagain{display:block;margin:0 auto;background:none;border:0;color:#fff;font:600 16px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px;cursor:pointer;text-shadow:0 1px 6px #000;padding:6px}
 #fortintro{font-size:16px;line-height:1.45}
@@ -206,10 +207,10 @@ body.touch .card small.tc{display:block}
 <div id="overlay"><div class="cards"><div class="card" id="maincard">
   <button type="button" id="totitle" class="hostonly linkbtn">‹ Back</button>
   <h1 id="mtitle">Free for all</h1>
-  <p class="drive-only" id="driveintro">A big flat test ground for vehicles. Walk up to the car, the truck, the motorcycle or the plane and press E to get in.</p>
+  <p class="drive-only" id="driveintro">A little stadium oval with walls, ramps and banked turns. Walk up to a car or a motorcycle in the infield parking lot and press E to drive. In a vehicle, Tab opens its tuning: acceleration, brakes, steering, weight, size, suspension. Invite friends to race and crash into each other.</p>
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
   <div class="set hostonly fort-only" id="fortinv"><div class="invbtns"><button type="button" id="invapp">Invite an apprentice</button><button type="button" id="invpir">Invite pirates</button></div><small id="roster2"></small></div>
-  <div class="set hostonly arena-only" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
+  <div class="set hostonly arena-only drive-show" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
   <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button></div></div>
@@ -217,7 +218,7 @@ body.touch .card small.tc{display:block}
   <div id="fineprint">
   <p id="goal"></p>
   <div class="set hostonly" id="setrole"><label>Your role with a friend</label><div class="levels" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
-  <dl class="kb">
+  <dl class="kb nodrive">
     <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
     <dt>Shift</dt><dd>Run</dd>
     <dt>C</dt><dd>Crouch</dd>
@@ -235,12 +236,14 @@ body.touch .card small.tc{display:block}
   </dl>
   <dl class="kb drive-only">
     <dt>E</dt><dd>Get in or out (slow down first)</dd>
-    <dt>W / S</dt><dd>Throttle and brake, reverse when stopped (plane: throttle up and down)</dd>
-    <dt>A / D</dt><dd>Steer (plane: rudder, and the nose wheel on the ground)</dd>
-    <dt>Space</dt><dd>Handbrake, for sliding round corners (plane: wheel brakes)</dd>
-    <dt>Mouse</dt><dd>Look around (plane: the stick, pull back to climb, sideways to roll)</dd>
+    <dt>W / S</dt><dd>Throttle and brake, reverse when stopped</dd>
+    <dt>A / D</dt><dd>Steer</dd>
+    <dt>Space</dt><dd>Handbrake, for sliding round corners</dd>
+    <dt>Tab</dt><dd>Tune the vehicle you're in (Tab again to drive)</dd>
+    <dt>R</dt><dd>Back on your wheels, where you are</dd>
     <dt>V</dt><dd>Chase view or driver's seat</dd>
-    <dt>W in the air</dt><dd>Dip the nose off a jump (S lifts it)</dd>
+    <dt>Mouse</dt><dd>Look around</dd>
+    <dt>W / S in the air</dt><dd>Dip or lift the nose off a jump</dd>
   </dl>
   <dl class="tc">
     <dt>Left side</dt><dd>Drag to move, push fully to run</dd>
@@ -250,13 +253,13 @@ body.touch .card small.tc{display:block}
     <dt>Swap</dt><dd>Next weapon</dd>
     <dt>Gyro</dt><dd>Aim by moving your phone</dd>
   </dl>
-  <div class="set hostonly"><label for="sgod">God mode (you take no damage) <input type="checkbox" id="sgod" style="width:auto"></label></div>
+  <div class="set hostonly nodrive"><label for="sgod">God mode (you take no damage) <input type="checkbox" id="sgod" style="width:auto"></label></div>
   <div class="set hostonly" id="setdiff"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
   <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
   <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
   <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
   <div class="set kb" id="setsens"><label for="ssens">Mouse sensitivity <output id="osens">1.0×</output></label><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1"></div>
-  <div class="set kb"><label for="saimtog">Right click toggles aim (instead of holding it) <input type="checkbox" id="saimtog" style="width:auto"></label></div>
+  <div class="set kb nodrive"><label for="saimtog">Right click toggles aim (instead of holding it) <input type="checkbox" id="saimtog" style="width:auto"></label></div>
   </div>
   <button id="play" disabled>Loading characters…</button>
   <button id="restart" class="hostonly" style="display:none">Restart game</button>
@@ -553,13 +556,13 @@ function levelCreek() {
     fortNav: { box: [-46, -23, 46, 23], cell: 0.5, top: 7, bottom: -1.6 },
   };
 }
-// Test Drive (vehicles.js builds the ground and the vehicles): a 2 km flat test ground with a vehicle lot, a runway and
-// hangar, a loop track, a jump park and a few buildings. No bots, no score; just driving and flying.
+// Test Drive (vehicles.js builds the stadium and the vehicles): a small oval with walls, banked turns and ramps, and a
+// parking lot of cars and motorcycles in the infield. No guns, no bots, no score; everyone drives, in third person on foot.
 function levelDrive() {
   return {
     mesh: 'DriveFlat', collide: 'DriveFlat_col', mode: 'drive', vehicles: true,
-    cs: 4, ox: -128, oz: -140, killY: -30, fog: [250, 1300], far: 1800, top: 0, wall: 0,
-    spawns: [[-4, 0.5, -6], [0, 0.5, -6], [4, 0.5, -6]], ammo: [], heals: [], pickups: [], ladders: [],
+    cs: 4, ox: -128, oz: -140, killY: -30, fog: [180, 650], far: 900, top: 0, wall: 0,
+    spawns: [[-8, 0.5, 13], [-3, 0.5, 13], [2, 0.5, 13], [7, 0.5, 13], [-13, 0.5, 13], [12, 0.5, 13]], ammo: [], heals: [], pickups: [], ladders: [],
   };
 }
 const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, drive: levelDrive };
@@ -2671,7 +2674,7 @@ function vmMuzzleWorld() {
   return camera.position.clone().addScaledVector(dir, dist);
 }
 function fire() {
-  if (VEH.cur) return;
+  if (VEH.cur || MODE === 'drive') return;
   const w = WP();
   const hs = Math.hypot(P.vel.x, P.vel.z);
   const move = !P.onGround ? 0.12 : hs > 5 ? 0.16 : hs > 0.5 ? 0.012 : 0;
@@ -3078,7 +3081,8 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { cur: null, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, camera() {}, after() {}, exit() {} };
+const VEH = { cur: null, tuneOpen: false, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+  netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Input ----------
 const keys = {};
@@ -3103,7 +3107,7 @@ addEventListener('keydown', e => {
   if (chatOpen) { if (enter && !e.isComposing) { e.preventDefault(); sendChat(); } else if (e.code === 'Escape') closeChat(); return; }
   if (enter && locked && !e.repeat) { e.preventDefault(); openChat(); return; }
   keys[e.code] = true;
-  if (e.code === 'Tab') { e.preventDefault(); boardOpen = true; }
+  if (e.code === 'Tab') { e.preventDefault(); if (!e.repeat && VEH.tab()) return; boardOpen = true; }
   if (!locked || e.repeat) return;
   if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
   if (e.code === 'KeyR') reload();
@@ -3143,6 +3147,7 @@ addEventListener('mousemove', e => {
 let away = false;
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement === renderer.domElement) { setAway(false); setPlaying(true); return; }
+  if (VEH.tuneOpen) { locked = false; mouseDown = mouseRight = false; return; } // the tuning panel has the mouse
   if (!locked && !away) return;
   if (document.hidden || !document.hasFocus()) { setAway(true); return; }
   // Focus can drop a moment after the lock does, so look again before showing the pause screen
@@ -4110,7 +4115,7 @@ function onGuestMsg(conn, m) {
       if (m.team === 'pirates') r.role = 'atk'; // invited as a pirate
       const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
       sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
-      respawn(r);
+      respawn(r); VEH.welcome(r);
       note(MODE === 'defend' ? `${name} joined as the ${ROLES[r.role].name}` : `${name} joined`, 2); updateRoster(); getMic();
     } else {
       r.name = name;
@@ -4132,6 +4137,7 @@ function onGuestMsg(conn, m) {
         if (r.ammoBy[r.wpn]) { r.ammo = r.ammoBy[r.wpn].mag; r.reserve = r.ammoBy[r.wpn].res; }
       }
       r.nades = m.n | 0;
+      VEH.remoteState(r, m.vs);
       break;
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
@@ -4141,13 +4147,14 @@ function onGuestMsg(conn, m) {
     case 'gate': switchGate(r); break;
     case 'take': takeOver(r); break;
     case 'thit': { const tr = trucks[m.i | 0]; if (tr && r.alive) damageTruck(tr, Math.min(200, Math.max(0, +m.amt || 0))); break; }
+    default: VEH.onGuestMsg(r, m);
   }
 }
 function removeRemote(conn) {
   const i = remotes.findIndex(x => x.conn === conn); if (i < 0) return;
   const r = remotes[i]; remotes.splice(i, 1);
   scene.remove(r.mesh); const k = ents.indexOf(r); if (k >= 0) ents.splice(k, 1);
-  note(`${r.name} left`, 2); updateRoster(); closeVoice(conn.peer);
+  note(`${r.name} left`, 2); updateRoster(); closeVoice(conn.peer); VEH.onLeave(r);
   rekit(assignRoles());
 }
 function updateRemotes(dt) {
@@ -4176,6 +4183,7 @@ function snapshot() {
     gs: GASCANS.map(g => (g.alive ? 1 : 0)),
     hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
+    vh: VEH.netSnapshot(),
   };
 }
 
@@ -4230,7 +4238,7 @@ function onHostMsg(m) {
       $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
       if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
       break;
-    default: applyFx(m);
+    default: if (!VEH.onHostMsg(m)) applyFx(m);
   }
 }
 function applySnapshot(s) {
@@ -4273,6 +4281,7 @@ function applySnapshot(s) {
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
   for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); }
+  VEH.applyNet(s.vh);
   const keys = new Set();
   for (const [key, wid, p, a] of s.pk) {
     keys.add(key);
@@ -4314,7 +4323,7 @@ function netTick(dt) {
     syncAmmo();
     NET.conn.send({
       t: 'st', s: NET.spawnSeq, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades,
-      inv: Object.fromEntries((P.inv || []).map(id => [id, [P.ammoBy[id].mag, P.ammoBy[id].res]])),
+      inv: Object.fromEntries((P.inv || []).map(id => [id, [P.ammoBy[id].mag, P.ammoBy[id].res]])), vs: VEH.myState(),
     });
   }
   updateMicHud();
@@ -4387,9 +4396,9 @@ loadModels().then(() => {
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (NET.role === 'guest') {
-    if (!matchOver) { updatePlayer(dt); updateGun(dt); updateCook(dt); }
+    if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); updateCook(dt); }
     updateReplicas(dt, now); updateCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
