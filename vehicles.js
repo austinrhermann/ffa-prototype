@@ -17,14 +17,14 @@
     ['top', 'Top speed', 40, 400, 5, 'km/h', 'all', 'Engine'],
     ['brake', 'Brakes', 2, 40, 0.5, 'm/s²', 'all', 'Engine'],
     ['rev', 'Reverse speed', 5, 80, 1, 'km/h', 'all', 'Engine'],
-    ['hand', 'Handbrake power', 0, 25, 0.5, 'm/s²', 'all', 'Handbrake'],
-    ['slide', 'Grip on the handbrake', 0.1, 10, 0.1, '', 'all', 'Handbrake'],
-    ['steer', 'Steering lock', 8, 60, 1, '°', 'all', 'Steering'],
-    ['steerFall', 'Lock halves at', 20, 600, 10, 'km/h', 'all', 'Steering'],
-    ['steerRate', 'Steering speed', 1, 30, 0.5, '', 'all', 'Steering'],
-    ['grip', 'Tyre grip', 1, 40, 0.5, '', 'all', 'Grip'],
-    ['maxLat', 'Cornering limit', 0.3, 8, 0.05, 'g', 'all', 'Grip'],
-    ['downforce', 'Downforce', 0, 6, 0.1, 'g', 'all', 'Grip'],
+    ['steer', 'Steering lock', 8, 60, 1, '°', 'all', 'Steering and grip'],
+    ['steerFall', 'Lock halves at', 20, 600, 10, 'km/h', 'all', 'Steering and grip'],
+    ['steerRate', 'Steering speed', 1, 30, 0.5, '', 'all', 'Steering and grip'],
+    ['maxLat', 'Grip (how hard it can corner)', 0.3, 8, 0.05, 'g', 'all', 'Steering and grip'],
+    ['downforce', 'Downforce (extra grip at speed)', 0, 6, 0.1, 'g', 'all', 'Steering and grip'],
+    ['grip', 'Slide recovery', 1, 40, 0.5, '', 'all', 'Sliding and handbrake'],
+    ['hand', 'Handbrake power', 0, 25, 0.5, 'm/s²', 'all', 'Sliding and handbrake'],
+    ['slide', 'Grip on the handbrake', 0.1, 10, 0.1, '', 'all', 'Sliding and handbrake'],
     ['mass', 'Weight', 100, 6000, 10, 'kg', 'all', 'Body'],
     ['wheelbase', 'Length (wheelbase)', 1, 6, 0.05, 'm', 'all', 'Body'],
     ['track', 'Width (track)', 0.8, 3, 0.05, 'm', 'car', 'Body'],
@@ -38,27 +38,29 @@
     ['bounce', 'Bounce off walls', 0, 1.5, 0.05, '', 'all', 'Air and crashes'],
   ];
   const HELP = {
-    steerFall: 'Steering gets less sharp as you go faster; this is the speed where it is half as sharp. Max it to keep full lock at any speed.',
+    steerFall: 'The steering lock fades as you go faster; this is the speed where you get half of it. Max it for full lock at any speed (grip still limits the turn).',
     steerRate: 'How quickly the wheels turn when you press A or D. Higher is twitchier.',
-    downforce: 'Extra cornering grip that grows with speed, like a race car\'s wings: this much more at 100 km/h, four times as much at 200.',
-    slide: 'How much the tyres still hold sideways while the handbrake is on. Lower slides more.',
-    maxLat: 'The hardest the tyres can corner, in g, and the real limit on how fast you can take a turn: at 1.5 g these turns go flat out at about 93 km/h, at 3 g about 130, at 6 g about 185. The banked turns add a little.',
+    downforce: 'Extra grip that grows with speed, like a race car\'s wings (0 is none): this many g more at 100 km/h, four times as much at 200.',
+    slide: 'How much the tyres still hold sideways on the handbrake. Low lets the back swing out into a drift.',
+    maxLat: 'This is what limits turning once you\'re moving: past a walking pace the car turns only as hard as its grip allows, however far you steer. Raise it to turn harder at speed. 1.5 is a road car, 3 a race car, 6 and up a cartoon. (The banked turns add a little.)',
+    grip: 'How quickly a sideways slide straightens out. Low is drifty, high snaps straight.',
+    hand: 'How hard the handbrake stops you. It locks the back wheels and cuts the engine while you hold it.',
     mass: 'How hard you hit, and how far you get shoved, when vehicles collide.',
     travel: 'How far the body dives under braking, squats under power and leans in corners.',
   };
-  const BASE_CAR = { power: 10, top: 170, brake: 11, rev: 40, hand: 4, slide: 1.6, steer: 34, steerFall: 65, grip: 8, maxLat: 1.5, mass: 1200,
+  const BASE_CAR = { power: 10, top: 170, brake: 11, rev: 40, hand: 9, slide: 1.6, steer: 34, steerFall: 65, grip: 8, maxLat: 2.2, mass: 1200,
     wheelbase: 2.6, track: 1.6, wheelR: 0.34, spring: 2, damp: 0.5, travel: 1, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 7, downforce: 0 };
-  const BASE_BIKE = { power: 13, top: 190, brake: 10, rev: 10, hand: 4, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 1.4, mass: 230,
+  const BASE_BIKE = { power: 13, top: 190, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 2.0, mass: 230,
     wheelbase: 1.45, track: 0.3, wheelR: 0.33, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.3, steerRate: 7, downforce: 0 };
   const PRESETS = {
-    kart: { kind: 'car', name: 'Kart', color: 0xd23a2a, p: { power: 12, top: 125, steer: 38, steerFall: 80, grip: 11, maxLat: 1.9, mass: 420, wheelbase: 1.75, track: 1.3, wheelR: 0.25, spring: 3.5, travel: 0.4 } },
+    kart: { kind: 'car', name: 'Kart', color: 0xd23a2a, p: { power: 12, top: 125, steer: 38, steerFall: 80, grip: 11, maxLat: 2.8, mass: 420, wheelbase: 1.75, track: 1.3, wheelR: 0.25, spring: 3.5, travel: 0.4 } },
     roadster: { kind: 'car', name: 'Roadster', color: 0x2e63b8, p: { top: 190 } },
-    muscle: { kind: 'car', name: 'Muscle', color: 0xe08a1e, p: { power: 13, top: 215, grip: 6.5, maxLat: 1.2, slide: 1.1, mass: 1650, wheelbase: 2.95, track: 1.7, wheelR: 0.36, spring: 1.6, travel: 1.3 } },
-    buggy: { kind: 'car', name: 'Buggy', color: 0x4e9a3a, p: { power: 9, top: 150, wheelR: 0.44, track: 1.8, wheelbase: 2.4, spring: 1.2, damp: 0.35, travel: 1.6, mass: 850, grip: 7, maxLat: 1.2 } },
-    hauler: { kind: 'car', name: 'Hauler', color: 0xd9d4c7, p: { power: 6, top: 130, brake: 8, steer: 28, mass: 3200, wheelbase: 3.8, track: 2.1, wheelR: 0.45, maxLat: 0.9, spring: 1.4, travel: 1.2 } },
+    muscle: { kind: 'car', name: 'Muscle', color: 0xe08a1e, p: { power: 13, top: 215, grip: 6.5, maxLat: 1.8, slide: 1.1, mass: 1650, wheelbase: 2.95, track: 1.7, wheelR: 0.36, spring: 1.6, travel: 1.3 } },
+    buggy: { kind: 'car', name: 'Buggy', color: 0x4e9a3a, p: { power: 9, top: 150, wheelR: 0.44, track: 1.8, wheelbase: 2.4, spring: 1.2, damp: 0.35, travel: 1.6, mass: 850, grip: 7, maxLat: 1.9 } },
+    hauler: { kind: 'car', name: 'Hauler', color: 0xd9d4c7, p: { power: 6, top: 130, brake: 8, steer: 28, mass: 3200, wheelbase: 3.8, track: 2.1, wheelR: 0.45, maxLat: 1.3, spring: 1.4, travel: 1.2 } },
     roadster2: { kind: 'car', name: 'Roadster', color: 0xe3c02c, p: { top: 190 } },
     sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: {} },
-    dirt: { kind: 'bike', name: 'Dirt bike', color: 0x3a6fd0, p: { power: 11, top: 140, wheelR: 0.36, spring: 1.5, travel: 1.3, grip: 8, maxLat: 1.2, mass: 150, wheelbase: 1.5 } },
+    dirt: { kind: 'bike', name: 'Dirt bike', color: 0x3a6fd0, p: { power: 11, top: 140, wheelR: 0.36, spring: 1.5, travel: 1.3, grip: 8, maxLat: 1.7, mass: 150, wheelbase: 1.5 } },
   };
   // The parking lot in the infield: [preset, x, z, yaw]; the cars face the gap in the inner wall onto the front straight
   const LOT = [['kart', -25, -6, Math.PI], ['roadster', -16, -6, Math.PI], ['muscle', -7, -6, Math.PI], ['buggy', 2, -6, Math.PI],
@@ -180,13 +182,17 @@
       // gravity on banking (the track leans into the turn)
       const lat = (p.maxLat + p.downforce * (vf / 27.8) ** 2) * 9.8 + G * Math.abs(Math.sin(v.roll)) * 0.8;
       const cap = lat / Math.max(1, Math.abs(vf));
-      yr = inp.hand ? yr * 1.3 : Math.max(-cap, Math.min(cap, yr)); // on the handbrake the back steps out instead
+      v.steerVis = v.steer;
+      if (inp.hand) yr *= 1.3; // on the handbrake the back steps out and the car swings round
+      else if (Math.abs(yr) > cap) { // past the grip: the car turns only as hard as the tyres hold, and the wheels show that
+        yr = Math.sign(yr) * cap; v.steerVis = Math.sign(v.steer) * Math.atan(cap * p.wheelbase / Math.max(0.5, Math.abs(vf)));
+      }
       v.yaw -= yr * dt;
-    } else v.steer *= 1 - Math.min(1, dt * 3);
+    } else { v.steer *= 1 - Math.min(1, dt * 3); v.steerVis = v.steer; }
     [fx, fz] = fwdOfYaw(v.yaw); const rx = -fz, rz = fx;
     vf = v.vel.x * fx + v.vel.z * fz; let vr = v.vel.x * rx + v.vel.z * rz;
     if (v.onGround) {
-      if (inp.thr > 0) vf += (vf < -0.5 ? p.brake : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt;
+      if (inp.thr > 0 && !inp.hand) vf += (vf < -0.5 ? p.brake : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt; // the handbrake cuts the engine
       else if (inp.thr < 0) vf -= (vf > 0.5 ? p.brake : p.power * 0.5 * Math.max(0, 1 + vf / rev)) * -inp.thr * dt;
       const res = (0.5 + (inp.hand ? p.hand : 0)) * dt; vf -= Math.sign(vf) * Math.min(Math.abs(vf), res);
       vf -= G * Math.sin(v.pitch) * dt; // rolling up and down slopes and ramps
@@ -195,7 +201,7 @@
     vf -= 0.0009 * vf * Math.abs(vf) * dt;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
-    v.slip = Math.abs(vr); v.speed = vf;
+    v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0); v.speed = vf; // locked wheels squeal too
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
     const L = p.wheelbase / 2, W = (v.kind === 'bike' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5; // wheels climb ramps and banking, never up a wall
     const hf = Math.max(hAt(v.pos.x + fx * L + rx * W, v.pos.z + fz * L + rz * W, top2), hAt(v.pos.x + fx * L - rx * W, v.pos.z + fz * L - rz * W, top2));
@@ -319,9 +325,10 @@
     v.g.position.copy(v.pos); v.g.rotation.set(-v.pitch, v.yaw, v.roll, 'YXZ');
     const s = v.susp; v.body.position.y = s.h; v.body.rotation.set(-s.p, 0, s.r);
     v.spin += (v.speed || 0) / v.p.wheelR * dt;
-    v.wheels.forEach((w, i) => { w.spin.rotation.x = v.spin; if (i < v.steerN) w.piv.rotation.y = -v.steer; });
-    if (v.fork) v.fork.rotation.y = -v.steer;
-    if (v.steerWheel) v.steerWheel.rotation.z = v.steer * 9;
+    const sv = v.steerVis === undefined ? v.steer : v.steerVis;
+    v.wheels.forEach((w, i) => { w.spin.rotation.x = v.spin; if (i < v.steerN) w.piv.rotation.y = -sv; });
+    if (v.fork) v.fork.rotation.y = -sv;
+    if (v.steerWheel) v.steerWheel.rotation.z = sv * 9;
   }
   // Someone else's vehicle: glide toward the latest reported state (extrapolated a little by its speed)
   function follow(v, dt) {
@@ -330,7 +337,7 @@
     v.pos.lerp(_c.set(n.x + n.vx * age, n.y + n.vy * age, n.z + n.vz * age), k);
     v.vel.set(n.vx, n.vy, n.vz);
     v.yaw += ((n.yaw - v.yaw + Math.PI * 3) % (Math.PI * 2) - Math.PI) * k;
-    v.pitch += (n.pitch - v.pitch) * k; v.roll += (n.roll - v.roll) * k; v.lean = v.roll; v.steer += (n.steer - v.steer) * k;
+    v.pitch += (n.pitch - v.pitch) * k; v.roll += (n.roll - v.roll) * k; v.lean = v.roll; v.steer += (n.steer - v.steer) * k; v.steerVis = v.steer;
     const [fx, fz] = fwdOfYaw(v.yaw); v.speed = v.vel.x * fx + v.vel.z * fz;
   }
 
@@ -579,7 +586,7 @@
       if (section !== sec) { html += `<h3>${section}</h3>`; sec = section; }
       html += `<div class="row"><label for="vt-${k}">${label}</label><output id="vo-${k}">${fmt(v.p[k], step)} ${unit}</output>
         <input type="range" id="vt-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v.p[k]}">${HELP[k] ? `<div class="help">${HELP[k]}</div>` : ''}</div>`;
-      if (k === 'steer') html += `<div class="help" id="vturn"></div>`;
+      if (k === 'downforce') html += `<div class="help" id="vturn" style="color:#cfd6dd"></div>`;
     }
     html += `<div class="btns"><button type="button" class="go" id="vt-go">Drive (Tab)</button><button type="button" id="vt-reset">Reset to ${v.name} defaults</button>
       <button type="button" id="vt-all">Use these on every ${v.kind === 'bike' ? 'bike' : 'car'}</button><button type="button" id="vt-copy">Copy settings</button></div>
@@ -588,7 +595,7 @@
     panel.querySelectorAll('input[type=range]').forEach(el => el.oninput = () => {
       const k = el.dataset.k, row = TUNE.find(t => t[0] === k); cur.p[k] = +el.value;
       panel.querySelector('#vo-' + k).textContent = `${fmt(cur.p[k], row[4])} ${row[5]}`;
-      if (k === 'steer' || k === 'wheelbase') turnInfo();
+      if (['steer', 'wheelbase', 'maxLat', 'downforce', 'top'].includes(k)) turnInfo();
       paramsChanged(cur, ['wheelbase', 'track', 'wheelR'].includes(k));
     });
     panel.querySelector('#vt-go').onclick = () => setTune(false, true);
@@ -597,7 +604,13 @@
     panel.querySelector('#vt-copy').onclick = e => { const txt = JSON.stringify({ vehicle: cur.name, ...cur.p }); navigator.clipboard.writeText(txt).then(() => { e.target.textContent = 'Copied'; }).catch(() => prompt2(txt)); };
   }
   function prompt2(txt) { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'width:100%;height:90px;margin-top:8px'; panel.append(ta); ta.select(); }
-  function turnInfo() { const el = panel.querySelector('#vturn'); if (el && cur) el.textContent = `Tightest turn at walking pace: about ${(cur.p.wheelbase / Math.tan(cur.p.steer * Math.PI / 180)).toFixed(1)} m radius.`; }
+  // What the steering and grip add up to: the tightest turn, and the speed where grip (not the steering) becomes the limit
+  function turnInfo() {
+    const el = panel.querySelector('#vturn'); if (!el || !cur) return;
+    const p = cur.p, tan = Math.tan(p.steer * Math.PI / 180), full = Math.sqrt(p.maxLat * 9.8 * p.wheelbase / tan) * 3.6;
+    const turn = R => Math.sqrt((p.maxLat * 9.8) * R) * 3.6;
+    el.textContent = `Tightest turn: ${(p.wheelbase / tan).toFixed(1)} m radius. Full lock works up to about ${Math.round(full)} km/h; faster than that, grip decides how hard you turn. These turns can be taken flat out at about ${Math.round(Math.min(p.top, turn(45)))} km/h${p.downforce ? ' (more with downforce)' : ''}.`;
+  }
   function paramsChanged(v, shape) {
     if (shape) { clearTimeout(v.rebuildT); v.rebuildT = setTimeout(() => rebuild(v), 120); }
     clearTimeout(v.sendT); v.sendT = setTimeout(() => sendParams(v), 250);
@@ -628,7 +641,7 @@
 
   // ---------------------------------------------------------------- networking
   const r3 = n => Math.round(n * 1000) / 1000;
-  const stateOf = v => [v.i, r3(v.pos.x), r3(v.pos.y), r3(v.pos.z), r3(v.yaw), r3(v.pitch), r3(v.roll), r3(v.vel.x), r3(v.vel.y), r3(v.vel.z), r3(v.steer)];
+  const stateOf = v => [v.i, r3(v.pos.x), r3(v.pos.y), r3(v.pos.z), r3(v.yaw), r3(v.pitch), r3(v.roll), r3(v.vel.x), r3(v.vel.y), r3(v.vel.z), r3(v.steerVis === undefined ? v.steer : v.steerVis)];
   function setNet(v, s) {
     const [, x, y, z, yaw, pitch, roll, vx, vy, vz, steer] = s.map(Number);
     if (![x, y, z, yaw].every(Number.isFinite)) return;
