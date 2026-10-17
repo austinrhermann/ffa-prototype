@@ -3081,7 +3081,7 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { cur: null, tuneOpen: false, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+const VEH = { cur: null, riding: null, tuneOpen: false, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Input ----------
@@ -3164,7 +3164,7 @@ addEventListener('keydown', e => { if (away && e.code === 'Escape') setPlaying(f
 // ---------- Player ----------
 function updatePlayer(dt) {
   if (!P.alive) { if (NET.role !== 'guest') { P.respawnT -= dt; if (P.respawnT <= 0) respawn(P); } return; }
-  if (VEH.cur) return; // riding: the vehicle moves you
+  if (VEH.riding) return; // in a vehicle (either seat): it moves you
   playHints(dt);
   if (keys.KeyC || tCrouch) P.h = CROUCH_H;
   else if (P.h < STAND_H && !blockedAt(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;

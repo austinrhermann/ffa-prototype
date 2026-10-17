@@ -13,39 +13,43 @@
   // ---------------------------------------------------------------- tuning: what the Tab panel edits
   // [key, label, min, max, step, unit, which vehicles, section]
   const TUNE = [
-    ['power', 'Acceleration', 2, 25, 0.5, 'm/s²', 'all', 'Engine'],
-    ['top', 'Top speed', 40, 320, 5, 'km/h', 'all', 'Engine'],
-    ['brake', 'Brakes', 2, 30, 0.5, 'm/s²', 'all', 'Engine'],
-    ['rev', 'Reverse speed', 5, 60, 1, 'km/h', 'all', 'Engine'],
-    ['hand', 'Handbrake power', 0, 15, 0.5, 'm/s²', 'all', 'Handbrake'],
-    ['slide', 'Grip on the handbrake', 0.2, 6, 0.1, '', 'all', 'Handbrake'],
-    ['steer', 'Steering lock', 8, 45, 1, '°', 'all', 'Steering'],
-    ['steerFall', 'Lock halves at', 20, 250, 5, 'km/h', 'all', 'Steering'],
-    ['grip', 'Tyre grip', 1, 20, 0.5, '', 'all', 'Grip'],
-    ['maxLat', 'Cornering limit', 0.3, 3, 0.05, 'g', 'all', 'Grip'],
-    ['mass', 'Weight', 100, 4000, 10, 'kg', 'all', 'Body'],
-    ['wheelbase', 'Length (wheelbase)', 1.2, 5, 0.05, 'm', 'all', 'Body'],
-    ['track', 'Width (track)', 1, 2.6, 0.05, 'm', 'car', 'Body'],
-    ['wheelR', 'Wheel size (radius)', 0.2, 0.6, 0.01, 'm', 'all', 'Body'],
-    ['spring', 'Suspension stiffness', 0.6, 5, 0.1, 'Hz', 'all', 'Suspension'],
-    ['damp', 'Suspension damping', 0.05, 1.5, 0.05, '', 'all', 'Suspension'],
-    ['travel', 'Body roll and dive', 0, 3, 0.1, '×', 'all', 'Suspension'],
-    ['lean', 'Lean into turns', 0, 1.5, 0.05, '×', 'bike', 'Suspension'],
-    ['gravity', 'Gravity', 4, 30, 0.5, 'm/s²', 'all', 'Air and crashes'],
-    ['airPitch', 'Nose control in the air', 0, 6, 0.1, '', 'all', 'Air and crashes'],
-    ['bounce', 'Bounce off walls', 0, 1, 0.05, '', 'all', 'Air and crashes'],
+    ['power', 'Acceleration', 2, 40, 0.5, 'm/s²', 'all', 'Engine'],
+    ['top', 'Top speed', 40, 400, 5, 'km/h', 'all', 'Engine'],
+    ['brake', 'Brakes', 2, 40, 0.5, 'm/s²', 'all', 'Engine'],
+    ['rev', 'Reverse speed', 5, 80, 1, 'km/h', 'all', 'Engine'],
+    ['hand', 'Handbrake power', 0, 25, 0.5, 'm/s²', 'all', 'Handbrake'],
+    ['slide', 'Grip on the handbrake', 0.1, 10, 0.1, '', 'all', 'Handbrake'],
+    ['steer', 'Steering lock', 8, 60, 1, '°', 'all', 'Steering'],
+    ['steerFall', 'Lock halves at', 20, 600, 10, 'km/h', 'all', 'Steering'],
+    ['steerRate', 'Steering speed', 1, 30, 0.5, '', 'all', 'Steering'],
+    ['grip', 'Tyre grip', 1, 40, 0.5, '', 'all', 'Grip'],
+    ['maxLat', 'Cornering limit', 0.3, 8, 0.05, 'g', 'all', 'Grip'],
+    ['downforce', 'Downforce', 0, 6, 0.1, 'g', 'all', 'Grip'],
+    ['mass', 'Weight', 100, 6000, 10, 'kg', 'all', 'Body'],
+    ['wheelbase', 'Length (wheelbase)', 1, 6, 0.05, 'm', 'all', 'Body'],
+    ['track', 'Width (track)', 0.8, 3, 0.05, 'm', 'car', 'Body'],
+    ['wheelR', 'Wheel size (radius)', 0.15, 0.8, 0.01, 'm', 'all', 'Body'],
+    ['spring', 'Suspension stiffness', 0.4, 8, 0.1, 'Hz', 'all', 'Suspension'],
+    ['damp', 'Suspension damping', 0.05, 2, 0.05, '', 'all', 'Suspension'],
+    ['travel', 'Body roll and dive', 0, 4, 0.1, '×', 'all', 'Suspension'],
+    ['lean', 'Lean into turns', 0, 2, 0.05, '×', 'bike', 'Suspension'],
+    ['gravity', 'Gravity', 2, 40, 0.5, 'm/s²', 'all', 'Air and crashes'],
+    ['airPitch', 'Nose control in the air', 0, 10, 0.1, '', 'all', 'Air and crashes'],
+    ['bounce', 'Bounce off walls', 0, 1.5, 0.05, '', 'all', 'Air and crashes'],
   ];
   const HELP = {
-    steerFall: 'Steering gets less sharp as you go faster; this is the speed where it is half as sharp.',
+    steerFall: 'Steering gets less sharp as you go faster; this is the speed where it is half as sharp. Max it to keep full lock at any speed.',
+    steerRate: 'How quickly the wheels turn when you press A or D. Higher is twitchier.',
+    downforce: 'Extra cornering grip that grows with speed, like a race car\'s wings: this much more at 100 km/h, four times as much at 200.',
     slide: 'How much the tyres still hold sideways while the handbrake is on. Lower slides more.',
-    maxLat: 'The hardest the tyres can corner, in g. Past it the car runs wide.',
+    maxLat: 'The hardest the tyres can corner, in g, and the real limit on how fast you can take a turn: at 1.5 g these turns go flat out at about 93 km/h, at 3 g about 130, at 6 g about 185. The banked turns add a little.',
     mass: 'How hard you hit, and how far you get shoved, when vehicles collide.',
     travel: 'How far the body dives under braking, squats under power and leans in corners.',
   };
   const BASE_CAR = { power: 10, top: 170, brake: 11, rev: 40, hand: 4, slide: 1.6, steer: 34, steerFall: 65, grip: 8, maxLat: 1.5, mass: 1200,
-    wheelbase: 2.6, track: 1.6, wheelR: 0.34, spring: 2, damp: 0.5, travel: 1, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25 };
+    wheelbase: 2.6, track: 1.6, wheelR: 0.34, spring: 2, damp: 0.5, travel: 1, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 7, downforce: 0 };
   const BASE_BIKE = { power: 13, top: 190, brake: 10, rev: 10, hand: 4, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 1.4, mass: 230,
-    wheelbase: 1.45, track: 0.3, wheelR: 0.33, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.3 };
+    wheelbase: 1.45, track: 0.3, wheelR: 0.33, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.3, steerRate: 7, downforce: 0 };
   const PRESETS = {
     kart: { kind: 'car', name: 'Kart', color: 0xd23a2a, p: { power: 12, top: 125, steer: 38, steerFall: 80, grip: 11, maxLat: 1.9, mass: 420, wheelbase: 1.75, track: 1.3, wheelR: 0.25, spring: 3.5, travel: 0.4 } },
     roadster: { kind: 'car', name: 'Roadster', color: 0x2e63b8, p: { top: 190 } },
@@ -62,7 +66,7 @@
   const defaults = key => Object.assign({}, PRESETS[key].kind === 'bike' ? BASE_BIKE : BASE_CAR, PRESETS[key].p);
 
   // ---------------------------------------------------------------- the track: an oval, front straight at -z (raced toward -x), turns to the left
-  const TRK = { half: 60, R: 45, W: 16, bank: 8 * Math.PI / 180, wallIn: 1.0, wallOut: 1.4, fence: 6, gap: 18 };
+  const TRK = { half: 60, R: 45, W: 16, bank: 8 * Math.PI / 180, wallIn: 1.0, wallOut: 1.4, fence: 6, gap: 18, door: 1.1 }; // gap: the opening onto the infield; door: the walkway through the outer wall to the stands
   TRK.len = 4 * TRK.half + 2 * Math.PI * TRK.R;
   // Centreline point, outward normal and banking factor at distance s along the lap (s = 0 at the start line, x = 0 on the front straight)
   function lap(s) {
@@ -118,7 +122,8 @@
     box(col, 0.04, 0.04, 0.6, M.chrome, 0, 0, 0.32);
     const wheels = [];
     for (const [x, z] of [[T / 2, L / 2], [-T / 2, L / 2], [T / 2, -L / 2], [-T / 2, -L / 2]]) wheels.push(wheel(g, r, Math.max(0.16, r * 0.62), x, r, z));
-    return { g, body, wheels, steerN: 2, steerWheel: sw, seat: new V3(sx, floor + 0.17, seatZ), eye: new V3(sx, floor + 0.98, seatZ - 0.02) };
+    return { g, body, wheels, steerN: 2, steerWheel: sw, seat: new V3(sx, floor + 0.17, seatZ), eye: new V3(sx, floor + 0.98, seatZ - 0.02),
+      seat2: new V3(-sx, floor + 0.17, seatZ), eye2: new V3(-sx, floor + 0.98, seatZ - 0.02) };
   }
   function buildBike(v) {
     const p = v.p, g = new THREE.Group(), body = new THREE.Group(), paint = mat(v.color), L = p.wheelbase, r = p.wheelR;
@@ -131,7 +136,8 @@
     box(body, 0.28, 0.3, L * 0.42, paint, 0, r + 0.5, L * 0.12); box(body, 0.24, 0.12, L * 0.42, M.seat, 0, r + 0.52, -L * 0.2);
     box(body, 0.2, 0.28, L * 0.6, M.dark, 0, r + 0.2, 0); box(body, 0.08, 0.08, L * 0.5, M.chrome, 0.16, r + 0.1, -L * 0.3);
     box(body, 0.12, 0.12, 0.04, M.light, 0, r + 0.5, L / 2 + 0.12);
-    return { g, body, wheels: [front, rear], steerN: 0, fork, seat: new V3(0, r + 0.55, -L * 0.15), eye: new V3(0, r + 1.25, -L * 0.18) };
+    return { g, body, wheels: [front, rear], steerN: 0, fork, seat: new V3(0, r + 0.55, -L * 0.15), eye: new V3(0, r + 1.25, -L * 0.18),
+      seat2: new V3(0, r + 0.6, -L * 0.15 - 0.45), eye2: new V3(0, r + 1.35, -L * 0.18 - 0.45) };
   }
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
@@ -140,17 +146,17 @@
   }
 
   const list = [];
-  let cur = null, view = 'chase', camYaw = 0, camPitch = 0, lookIdle = 9, tuneOpen = false;
+  let cur = null, ride = null, view = 'chase', camYaw = 0, camPitch = 0, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in
   const camPos = new V3(), camLook = new V3();
   const me = () => (NET.role === 'guest' ? NET.myId : P.id);
   const simulated = v => v.owner === me() || (!v.owner && NET.role !== 'guest'); // the driver runs their own vehicle; the host runs parked ones
 
   function spawnLot() {
-    for (const v of list) scene.remove(v.g); list.length = 0; cur = null;
+    for (const v of list) scene.remove(v.g); list.length = 0; cur = null; ride = null;
     LOT.forEach(([key, x, z, yaw], i) => {
       const pr = PRESETS[key];
       const v = { i, key, kind: pr.kind, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
-        pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
+        pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, pass: null, net: null, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
       list.push(v); rebuild(v); place(v);
     });
   }
@@ -168,9 +174,12 @@
     let [fx, fz] = fwdOfYaw(v.yaw), vf = v.vel.x * fx + v.vel.z * fz;
     if (v.onGround) {
       const sMax = p.steer * Math.PI / 180 / (1 + Math.abs(vf) / (p.steerFall / 3.6));
-      v.steer += (inp.steer * sMax - v.steer) * Math.min(1, dt * 7);
+      v.steer += (inp.steer * sMax - v.steer) * Math.min(1, dt * p.steerRate);
       let yr = vf * Math.tan(v.steer) / p.wheelbase;
-      const cap = p.maxLat * 9.8 / Math.max(1, Math.abs(vf)); // the tyres only hold so much cornering force
+      // The tyres only hold so much cornering force: the cornering limit, plus downforce growing with speed, plus a share of
+      // gravity on banking (the track leans into the turn)
+      const lat = (p.maxLat + p.downforce * (vf / 27.8) ** 2) * 9.8 + G * Math.abs(Math.sin(v.roll)) * 0.8;
+      const cap = lat / Math.max(1, Math.abs(vf));
       yr = inp.hand ? yr * 1.3 : Math.max(-cap, Math.min(cap, yr)); // on the handbrake the back steps out instead
       v.yaw -= yr * dt;
     } else v.steer *= 1 - Math.min(1, dt * 3);
@@ -252,8 +261,11 @@
     return out;
   }
   function hitWalls(v) {
-    let worst = 0; const bounce = 1 + v.p.bounce;
+    let worst = 0; const bounce = 1 + v.p.bounce, edge = TRK.R + TRK.W / 2;
     for (const [x, y, z, r] of spheres(v)) {
+      if (Math.abs(x) < TRK.door + 1.5 && z < edge + 1 && z + r > edge) { // the walkway to the stands is for people only
+        const push = z + r - edge; v.pos.z -= push; if (v.vel.z > 0) { worst = Math.max(worst, v.vel.z); v.vel.z *= -v.p.bounce; }
+      }
       _c.set(x, y, z);
       sphereTris(_c, r, (t, q, dist) => {
         if (Math.abs(TG.NR[t * 3 + 1]) >= FLOOR_NY) return; // floors are the suspension's business
@@ -357,6 +369,34 @@
     }
     return best;
   }
+  // E at a vehicle: an empty driver's seat is yours; with someone driving you ride along in the passenger seat
+  function use(v) {
+    if (!v.owner || v.owner === me()) { if (v.pass === me()) return; enter(v); }
+    else if (!v.pass) rideAlong(v);
+    else note(`Both seats in the ${v.name.toLowerCase()} are taken`, 1.5);
+  }
+  function rideAlong(v) {
+    ride = v; v.pass = me(); view = 'chase'; camYaw = camPitch = 0; lookIdle = 9;
+    camPos.copy(camera.position); camLook.copy(v.pos);
+    if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vride', i: v.i });
+    note(`Riding along in the ${v.name.toLowerCase()}. V changes view, E gets out`, 3);
+  }
+  function unride(force) {
+    const v = ride; if (!v) return false;
+    if (Math.hypot(v.vel.x, v.vel.z) > 9 && !force) { note('Wait till it slows down to get out', 1.5); return false; }
+    axes(v);
+    const side = (v.kind === 'bike' ? 0.4 : v.p.track / 2) + 0.7;
+    let spot = null;
+    for (const s of [-1, 1]) { // the passenger's side (right) first
+      const x = v.pos.x - _r.x * s * side, z = v.pos.z - _r.z * s * side, g = groundAt(x, z, v.pos.y + 2);
+      if (g !== null && !meshBlocked(x, g + 0.05, z, STAND_H)) { spot = new V3(x, g, z); break; }
+    }
+    if (!spot) spot = new V3(v.pos.x, v.pos.y + 1.5, v.pos.z);
+    P.pos.copy(spot); P.vel.set(0, 0, 0); P.yaw = Math.atan2(-_f.x, -_f.z); P.pitch = -0.1; P.viewY = spot.y + 1.6;
+    ride = null; if (v.pass === me()) v.pass = null;
+    if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vunride', i: v.i });
+    return true;
+  }
   function enter(v) {
     if (v.owner && v.owner !== me()) { note(`Someone is already in the ${v.name.toLowerCase()}`, 1.5); return; }
     v.owner = me(); v.net = null; cur = v; view = 'chase'; camYaw = camPitch = 0; lookIdle = 9; lapReset();
@@ -428,21 +468,24 @@
     const ground = new THREE.PlaneGeometry(420, 320).rotateX(-Math.PI / 2); { const uv = ground.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 42, uv.getY(i) * 32); }
     const gm = new THREE.Mesh(ground, grass); gm.receiveShadow = true; both(gm);
     // Track surface, banked through the turns, plus the walls along both edges
-    const N = 240, half = TRK.W / 2, track = Geo(), wallI = Geo(), wallO = Geo(), fence = Geo();
+    const N = 240, half = TRK.W / 2, track = Geo(), wallI = Geo(), wallO = Geo(), fence = Geo(), doorEnds = [];
     const pts = []; for (let k = 0; k <= N; k++) { const s = TRK.len * k / N, c = lap(s); pts.push({ s, ...c, hi: bankH(c.b, -half), ho: bankH(c.b, half) }); }
     for (let k = 0; k < N; k++) {
       const a = pts[k], b = pts[k + 1];
       const ai = [a.x - a.nx * half, a.hi, a.z - a.nz * half], ao = [a.x + a.nx * half, a.ho, a.z + a.nz * half];
       const bi = [b.x - b.nx * half, b.hi, b.z - b.nz * half], bo = [b.x + b.nx * half, b.ho, b.z + b.nz * half];
       track.q(ai, ao, bo, bi, 0, p => [p[0] / 6, p[2] / 6]); // faces up (inner, outer, next outer, next inner, going round to the left)
-      // Outer wall: concrete on the track side, up to the catch fence; its back drops to the ground outside
+      // Outer wall: concrete on the track side, up to the catch fence; its back drops to the ground outside.
+      // A walkway through it on the back straight leads to the grandstands (people only: vehicles are held back in hitWalls)
+      const mid = (a.x + b.x) / 2, front = a.z < -TRK.R + 1 && b.z < -TRK.R + 1, door = a.z > TRK.R - 1 && b.z > TRK.R - 1 && Math.abs(mid) < TRK.door;
       const t = TRK.wallOut, ao2 = [ao[0] + a.nx * 0.5, ao[1], ao[2] + a.nz * 0.5], bo2 = [bo[0] + b.nx * 0.5, bo[1], bo[2] + b.nz * 0.5];
-      wallO.q([ao[0], ao[1] - 0.3, ao[2]], [bo[0], bo[1] - 0.3, bo[2]], [bo[0], bo[1] + t, bo[2]], [ao[0], ao[1] + t, ao[2]]);
-      wallO.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo2[0], bo2[1] + t, bo2[2]], [ao2[0], ao2[1] + t, ao2[2]]);
-      wallO.q([ao2[0], ao2[1] + t, ao2[2]], [bo2[0], bo2[1] + t, bo2[2]], [bo2[0], 0, bo2[2]], [ao2[0], 0, ao2[2]]);
-      fence.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo[0], bo[1] + TRK.fence, bo[2]], [ao[0], ao[1] + TRK.fence, ao[2]]);
+      if (!door) {
+        wallO.q([ao[0], ao[1] - 0.3, ao[2]], [bo[0], bo[1] - 0.3, bo[2]], [bo[0], bo[1] + t, bo[2]], [ao[0], ao[1] + t, ao[2]]);
+        wallO.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo2[0], bo2[1] + t, bo2[2]], [ao2[0], ao2[1] + t, ao2[2]]);
+        wallO.q([ao2[0], ao2[1] + t, ao2[2]], [bo2[0], bo2[1] + t, bo2[2]], [bo2[0], 0, bo2[2]], [ao2[0], 0, ao2[2]]);
+        fence.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo[0], bo[1] + TRK.fence, bo[2]], [ao[0], ao[1] + TRK.fence, ao[2]]);
+      } else doorEnds.push(ao, bo);
       // Inner wall, with a gap on the front straight onto the infield
-      const mid = (a.x + b.x) / 2, front = a.z < -TRK.R + 1 && b.z < -TRK.R + 1;
       if (!(front && Math.abs(mid) < TRK.gap)) {
         const h = TRK.wallIn, ai2 = [ai[0] - a.nx * 0.5, ai[1], ai[2] - a.nz * 0.5], bi2 = [bi[0] - b.nx * 0.5, bi[1], bi[2] - b.nz * 0.5];
         wallI.q([bi[0], bi[1] - 0.3, bi[2]], [ai[0], ai[1] - 0.3, ai[2]], [ai[0], ai[1] + h, ai[2]], [bi[0], bi[1] + h, bi[2]]);
@@ -456,8 +499,13 @@
     for (let k = 0; k < N; k += 4) { const a = pts[k], x = a.x + a.nx * half, z = a.z + a.nz * half; const o = new THREE.Mesh(new THREE.BoxGeometry(0.12, TRK.fence - TRK.wallOut, 0.12), fenceM); o.position.set(x, a.ho + (TRK.fence + TRK.wallOut) / 2, z); draw.add(o); }
     for (const hgt of [2.6, 3.8, 5.0, 5.9]) {
       const cable = Geo();
-      for (let k = 0; k < N; k++) { const a = pts[k], b = pts[k + 1], A = [a.x + a.nx * half, a.ho + hgt, a.z + a.nz * half], B = [b.x + b.nx * half, b.ho + hgt, b.z + b.nz * half]; cable.q(A, B, [B[0], B[1] + 0.04, B[2]], [A[0], A[1] + 0.04, A[2]]); }
+      for (let k = 0; k < N; k++) { const a = pts[k], b = pts[k + 1]; if (a.z > TRK.R - 1 && Math.abs((a.x + b.x) / 2) < TRK.door) continue; const A = [a.x + a.nx * half, a.ho + hgt, a.z + a.nz * half], B = [b.x + b.nx * half, b.ho + hgt, b.z + b.nz * half]; cable.q(A, B, [B[0], B[1] + 0.04, B[2]], [A[0], A[1] + 0.04, A[2]]); }
       const cm2 = cable.mesh(fenceM, false); cm2.material = toonMat({ color: 0x5d646b, side: THREE.DoubleSide }); draw.add(cm2);
+    }
+    // The walkway's ends: concrete posts to the top of the fence
+    if (doorEnds.length) {
+      const xs = doorEnds.map(q => q[0]), z = doorEnds[0][2];
+      for (const x of [Math.min(...xs), Math.max(...xs)]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.5, TRK.fence + 0.3, 0.6), wallM); o.position.set(x, (TRK.fence - 0.3) / 2, z + 0.25); o.castShadow = o.receiveShadow = true; both(o); }
     }
     // Start and finish line, and the lane stripes
     for (let k = 0; k < 8; k++) for (let j = 0; j < 2; j++) decal(0.8, TRK.W / 8, (k + j) % 2 ? paint : toonMat({ color: 0x1a1a1a }), 0.4 - j * 0.8, 0.03, -TRK.R - TRK.W / 2 + TRK.W / 16 + k * TRK.W / 8);
@@ -473,18 +521,23 @@
       const o = new THREE.Mesh(g, toonMat({ map: speckle('#c9b04a', ['#bfa543', '#d3ba52', '#b39b3d'], 3000) })); o.position.set(x, 0.02, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; both(o);
       for (const s of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, len), red); st.position.set(s * (hw - 0.1), 0, len / 2); st.rotation.x = -Math.atan2(rise, len); st.position.y = rise / 2 + 0.01; o.add(st); }
     };
-    ramp(-26, TRK.R - 3.6, Math.PI / 2, 10, 6.6, 1.5); ramp(14, TRK.R + 3.6, Math.PI / 2, 12, 6.6, 2.0); ramp(26, -TRK.R - 3.6, -Math.PI / 2, 11, 6.6, 1.7);
+    ramp(-26, TRK.R - 4.2, Math.PI / 2, 10, 5.4, 1.5); ramp(14, TRK.R + 4.2, Math.PI / 2, 12, 5.4, 2.0); ramp(26, -TRK.R - 4.2, -Math.PI / 2, 11, 5.4, 1.7); // a clear 3 m lane down the middle
     // Infield: the parking lot
     decal(66, 30, asphalt, -2, 0.015, 0, 0, 6);
     for (let x = -29.5; x <= 24.5; x += 9) decal(0.18, 6, paint, x, 0.025, -6);
     for (let x = -9.5; x <= 4.5; x += 5) decal(0.18, 4, paint, x, 0.025, 6);
     decal(TRK.gap * 2 - 2, 14, asphalt, 0, 0.016, -TRK.R + 9, 0, 6); // the lane out to the track
-    // Grandstands behind the back straight and the turns, light towers (out of reach, for the look)
+    // Grandstand behind the back straight, through the walkway: rows low enough to climb (each a step up), seats on each row
     const seat = [toonMat({ color: 0x3a6fd0 }), toonMat({ color: 0xc8302f }), toonMat({ color: 0xe3c02c })], conc = toonMat({ color: 0x9a978f });
-    for (const [x0, x1] of [[-55, -5], [5, 55]]) for (let k = 0; k < 8; k++) {
-      const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.9 + k * 0.9, 1.4), k % 2 ? conc : seat[(x0 > 0 ? 1 : 0) + (k % 4 === 0 ? 1 : 0)]);
-      o.position.set((x0 + x1) / 2, (0.9 + k * 0.9) / 2, TRK.R + TRK.W / 2 + 4 + k * 1.4); o.castShadow = o.receiveShadow = true; draw.add(o);
+    const rowH = 0.45, rowD = 0.8, z0 = TRK.R + half + 3, rows = 12;
+    for (let k = 0; k < rows; k++) {
+      const o = new THREE.Mesh(new THREE.BoxGeometry(110, rowH * (k + 1), rowD), conc); o.position.set(0, rowH * (k + 1) / 2, z0 + rowD * (k + 0.5)); o.castShadow = o.receiveShadow = true; both(o);
+      for (const [x0, x1, m] of [[-54, -2, seat[k % 3]], [2, 54, seat[(k + 1) % 3]]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.12, 0.35), m); b.position.set((x0 + x1) / 2, rowH * (k + 1) + 0.06, z0 + rowD * (k + 0.75)); b.receiveShadow = true; draw.add(b); }
     }
+    { const back = new THREE.Mesh(new THREE.BoxGeometry(110, rowH * rows + 1.6, 0.4), conc); back.position.set(0, (rowH * rows + 1.6) / 2, z0 + rowD * rows + 0.2); back.castShadow = back.receiveShadow = true; both(back); }
+    for (const x of [-55.2, 55.2]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.4, rowH * rows + 1.6, rowD * rows + 0.4), conc); o.position.set(x, (rowH * rows + 1.6) / 2, z0 + rowD * rows / 2); o.castShadow = o.receiveShadow = true; both(o); }
+    // Invisible walls round the outside, so nobody walks off the edge of the world
+    for (const [w, d, x, z] of [[300, 1, 0, -100], [300, 1, 0, 100], [1, 200, -150, 0], [1, 200, 150, 0]]) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, 6, d), cm); o.position.set(x, 3, z); col.add(o); }
     for (const [x, z] of [[-90, -70], [90, -70], [-90, 70], [90, 70], [0, -75]]) {
       const pole = new THREE.Mesh(new THREE.BoxGeometry(0.6, 26, 0.6), conc); pole.position.set(x, 13, z); draw.add(pole);
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 0.8), toonMat({ color: 0xf2efe2 })); lamp.position.set(x, 26, z); lamp.lookAt(0, 0, 0); draw.add(lamp);
@@ -563,10 +616,14 @@
       const v = cur, kmh = Math.round(Math.abs(v.speed) * 3.6), t = LAP.on ? ((performance.now() - LAP.start) / 1000).toFixed(1) : '–';
       hud.innerHTML = `<b>${kmh} km/h</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}<br>Lap ${t} s · last ${LAP.last ? LAP.last.toFixed(2) : '–'} · best ${LAP.best ? LAP.best.toFixed(2) : '–'}<br><small>Tab tune · R back on your wheels · V view · E out</small>`;
       hud.style.display = 'block';
+    } else if (ride && on) {
+      const v = ride, kmh = Math.round(Math.abs(v.speed) * 3.6), d = ents.find(e => e.id === v.owner && e !== P);
+      hud.innerHTML = `<b>${kmh} km/h</b><br>Riding along${d ? ` with ${esc(d.name)}` : ''} in the ${v.name.toLowerCase()}<br><small>V view · E out</small>`;
+      hud.style.display = 'block';
     } else hud.style.display = 'none';
-    const nv = on && !cur && P.alive ? nearest() : null;
+    const nv = on && !cur && !ride && P.alive ? nearest() : null;
     prompt.style.display = nv ? 'block' : 'none';
-    if (nv) prompt.textContent = nv.owner && nv.owner !== me() ? `Someone is driving the ${nv.name.toLowerCase()}` : `E  ${nv.kind === 'bike' ? 'Ride' : 'Drive'} the ${nv.name.toLowerCase()}`;
+    if (nv) prompt.textContent = !nv.owner || nv.owner === me() ? `E  ${nv.kind === 'bike' ? 'Ride' : 'Drive'} the ${nv.name.toLowerCase()}` : !nv.pass ? `E  Ride along in the ${nv.name.toLowerCase()}` : `Both seats in the ${nv.name.toLowerCase()} are taken`;
   }
 
   // ---------------------------------------------------------------- networking
@@ -595,25 +652,26 @@
     hand: !!keys.Space, reset: false,
   });
   const idle = { thr: 0, steer: 0, hand: false, reset: false };
-  let resetQ = false, selfOn = false;
+  let resetQ = false, selfOn = false, selfRig = null;
   function setSelf(on) { // your own body is normally only a shadow; in Test Drive it's drawn (third person, or riding in the open)
-    if (!P.rig || on === selfOn) return; selfOn = on;
+    if (!P.rig || (on === selfOn && P.rig === selfRig)) return; selfOn = on; selfRig = P.rig; // a new character's body starts out hidden
     P.rig.root.traverse(o => { if (o.isMesh) { o.material.colorWrite = on; o.material.depthWrite = on; } });
   }
   // Seat someone's body in a vehicle (crouched, which reads as sitting)
-  function seat(rig, wrap, v, dt) {
+  function seat(rig, wrap, v, dt, passenger) {
     v.body.updateMatrixWorld(true);
-    const p = v.seat.clone().applyMatrix4(v.body.matrixWorld);
+    const p = (passenger ? v.seat2 : v.seat).clone().applyMatrix4(v.body.matrixWorld);
     wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw, v.roll, 'YXZ'); wrap.visible = true;
     animRig(rig, dt, 0, true, 0.2);
   }
   Object.defineProperty(VEH, 'cur', { get: () => cur, configurable: true });
   Object.defineProperty(VEH, 'tuneOpen', { get: () => tuneOpen, configurable: true });
+  Object.defineProperty(VEH, 'riding', { get: () => cur || ride, configurable: true }); // you're in a vehicle, either seat
   Object.assign(VEH, {
     list,
     onLevel() {
       if (LV && LV.vehicles) spawnLot();
-      else { setTune(false); for (const v of list) scene.remove(v.g); list.length = 0; if (cur) { cur = null; soundStop(); } setSelf(false); }
+      else { setTune(false); for (const v of list) scene.remove(v.g); list.length = 0; ride = null; if (cur) { cur = null; soundStop(); } setSelf(false); }
     },
     update(dt) {
       if (!list.length) return;
@@ -630,24 +688,28 @@
         lapTick(cur);
         if (cur.pos.y < KILL_Y) place(cur);
       }
+      if (ride) { // riding along
+        P.pos.set(ride.pos.x, ride.pos.y + 0.2, ride.pos.z); P.vel.copy(ride.vel); P.onGround = true;
+        if (ride.pass !== me()) { ride = null; note('You were let out', 1.5); }
+      }
       soundTick();
     },
     block: blockBody,
     mouse(dx, dy) {
-      if (!cur) return false;
+      if (!cur && !ride) return false;
       camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - dy * SENS * CTL.sens)); lookIdle = 0; return true;
     },
     key(code) {
       if (!LV || !LV.vehicles) return false;
-      if (code === 'KeyE') { if (cur) leave(false); else { const v = nearest(); if (v && P.alive) enter(v); } return true; }
-      if (cur && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; return true; }
+      if (code === 'KeyE') { if (cur) leave(false); else if (ride) unride(false); else { const v = nearest(); if (v && P.alive) use(v); } return true; }
+      if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; return true; }
       if (cur && code === 'KeyR') { resetQ = true; return true; }
       return ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(code) || (cur && code === 'KeyC'); // no guns here
     },
     tab() { if (!LV || !LV.vehicles || !cur) return false; setTune(!tuneOpen, true); return true; },
     camera(dt) {
       if (!LV || !LV.vehicles) return;
-      if (!cur) { // on foot: third person, behind your shoulder
+      if (!cur && !ride) { // on foot: third person, behind your shoulder
         const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), cp = Math.cos(P.pitch), sp = Math.sin(P.pitch);
         const head = new V3(P.pos.x, P.pos.y + 1.65, P.pos.z), dir = new V3(fx * cp, sp, fz * cp);
         const want = head.clone().addScaledVector(dir, -3.4).add(new V3(-fz * 0.55, 0.25, fx * 0.55));
@@ -656,12 +718,12 @@
         camera.position.copy(want); camera.up.set(0, 1, 0); camera.lookAt(head.clone().addScaledVector(dir, 12)); camera.fov = 72; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
         return;
       }
-      const v = cur; axes(v);
+      const v = cur || ride; axes(v);
       lookIdle += dt; if (lookIdle > 1.2) { const k = Math.min(1, dt * 2.5); camYaw -= camYaw * k; camPitch -= camPitch * k; }
       camera.fov = 72 + Math.min(14, Math.abs(v.speed || 0) * 0.25); camera.updateProjectionMatrix();
       if (view === 'seat') { // the driver's eyes: open chassis, nothing in the way
         v.body.updateMatrixWorld(true);
-        camera.position.copy(v.eye).applyMatrix4(v.body.matrixWorld);
+        camera.position.copy(v === cur ? v.eye : v.eye2).applyMatrix4(v.body.matrixWorld);
         const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-v.pitch - v.susp.p, v.yaw, v.roll + v.susp.r, 'YXZ'));
         camera.quaternion.copy(q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(camPitch, Math.PI + camYaw, 0, 'YXZ')));
         camera.updateMatrixWorld(); return;
@@ -683,38 +745,42 @@
       vm.visible = false; knifeVM.visible = false; // nobody carries a gun here
       for (const e of ents) if (e.rig && e.rig.gunVis) e.rig.gunVis.visible = false;
       // Your body: drawn on foot (third person) and in the chase view, hidden in the driver's seat
-      setSelf(!cur || view === 'chase');
+      setSelf(!(cur || ride) || view === 'chase');
       if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt);
-      // Other people driving sit in their vehicles
+      if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, true);
+      // Other people sit in their seats
       for (const v of list) {
-        if (!v.owner || v.owner === me()) continue;
-        const e = ents.find(x => x.id === v.owner && x !== P); if (e && e.rig && e.mesh) seat(e.rig, e.mesh, v, dt);
+        if (v.owner && v.owner !== me()) { const e = ents.find(x => x.id === v.owner && x !== P); if (e && e.rig && e.mesh) seat(e.rig, e.mesh, v, dt); }
+        if (v.pass && v.pass !== me()) { const e = ents.find(x => x.id === v.pass && x !== P); if (e && e.rig && e.mesh) seat(e.rig, e.mesh, v, dt, true); }
       }
     },
-    exit: () => leave(true),
+    exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    netSnapshot: () => list.map(v => [v.owner || 0, ...stateOf(v).slice(1)]),
+    netSnapshot: () => list.map(v => [v.owner || 0, ...stateOf(v).slice(1), v.pass || 0]),
     myState: () => (cur && simulated(cur) ? stateOf(cur) : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
       vh.forEach((s, i) => {
         const v = list[i]; if (!v || !Array.isArray(s)) return;
         const owner = s[0] || null;
+        if (v !== ride) v.pass = s[11] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
-        v.owner = owner; setNet(v, [i, ...s.slice(1)]);
+        v.owner = owner; setNet(v, [i, ...s.slice(1, 11)]);
       });
     },
     remoteState(r, s) { if (!Array.isArray(s)) return; const v = list[s[0] | 0]; if (v && v.owner === r.id) setNet(v, s); },
     welcome(r) { sendTo(r, { t: 'vpall', ps: list.map(v => v.p) }); },
-    onLeave(r) { for (const v of list) if (v.owner === r.id) { v.owner = null; if (v.net) { v.pos.set(v.net.x, v.net.y, v.net.z); v.vel.set(v.net.vx, 0, v.net.vz); } v.net = null; } },
+    onLeave(r) { for (const v of list) if (v.pass === r.id) v.pass = null; for (const v of list) if (v.owner === r.id) { v.owner = null; if (v.net) { v.pos.set(v.net.x, v.net.y, v.net.z); v.vel.set(v.net.vx, 0, v.net.vz); } v.net = null; } },
     onGuestMsg(r, m) { // host side
       const v = list[m.i | 0];
       if (m.t === 'vreq' && v) { if (!v.owner || v.owner === r.id) { v.owner = r.id; v.net = null; } else sendTo(r, { t: 'vdeny', i: v.i }); }
       else if (m.t === 'vfree' && v && v.owner === r.id) { if (Array.isArray(m.s)) { setNet(v, m.s); v.pos.set(v.net.x, v.net.y, v.net.z); v.yaw = v.net.yaw; v.vel.set(v.net.vx, 0, v.net.vz); } v.owner = null; v.net = null; }
       else if (m.t === 'vp' && v && v.owner === r.id) { applyParams(v, m.p); broadcast({ t: 'vp', i: v.i, p: v.p }, r.conn); }
+      else if (m.t === 'vride' && v) { if (!v.pass || v.pass === r.id) v.pass = r.id; else sendTo(r, { t: 'vdeny', i: v.i, ride: 1 }); }
+      else if (m.t === 'vunride' && v && v.pass === r.id) v.pass = null;
     },
     onHostMsg(m) { // guest side; true when handled
-      if (m.t === 'vdeny') { const v = list[m.i | 0]; if (v && v === cur) { leave(true); note('Someone got there first', 2); } return true; }
+      if (m.t === 'vdeny') { const v = list[m.i | 0]; if (v && m.ride && v === ride) { ride = null; v.pass = null; note('Someone got there first', 2); } else if (v && v === cur) { leave(true); note('Someone got there first', 2); } return true; }
       if (m.t === 'vp') { const v = list[m.i | 0]; if (v && v !== cur) applyParams(v, m.p); return true; }
       if (m.t === 'vpall') { (m.ps || []).forEach((p, i) => applyParams(list[i], p)); return true; }
       return false;
