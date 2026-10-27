@@ -4287,6 +4287,7 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
+    gt: MODE !== 'defend' && LV && LV.gate ? (gateOpen() ? 1 : 0) : null, // the fort's gate in free for all (defend sends it with the waves)
     wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : WAVE.phase === 'won' ? -2 : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
     cn: CN ? [+CN.yaw.toFixed(3), +CN.pitch.toFixed(3), +CN.cd.toFixed(1)] : null,
     e: ents.map(e => ({
@@ -4368,6 +4369,7 @@ function applySnapshot(s) {
     setGate(!!open);
     if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); }
   }
+  if (s.gt !== null && s.gt !== undefined) setGate(!!s.gt);
   if (s.cn && CN) { CN.yaw = +s.cn[0] || 0; CN.pitch = +s.cn[1] || 0; CN.cd = +s.cn[2] || 0; }
   const seen = new Set();
   for (const d of s.e) {
