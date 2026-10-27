@@ -213,7 +213,7 @@ body.touch .card small.tc{display:block}
   <div class="set hostonly arena-only drive-show" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button></div></div>
+  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button></div></div>
   <label class="switch"><input type="checkbox" id="finetoggle"><span></span><span id="finelabel">Options and controls</span></label>
   <div id="fineprint">
   <p id="goal"></p>
@@ -549,6 +549,29 @@ function levelFortress() {
     fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
   };
 }
+// Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
+// shapes in flat colours, no textures. Free for all with guns, ammo and health scattered around; the fort is the same as
+// Battle at the Fort's, so its inside spots carry over. Positions are world metres [x, y, z]; y is a hint, items settle below it.
+function levelMinimal() {
+  return {
+    mesh: 'Minimal', collide: 'Minimal_col', mode: 'ffa', look: true,
+    cs: 2, ox: -70, oz: -26, killY: -18, fog: [70, 260], top: 0, wall: 0,
+    // Inside the fort (courtyard, wall walk, tower room), then out across the island
+    spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
+      [-10, 23.7, 48], [-26, 25.3, 22], [-32, 24.8, 34], [-34, 27.2, 46], [-12, 33.6, 70], [10, 23.8, 52], [-24, 27.6, 0], [-14, 30.8, -14],
+      [4, 33.3, 36], [24, 33.4, 46], [-26, 28.4, 58], [20, 23.7, 60], [2, 38.5, 70], [-44, 13.6, 18], [32, 20.2, 30], [0, 41.9, 82]],
+    ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1],
+      [-6, 29.3, 20], [-20, 23.7, 36], [-18, 28, 12], [-36, 27.5, 60], [0, 23.8, 50], [14, 38.4, 72], [38, 30, 48], [-48, 22.8, 34],
+      [-2, 34, -12, 1], [-22, 32.1, 68, 1]],
+    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [6.1, 44.5, 2.6], [-16, 26.1, 26], [-8, 31.9, 10], [-46, 26.5, 46], [-24, 30.1, 78], [-48, 33.1, 60], [-8, 27.8, 58]],
+    // A shotgun in the courtyard and the rifle in the tower room; the rest out on the island
+    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
+      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20]],
+    ladders: [],
+    // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
+    fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
+  };
+}
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
 // base at each end (rooms on the ground floor, ramps up the sides to the roof, a raised platform at the back). Free for all.
 // Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it. The two halves mirror each other.
@@ -575,7 +598,7 @@ function levelDrive() {
     spawns: [[-8, 0.5, 13], [-3, 0.5, 13], [2, 0.5, 13], [7, 0.5, 13], [-13, 0.5, 13], [12, 0.5, 13]], ammo: [], heals: [], pickups: [], ladders: [],
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, drive: levelDrive };
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, minimal: levelMinimal, drive: levelDrive };
 function buildGrid(id) {
   H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
@@ -1555,7 +1578,7 @@ function loadModels() {
   });
   // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
   const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
-  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
+  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col'], ['Minimal', 'Minimal_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
     sc.traverse(o => {
       if (!o.isMesh) return;
       if (o.material.map) o.material.map.anisotropy = 8;
@@ -3642,7 +3665,7 @@ function chooseMode(kind) {
   if (MODELS.length && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
-const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Battle at the Fort', drive: 'Test Drive' };
+const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Battle at the Fort', minimal: 'Minimal', drive: 'Test Drive' };
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem('tse.last') || 'null'); } catch (e) { return null; } })();
 if (lastGame && LEVEL_DEFS[lastGame.level]) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
 $('goagain').onclick = () => {
