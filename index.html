@@ -200,7 +200,7 @@ body.touch .card small.tc{display:block}
 </div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
-  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Defend the Fort</button><button type="button" id="godrive">Test Drive</button></div>
+  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Battle at the Fort</button><button type="button" id="godrive">Test Drive</button></div>
   <button type="button" id="goagain" hidden></button>
   <small id="tload">Loading…</small>
 </div>
@@ -213,7 +213,7 @@ body.touch .card small.tc{display:block}
   <div class="set hostonly arena-only drive-show" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button></div></div>
+  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button></div></div>
   <label class="switch"><input type="checkbox" id="finetoggle"><span></span><span id="finelabel">Options and controls</span></label>
   <div id="fineprint">
   <p id="goal"></p>
@@ -512,24 +512,25 @@ function levelBunker() {
     pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['carbine',24,34]]),
   };
 }
-// Fortress (from the Blender set): a fort on a hilltop island. Fortress defend: players hold the fort while waves of bots
-// come up from behind the hills. Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it.
-// The set comes as two files built by tools/build_fortress.py: mesh is what's drawn, collide is what everything collides with.
+// Fortress (from the Blender set): a fort on a hilltop island, free for all in and around it. Positions are world metres
+// [x, y, z]; y is a hint, items settle onto the floor below it.
+// The set comes as two files: mesh (tools/build_fortress.py) is what's drawn, collide is what everything collides with
+// (tools/build_fortress.py, then James's hand-made fort swapped in by tools/swap_fort_collision.py).
 function levelFortress() {
   return {
-    mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'defend', look: true,
-    // Attackers ride in along the road (world [x, z], from its far end behind the hill up to the gate) and get out
-    // this far (m) from the gate, later trucks parking further back down the road
-    trucks: { drop: [20, 30], near: 3, road: [[23.3, 60.8], [15, 57.5], [8.3, 54.2], [1, 49.8], [-5.8, 47], [-11, 43.8], [-15, 40.5], [-18, 37], [-19.5, 32], [-19.5, 27], [-18.3, 23.3], [-15, 21], [-11.7, 19.5], [-7.5, 17.5], [-4.5, 14], [-2.5, 10.8], [-1.6, 6.7]] },
+    mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true,
     cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
-    // Defenders: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room)
-    spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2]],
-    atk: [[34, 64], [38, 70], [-4, 66], [-46, 46], [-52, 38], [24, 50]],
-    ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1]],
-    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6]],
-    pickups: [['shotgun', -1.0, 34, 2.3]], // a shotgun in the courtyard; dead pirates drop their carbines too
-    vehicles: [['sport', -2.6, -2.2, 0]], // a motorcycle in the courtyard, facing the gate (vehicles.js); the trucks come with the waves
-    cannon: [-1.9, 37.5, 4.25], // the Computer's cannon on the wall walk over the gate
+    // Inside: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room). Outside: the valley in
+    // front of the gate, the hill across it, the road behind the hill
+    spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
+      [-12, 30.5, 14], [-6, 30, 18], [-24, 26, 24], [4, 34, 36], [12, 32.5, 40], [24, 34.5, 44], [32, 35, 40], [0, 23.5, 54], [-16, 26.5, 52]],
+    ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
+      [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55]],
+    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52]],
+    // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill
+    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56]],
+    // A motorcycle in the courtyard facing the gate, and a jeep (the truck, James's jeep tuning) on the road behind the hill
+    vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
     window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
@@ -537,15 +538,15 @@ function levelFortress() {
     // An invisible fence along the rim of the valley between the fort and the hill (soldiers kept falling in): [x, z, top]
     fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
-    // A door at the tower's entrance from the back corridor: open until a defender locks it (E); attackers break it down
+    // A door at the tower's entrance from the back corridor: open until someone locks it (E); bots break it down
     towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
-    // Attackers at the front gate wear it down; once it's open they make for the computer up in the tower room.
-    // The gate is two doors at the courtyard end of the passage under the wall walk, hinged at the sides
+    // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts open;
+    // anyone at the computer in the tower room can shut it (and open it again)
     gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
     core: { mesh: 'Important Computer', at: [5.29, 44.96, 1.4], hp: 260 },
-    // Inside the fort attackers find their way on a fine walking map of every floor, built from the collision set at load:
-    // area [x0, z0, x1, z1] (it takes in the approach to the gate), cell size, and the height range to look for floors in
-    fortNav: { box: [-7.5, -7.5, 8.5, 9.5], cell: 0.25, top: 50, bottom: 30 },
+    // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
+    // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
+    fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
   };
 }
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
@@ -1241,14 +1242,14 @@ function switchLevel(id) {
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, def = mode === 'defend', drive = mode === 'drive';
-  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.`;
-  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Test Drive' : 'Battle in the Arena';
+  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.` + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
+  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Test Drive' : selLevel === 'fortress' ? 'Battle at the Fort' : 'Battle in the Arena';
   $('finelabel').textContent = def ? 'Instructions and controls' : drive ? 'Controls' : 'Options and controls'; $('maincard').classList.toggle('fort', def); $('maincard').classList.toggle('drive', drive);
   if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
   for (const id of ['setbots', 'setdiff']) $(id).style.display = drive ? 'none' : '';
   $('setlimit').style.display = def || drive ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
   // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
-  for (const [id, show] of [['setrole', def], ['setbots', !def && !drive], ['setchar', !def], ['looklink', def]]) $(id).style.display = show ? '' : 'none';
+  for (const [id, show] of [['setrole', def], ['setbots', !def && !drive], ['setchar', !def], ['looklink', !!LEVEL_DEFS[selLevel]().look]]) $(id).style.display = show ? '' : 'none';
   $('ldiff').textContent = def ? 'Difficulty' : 'Bot difficulty'; $('chartitle').textContent = def ? 'You' : 'Your character';
   $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
 }
@@ -2372,7 +2373,7 @@ function resetMatch() {
     Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open; the bike goes back to the courtyard
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
-  } else { ents.forEach(respawn); VEH.onLevel(); } // the vehicles go back to the lot
+  } else { ents.forEach(respawn); VEH.onLevel(); if (LV && LV.gate) setGate(true); if (LV && LV.towerDoor) resetTowerDoor(); } // the vehicles go back to the lot; the fort's gate starts open
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
 // Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
@@ -3244,7 +3245,7 @@ function playHints(dt) {
   hint('keys', 'X aims · Q switches weapon · F throws a grenade · E is the knife', 4.5);
   const w = WP();
   if (w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
-  if (MODE === 'defend' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
+  if (curLevel === 'fortress' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
 }
 function updateCamera(dt) {
   punch *= Math.exp(-10 * dt);
@@ -3633,7 +3634,7 @@ $('tomenu').onclick = () => {
 };
 // Title page: pick a game. Everything has been loading behind it since the page opened.
 function chooseMode(kind) {
-  selLevel = kind === 'fort' ? 'fortress' : kind === 'drive' ? 'drive' : selLevel === 'fortress' || selLevel === 'drive' ? 'complex' : selLevel;
+  selLevel = kind === 'fort' ? 'fortress' : kind === 'drive' ? 'drive' : selLevel === 'drive' ? 'complex' : selLevel;
   document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
   updateGoal(); refreshPreview(); $('title').style.display = 'none';
   $('finetoggle').checked = false; $('maincard').classList.remove('fine');
@@ -3641,7 +3642,7 @@ function chooseMode(kind) {
   if (MODELS.length && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
-const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Defend the Fort', drive: 'Test Drive' };
+const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Battle at the Fort', drive: 'Test Drive' };
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem('tse.last') || 'null'); } catch (e) { return null; } })();
 if (lastGame && LEVEL_DEFS[lastGame.level]) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
 $('goagain').onclick = () => {
@@ -4072,7 +4073,7 @@ function climbWindow(side) {
 // ---------- The Computer's monitor: a map with the attackers on it, and the gate switch ----------
 let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
 function nearComputer(e) {
-  if (MODE !== 'defend' || !LV || !LV.core || !e.alive || isAtk(e)) return false;
+  if (!LV || !LV.core || !e.alive || (MODE === 'defend' && isAtk(e))) return false;
   const [x, y, z] = LV.core.at; return Math.hypot(e.pos.x - x, e.pos.z - z) < 2.2 && Math.abs(e.pos.y - y) < 2;
 }
 function setMonitor(on) {
@@ -4144,13 +4145,13 @@ function drawMap() {
   let n = 0;
   for (const e of ents) {
     if (!e.alive) continue;
-    const atk = isAtk(e); if (atk) n++;
+    const atk = MODE === 'defend' ? isAtk(e) : e !== P; if (atk) n++; // free for all: everyone else
     g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
   }
   const gate = WAVE.broken ? 'destroyed' : gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`;
   const cannon = !CN ? '' : CN.cd > 0 ? `recharging ${Math.ceil(CN.cd)}s` : 'ready';
-  $('cpuinfo').textContent = `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}`;
+  $('cpuinfo').textContent = MODE === 'defend' ? `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}` : `Gate ${gateOpen() ? 'open' : 'closed'} · Others on the map ${n}`;
 }
 
 // ---------- Multiplayer: host-in-browser P2P (PeerJS / WebRTC) + voice chat ----------
