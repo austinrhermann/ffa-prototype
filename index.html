@@ -1488,12 +1488,15 @@ const WEAPONS = {
   carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: true,  rate: 0.1,  dmg: 11.5, head: 41, mag: 30, startRes: 30, maxRes: 90, spread: 0.022,  hip: 0,    sprayAdd: 0.15, kick: 0.027, reload: 2.2, fov: 55, tracer: 0xffe08a, sound: 'gun', trW: 0.018, trLife: 0.12, rangeSpread: 0.097, botAcc: 0.27 },
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
-  // Mike's machine pistol (draft numbers): fires faster than the carbine for less per hit, so it kills about as fast up close,
-  // but it sprays more and loses accuracy quicker with range. Bigger magazine, quicker reload. Uses the carbine's sound for now.
+  // Mike's machine pistol, an SMG (draft numbers): 16 shots/s for less per hit than the carbine, so it wins up close, but it sprays
+  // (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (falloff: full damage to 10 m, half from 30 m).
+  // Bigger magazine, quicker reload, its own sound (sounds/uzi.wav).
   // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
-  cobray:  { key: 'Cobray_M11',    name: 'Cobray M11',    auto: true,  rate: 0.07, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'gun', trW: 0.014, trLife: 0.1, rangeSpread: 0.16, botAcc: 0.24, vmDrop: 0.075 },
+  cobray:  { key: 'Cobray_M11',    name: 'Cobray M11',    auto: true,  rate: 0.0625, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
+// Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
+const falloffAt = (w, d) => !w.falloff ? 1 : 1 - (1 - w.falloff[2]) * Math.min(1, Math.max(0, (d - w.falloff[0]) / (w.falloff[1] - w.falloff[0])));
 // Muzzle flash and smoke for each gun. Until art is supplied each one is drawn in code from `style`.
 // To use a picture instead, put a PNG in fx/ and set `img` (e.g. img: 'fx/carbine_flash.png'); see README.
 //   flash: size = world size in metres (other players and bots), vmSize = size on your own gun, life = seconds on screen
@@ -3001,7 +3004,7 @@ function fire() {
     const ud = hit.object.userData;
     if (ud.ent) {
       const head = ud.part === 'head';
-      let d = head ? w.head : w.dmg;
+      let d = (head ? w.head : w.dmg) * falloffAt(w, hit.distance);
       if (w.pellets) d *= Math.max(0.25, Math.min(1, 1 - (hit.distance - 8) / 24));
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
     } else if (ud.gas) shootGas(ud.gas, P);
@@ -3120,7 +3123,7 @@ function botShoot(b, t, dist) {
     let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
-    if (hit) { total += hd ? w.head : w.dmg; head = head || hd; }
+    if (hit) { total += (hd ? w.head : w.dmg) * falloffAt(w, dist); head = head || hd; }
   }
   addHoles(marks);
   if (total) damage(t, w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head);
@@ -4047,7 +4050,8 @@ function sGrunt(v) {
 }
 function sShotgun(v) { if (!AC || v < 0.02) return; const t = AC.currentTime; noise(t, 0.45, 1.0 * v, 2500, 90); thump(t, 0.35, 1.0 * v, 95, 28); }
 // Recorded gun shots in sounds/ (gun=carbine); the laser pistol stays synthesized; any that fail to load fall back to the synth above
-const GUN_SAMPLES = { gun: 'sounds/carbine.wav', rifle: 'sounds/rifle.wav', shotgun: 'sounds/shotgun.wav' }, sampleBuf = {}, SAMPLE_GAIN = { gun: 0.5, rifle: 1.2 };
+// uzi.wav is an original sound made in code for the Cobray, already levelled to match the carbine at its 0.5 gain
+const GUN_SAMPLES = { gun: 'sounds/carbine.wav', rifle: 'sounds/rifle.wav', shotgun: 'sounds/shotgun.wav', uzi: 'sounds/uzi.wav' }, sampleBuf = {}, SAMPLE_GAIN = { gun: 0.5, rifle: 1.2 };
 function loadGunSamples() {
   for (const [k, url] of Object.entries(GUN_SAMPLES))
     fetch(url).then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(buf => { sampleBuf[k] = buf; }).catch(() => {});
@@ -4058,7 +4062,7 @@ function playSample(buf, v) {
 }
 function sfx(k, v) {
   if (sampleBuf[k]) { if (AC && v >= 0.02) playSample(sampleBuf[k], v * (SAMPLE_GAIN[k] || 1)); return; }
-  ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun })[k](v);
+  ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun, uzi: sGun })[k](v);
 }
 function sPin() {
   if (!AC) return; const t = AC.currentTime;
@@ -4533,7 +4537,7 @@ function applyFx(m) {
   switch (m.t) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
-    case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
+    case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
