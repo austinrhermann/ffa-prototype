@@ -1492,7 +1492,7 @@ const WEAPONS = {
   // (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (falloff: full damage to 10 m, half from 30 m).
   // Bigger magazine, quicker reload, its own sound (sounds/uzi.wav).
   // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
-  uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
+  uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 10, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.0194, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
