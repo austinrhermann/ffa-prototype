@@ -175,15 +175,22 @@ Each gun has its own muzzle flash and smoke, seen on your own gun and on other p
 | Midas Carbine | Four-pointed star | Small light puffs |
 | Master Rifle | Big flash with long side jets | Large white plume that lingers |
 | Double Barrel | Ragged fireball | Thick dark-grey cloud |
+| Cobray M11 | Small four-pointed star | One small light puff |
 
-These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle` or `shotgun`.
+These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle`, `shotgun` or `cobray`.
 
 - **Flash:** a square PNG (256×256 works well), centred, in full colour on a transparent or black background. It's drawn additively, so black shows as see-through. Each shot rotates it randomly.
 - **Smoke:** a square, centred PNG of one soft puff on a transparent background. Draw it white or light grey, because `color` in `GUN_FX` tints it. Several puffs are spawned per shot, then rotated, grown and faded.
 - `GUN_FX` also sets each gun's size, timing, puff count and drift, so you can tune those without new art. If a PNG fails to load, the built-in drawing stays and the console shows a warning.
 
+## Cobray M11 (draft)
+
+Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike). It fires faster than the Midas Carbine for less damage per hit, so it kills about as fast up close, but it sprays more and loses accuracy sooner with distance; 32-round magazine, quicker reload. It uses the carbine's sound for now. It replaces one carbine pickup on Complex, Facility, Bunker and Minimal (Creek and Fortress are unchanged). The numbers are a first draft in `WEAPONS.cobray`.
+
+To try it without hunting for the pickup, add `?give=cobray` to the address: you spawn with it every life (it works for any gun, e.g. `?give=rifle`).
+
 ## Controls
 
-WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–4 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · Enter chat · Tab scores · Esc pause
+WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · Enter chat · Tab scores · Esc pause
 
 Every action has a key, so a one-button Mac mouse or a trackpad can play everything. A scroll-wheel swipe switches weapon once, however long the swipe keeps scrolling. Short hints appear the moment they matter (the keys, low ammo, the wall walk, the computer, the vehicles) a few times per browser, then stop.

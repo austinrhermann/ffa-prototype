@@ -570,7 +570,7 @@ function levelComplex() {
     top: F2 + 1.3, wall: 0x8d949c, roofCover: true, nestAt: [39, 4],
     spawns: [[6,20],[34,39],[39,51],[61,53],[12,65],[24,18],[36,60],[48,62],[44,26],[8,10],[10,2,1],[15,40,1],[50,30,1],[38,15,1]],
     ammo: [[17,4],[7,10],[44,30],[41,48],[21,48],[40,59],[46,63],[25,63],[25,66],[35,15,1],[34,25,1],[15,50,1],[55,31,1],[60,9],[52,4]],
-    pickups: [['carbine',24,22],['carbine',56,53],['rifle',36,15,1],['rifle',56,4],['shotgun',12,37],['shotgun',28,52]],
+    pickups: [['carbine',24,22],['cobray',56,53],['rifle',36,15,1],['rifle',56,4],['shotgun',12,37],['shotgun',28,52]],
   };
 }
 function levelFacility() {
@@ -593,7 +593,7 @@ function levelFacility() {
     top: 7, wall: 0xc3c8cc,
     spawns: p([[2,2],[20,7],[10,10],[12,22],[30,16],[45,18],[24,33],[6,34],[37,23],[14,26,1],[45,31,1],[31,40,1],[47,45,1]]),
     ammo: p([[6,3],[17,10],[10,23],[28,14],[38,18],[44,24],[22,35],[6,30],[31,42,1],[44,40,1],[34,26,1]]),
-    pickups: k([['rifle',31,37,1],['carbine',20,10],['shotgun',44,14],['carbine',25,36]]),
+    pickups: k([['rifle',31,37,1],['carbine',20,10],['shotgun',44,14],['cobray',25,36]]),
   };
 }
 function levelBunker() {
@@ -626,7 +626,7 @@ function levelBunker() {
     helipad: [48, 56],
     spawns: p([[20,8],[34,6],[19,20],[31,20],[6,33],[10,27],[22,33],[25,2],[36,22],[6,10],[48,48],[42,62],[56,60]]),
     ammo: p([[3,7],[21,7],[32,6],[23,19],[31,18],[22,31],[6,43],[12,33],[36,14]]),
-    pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['carbine',24,34]]),
+    pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['cobray',24,34]]),
   };
 }
 // Fortress (from the Blender set): a fort on a hilltop island, free for all in and around it. Positions are world metres
@@ -691,7 +691,7 @@ function levelMinimal() {
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [6.1, 44.5, 2.6], [-16, 26.1, 26], [-8, 31.9, 10], [-46, 26.5, 46], [-24, 30.1, 78], [-48, 33.1, 60], [-8, 27.8, 58]],
     // A shotgun in the courtyard and the rifle in the tower room; the rest out on the island
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
-      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20]],
+      ['rifle', 0, 41.9, 84], ['cobray', -34, 27.2, 48], ['shotgun', -44, 13.6, 20]],
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
@@ -1488,6 +1488,10 @@ const WEAPONS = {
   carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: true,  rate: 0.1,  dmg: 11.5, head: 41, mag: 30, startRes: 30, maxRes: 90, spread: 0.022,  hip: 0,    sprayAdd: 0.15, kick: 0.027, reload: 2.2, fov: 55, tracer: 0xffe08a, sound: 'gun', trW: 0.018, trLife: 0.12, rangeSpread: 0.097, botAcc: 0.27 },
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
+  // Mike's machine pistol (draft numbers): fires faster than the carbine for less per hit, so it kills about as fast up close,
+  // but it sprays more and loses accuracy quicker with range. Bigger magazine, quicker reload. Uses the carbine's sound for now.
+  // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
+  cobray:  { key: 'Cobray_M11',    name: 'Cobray M11',    auto: true,  rate: 0.07, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'gun', trW: 0.014, trLife: 0.1, rangeSpread: 0.16, botAcc: 0.24, vmDrop: 0.075 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Muzzle flash and smoke for each gun. Until art is supplied each one is drawn in code from `style`.
@@ -1504,6 +1508,8 @@ const GUN_FX = {
              smoke: { img: null, style: 'puff',  color: 0xeeeeea, count: 7, size: 0.16, grow: 1.1,  life: 2.4, speed: 1.4, rise: 0.25, opacity: 0.4 } },
   shotgun: { flash: { img: null, style: 'bloom', color: '#ff7a1e', size: 0.7,  vmSize: 0.26, life: 0.06 },
              smoke: { img: null, style: 'puff',  color: 0x8f8a84, count: 8, size: 0.14, grow: 0.9,  life: 1.6, speed: 2.2, rise: 0.3, opacity: 0.45 } },
+  cobray:  { flash: { img: null, style: 'star4', color: '#ffc040', size: 0.3,  vmSize: 0.16, life: 0.03 },
+             smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 1, size: 0.08, grow: 0.3,  life: 0.6, speed: 0.8, rise: 0.35, opacity: 0.25 } },
 };
 const PROPS = {};
 function makeShotgun() {
@@ -1836,7 +1842,7 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
-const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 } };
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, cobray: { y: 0.05, z: 0.09 } };
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
@@ -2877,6 +2883,8 @@ function initPlayerWeapons() {
   P.ammo = WEAPONS.pistol.mag; P.reserve = WEAPONS.pistol.startRes;
   P.ammoBy = { pistol: { mag: P.ammo, res: P.reserve } };
   selectWeapon('pistol', true);
+  // Testing aid: ?give=<gun> (e.g. ?give=cobray) adds that gun to your loadout every time you spawn
+  const give = params.get('give'); if (give && give !== 'pistol' && WEAPONS[give]) giveWeapon(P, give);
 }
 function syncAmmo() { if (P.ammoBy && P.ammoBy[curW]) { P.ammoBy[curW].mag = P.ammo; P.ammoBy[curW].res = P.reserve; } }
 function selectWeapon(id, instant) {
@@ -2920,7 +2928,7 @@ function botInitWeapons(b) {
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
-  const pref = dist < 8 ? ['shotgun', 'carbine', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'carbine', 'pistol', 'shotgun'] : ['carbine', 'rifle', 'shotgun', 'pistol'];
+  const pref = dist < 8 ? ['shotgun', 'cobray', 'carbine', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'carbine', 'cobray', 'pistol', 'shotgun'] : ['carbine', 'cobray', 'rifle', 'shotgun', 'pistol'];
   const pick = pref.find(id => left(id) > 0) || 'pistol';
   if (pick !== b.wpn) botSelect(b, pick);
 }
@@ -2929,7 +2937,7 @@ function giveWeapon(e, id, ammo) {
   if (!e.inv.includes(id)) {
     const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
     e.inv.push(id); e.ammoBy[id] = { mag, res };
-    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–4 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
+    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–5 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
     return true;
   }
   const a = e.ammoBy[id]; if (a.res >= ammoCap(id)) return false;
@@ -3414,7 +3422,7 @@ addEventListener('keydown', e => {
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
   if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P))) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
-  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
+  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG' || e.code === 'KeyF') releaseCook(); });
@@ -3558,7 +3566,8 @@ function buildViewmodels() {
     holder.visible = false; vm.add(holder);
     w.len = L;
     const tip = barrelTip(holder);
-    VMW[id] = { holder, len: L, hip: new V3(0.17, -0.17, -(0.16 + L / 2)), ads: new V3(0, -0.15, -(0.14 + L / 2)), muzzleZ: (tip ? tip.z : -L / 2) - 0.06, muzzleX: tip ? tip.x : 0, muzzleY: tip ? tip.y : sz.y * 0.15 };
+    const drop = w.vmDrop || 0;   // only tall guns set this
+    VMW[id] = { holder, len: L, hip: new V3(0.17, -0.17 - drop, -(0.16 + L / 2)), ads: new V3(0, -0.15 - drop, -(0.14 + L / 2)), muzzleZ: (tip ? tip.z : -L / 2) - 0.06, muzzleX: tip ? tip.x : 0, muzzleY: tip ? tip.y : sz.y * 0.15 };
   }
   selectWeapon(curW, true);
 }
