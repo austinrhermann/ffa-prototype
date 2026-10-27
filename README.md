@@ -175,19 +175,19 @@ Each gun has its own muzzle flash and smoke, seen on your own gun and on other p
 | Midas Carbine | Four-pointed star | Small light puffs |
 | Master Rifle | Big flash with long side jets | Large white plume that lingers |
 | Double Barrel | Ragged fireball | Thick dark-grey cloud |
-| Cobray M11 | Small four-pointed star | One small light puff |
+| Uzi | Small four-pointed star | One small light puff |
 
-These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle`, `shotgun` or `cobray`.
+These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle`, `shotgun` or `uzi`.
 
 - **Flash:** a square PNG (256×256 works well), centred, in full colour on a transparent or black background. It's drawn additively, so black shows as see-through. Each shot rotates it randomly.
 - **Smoke:** a square, centred PNG of one soft puff on a transparent background. Draw it white or light grey, because `color` in `GUN_FX` tints it. Several puffs are spawned per shot, then rotated, grown and faded.
 - `GUN_FX` also sets each gun's size, timing, puff count and drift, so you can tune those without new art. If a PNG fails to load, the built-in drawing stays and the console shows a warning.
 
-## Cobray M11 (draft)
+## Uzi (draft)
 
-Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike). It's the SMG: 16 shots a second for less damage per hit than the Midas Carbine, so it wins up close, but it sprays (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (full damage to 10 m, half from 30 m; `falloff` in `WEAPONS.cobray`, bots too). 32-round magazine, quicker reload. Its sound, `sounds/uzi.wav`, is original, made in code and levelled to match the carbine. The numbers are a first draft in `WEAPONS.cobray`.
+Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike; called the Uzi in game). It's the SMG: 16 shots a second for less damage per hit than the Midas Carbine, so it wins up close, but it sprays (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (full damage to 10 m, half from 30 m; `falloff` in `WEAPONS.uzi`, bots too). 32-round magazine, quicker reload. Its sound, `sounds/uzi.wav`, is original, made in code and levelled to match the carbine. The numbers are a first draft in `WEAPONS.uzi`.
 
-It isn't on any map yet while it's being tuned. To try it, add `?give=cobray` to the address (or `&give=cobray` after an invite link): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Cobray can be picked up by others in that game.
+It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link; the older `?give=cobray` also works): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
 
 ## Controls
 

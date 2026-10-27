@@ -1492,7 +1492,7 @@ const WEAPONS = {
   // (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (falloff: full damage to 10 m, half from 30 m).
   // Bigger magazine, quicker reload, its own sound (sounds/uzi.wav).
   // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
-  cobray:  { key: 'Cobray_M11',    name: 'Cobray M11',    auto: true,  rate: 0.0625, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
+  uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 8.5, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.018, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
@@ -1511,7 +1511,7 @@ const GUN_FX = {
              smoke: { img: null, style: 'puff',  color: 0xeeeeea, count: 7, size: 0.16, grow: 1.1,  life: 2.4, speed: 1.4, rise: 0.25, opacity: 0.4 } },
   shotgun: { flash: { img: null, style: 'bloom', color: '#ff7a1e', size: 0.7,  vmSize: 0.26, life: 0.06 },
              smoke: { img: null, style: 'puff',  color: 0x8f8a84, count: 8, size: 0.14, grow: 0.9,  life: 1.6, speed: 2.2, rise: 0.3, opacity: 0.45 } },
-  cobray:  { flash: { img: null, style: 'star4', color: '#ffc040', size: 0.3,  vmSize: 0.16, life: 0.03 },
+  uzi:     { flash: { img: null, style: 'star4', color: '#ffc040', size: 0.3,  vmSize: 0.16, life: 0.03 },
              smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 1, size: 0.08, grow: 0.3,  life: 0.6, speed: 0.8, rise: 0.35, opacity: 0.25 } },
 };
 const PROPS = {};
@@ -1845,7 +1845,7 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
-const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, cobray: { y: 0.05, z: 0.09 } };
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 } };
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
@@ -2886,8 +2886,8 @@ function initPlayerWeapons() {
   P.ammo = WEAPONS.pistol.mag; P.reserve = WEAPONS.pistol.startRes;
   P.ammoBy = { pistol: { mag: P.ammo, res: P.reserve } };
   selectWeapon('pistol', true);
-  // Testing aid: ?give=<gun> (e.g. ?give=cobray) adds that gun to your loadout every time you spawn
-  const give = params.get('give'); if (give && give !== 'pistol' && WEAPONS[give]) giveWeapon(P, give);
+  // Testing aid: ?give=<gun> (e.g. ?give=uzi) adds that gun to your loadout every time you spawn. ?give=cobray (its first name) still works
+  const give = ({ cobray: 'uzi' })[params.get('give')] || params.get('give'); if (give && give !== 'pistol' && WEAPONS[give]) giveWeapon(P, give);
 }
 function syncAmmo() { if (P.ammoBy && P.ammoBy[curW]) { P.ammoBy[curW].mag = P.ammo; P.ammoBy[curW].res = P.reserve; } }
 function selectWeapon(id, instant) {
@@ -2931,7 +2931,7 @@ function botInitWeapons(b) {
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
-  const pref = dist < 8 ? ['shotgun', 'cobray', 'carbine', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'carbine', 'cobray', 'pistol', 'shotgun'] : ['carbine', 'cobray', 'rifle', 'shotgun', 'pistol'];
+  const pref = dist < 8 ? ['shotgun', 'uzi', 'carbine', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'carbine', 'uzi', 'pistol', 'shotgun'] : ['carbine', 'uzi', 'rifle', 'shotgun', 'pistol'];
   const pick = pref.find(id => left(id) > 0) || 'pistol';
   if (pick !== b.wpn) botSelect(b, pick);
 }
@@ -4050,7 +4050,7 @@ function sGrunt(v) {
 }
 function sShotgun(v) { if (!AC || v < 0.02) return; const t = AC.currentTime; noise(t, 0.45, 1.0 * v, 2500, 90); thump(t, 0.35, 1.0 * v, 95, 28); }
 // Recorded gun shots in sounds/ (gun=carbine); the laser pistol stays synthesized; any that fail to load fall back to the synth above
-// uzi.wav is an original sound made in code for the Cobray, already levelled to match the carbine at its 0.5 gain
+// uzi.wav is an original sound made in code for the Uzi, already levelled to match the carbine at its 0.5 gain
 const GUN_SAMPLES = { gun: 'sounds/carbine.wav', rifle: 'sounds/rifle.wav', shotgun: 'sounds/shotgun.wav', uzi: 'sounds/uzi.wav' }, sampleBuf = {}, SAMPLE_GAIN = { gun: 0.5, rifle: 1.2 };
 function loadGunSamples() {
   for (const [k, url] of Object.entries(GUN_SAMPLES))
