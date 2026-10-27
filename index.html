@@ -649,8 +649,9 @@ function levelFortress() {
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
       [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55]],
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52]],
-    // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill
-    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56]],
+    // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill, the Uzi in
+    // the back corridor (an SMG for the tight indoor fights, not the open ground outside)
+    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3]],
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck, James's jeep tuning) on the road behind the hill
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
@@ -689,9 +690,9 @@ function levelMinimal() {
       [-6, 29.3, 20], [-20, 23.7, 36], [-18, 28, 12], [-36, 27.5, 60], [0, 23.8, 50], [14, 38.4, 72], [38, 30, 48], [-48, 22.8, 34],
       [-2, 34, -12, 1], [-22, 32.1, 68, 1]],
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [6.1, 44.5, 2.6], [-16, 26.1, 26], [-8, 31.9, 10], [-46, 26.5, 46], [-24, 30.1, 78], [-48, 33.1, 60], [-8, 27.8, 58]],
-    // A shotgun in the courtyard and the rifle in the tower room; the rest out on the island
+    // A shotgun in the courtyard and the rifle in the tower room; the Uzi in the back corridor; the rest out on the island
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
-      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20]],
+      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20], ['uzi', 0.3, 37.5, -5.3]],
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
@@ -2087,6 +2088,18 @@ const teamsOn = () => !!(LV && LV.teams) && MODE !== 'defend' && MODE !== 'drive
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
 const teamKills = t => ents.reduce((n, e) => n + (e.team === t ? e.kills : 0), 0);
 let myTeam = 'midas';
+// Bot personality: each bot keeps one archetype for its whole life, not just this spawn, so a match reads as a mix of
+// trigger-happy rushers, steady riflemen, patient cover campers and loose skirmishers rather than one AI in different
+// skins. pref is the range (m) a style likes to fight at; burst/pause shape automatic fire, semiMul shifts how fast it
+// works a semi-auto trigger; cover is the odds this particular bot hunkers down to shoot rather than stand in the
+// open; nadeMul scales how often it's willing to throw a grenade at all.
+const BOT_STYLES = {
+  rusher: { pref: 4, burstLo: 6, burstHi: 14, pauseLo: 0.12, pauseHi: 0.3, semiMul: 0.75, reactMul: 0.75, cover: 0, nadeMul: 1.3 },
+  tactical: { pref: 9, burstLo: 3, burstHi: 6, pauseLo: 0.45, pauseHi: 0.9, semiMul: 1, reactMul: 1, cover: 0.2, nadeMul: 1 },
+  marksman: { pref: 15, burstLo: 1, burstHi: 3, pauseLo: 0.6, pauseHi: 1.3, semiMul: 1.15, reactMul: 1.2, cover: 0.85, nadeMul: 0.3 },
+  skirmisher: { pref: 7, burstLo: 2, burstHi: 5, pauseLo: 0.3, pauseHi: 0.6, semiMul: 0.9, reactMul: 0.9, cover: 0.15, nadeMul: 0.7 },
+};
+const BOT_STYLE_IDS = Object.keys(BOT_STYLES);
 const P = makeEntity('You', true);
 P.team = myTeam;
 P.role = 'master';
@@ -2106,8 +2119,10 @@ function buildBots(plan) {
     const [name] = BOT_DEFS[i] || ['Bot ' + (i + 1)];
     const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = plan[i];
     b.mesh = makeBotMesh(b, plan[i] === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
+    const style = BOT_STYLE_IDS[Math.random() * BOT_STYLE_IDS.length | 0];
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
-      react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0 };
+      react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0,
+      style, cover: Math.random() < BOT_STYLES[style].cover, crouchHold: 0, jumpCd: 0 };
     bots.push(b);
   }
   ents = [P, ...bots, ...remotes];
@@ -3151,7 +3166,7 @@ function botNade(b, t) {
   b.nades--;
   const o = eyePos(b), tp = new V3(t.pos.x, t.pos.y + 0.3, t.pos.z);
   const dx = tp.x - o.x, dz = tp.z - o.z, d = Math.hypot(dx, dz), T = Math.max(0.6, d / 13);
-  const err = 1 + (Math.random() - 0.5) * (1.2 - D.acc * 0.6);
+  const err = 1 + (Math.random() - 0.5) * (1.7 - D.acc * 0.5);
   throwNade(b, o, new V3(dx / T * err, (tp.y - o.y + 0.5 * GRAV * T * T) / T, dz / T * err));
 }
 function findTarget(b) {
@@ -3289,6 +3304,34 @@ function roamFine(b, wish, dt, face = true) {
   ai.lastSeenT = 0; ai.hpath = fortPath(b.pos, goal); ai.hi = 0;
   if (ai.hpath && ai.hpath.length > 1) walkFine(b, wish, dt, face); else ai.hpath = null;
 }
+// Where a defending team's bots call home: the middle of their spawns, with a radius that covers the base those
+// spawns sit in but not the open ground beyond it. Cached per level+team since spawns don't move mid-match.
+const TEAM_HOME = {};
+function teamHomeInfo(team) {
+  const key = curLevel + '|' + team;
+  if (TEAM_HOME.key !== key) {
+    const pts = SPAWN_SETS[team]; if (!pts || !pts.length) return null;
+    const pos = new V3(); pts.forEach(p => pos.add(p)); pos.divideScalar(pts.length);
+    let r = 0; for (const p of pts) r = Math.max(r, Math.hypot(p.x - pos.x, p.z - pos.z));
+    TEAM_HOME.key = key; TEAM_HOME.val = { pos, r: r + 9 };
+  }
+  return TEAM_HOME.val;
+}
+// A defending bot with nobody in sight: wander, but only within the home radius (ammo, pickups and the last spot
+// someone was seen only count if they're close enough; otherwise a random point inside the base) — never out across
+// the whole map chasing an objective the way a free-roaming bot would
+function roamHome(b, wish, dt, face, home) {
+  const ai = b.ai;
+  if (ai.hpath && walkFine(b, wish, dt, face)) return;
+  const within = p => Math.hypot(p.x - home.pos.x, p.z - home.pos.z) < home.r;
+  let goal = null;
+  if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box && within(box.pos)) goal = box.pos; }
+  if (!goal && Math.random() < 0.5) { const pk = nearestPickup(b); if (pk && within(pk.pos)) goal = pk.pos; }
+  if (!goal && ai.lastSeenT > 0 && ai.lastSeen && within(ai.lastSeen)) goal = ai.lastSeen;
+  if (!goal) { const ang = Math.random() * Math.PI * 2, rad = Math.random() * home.r; goal = new V3(home.pos.x + Math.cos(ang) * rad, home.pos.y, home.pos.z + Math.sin(ang) * rad); }
+  ai.lastSeenT = 0; ai.hpath = fortPath(b.pos, goal); ai.hi = 0;
+  if (ai.hpath && ai.hpath.length > 1) walkFine(b, wish, dt, face); else ai.hpath = null;
+}
 // Follow a path on the fine walking map; false once it's walked (or there is none)
 function walkFine(b, wish, dt, face) {
   const ai = b.ai, p = ai.hpath; if (!p || !p.length) return false;
@@ -3313,13 +3356,19 @@ function planAssault(b) {
   ai.path = findPath(cellOf(b.pos), ASSAULT[Math.random() * ASSAULT.length | 0]); ai.pi = 0;
   if (ai.path && !ai.path.length) ai.path = null;
 }
+// Something low right in the bot's way (a curb, a crate, a ledge lip) with clear air just above it: a hop clears it.
+// A full wall is blocked at both bands, so this says no and leaves it to the sideways kick instead.
+function obstacleAhead(b, dirx, dirz) {
+  const ax = b.pos.x + dirx * 0.6, az = b.pos.z + dirz * 0.6;
+  return blockedAt(ax, b.pos.y + 0.15, az, 0.5) && !blockedAt(ax, b.pos.y + 0.95, az, 0.6);
+}
 function updateBot(b, dt) {
   if (!b.alive) {
     if (MODE !== 'defend') { b.respawnT -= dt; if (b.respawnT <= 0) respawn(b); }
     else if (WAVE.phase === 'fight' && WAVE.queue > 0 && !matchOver && !LV.trucks) { b.respawnT -= dt; if (b.respawnT <= 0) { WAVE.queue--; respawn(b); } }
     return;
   }
-  const ai = b.ai, def = MODE === 'defend';
+  const ai = b.ai, def = MODE === 'defend', style = BOT_STYLES[ai.style];
   if (b.reloading > 0) { b.reloading -= dt; if (b.reloading <= 0) { const take = Math.min(WEAPONS[b.wpn].mag - b.ammo, b.reserve); b.ammo += take; b.reserve -= take; } }
   else if (b.ammo === 0 && b.reserve > 0) b.reloading = WEAPONS[b.wpn].reload + 0.3;
   const noAmmo = b.ammo === 0 && b.reserve === 0;
@@ -3327,7 +3376,7 @@ function updateBot(b, dt) {
   if (ai.scanT <= 0) {
     ai.scanT = 0.25;
     const t = findTarget(b);
-    if (t !== ai.target) { ai.target = t; ai.react = D.react * (0.7 + Math.random() * 0.6); ai.burst = 0; }
+    if (t !== ai.target) { ai.target = t; ai.react = D.react * style.reactMul * (0.7 + Math.random() * 0.6); ai.burst = 0; }
     botChooseWeapon(b, t ? b.pos.distanceTo(t.pos) : 12);
     if (t) { ai.lastSeen = t.pos.clone(); ai.lastSeenT = 4; if (!def) ai.path = null; }
   }
@@ -3335,6 +3384,9 @@ function updateBot(b, dt) {
   const fwd = new V3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new V3(Math.cos(b.yaw), 0, -Math.sin(b.yaw));
   const wish = new V3(); let speed = 4.2;
   const t = ai.target;
+  // Rebels on a team level are the home side: once they're back near their own spawns they hold the base instead of
+  // roaming out after whoever they last saw
+  const home = teamsOn() && b.team === 'rebels' ? teamHomeInfo('rebels') : null;
   if (t) {
     const dx = t.pos.x - b.pos.x, dz = t.pos.z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
     b.yaw = turn(b.yaw, want, D.turn * dt);
@@ -3345,32 +3397,39 @@ function updateBot(b, dt) {
     else {
       ai.strafeT -= dt;
       if (ai.strafeT <= 0) { ai.strafeT = 0.4 + Math.random() * 0.9; ai.strafeDir = Math.random() < 0.5 ? -1 : 1; }
+      const holdGround = home && Math.hypot(b.pos.x - home.pos.x, b.pos.z - home.pos.z) < home.r * 0.9;
       if (def && gateOpen() && inFort(b.pos)) { if (Math.hypot(dist, t.pos.y - b.pos.y) > 2.5) botAdvance(b, wish, dt, false); } // inside: rush them, shooting on the move
       else if (def && (gateOpen() || (dist > 12 && !atGate(b)))) { // keep pushing up the hill while shooting
         botAdvance(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
+      } else if (!def && home && FN.cells && dist > 6) { // defending the base: hold the line once home, otherwise fall back to it
+        if (holdGround) wish.addScaledVector(right, ai.strafeDir * (style.pref > 10 ? 0.3 : 0.55));
+        else { roamHome(b, wish, dt, false, home); wish.addScaledVector(right, ai.strafeDir * 0.4); }
       } else if (!def && FN.cells && dist > 6) { // free for all on a fine-mapped level: keep going where you were going, shooting
         roamFine(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.4);
       } else {
         wish.addScaledVector(right, ai.strafeDir);
-        if (dist > 18) wish.addScaledVector(fwd, 0.8); else if (dist < 5) wish.addScaledVector(fwd, -0.8);
+        if (dist > style.pref + 6) wish.addScaledVector(fwd, 0.8); else if (dist < style.pref - 3) wish.addScaledVector(fwd, -0.8);
       }
+      // A cover-minded bot plants and crouches to shoot once it's in range, rather than always standing tall
+      if (ai.cover && dist > 5 && facing < 0.7 && b.onGround && !(def && gateOpen() && inFort(b.pos))) ai.crouchHold = 0.4;
       speed = 3.5;
       ai.react -= dt; ai.fireCd -= dt;
       const bw = WEAPONS[b.wpn];
       if (b.reloading <= 0 && b.ammo > 0 && ai.react <= 0 && ai.fireCd <= 0 && facing < (bw.oneShot ? 0.08 : 0.2) && (!bw.pellets || dist < 16)) {
         botShoot(b, t, dist);
-        if (bw.auto) { ai.fireCd = 0.12; ai.burst++; if (ai.burst >= 3 + (Math.random() * 3 | 0)) { ai.burst = 0; ai.fireCd = 0.5 + Math.random() * 0.7; } }
-        else ai.fireCd = Math.max(bw.rate, 0.3) + Math.random() * 0.35;
+        if (bw.auto) { ai.fireCd = 0.12; ai.burst++; if (ai.burst >= style.burstLo + (Math.random() * (style.burstHi - style.burstLo) | 0)) { ai.burst = 0; ai.fireCd = style.pauseLo + Math.random() * (style.pauseHi - style.pauseLo); } }
+        else ai.fireCd = Math.max(bw.rate, 0.3) * style.semiMul + Math.random() * 0.35;
       }
       if (!def && b.nades > 0 && ai.nadeCd <= 0) { // attackers don't throw grenades
-        ai.nadeCd = 3 + Math.random() * 4;
-        if (dist > 8 && dist < 26 && Math.random() < D.nade * 4) botNade(b, t);
+        ai.nadeCd = 5 + Math.random() * 6;
+        if (dist > 8 && dist < 26 && Math.random() < D.nade * 1.5 * style.nadeMul) botNade(b, t);
       }
     }
   } else {
     if (def) botAdvance(b, wish, dt, true); // nobody in sight: march on the gate, or hunt the defenders inside
     b.pitch *= 1 - Math.min(1, dt * 4);
     if (!def && gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
+    else if (!def && home && FN.cells) roamHome(b, wish, dt, true, home); // defending rebels patrol their own base, nowhere else
     else if (!def && FN.cells) roamFine(b, wish, dt);
     else if (!def && !ai.path) {
       let goal = null;
@@ -3383,15 +3442,25 @@ function updateBot(b, dt) {
     }
     if (!def && !FN.cells) followPath(b, wish, dt, true);
   }
-  ai.stuckT += dt;
-  if (ai.stuckT > 1) {
+  // Crouch holds briefly after the reason for it goes away (losing sight of a target, say) so a cover bot doesn't
+  // pop up and down every frame; stands back up only when there's headroom to
+  ai.crouchHold -= dt;
+  if (ai.crouchHold > 0) b.h = CROUCH_H;
+  else if (b.h < STAND_H && !blockedAt(b.pos.x, b.pos.y, b.pos.z, STAND_H)) b.h = STAND_H;
+  ai.stuckT += dt; ai.jumpCd -= dt;
+  if (ai.stuckT > 0.6) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-    if (moved < 0.4 && (ai.path || ai.hpath)) { if (b.onGround) b.vel.y = JUMP; if (++ai.stuckN > 1) { ai.path = null; ai.hpath = null; ai.stuckN = 0; } }
-    else ai.stuckN = 0;
+    if (moved < 0.3 && wish.lengthSq() > 0.01) { // stuck: a sideways kick to break free, plus a hop but only over an actual ledge or obstacle, and not too often
+      const dir = wish.clone().normalize();
+      if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z)) { b.vel.y = JUMP; ai.jumpCd = 1.2; }
+      b.vel.x += (Math.random() - 0.5) * 5; b.vel.z += (Math.random() - 0.5) * 5;
+      if (++ai.stuckN > 1) { ai.path = null; ai.hpath = null; ai.stuckN = 0; }
+    } else ai.stuckN = 0;
     ai.lastPos.copy(b.pos); ai.stuckT = 0;
   }
   if (wish.lengthSq() > 0) wish.normalize();
   if (def) speed *= ATK_SPEED;
+  if (b.h < STAND_H) speed *= 0.55;
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
   b.vel.z += (wish.z * speed - b.vel.z) * k;
@@ -3402,7 +3471,8 @@ function updateBot(b, dt) {
   stepSound(b, dt);
   b.mesh.position.copy(b.pos);
   b.mesh.rotation.y = b.yaw;
-  animRig(b.rig, dt, Math.hypot(b.vel.x, b.vel.z), false, b.pitch);
+  animRig(b.rig, dt, Math.hypot(b.vel.x, b.vel.z), b.h < STAND_H, b.pitch);
+  crouchHit(b);
   updateNameTag(b);
 }
 
@@ -4458,14 +4528,24 @@ function botShootGate(b, dt) {
   for (let i = 0; i < (w.pellets || 1); i++) { if (i < 3) tracer(start, aim0, w.tracer, w.trW, w.trLife); total += w.dmg; }
   damageGate(total * BOT_DMG);
 }
-// Out of sight of anyone: march to a spot on the road, then shoot the gate
+// Out of sight of anyone: march to a spot in front of the gate, then shoot it. The authored LV.gate.siege points all
+// sit in the same narrow stretch of road, which is why a whole squad funnelled onto them reads as one single-file
+// line; instead each bot picks a different patch of real, walkable road (a cluster of nodes from the same fine
+// walking map everything else paths on, not a raw ground probe that can land on a rock ledge and leave it looking
+// like it floated there) near one of those points, filtered to ones with a sightline to the gate, so the squad
+// spreads out across the road and fires on the gate from a spread of real angles while staying on solid ground.
 function siegeGate(b, wish, dt) {
-  const ai = b.ai, d = LV.gate.doors, cx = (d.x0 + d.x1) / 2, dist = Math.hypot(b.pos.x - cx, b.pos.z - d.z);
-  if (dist < 14 && b.pos.z > d.z && Math.abs(b.pos.y - d.y0) < 4) { ai.hpath = null; botShootGate(b, dt); return; }
-  if (!ai.sg) { const sp = LV.gate.siege[Math.random() * LV.gate.siege.length | 0], g = groundAt(sp[0], sp[1], d.y0 + 6); ai.sg = g === null ? null : new V3(sp[0], g, sp[1]); }
-  if (!ai.sg) return;
+  const ai = b.ai, d = LV.gate.doors;
+  if (!ai.sg) {
+    let idx = 0; for (const o of bots) { if (o.team !== 'midas') continue; if (o === b) break; idx++; }
+    const sp = LV.gate.siege[idx % LV.gate.siege.length], gateP = new V3((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, d.z);
+    const cands = FN.nodes.filter(n => Math.abs(n.x - sp[0]) < 5 && Math.abs(n.z - sp[1]) < 5 && Math.abs(n.y - d.y0) < 4 && tgClear(new V3(n.x, n.y + 1.5, n.z), gateP));
+    if (cands.length) { const n = cands[Math.random() * cands.length | 0]; ai.sg = new V3(n.x, n.y, n.z); }
+    else { const g = groundAt(sp[0], sp[1], d.y0 + 6); ai.sg = g === null ? b.pos.clone() : new V3(sp[0], g, sp[1]); }
+  }
+  if (b.pos.distanceTo(ai.sg) < 3) { ai.hpath = null; botShootGate(b, dt); return; } // reached its own angle on the gate: hold and fire from there
   if ((ai.huntT = (ai.huntT || 0) - dt) <= 0 || !ai.hpath) { ai.huntT = 1 + Math.random(); ai.hpath = fortPath(b.pos, ai.sg); ai.hi = 0; }
-  walkFine(b, wish, dt, true);
+  if (!walkFine(b, wish, dt, true)) botShootGate(b, dt); // path ran out short of the spot (blocked off): shoot from where it is rather than stall
 }
 // Host: a dead attacking player takes over the soldier closest to the gate
 function takeOver(r) {
