@@ -755,7 +755,7 @@ function addSetExtras(L) {
   if (L.fence) for (let i = 0; i + 1 < L.fence.length; i++) { // tall see-through panels from the valley floor up past head height
     const [x0, z0, t0] = L.fence[i], [x1, z1, t1] = L.fence[i + 1], len = Math.hypot(x1 - x0, z1 - z0) + 0.3, top = Math.max(t0, t1), bot = 8;
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
-    o.userData.noShot = true; // blocks walking only: bullets, bullet holes and sight lines pass through
+    if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
   }
   if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
   if (L.balcony) {
@@ -1935,6 +1935,7 @@ function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.lengt
 // when it starts fading (they're shared with the living characters), and stops casting a shadow so no solid shadow is left behind.
 const CORPSE_STAY = 15, CORPSE_FADE = 3;
 function fadeCorpses(dt) {
+  if (!TEST) return; // test switch only for now
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i]; c.age = (c.age || 0) + dt;
     if (c.age < CORPSE_STAY) continue;
@@ -4535,6 +4536,9 @@ function drawMap() {
 // The host's browser runs the match (bots, scoring, pickups, grenades). Guests open ?join=<hostId>,
 // simulate their own movement and aim, report hits, and render everyone else from host snapshots.
 const params = new URLSearchParams(location.search);
+// Test switch: ?test (or &test) turns on changes still being tried out before they go to everyone:
+// shots pass through the Fortress's invisible valley fence, and bodies fade out after 15 s
+const TEST = params.has('test');
 const NET = { role: params.get('join') ? 'guest' : 'host', hostId: params.get('join'), peer: null, conn: null, myId: 'h', joined: false, sendT: 0, nextRid: 1, spawnSeq: 0 };
 if (NET.role === 'guest') document.body.classList.add('guest');
 if (params.get('team') === 'pirates') $('guestinfo').textContent = "You're joining a friend's fort game as a pirate: ride in with the attackers and break in.";
