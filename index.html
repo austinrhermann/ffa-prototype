@@ -550,11 +550,11 @@ function levelFortress() {
   };
 }
 // Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
-// shapes in flat colours, no textures. Free for all with guns, ammo and health scattered around; the fort is the same as
+// shapes, drawn like the arena levels (arenaStyle: tiled floors, grey walls, the original lighting). Free for all with guns, ammo and health scattered around; the fort is the same as
 // Battle at the Fort's, so its inside spots carry over. Positions are world metres [x, y, z]; y is a hint, items settle below it.
 function levelMinimal() {
   return {
-    mesh: 'Minimal', collide: 'Minimal_col', mode: 'ffa', look: true,
+    mesh: 'Minimal', collide: 'Minimal_col', mode: 'ffa',
     cs: 2, ox: -70, oz: -26, killY: -18, fog: [70, 260], top: 0, wall: 0,
     // Inside the fort (courtyard, wall walk, tower room), then out across the island
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
@@ -1290,6 +1290,32 @@ const SOLDIER_COUNT = 4;
 const MODELS = [];
 const LEG_BONES = { thighL: 'DEF-Thigh_1L', thighR: 'DEF-Thigh_1R', kneeL: 'DEF-Knee_1L', kneeR: 'DEF-Knee_1R' };
 function b64ToBuf(str) { const bin = atob(str), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+// Draw a level set like the arena levels: whatever faces up enough to walk on gets the tiled floor (2m tiles, laid out in
+// world x and z), everything else the grey wall
+const ARENA_WALL = toonMat({ color: 0x8d949c });
+function arenaStyle(sc) {
+  sc.updateMatrixWorld(true);
+  const meshes = []; sc.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const a = new V3(), b = new V3(), c = new V3(), n = new V3(), e = new V3();
+  for (const m of meshes) {
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, pos = g.attributes.position;
+    const part = { floor: { p: [], uv: [] }, wall: { p: [], uv: [] } };
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); b.fromBufferAttribute(pos, i + 1).applyMatrix4(m.matrixWorld); c.fromBufferAttribute(pos, i + 2).applyMatrix4(m.matrixWorld);
+      n.crossVectors(e.subVectors(b, a), c.clone().sub(a)); const l = n.length(); if (l < 1e-9) continue;
+      const P = part[Math.abs(n.y / l) > 0.7 ? 'floor' : 'wall'];
+      for (const v of [a, b, c]) { P.p.push(v.x, v.y, v.z); P.uv.push(v.x / 2, v.z / 2); }
+    }
+    m.parent.remove(m);
+    for (const [k, P] of Object.entries(part)) {
+      if (!P.p.length) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P.p, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(P.uv, 2)); geo.computeVertexNormals();
+      const o = new THREE.Mesh(geo, k === 'floor' ? MAT.floor : ARENA_WALL); o.name = m.name; o.castShadow = o.receiveShadow = true; sc.add(o);
+    }
+  }
+  sc.updateMatrixWorld(true);
+}
 function prepScene(sc) {
   sc.traverse(o => {
     if (!o.isMesh) return;
@@ -1586,6 +1612,7 @@ function loadModels() {
       if (o.material.name === 'Creek_Water') o.castShadow = false;
     });
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
+    if (d === levelMinimal().mesh) arenaStyle(sc); // blockouts are drawn like the arena levels
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
   // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.

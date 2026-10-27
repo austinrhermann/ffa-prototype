@@ -1,5 +1,5 @@
 # Builds the Minimal level from James's blockout (Collisions_Minimal.glb: the fort collision and the terrain collision) as
-# two files: models/Minimal.glb, drawn in flat colours with no textures, and models/Minimal_col.glb, what everything collides with.
+# two files: models/Minimal.glb, what's drawn (the game restyles it like the arena levels, see arenaStyle), and models/Minimal_col.glb, what everything collides with.
 # Run (from the game folder):
 #   "/Applications/Blender 5.2.app/Contents/MacOS/Blender" -b --python tools/build_minimal.py -- ../Collisions_Minimal.glb models
 import bpy, sys, os
