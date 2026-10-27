@@ -4,14 +4,22 @@ Browser free-for-all shooter built with three.js. Characters, weapons and props 
 
 ## Title page
 
-The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image) with two choices. Everything starts loading as soon as the page opens.
+The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image). Everything starts loading as soon as the page opens. **Defend the Fort** is the game; it's the only choice on the title page.
+
+The other modes are for the host and for development. Add `?dev` to the address and the title page shows them too (it applies to that page load only):
 
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
-- **Defend the Fort**: the tower defense. Its menu has two invite buttons: **Invite an apprentice** (the normal invite) and **Invite pirates** (`&team=pirates`, joins as an attacker). The rules, role choice, difficulty and controls are behind the **Instructions and controls** switch.
-
 - **Test Drive**: a little stadium oval with cars and motorcycles to drive, tune and crash, with friends (see below). It's where the vehicle mechanics get worked out before they go into the other games.
 
-Each menu shows only what you need to start (the arena: level and Play); everything else is behind its **Options and controls** switch, including mouse sensitivity and whether right click holds or toggles aim (remembered in your browser). **Play again** on the title page starts the last game you hosted.
+`?dev` also brings back the **Look** button in Settings. `?level=<name>` still opens a level directly.
+
+Every menu (start, join, pause and round results) looks like the title page: big white heading, solid black buttons, over the title picture (or over the game while paused). It fits on one screen, and on a phone it stacks and scrolls.
+
+- The fort's start screen: **Play**, **Invite an apprentice** (the normal invite), **Invite pirates** (`&team=pirates`, joins as an attacker), **How to play**, **Settings** and **‹ Back**, with your name, character and the chat beside them.
+- **How to play** has the rules and the controls.
+- **Settings** is all buttons: your role with a friend (Master or Apprentice), difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim and god mode. Sensitivity and the aim setting are remembered in your browser.
+- The pause screen (Esc) has **Resume**, **Restart game**, the same **How to play** and **Settings**, and **Main menu**.
+- **Play again** on the title page starts the last game you hosted.
 
 Invited friends skip the title page. **Main menu** on the pause screen (every mode) goes back to the title page; a host leaving ends the game for everyone who joined.
 
@@ -76,7 +84,7 @@ Import the repo in Vercel, framework preset **Other**, no build command, output 
 
 ## Test Drive
 
-A little stadium oval (open it directly with `?level=drive`): two 120 m straights and banked turns, a tall outer wall with a catch fence so nobody leaves the track, a low inner wall with a gap onto the infield, and three ramps on the straights (each sits in one lane, leaving a clear lane down the middle). A walkway through the outer wall on the back straight leads to the grandstand, whose rows you can climb (people only: vehicles are held back). The infield parking lot has six open-chassis cars (Kart, two Roadsters, Muscle, Buggy, Hauler), the fort's Truck, and two motorcycles (Sport bike, Dirt bike). Nobody carries a gun, and on foot you're in third person. Walk up to a vehicle and press **E**: where you stand picks the seat. The left side drives, the right side **rides along** in the passenger seat, and the Truck's tailgate climbs into the back (six seats). Bikes seat one. E again gets you out.
+A little stadium oval (open it directly with `?level=drive`): two 120 m straights and banked turns, a tall outer wall with a catch fence so nobody leaves the track, a low inner wall with a gap onto the infield, and three ramps on the straights (each sits in one lane, leaving a clear lane down the middle). A walkway through the outer wall on the back straight leads to the grandstand, whose rows you can climb (people only: vehicles are held back). The infield parking lot has six open-chassis cars (Kart, two Roadsters, Muscle, Buggy, Hauler), the fort's Truck (the Cargo Truck model), and two motorcycles (Sport bike, Dirt bike). Nobody carries a gun, and on foot you're in third person. Walk up to a vehicle and press **E**: where you stand picks the seat. The left side drives, the right side **rides along** in the passenger seat, and the Truck's tailgate climbs into the back (six seats). Bikes seat one. E again gets you out.
 
 - **Cars** are bare chassis: frame, floor, two seats, a steering wheel and four wheels, so the driver's-seat view (**V**) has nothing in the way. The bikes lean into turns.
 - **Driving**: W/S throttle, brake and reverse; A/D steer; Space handbrake; R puts you back on your wheels where you are. Wheels follow the banking and ramps, you fly off ramp lips, W/S tip the nose in the air, and the body dives, squats, rolls and bounces on its suspension. A lap timer runs from the line on the front straight (last and best lap in the corner).
@@ -93,26 +101,49 @@ It's an original map in the spirit of the classic two-base canyon maps; everythi
 
 ## Fortress defend
 
-The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). Each wave sets off as soon as the last one is beaten; the trucks' drive in is the only breather. If any defender dies, the fort is lost. Beat all three waves and nobody shoots at you any more: the island is yours to explore, and Esc shows **Play again**. The start screen has one setting, Difficulty; the pause screen has Restart game.
+The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). Each wave sets off as soon as the last one is beaten; the trucks' drive in is the only breather. If any defender dies, the fort is lost. Beat all three waves and nobody shoots at you any more: the island is yours to explore, and Esc shows **Play again**. Settings has the difficulty and your role; the pause screen has Restart game.
 
 - **The Master**: Master rifle (20 shots in the fort; an ammo box adds 10), laser pistol, 4 grenades, double health (200). Plays alone if nobody else joins.
 - **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate. The gate starts shut and never moves by itself.
 - **The Computer**: always an NPC. Fires the cannon on the wall over the gate by itself (a grenade-sized blast, then 10 s to recharge), trucks first. It only engages targets more than 25 m out from the wall, so it never reaches the gate: up close, the defenders have to do the work.
 - Alone you're the Master. With a friend, the host picks Master or Apprentice and the friend gets the other. Everyone after the second joins the attackers as a Midas soldier (carbine and pistol); a dead attacker can press **E** to take over the NPC soldier closest to the gate.
-- **Trucks**: the attackers ride in, 4 to a truck, along the road from behind the hill (out of sight from the fort for the first half of the drive). The trucks are real vehicles (James's jeep tuning, from `vehicles.js`) driven by an NPC: it follows the road, drives right up to about 7 m from the gate, inside the cannon's minimum range (later trucks queue behind the ones already parked, including earlier waves'), and lets the soldiers out of the back. Once a truck is empty it's anyone's: walk up to the left side to **drive**, the right side to **ride along**, or the tailgate to **climb in the back** (six seats on two benches). Passengers can shoot from their seats; the driver can't. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck burns, anyone in it bails out, and soldiers still in the back jump out hurt.
-- **Motorcycle**: a sport bike (James's tuning) waits in the courtyard by the gate. It seats one.
+- **Trucks**: the attackers ride in, 4 to a truck, along the road from behind the hill (out of sight from the fort for the first half of the drive). The trucks are the asset library's Cargo Truck with its container back (`models/Cargo_Truck.glb`, see below), driven as real vehicles (James's jeep tuning, from `vehicles.js`) by an NPC: it follows the road, drives right up to the gate, inside the cannon's minimum range (later trucks queue behind the ones already parked, including earlier waves'), and the soldiers pile out of the container's open back. Once a truck is empty it's anyone's: walk up to the left side to **drive**, the right side to **ride along**, or the back to **climb into the container** (six seats on two benches). Passengers can shoot from their seats; the driver can't. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck turns into the burnt wreck, anyone in it bails out, and soldiers still in the back jump out hurt.
+- **Trucks are cover**, parked or wrecked: boxes round the cab, the container and the chassis stop bullets (yours and the bots'), the bots' line of sight and grenade blasts. Hide behind one and the pirates can't see or shoot you; they hide behind them too. Soldiers walk round trucks, not through them. Riding inside one hides you, and you can still shoot out of it.
+- There are no other vehicles in the fort (the courtyard motorcycle is gone; Test Drive still has it).
 - **Leaning out**: press up against the parapet on the wall walk (or the tower room's front window) and look down, and your head goes out over the edge so you can shoot the attackers at the gate. Once you're out you can look left, right and up without pulling back in; step back from the wall to come in.
 - **Tower door**: the doorway from the back corridor into the tower's lower stair room has a door, open at the start. A defender presses **E** beside it to close and lock it (E again opens it). Attackers pressed against it break it down in about 20 attacker-seconds (two soldiers: 10 s); once broken it stays broken.
 - **The roof**: in the computer room, walk up to the back window and press **E** to climb out onto a small balcony. A ladder beside the window goes up to the roof (a good rifle spot and a last stand). E at the window climbs back in. Bots don't follow you up.
 - An invisible fence runs along the rim of the valley between the fort and the hill so soldiers stay on the road side. The cannon's blast radius is 5.7 m (it used to be 8).
-- Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads.
+- Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads (it leaves out anywhere a body wouldn't fit at head or waist height, such as along the side of a staircase).
 - White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. They shoot whenever they can see any of you, on the way up as well as inside: a head over the parapet or someone leaning out is a smaller target, but not a safe one. Dead pirates drop their carbines for the defenders to pick up, and there's a shotgun in the courtyard.
-- **Look**: Fortress uses a flat sun-and-shadow look copied from the Blender renders (lit surfaces show their texture colour, shadowed ones the texture times a shadow colour, with a ramp for the edge). Esc, then **Look**, to change the sun, shadow colour, edge and sky live; **Copy settings** copies them for `LOOK_DEFAULT`. The other levels keep the original lighting.
+- **Look**: the fort is lit the way the Blender renders are, by their compositor's own rules (`tools/build_fortress.py` reads them out of the set):
+  - **Where the sun reaches is baked.** Every surface of the set carries the render's lit-or-shadow mask (Cycles, from the render's sun lamp, with its threshold), so the fort's shadows are the render's: dark interiors, no light leaking through walls, no flickering edges. Real-time shadows are only for what moves (characters, trucks, doors), and what moves is lit by a grid of where the sun reaches (`models/Fortress_v5_sun.png`), so a soldier walking into the tower goes dark with it, and so does your gun.
+  - **The renders' colours**: lit surfaces at the renders' exposure, shadowed ones much darker (a touch lighter than the renders', so attackers in shadow stay visible), a blue haze that grows with distance from 20 m to 550 m, and the renders' sky gradient, deep blue overhead.
+  - With `?dev`, Esc, then Settings, then **Look** changes the sun (for what moves; the fort's own shadows are baked), the lit and shadow colours, the edge and the sky live; **Copy settings** copies them for `LOOK_DEFAULT`. The other levels keep the original lighting.
 
-The level comes from James's render set export, turned into two files by `tools/build_fortress.py` (run it in Blender; the command is at the top of the script):
+The level is built straight from the render set, `SE4_Asset Library/Sets/Fortress/RENDER_set_v05_sky.blend`, by `tools/build_fortress.py` (the command is at the top of the script):
 
-- `models/Fortress_v5.glb` is what you see: characters, render helpers and the render cannon removed, heavy plants simplified, objects merged by material, textures shrunk to JPEG, geometry Draco-compressed (63 MB down to about 6 MB).
-- `models/Fortress_v5_col.glb` is what everything collides with, shoots at and walks on: simplified terrain, the fort exact, props as boxes, no plants, the closed gate as a box named `Front_Gate`, every staircase replaced by a smooth ramp, and the way from the back corridor up to the wall walk trimmed open (`RAMPS` and `TRIM` in the script).
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b "<SE4_Asset Library>/Sets/Fortress/RENDER_set_v05_sky.blend" --python tools/build_fortress.py -- models
+```
+
+It takes what the render camera sees, with every modifier (mirrors, solidify, booleans, arrays) and geometry-node scatter applied as in the render, and leaves out the cameras, the characters posed for the shots, the wrecked truck on the road, the render-only cannons and a grey placeholder box in the courtyard. It takes about two minutes, most of it Cycles baking the sun (on the GPU). It writes three files:
+
+- `models/Fortress_v5.glb` is what you see: the fort, the terrain and the props whole, the heaviest plants simplified, objects merged by material, textures shrunk to JPEG, geometry Draco-compressed (about 10 MB). Each object has a second UV map and its baked sun mask as the material's occlusion texture. The LEDs and the computer screen glow. Textures the .blend points at but that have moved are looked up in the set's `Textures` folder, `tools/textures` (the computer screen's map, which isn't in the asset library any more) and the rest of the asset library.
+- `models/Fortress_v5_sun.png` is where the sun reaches, every 0.5 m over the play area (`SUN_GRID` in the script; `levelFortress` in `index.html` has the same numbers): slices by height, nine to a row.
+- `models/Fortress_v5_col.glb` is what everything collides with, shoots at and walks on: simplified terrain, the fort exact, props as boxes, no plants, the closed gate as a box named `Front_Gate`, and the way from the back corridor up to the wall walk trimmed open (`RAMPS` and `TRIM` in the script). Every staircase is a smooth ramp with walls down its sides, a little wider than its stairs; the steps under it, the edges of the floors at its ends and (for the tower's flights and the computer room's metal steps) the staircase itself are cut away, so nothing catches your feet. The props on the wall walk (crates, batteries) have no collision: you walk through them.
+
+The earlier files were built from an intermediate export of the set that had lost its mirror modifiers (half of the courtyard's scrap truck, the tower's metal steps and other mirrored pieces were missing), and the terrain and computer room were simplified until they broke up.
+
+### The Cargo Truck
+
+`models/Cargo_Truck.glb` is built by `tools/build_truck.py` from the asset library's Cargo Truck. The intact truck comes from `Cargo_Truck_v3.blend` with its container switched on, and the wreck from `Cargo_Truck_v4_damage.blend`:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_truck.py -- "<SE4_Asset Library>/Vehicles/Cargo Truck" models
+```
+
+The file holds the body, the wreck, a left and a right wheel, the steering wheel on its column, and empties for the wheel centres, the eight seats, the container's open back and three cover boxes (the script's header lists them). `vehicles.js` (`setModel`) reads it, so the truck drives on the model's own wheelbase, track and wheel size; until it has loaded, the truck is built from boxes as before. The metal texture (`Untitled_Artwork 1 copy 2.psd`) isn't in the asset library, so the metal parts use their tint colour.
 
 ## Multiplayer
 

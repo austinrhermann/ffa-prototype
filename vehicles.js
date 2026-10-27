@@ -1,5 +1,5 @@
 // Vehicles: cars, trucks and motorcycles you can drive, ride in and tune (Tab), with multiplayer. Test Drive builds its
-// stadium here and parks a lot of them in the infield; the fort parks a bike in the courtyard and sends the pirates' trucks
+// stadium here and parks a lot of them in the infield; the fort sends the pirates' trucks
 // (driven by an NPC until they've parked and unloaded, then anyone's to take).
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, TG, groundAt, toonMat, NET, ...).
 // The game calls into VEH (declared in index.html) from its loop, input, camera and networking.
@@ -61,7 +61,8 @@
     hauler: { kind: 'car', name: 'Hauler', color: 0xd9d4c7, p: { power: 6, top: 130, brake: 8, steer: 28, mass: 3200, wheelbase: 3.8, track: 2.1, wheelR: 0.45, maxLat: 1.3, spring: 1.4, travel: 1.2 } },
     roadster2: { kind: 'car', name: 'Roadster', color: 0xe3c02c, p: { top: 190 } },
     sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } }, // James's tuning
-    // The pirates' truck (James's jeep tuning): two seats in front, six on benches in the back
+    // The pirates' truck (James's jeep tuning): two seats in front, six on benches in the back. Drawn from the Cargo Truck
+    // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
     truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { top: 190, maxLat: 3.1, wheelbase: 3.55, track: 2.2, wheelR: 0.5, spring: 3.1 } },
     dirt: { kind: 'bike', name: 'Dirt bike', color: 0x3a6fd0, p: { power: 11, top: 140, wheelR: 0.36, spring: 1.5, travel: 1.3, grip: 8, maxLat: 1.7, mass: 150, wheelbase: 1.5 } },
   };
@@ -90,6 +91,46 @@
   }
   function bankRamp(dist) { return Math.max(0, 1 - dist / 25); } // the banking eases in over the last 25 m of each straight
   const bankH = (b, u) => 0.02 + b * Math.tan(TRK.bank) * (u + TRK.W / 2); // u: -W/2 at the inner edge, +W/2 at the outer
+
+  // ---------------------------------------------------------------- models from the asset library
+  // A preset can be drawn from a model file once it has loaded (VEH.setModel): the fort's Cargo Truck, from
+  // tools/build_truck.py, which describes its parts and markers. Its wheels go on the preset's axles, so the preset takes the
+  // model's wheelbase, track and wheel size.
+  const MODELS = {};
+  function setModel(key, sc) {
+    const get = n => sc.getObjectByName(n), at = n => get(n).position.clone();
+    const boxes = ['Box_Cab', 'Box_Back', 'Box_Under'].map(get).map(o => ({ c: o.position.clone(), h: o.scale.clone() }));
+    let z0 = Infinity, z1 = -Infinity;
+    for (const b of boxes) { z0 = Math.min(z0, b.c.z - b.h.z); z1 = Math.max(z1, b.c.z + b.h.z); }
+    const fl = get('Wheel_FL'), rr = get('Wheel_RR');
+    const m = { body: get('Body'), wreck: get('Wreck'), wheelLeft: get('Wheel_L'), wheelRight: get('Wheel_R'), steer: get('SteeringWheel'), seats: [], boxes,
+      len: z1 - z0, mid: (z0 + z1) / 2, half: Math.max(boxes[1].h.x, boxes[2].h.x), // the cab box is wider: it takes in the mirrors
+      wheelbase: fl.position.z - rr.position.z, track: fl.position.x - rr.position.x, wheelR: fl.scale.x };
+    for (let k = 0; get('Seat_' + k); k++) { // the cab's two seats face forward; the benches face in
+      const p = at('Seat_' + k), side = k < 2 ? 0 : Math.sign(p.x);
+      m.seats.push({ p, eye: p.clone().add(new V3(-side * 0.15, 0.8, k < 2 ? -0.02 : 0)), yaw: side * -Math.PI / 2 });
+    }
+    MODELS[key] = m;
+    Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, track: m.track, wheelR: m.wheelR });
+  }
+  // A vehicle drawn from its model: the body on the suspension, the wheels on the axles, the steering wheel turning on its
+  // column. The wreck waits hidden until it's needed (darken).
+  function buildModel(v, m) {
+    const p = v.p, g = new THREE.Group(), body = new THREE.Group(), shell = m.body.clone(), wreck = m.wreck.clone();
+    g.add(body); wreck.visible = false; body.add(shell, wreck);
+    const col = new THREE.Group(), sw = new THREE.Group(); col.position.copy(m.steer.position); col.quaternion.copy(m.steer.quaternion); body.add(col); col.add(sw);
+    for (const c of m.steer.children) sw.add(c.clone());
+    const L = p.wheelbase, T = p.track, r = p.wheelR, wheels = [];
+    for (const [x, z] of [[T / 2, L / 2], [-T / 2, L / 2], [T / 2, -L / 2], [-T / 2, -L / 2]]) {
+      const piv = new THREE.Group(), spin = new THREE.Group(), w = (x > 0 ? m.wheelLeft : m.wheelRight).clone();
+      piv.position.set(x, r, z); g.add(piv); piv.add(spin); w.scale.setScalar(r / m.wheelR); spin.add(w);
+      wheels.push({ piv, spin });
+    }
+    return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw })) };
+  }
+  // The body's length, and where its middle is (ahead of the point halfway between the axles)
+  const lenOf = v => v.model ? v.model.len : v.p.wheelbase + (v.kind === 'bike' ? 0.6 : 0.9);
+  const midOf = v => v.model ? v.model.mid : 0;
 
   // ---------------------------------------------------------------- materials and models
   const mat = c => toonMat({ color: c });
@@ -134,6 +175,7 @@
   // The truck: an open chassis with the two front seats and steering wheel well forward, and a bed behind with low sides, a
   // tailgate and a bench down each side (three seats a side, facing in). A roll bar behind the front seats.
   function buildTruck(v) {
+    if (MODELS.truck) return buildModel(v, MODELS.truck);
     const p = v.p, g = new THREE.Group(), body = new THREE.Group(), paint = mat(v.color), wood = mat(0x6b4f33);
     g.add(body);
     const L = p.wheelbase, T = p.track, r = p.wheelR, floor = r * 0.7 + 0.08, len = L + 0.9, rail = T / 2 - 0.15;
@@ -187,13 +229,18 @@
   }
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
+    v.model = v.shell = v.wreckMesh = null;
     Object.assign(v, v.kind === 'bike' ? buildBike(v) : v.layout === 'truck' ? buildTruck(v) : buildCar(v));
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
     if (v.hit) v.g.add(v.hit); // the game's shootable box (fort trucks)
     if (v.dead) darken(v);
     scene.add(v.g); pose(v, 0);
   }
-  function darken(v) { v.g.traverse(o => { if (o.isMesh && o.material.color && !o.userData.dark) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.25); o.userData.dark = true; } }); }
+  // Wrecked: a model swaps to its wreck (burnt darker, on its own wheels); anything else just goes dark
+  function darken(v) {
+    if (v.wreckMesh) { v.shell.visible = false; v.wreckMesh.visible = true; v.steerWheel.parent.visible = false; v.wheels.forEach(w => { w.piv.visible = false; }); }
+    (v.wreckMesh || v.g).traverse(o => { if (o.isMesh && o.material.color && !o.userData.dark) { o.material = o.material.clone(); o.material.color.multiplyScalar(v.wreckMesh ? 0.55 : 0.25); o.userData.dark = true; } });
+  }
 
   const list = [];
   let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = 0, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
@@ -323,9 +370,9 @@
   const _f = new V3(), _r = new V3(), _c = new V3();
   function axes(v) { _f.set(Math.sin(v.yaw), 0, Math.cos(v.yaw)); _r.set(-Math.cos(v.yaw), 0, Math.sin(v.yaw)); }
   function spheres(v) { // the body as spheres along its length: [x, y, z, r]
-    const p = v.p, len = p.wheelbase + (v.kind === 'bike' ? 0.6 : 0.9), r = v.kind === 'bike' ? 0.4 : Math.min(p.track / 2 + 0.1, 1.05), n = Math.max(2, Math.ceil(len / (2 * r)) + 1), out = [];
+    const p = v.p, len = lenOf(v), mid = midOf(v), r = v.kind === 'bike' ? 0.4 : v.model ? v.model.half : Math.min(p.track / 2 + 0.1, 1.05), n = Math.max(2, Math.ceil(len / (2 * r)) + 1), out = [];
     axes(v); const y = v.pos.y + 0.55;
-    for (let i = 0; i < n; i++) { const s = -len / 2 + r + (len - 2 * r) * i / (n - 1); out.push([v.pos.x + _f.x * s, y, v.pos.z + _f.z * s, r]); }
+    for (let i = 0; i < n; i++) { const s = mid - len / 2 + r + (len - 2 * r) * i / (n - 1); out.push([v.pos.x + _f.x * s, y, v.pos.z + _f.z * s, r]); }
     return out;
   }
   function hitWalls(v) {
@@ -442,7 +489,7 @@
   function zoneOf(v) {
     if (v.seats.length < 2) return 'driver';
     axes(v); const dx = P.pos.x - v.pos.x, dz = P.pos.z - v.pos.z, lz = dx * _f.x + dz * _f.z, lx = dx * _r.x + dz * _r.z;
-    if (v.seats.length > 2 && lz < -(v.p.wheelbase + 0.9) / 2 + 1.0) return 'rear';
+    if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
   }
   const freeRear = v => { for (let k = 2; k < v.seats.length; k++) if (!v.occ[k]) return k; return -1; };
@@ -467,7 +514,7 @@
   // Out beside your seat: the driver on the left, the front passenger on the right, the back over the tailgate
   function spotFor(v, k) {
     axes(v);
-    const side = (v.kind === 'bike' ? 0.4 : v.p.track / 2) + 0.7, back = (v.p.wheelbase + 0.9) / 2 + 0.8;
+    const side = (v.kind === 'bike' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.7, back = lenOf(v) / 2 - midOf(v) + 0.8;
     const tries = k > 1 ? [[0, -back], [-side, -back + 1], [side, -back + 1]] : k === 1 ? [[side, 0], [-side, 0]] : [[-side, 0], [side, 0]];
     for (const [sr, sf] of tries) { // sr: toward the driver's right, sf: forward
       const x = v.pos.x + _r.x * sr + _f.x * sf, z = v.pos.z + _r.z * sr + _f.z * sf, g = groundAt(x, z, v.pos.y + 2);
@@ -790,6 +837,11 @@
       soundTick();
     },
     block: blockBody,
+    setModel,
+    rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
+    lenOf,
+    // Boxes round the body ({ c: centre, h: half sizes }, in the vehicle's frame): the fort's trucks are cover
+    boxesOf: v => v.model ? v.model.boxes : [{ c: new V3(0, 1.1, 0), h: new V3((v.p.track + 0.1) / 2, 1, (v.p.wheelbase + 1) / 2) }],
     mouse(dx, dy) {
       if (!cur && !ride) return false;
       camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - dy * SENS * CTL.sens)); lookIdle = 0; return true;

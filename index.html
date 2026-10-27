@@ -53,40 +53,11 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #board th{text-align:left;opacity:.6;font-weight:500;padding:4px 8px}
 #board td{padding:5px 8px;font-variant-numeric:tabular-nums}
 #board tr.me td{color:var(--accent)}
-#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,14,18,.6);overflow:auto}
-.card{background:var(--panel);padding:24px 30px;border-radius:8px;max-width:380px;margin:16px}
-.card h1{margin:0 0 4px;font-size:26px}
-.card p{margin:0 0 14px;opacity:.75}
-.card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0 0 16px;font-size:14px}
-.card dt{opacity:.6}
-.card dd{margin:0}
-.set{margin:0 0 12px}
-.set label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
-.set output{color:var(--accent)}
-.set input{width:100%;accent-color:#9dff7a}
-#restart,#tomenu{width:100%;padding:10px;border:1px solid rgba(238,243,234,.25);border-radius:4px;background:#1e252c;color:var(--hud);font:inherit;font-size:15px;cursor:pointer;margin-top:6px}
-#play,#next{width:100%;padding:12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font-size:16px;font-weight:600;cursor:pointer;margin-top:4px}
-.set input[type=text],.set select{width:100%;padding:7px 8px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit}
-.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.levels button{padding:9px 4px;border-radius:4px;border:1px solid rgba(238,243,234,.25);background:#1e252c;color:var(--hud);font:inherit;font-size:14px;cursor:pointer}
-.levels button.on{background:var(--accent);color:#0d1a08;border-color:var(--accent)}
-.levels button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.guestonly{display:none}
-body.guest .guestonly{display:block}
-body.guest .hostonly{display:none}
-.invrow{display:flex;gap:6px}
-.invrow input{flex:1;min-width:0;padding:7px 8px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit;font-size:12px}
-.invrow button{padding:7px 12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font-weight:600;cursor:pointer}
-#invite small{display:block;margin-top:6px;opacity:.65;font-size:12px}
-#netstat{color:var(--accent)}
 #mic{position:absolute;left:18px;bottom:78px;font-size:13px;background:var(--panel);padding:4px 10px;border-radius:4px}
 #mic:empty{display:none}
 #tmic{left:calc(244px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
-.cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:stretch;margin:16px}
-.cards .card{margin:0}
-#lookcard{display:none}
 #title{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:24px;box-sizing:border-box;background:#000 url(title.jpg) center/cover no-repeat}
 #title h1{margin:0;color:#fff;font:800 clamp(34px,7.5vw,96px)/1.05 system-ui,sans-serif;letter-spacing:.08em;text-align:center;text-shadow:0 3px 22px rgba(0,0,0,.55)}
 .tbtns{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
@@ -94,44 +65,96 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .tbtns button:hover{background:#1f1f1f}
 #tload{color:#fff;opacity:.8;text-shadow:0 1px 6px #000;min-height:1em}
 body.guest #title{display:none}
+#goagain{display:block;margin:0 auto;background:none;border:0;color:#fff;font:600 16px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px;cursor:pointer;text-shadow:0 1px 6px #000;padding:6px}
+body:not(.dev) #levels button:not([data-lv=fortress]):not([data-lv=minimal]),body:not(.dev) #totitle{display:none}
+body:not(.dev) #levels{grid-template-columns:repeat(2,1fr)}
+#godrive{display:none}
+body.dev #godrive{display:inline-block}
+body:not(.dev) .devonly{display:none!important}
+/* Menus (start, join, pause, results): the title page's look, bold white type and solid black buttons, over the title
+   picture before the game starts and over the paused game after. margin:auto centres them and still scrolls from the top. */
+#overlay{position:fixed;inset:0;display:flex;overflow:auto;background:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.6)),#000 url(title.jpg) center/cover no-repeat}
+#overlay.ingame{background:rgba(0,0,0,.5)}
+.menu{margin:auto;display:flex;gap:28px;align-items:flex-start;justify-content:center;flex-wrap:wrap;padding:28px 16px;box-sizing:border-box;max-width:100%}
+.card{color:#fff;font-family:system-ui,-apple-system,sans-serif;box-sizing:border-box}
+.card h1{margin:0 0 12px;color:#fff;font:800 clamp(28px,4.2vw,50px)/1.05 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 3px 18px rgba(0,0,0,.6)}
+.card h2{margin:0 0 10px;font:700 20px/1.2 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase}
+.card p{margin:0 0 16px;font-size:16px;line-height:1.45;text-shadow:0 1px 8px rgba(0,0,0,.85)}
+.card small{display:block;margin-top:10px;font-size:13px;opacity:.85;text-shadow:0 1px 6px #000}
+.card small:empty{display:none}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px;line-height:1.35}
+.card dt{opacity:.7}
+.card dd{margin:0}
+.panel{background:rgba(0,0,0,.62);border-radius:6px;padding:18px 20px}
+#maincard{width:min(420px,100%)}
+#maincard[data-scr="howto"]{width:min(780px,100%)}
+#maincard[data-scr="settings"]{width:min(560px,100%)}
+#maincard .scr{display:none}
+#maincard[data-scr="main"] .scr-main,#maincard[data-scr="howto"] .scr-howto,#maincard[data-scr="settings"] .scr-settings{display:block}
+#overlay.sub #charcard{display:none}
+
 #maincard.drive .nodrive{display:none!important}
 #maincard:not(.fort) .fort-only,#maincard.fort .arena-only,#maincard.drive .arena-only:not(.drive-show),#maincard:not(.drive) .drive-only{display:none!important}
-#maincard:not(.fine) #fineprint{display:none}
-#goagain{display:block;margin:0 auto;background:none;border:0;color:#fff;font:600 16px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px;cursor:pointer;text-shadow:0 1px 6px #000;padding:6px}
-#fortintro{font-size:16px;line-height:1.45}
-.invbtns{display:flex;gap:10px;flex-wrap:wrap}
-.invbtns button{flex:1;min-width:140px;padding:10px 12px;border:0;border-radius:4px;background:var(--accent);color:#0d1a08;font:inherit;font-weight:600;cursor:pointer}
-.switch{display:flex;align-items:center;gap:10px;margin:4px 0 14px;cursor:pointer;font-size:14px}
-.switch input{position:absolute;opacity:0;pointer-events:none}
-.switch span{width:38px;height:22px;border-radius:11px;background:#3a424b;position:relative;transition:background .15s;flex:none}
-.switch span::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
-.switch input:checked+span{background:var(--accent)}
-.switch input:checked+span::after{left:19px}
-.linkbtn{background:none;border:0;color:var(--hud);opacity:.75;font:inherit;font-size:14px;cursor:pointer;padding:0;margin:0 0 10px}
-#overlay.looking{background:transparent;justify-content:flex-end;align-items:flex-start}
-#overlay.looking .cards>.card{display:none}
-#overlay.looking #lookcard{display:block;max-width:300px}
-#lookcard .row{display:flex;gap:8px;margin-top:8px}
-#lookcard .row button,#looklink{flex:1;padding:8px;border:1px solid rgba(238,243,234,.25);border-radius:4px;background:#1e252c;color:var(--hud);font:inherit;font-size:14px;cursor:pointer}
+.card button{background:#000;color:#fff;border:0;border-radius:4px;padding:15px 18px;font:600 17px/1.15 system-ui,sans-serif;letter-spacing:.03em;cursor:pointer}
+.card button:hover{background:#1f1f1f}
+.card button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.card button.on,#play,#next{background:#fff;color:#000}
+.card button.on:hover,#play:hover,#next:hover{background:#e4e4e4}
+#play:disabled{opacity:.6;cursor:default}
+.mbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.mbtns .wide{grid-column:1/-1}
+#play,#next{font-size:20px;padding:18px}
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 14px}
+.levels button,.seg button{padding:11px 8px;font-size:15px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 auto}
+.setrow{margin:0 0 16px}
+.setrow>span,.setrow>label{display:block;margin-bottom:7px;font-size:14px;opacity:.85}
+.setrow small{margin-top:6px}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:48px;padding:11px 0;font-size:20px}
+.step output{min-width:72px;text-align:center;font:600 17px system-ui,sans-serif;padding:8px 4px;border-radius:4px;outline:none;cursor:text}
+.step output:focus{background:rgba(255,255,255,.12);box-shadow:0 0 0 2px #fff}
+.tog{width:100%;text-align:left}
+.howto{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.howto p{margin:0;font-size:15px;text-shadow:none}
+@media (max-width:640px){.howto{grid-template-columns:1fr}}
+.guestonly{display:none}
+body.guest .guestonly{display:block}
+body.guest .hostonly{display:none!important}
+#netstat{font-weight:600}
+#lookcard{display:none;width:300px}
+#overlay.looking{background:transparent}
+#overlay.looking .menu{margin:0 0 auto auto}
+#overlay.looking .menu>.card{display:none}
+#overlay.looking #lookcard{display:block}
+#lookcard .set{margin:0 0 12px}
+#lookcard .set label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
+#lookcard .set input{width:100%;accent-color:#fff}
 #lookcard input[type=color]{height:30px;padding:0;border:0;background:none}
+#lookcard .row{display:flex;gap:8px;margin-top:8px}
+#lookcard .row button{flex:1;padding:10px 6px;font-size:14px}
 #charcard{width:280px}
-#cprev{display:block;margin:4px auto 0;width:240px;height:280px;border-radius:6px;background:rgba(255,255,255,.05)}
-#play:disabled{opacity:.55;cursor:default}
-#play:focus-visible,#next:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.card small{display:block;margin-top:10px;opacity:.55;font-size:12px}
+#teams{margin-bottom:12px}
+#teams button[data-team=midas].on{background:#f2c230;color:#000}
+#teams button[data-team=rebels].on{background:#4aa8ff;color:#000}
+#charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
+#charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
+#cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
 #chatbox{display:none;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
-#chatbox>label{font-size:13px;opacity:.75}
+#chatbox>label{font-size:13px;opacity:.85}
 #chatbox.on{display:flex}
-#chatlog{height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px;background:rgba(255,255,255,.05);padding:8px 10px;border-radius:4px}
-#chatlog:empty::before{content:'No messages yet';opacity:.55}
+#chatlog{height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px;background:rgba(255,255,255,.06);padding:8px 10px;border-radius:4px}
+#chatlog:empty::before{content:'No messages yet';opacity:.6}
 #chatlog div{white-space:pre-wrap;overflow-wrap:anywhere}
 #chatlog b{color:var(--accent);font-weight:600}
-#chatlog .me b{color:var(--hud)}
-#chatbox input{padding:7px 10px;background:#1e252c;color:var(--hud);border:1px solid rgba(238,243,234,.25);border-radius:4px;font:inherit;font-size:14px;outline:none}
-#chatbox input:focus{border-color:var(--accent)}
-#results{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,14,18,.6);overflow:auto}
-.rt{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0 16px}
-.rt th{text-align:left;opacity:.6;font-weight:500;padding:4px 8px}
+#chatlog .me b{color:#fff}
+#chatbox input{padding:8px 10px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:14px system-ui,sans-serif;outline:none}
+#chatbox input:focus{border-color:#fff}
+#results{position:fixed;inset:0;display:none;overflow:auto;background:rgba(0,0,0,.55)}
+#results>.card{margin:auto;width:min(560px,100%);padding:28px 16px}
+.rt{width:100%;border-collapse:collapse;font-size:15px}
+.rt th{text-align:left;opacity:.7;font-weight:500;padding:4px 8px}
 .rt td{padding:5px 8px;font-variant-numeric:tabular-nums}
 .rt tr.me td{color:var(--accent)}
 #touch{position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -200,99 +223,121 @@ body.touch .card small.tc{display:block}
 </div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
-  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Battle at the Fort</button><button type="button" id="godrive">Test Drive</button></div>
+  <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Fortress Free-For-All</button><button type="button" id="godrive">Test Drive</button></div>
   <button type="button" id="goagain" hidden></button>
   <small id="tload">Loading…</small>
 </div>
-<div id="overlay"><div class="cards"><div class="card" id="maincard">
-  <button type="button" id="totitle" class="hostonly linkbtn">‹ Back</button>
-  <h1 id="mtitle">Free for all</h1>
+<div id="overlay"><div class="menu"><div class="card" id="maincard" data-scr="main">
+  <h1 id="mtitle">Defend the Fort</h1>
+  <div class="scr scr-main">
   <p class="drive-only" id="driveintro">A little stadium oval with walls, ramps and banked turns. Walk up to a car or a motorcycle in the infield parking lot and press E to drive. In a vehicle, Tab opens its tuning: acceleration, brakes, steering, weight, size, suspension. Invite friends to race and crash into each other.</p>
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
-  <div class="set hostonly fort-only" id="fortinv"><div class="invbtns"><button type="button" id="invapp">Invite an apprentice</button><button type="button" id="invpir">Invite pirates</button></div><small id="roster2"></small></div>
-  <div class="set hostonly arena-only drive-show" id="invite"><label>Invite friends</label><div class="invrow"><input id="invlink" type="text" readonly value="Starting multiplayer…"><button type="button" id="copyinv">Copy</button></div><small id="roster"></small></div>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="set hostonly arena-only"><label>Level</label><div class="levels" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button></div></div>
-  <label class="switch"><input type="checkbox" id="finetoggle"><span></span><span id="finelabel">Options and controls</span></label>
-  <div id="fineprint">
-  <p id="goal"></p>
-  <div class="set hostonly" id="setrole"><label>Your role with a friend</label><div class="levels" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
-  <dl class="kb nodrive">
-    <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
-    <dt>Shift</dt><dd>Run</dd>
-    <dt>C</dt><dd>Crouch</dd>
-    <dt>Space</dt><dd>Jump</dd>
-    <dt>Left click</dt><dd>Shoot</dd>
-    <dt>X, right click</dt><dd>Aim down sights (X toggles; Ctrl-click works as right click)</dd>
-    <dt>R</dt><dd>Reload (it also reloads by itself when the magazine runs dry)</dd>
-    <dt>Q, wheel, 1–4</dt><dd>Switch weapon</dd>
-    <dt>F or G</dt><dd>Frag grenade (hold to cook)</dd>
-    <dt>E</dt><dd>Use whatever is in front of you (the computer, a vehicle; as a pirate, take over another); otherwise knife</dd>
-    <dt>M</dt><dd>Mute or unmute your mic</dd>
-    <dt>Enter</dt><dd>Chat with everyone in the game</dd>
-    <dt>Tab</dt><dd>Scoreboard</dd>
-    <dt>Esc</dt><dd>Pause and settings</dd>
-  </dl>
-  <dl class="kb drive-only">
-    <dt>E</dt><dd>Get in or out (slow down first)</dd>
-    <dt>W / S</dt><dd>Throttle and brake, reverse when stopped</dd>
-    <dt>A / D</dt><dd>Steer</dd>
-    <dt>Space</dt><dd>Handbrake, for sliding round corners</dd>
-    <dt>Tab</dt><dd>Tune the vehicle you're in (Tab again to drive)</dd>
-    <dt>R</dt><dd>Back on your wheels, where you are</dd>
-    <dt>V</dt><dd>Chase view or driver's seat</dd>
-    <dt>Mouse</dt><dd>Look around</dd>
-    <dt>W / S in the air</dt><dd>Dip or lift the nose off a jump</dd>
-  </dl>
-  <dl class="tc">
-    <dt>Left side</dt><dd>Drag to move, push fully to run</dd>
-    <dt>Right side</dt><dd>Drag to look</dd>
-    <dt>Fire</dt><dd>Hold to shoot, drag to aim</dd>
-    <dt>Aim, Crouch</dt><dd>Tap to toggle</dd>
-    <dt>Swap</dt><dd>Next weapon</dd>
-    <dt>Gyro</dt><dd>Aim by moving your phone</dd>
-  </dl>
-  <div class="set hostonly nodrive"><label for="sgod">God mode (you take no damage) <input type="checkbox" id="sgod" style="width:auto"></label></div>
-  <div class="set hostonly" id="setdiff"><label for="sdiff"><span id="ldiff">Bot difficulty</span> <output id="odiff">Normal</output></label><input type="range" id="sdiff" min="1" max="5" value="3"></div>
-  <div class="set hostonly" id="setbots"><label for="sbots"><span id="lbots">Bots</span> <output id="obots">5</output></label><input type="range" id="sbots" min="0" max="40" value="5"></div>
-  <div class="set hostonly" id="setlimit"><label for="sglimit">Score limit <output id="oglimit">20</output></label><input type="range" id="sglimit" min="5" max="50" step="5" value="20"></div>
-  <div class="set hostonly" id="setwaves" style="display:none"><label for="swaves">Waves to survive <output id="owaves">6</output></label><input type="range" id="swaves" min="3" max="15" value="6"></div>
-  <div class="set kb" id="setsens"><label for="ssens">Mouse sensitivity <output id="osens">1.0×</output></label><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1"></div>
-  <div class="set kb nodrive"><label for="saimtog">Right click toggles aim (instead of holding it) <input type="checkbox" id="saimtog" style="width:auto"></label></div>
+  <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button></div>
+  <div class="mbtns">
+    <button type="button" id="play" class="wide" disabled>Loading characters…</button>
+    <button type="button" id="restart" class="hostonly wide" style="display:none">Restart game</button>
+    <button type="button" id="invapp" class="hostonly fort-only">Invite an apprentice</button>
+    <button type="button" id="invpir" class="hostonly fort-only">Invite pirates</button>
+    <button type="button" id="copyinv" class="hostonly arena-only drive-show wide">Copy invite link</button>
+    <button type="button" data-go="howto">How to play</button>
+    <button type="button" data-go="settings">Settings</button>
+    <button type="button" id="tomenu" class="wide" style="display:none">Main menu</button>
+    <button type="button" id="totitle" class="hostonly wide">‹ Back</button>
   </div>
-  <button id="play" disabled>Loading characters…</button>
-  <button id="restart" class="hostonly" style="display:none">Restart game</button>
-  <button id="tomenu" type="button" style="display:none">Main menu</button>
-  <button id="looklink" type="button">Look</button>
+  <input id="invlink" type="hidden" value="Starting multiplayer…">
+  <small id="roster2" class="hostonly fort-only"></small><small id="roster" class="hostonly arena-only drive-show"></small>
   <small class="kb">Needs a mouse and keyboard.</small>
   <small class="tc">Best in landscape.</small>
+  </div>
+  <div class="scr scr-howto">
+  <div class="panel howto"><p id="goal"></p><div>
+
+    <dl class="kb nodrive">
+      <dt>WASD</dt><dd>Move (walking is more accurate)</dd>
+      <dt>Shift</dt><dd>Run</dd>
+      <dt>C</dt><dd>Crouch</dd>
+      <dt>Space</dt><dd>Jump</dd>
+      <dt>Left click</dt><dd>Shoot</dd>
+      <dt>X, right click</dt><dd>Aim down sights (X toggles; Ctrl-click works as right click)</dd>
+      <dt>R</dt><dd>Reload (it also reloads by itself when the magazine runs dry)</dd>
+      <dt>Q, wheel, 1–4</dt><dd>Switch weapon</dd>
+      <dt>F or G</dt><dd>Frag grenade (hold to cook)</dd>
+      <dt>E</dt><dd>Use whatever is in front of you (the computer, a vehicle; as a pirate, take over another); otherwise knife</dd>
+      <dt>M</dt><dd>Mute or unmute your mic</dd>
+      <dt>Enter</dt><dd>Chat with everyone in the game</dd>
+      <dt>Tab</dt><dd>Scoreboard</dd>
+      <dt>Esc</dt><dd>Pause and settings</dd>
+    </dl>
+    <dl class="kb drive-only">
+      <dt>E</dt><dd>Get in or out (slow down first)</dd>
+      <dt>W / S</dt><dd>Throttle and brake, reverse when stopped</dd>
+      <dt>A / D</dt><dd>Steer</dd>
+      <dt>Space</dt><dd>Handbrake, for sliding round corners</dd>
+      <dt>Tab</dt><dd>Tune the vehicle you're in (Tab again to drive)</dd>
+      <dt>R</dt><dd>Back on your wheels, where you are</dd>
+      <dt>V</dt><dd>Chase view or driver's seat</dd>
+      <dt>Mouse</dt><dd>Look around</dd>
+      <dt>W / S in the air</dt><dd>Dip or lift the nose off a jump</dd>
+    </dl>
+    <dl class="tc">
+      <dt>Left side</dt><dd>Drag to move, push fully to run</dd>
+      <dt>Right side</dt><dd>Drag to look</dd>
+      <dt>Fire</dt><dd>Hold to shoot, drag to aim</dd>
+      <dt>Aim, Crouch</dt><dd>Tap to toggle</dd>
+      <dt>Swap</dt><dd>Next weapon</dd>
+      <dt>Gyro</dt><dd>Aim by moving your phone</dd>
+    </dl>
+  </div></div>
+  <div class="mbtns"><button type="button" class="wide" data-go="main">‹ Back</button></div>
+  </div>
+  <div class="scr scr-settings">
+  <div class="panel">
+  <div class="setrow hostonly" id="setrole"><span>Your role with a friend</span><div class="seg" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
+  <div class="setrow hostonly" id="setdiff"><span id="ldiff">Bot difficulty</span><div class="seg" data-for="sdiff"></div><input type="range" id="sdiff" min="1" max="5" value="3" hidden><output id="odiff" hidden>Normal</output></div>
+  <div class="setrow hostonly" id="setbots"><span id="lbots">Bots</span><div class="step" data-for="sbots"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obots">5</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbots" min="0" max="100" value="5" hidden></div>
+  <div class="setrow hostonly" id="setbotsM"><span>Midas bots</span><div class="step" data-for="sbotsM"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsM">5</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsM" min="0" max="50" value="5" hidden></div>
+  <div class="setrow hostonly" id="setbotsR"><span>Rebel bots</span><div class="step" data-for="sbotsR"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsR">2</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsR" min="0" max="50" value="2" hidden></div>
+  <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="50" step="5" value="20" hidden></div>
+  <div class="setrow hostonly" id="setwaves" style="display:none"><span>Waves to survive</span><div class="step" data-for="swaves"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="owaves">6</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="swaves" min="3" max="15" value="6" hidden></div>
+  <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
+  <div class="setrow kb nodrive"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
+  <div class="setrow hostonly nodrive"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
+  <div class="setrow devonly"><button type="button" id="looklink" class="tog">Look: sun, shadow and sky</button></div>
+  </div>
+  <div class="mbtns"><button type="button" class="wide" data-go="main">‹ Back</button></div>
+  </div>
 </div>
-<div class="card" id="lookcard">
-  <h1>Look</h1>
+<div class="card panel" id="lookcard">
+  <h2>Look</h2>
   <div class="set"><label for="lkaz">Sun direction <output id="olkaz"></output></label><input type="range" id="lkaz" min="0" max="360" step="1"></div>
   <div class="set"><label for="lkel">Sun height <output id="olkel"></output></label><input type="range" id="lkel" min="5" max="85" step="1"></div>
+  <div class="set"><label for="lklit">Lit colour <output id="olklit"></output></label><input type="color" id="lklit"></div>
   <div class="set"><label for="lkshadow">Shadow colour <output id="olkshadow"></output></label><input type="color" id="lkshadow"></div>
   <div class="set"><label for="lkedge">Light and shadow edge <output id="olkedge"></output></label><input type="range" id="lkedge" min="0.2" max="0.8" step="0.01"></div>
   <div class="set"><label for="lksoft">Edge softness <output id="olksoft"></output></label><input type="range" id="lksoft" min="0" max="0.4" step="0.01"></div>
-  <div class="set"><label for="lksky">Sky colour <output id="olksky"></output></label><input type="color" id="lksky"></div>
+  <div class="set"><label for="lksky">Horizon and haze colour <output id="olksky"></output></label><input type="color" id="lksky"></div>
+  <div class="set"><label for="lktop">Sky colour overhead <output id="olktop"></output></label><input type="color" id="lktop"></div>
+  <small>The fort's own shadows are baked from the render (tools/build_fortress.py); the sun here moves the rest.</small>
   <small>Changes show straight away and are remembered on this computer.</small>
   <div class="row"><button type="button" id="lkreset">Reset</button><button type="button" id="lkcopy">Copy settings</button><button type="button" id="lkback">Back</button></div>
 </div>
-<div class="card" id="charcard">
-  <h1 id="chartitle">Your character</h1>
-  <div class="set"><label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false"></div>
-  <div class="set" id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
+<div class="card panel" id="charcard">
+  <h2 id="chartitle">Your character</h2>
+  <label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false">
+  <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="rebels">Rebels</button></div></div>
+  <div id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
 </div>
 </div></div>
 <div id="results"><div class="card">
   <h1 id="rtitle">You win</h1>
   <p id="rsub"></p>
-  <table class="rt" id="rtable"></table>
-  <div class="set hostonly" id="setnext"><label for="slimit">Score limit for next round <output id="olimit">20</output></label><input type="range" id="slimit" min="5" max="50" step="5" value="20"></div>
-  <button id="next" class="hostonly">Next round</button>
-  <p class="guestonly">Waiting for the host to start the next round…</p>
+  <div class="panel"><table class="rt" id="rtable"></table></div>
+  <div class="setrow hostonly" id="setnext" style="margin-top:16px"><span>Score limit for next round</span><div class="step" data-for="slimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="olimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="slimit" min="5" max="50" step="5" value="20" hidden></div>
+  <div class="mbtns"><button type="button" id="next" class="hostonly wide">Next round</button></div>
+  <p class="guestonly" style="margin-top:14px">Waiting for the host to start the next round…</p>
 </div></div>
 
 <div id="chatbox"><label for="chatin2">Chat</label><div id="chatlog" aria-live="polite"></div><input id="chatin2" type="text" maxlength="120" placeholder="Chat with everyone (Enter to send)" autocomplete="off" spellcheck="false" aria-label="Chat message"></div>
@@ -316,6 +361,8 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.autoClear = false;
 document.body.prepend(renderer.domElement);
+function setPixelRatio() { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); }
+const renderWorld = () => renderer.render(scene, camera);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9db4c8);
@@ -327,12 +374,61 @@ scene.add(camera);
 // Lit surfaces show their texture colour; surfaces turned away from the sun, or in its shadow, show the texture times the
 // shadow colour. A ramp sets how sharply one turns into the other. Every material uses it, characters included, so they're
 // lit and shadowed the same way as the set. Tweak it from the Look panel on the pause screen.
-const LOOK_DEFAULT = { az: 210, el: 55, shadow: '#6a7488', edge: 0.5, soft: 0.06, sky: '#9db4c8' };
+// The defaults are the renders' own (their compositor, tools/build_fortress.py): the sun lamp's direction; lit surfaces at the
+// renders' exposure (lit), shadowed ones far darker (shadow, a touch lighter than the renders' so attackers in shadow stay
+// visible); a blue haze over distance in the sky's horizon colour (sky), the sky darkening to top overhead.
+const LOOK_DEFAULT = { az: 20.8, el: 43.5, lit: '#bababa', shadow: '#34333b', edge: 0.54, soft: 0.07, sky: '#567a9b', top: '#214882' };
 let LOOK = { ...LOOK_DEFAULT };
-try { Object.assign(LOOK, JSON.parse(localStorage.getItem('fortressLook') || '{}')); } catch (e) {}
+try { Object.assign(LOOK, JSON.parse(localStorage.getItem('fortressLook3') || '{}')); } catch (e) {}
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
 RAMP.magFilter = RAMP.minFilter = THREE.LinearFilter; RAMP.generateMipmaps = false;
 const toonMat = params => new THREE.MeshToonMaterial({ gradientMap: RAMP, ...params });
+// Where the sun reaches, on levels that have it baked (the fort): the set's own surfaces carry the renders' lit-or-shadow mask
+// as their occlusion map, and everything else (characters, trucks, props, doors) is lit by a grid of where the sun reaches
+// (models/<level>_sun.png: slices by height, laid out in rows). Every toon material takes its sunlight through one or the other.
+const SUN = { on: { value: 0 }, map: { value: null }, lo: { value: new THREE.Vector3() }, size: { value: new THREE.Vector3() }, grid: { value: new THREE.Vector4() }, data: null };
+const SUN_GLSL = `
+uniform float sunOn; uniform sampler2D sunMap; uniform vec3 sunLo, sunSize; uniform vec4 sunGrid; // grid: cells along x, y, z; slices per row
+varying vec3 vSunPos;
+float sunSlice(vec2 c, float s) {
+  vec2 tile = vec2(mod(s, sunGrid.w), floor(s / sunGrid.w)), atlas = vec2(sunGrid.w, ceil(sunGrid.y / sunGrid.w)) * sunGrid.xz;
+  return texture2D(sunMap, (tile * sunGrid.xz + c) / atlas).r;
+}
+float sunAt(vec3 p) {
+  vec3 t = (p - sunLo) / sunSize;
+  if (sunOn < 0.5 || any(lessThan(t, vec3(0.0))) || any(greaterThan(t, vec3(1.0)))) return 1.0;
+  vec3 g = t * (sunGrid.xyz - 1.0);
+  vec2 c = clamp(g.xz + 0.5, vec2(0.5), sunGrid.xz - 0.5);
+  float s0 = floor(g.y);
+  return mix(sunSlice(c, s0), sunSlice(c, min(s0 + 1.0, sunGrid.y - 1.0)), g.y - s0);
+}
+`;
+THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid });
+  sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+    vec4 sunWp = vec4(transformed, 1.0);
+    #ifdef USE_INSTANCING
+      sunWp = instanceMatrix * sunWp;
+    #endif
+    vSunPos = (modelMatrix * sunWp).xyz;`);
+  sh.fragmentShader = SUN_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+    #ifdef USE_AOMAP
+      reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
+    #else
+      reflectedLight.directDiffuse *= sunAt(vSunPos);
+    #endif`);
+};
+// The same grid on the CPU (your gun takes its light from where you stand)
+function sunAtCPU(p) {
+  const S = SUN.data; if (!S || !SUN.on.value) return 1;
+  const [x0, y0, z0] = S.lo, [nx, ny, nz] = S.n, c = S.cell;
+  const i = Math.round((p.x - x0) / c), j = Math.round((p.y - y0) / c), k = Math.round((p.z - z0) / c);
+  if (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) return 1;
+  const r = Math.floor(j / S.cols), col = j % S.cols;
+  return S.px[((r * nz + k) * S.w + col * nx + i) * 4] / 255;
+}
+// Haze grows evenly with distance, like the renders' mist (three's own eases in)
+THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace('float fogFactor = smoothstep( fogNear, fogFar, fogDepth );', 'float fogFactor = clamp( ( fogDepth - fogNear ) / ( fogFar - fogNear ), 0.0, 1.0 );');
 const shadeFill = new THREE.AmbientLight(0xffffff, 1); scene.add(shadeFill);
 const sky = new THREE.HemisphereLight(0xe4ecff, 0x4a5240, 0.9); scene.add(sky); // the original lighting, for levels without the look
 const LOOK_EXTRA = []; // other scenes' lights that follow the look: [fill, sun, sky, classic sun intensity, classic sky intensity]
@@ -359,18 +455,38 @@ function applyLook() {
     RAMP.image.data.set([v, v, v, 255], i * 4);
   }
   RAMP.needsUpdate = true;
-  const sh = new THREE.Color(LOOK.shadow), lit = new THREE.Color(Math.max(0, 1 - sh.r), Math.max(0, 1 - sh.g), Math.max(0, 1 - sh.b));
+  const sh = new THREE.Color(LOOK.shadow), lt = new THREE.Color(LOOK.lit), lit = new THREE.Color(Math.max(0, lt.r - sh.r), Math.max(0, lt.g - sh.g), Math.max(0, lt.b - sh.b));
   for (const [f, d, k, dk, kk] of [[shadeFill, sun, sky, 0.8, 0.9], ...LOOK_EXTRA]) {
     f.color.copy(sh); f.intensity = on ? 1 : 0;
-    d.color.copy(on ? lit : new THREE.Color(0xffffff)); d.intensity = on ? 1 : dk;
+    d.color.copy(on ? lit : new THREE.Color(0xffffff)); d.intensity = on ? 1 : dk; d.userData.lit = d.color.clone();
     k.intensity = on ? 0 : kk;
   }
   if (on) { const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180; SUN_DIR.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)); }
   else SUN_DIR.set(25, 50, 15).normalize();
   scene.background.set(on ? LOOK.sky : 0x9db4c8); scene.fog.color.set(on ? LOOK.sky : 0x9db4c8);
+  setSky(on); setPixelRatio();
+  // The level's sun grid (the fort): lights what moves
+  const g = on && LV.sun && SUN_GRIDS[LV.sun.file];
+  SUN.on.value = g ? 1 : 0; SUN.data = g || null;
+  if (g) { SUN.map.value = g.tex; SUN.lo.value.fromArray(g.lo); SUN.size.value.set((g.n[0] - 1) * g.cell, (g.n[1] - 1) * g.cell, (g.n[2] - 1) * g.cell); SUN.grid.value.set(g.n[0], g.n[1], g.n[2], g.cols); }
   // With the look, characters take shadows like the set does
   const recv = o => { if (o.isSkinnedMesh) o.receiveShadow = on; };
   MODELS.forEach(m => m.scene.traverse(recv)); scene.traverse(recv);
+}
+
+// The renders' sky: their world's gradient, mixed in linear light from the haze colour (sky) straight down to a deep blue
+// straight up (top), so the horizon is halfway between. A dome round the camera, drawn behind everything.
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+skyDome.renderOrder = -1; skyDome.frustumCulled = false; skyDome.visible = false; scene.add(skyDome);
+skyDome.onBeforeRender = (r, sc, cam) => skyDome.position.copy(cam.position);
+function setSky(on) {
+  skyDome.visible = on; if (!on) return;
+  const g = skyDome.geometry, pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+  const h = new THREE.Color(LOOK.sky).convertSRGBToLinear(), t = new THREE.Color(LOOK.top).convertSRGBToLinear(), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    c.copy(t).lerp(h, (1 - pos.getY(i) / 600) / 2).convertLinearToSRGB(); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
 }
 
 addEventListener('resize', () => {
@@ -407,6 +523,7 @@ const node = (c, r, l = 0) => l * N + idx(c, r);
 const cellPos = n => { const i = n % N; return new V3(cx(i % GW), nodeH(n), cz((i / GW) | 0)); };
 // ===LEVELS-START
 const OVER = new Float32Array(N);
+const SPAWN_SETS = { rebels: [], midas: [] }; // team free for all: where each side starts (level teamSpawns, by index into spawns)
 const WALK = [], SPAWNS = [], AMMO_SPOTS = [], STATIC_PICKUPS = [];
 const MAX_NADES = 3;
 let SNOW = null, curLevel = null;
@@ -518,12 +635,17 @@ function levelBunker() {
 // (tools/build_fortress.py, then James's hand-made fort swapped in by tools/swap_fort_collision.py).
 function levelFortress() {
   return {
-    mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true,
-    cs: 2, ox: -70, oz: -22, killY: -5, fog: [70, 260], top: 0, wall: 0,
+    mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true, teams: true,
+    cs: 2, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], far: 700, top: 0, wall: 0,
+    // Where the sun reaches over the play area, for what moves: tools/build_fortress.py (SUN_GRID) writes it with these numbers
+    sun: { file: 'Fortress_v5_sun', lo: [-56, 18, -12], n: [197, 81, 177], cell: 0.5, cols: 9 },
     // Inside: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room). Outside: the valley in
     // front of the gate, the hill across it, the road behind the hill
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
-      [-12, 30.5, 14], [-6, 30, 18], [-24, 26, 24], [4, 34, 36], [12, 32.5, 40], [24, 34.5, 44], [32, 35, 40], [0, 23.5, 54], [-16, 26.5, 52]],
+      [-12, 30.5, 14], [-6, 30, 18], [-24, 26, 24], [4, 34, 36], [12, 32.5, 40], [24, 34.5, 44], [32, 35, 40], [0, 23.5, 54], [-16, 26.5, 52],
+      [15, 30, 57.5], [8, 30, 54], [22, 30, 60], [19, 30, 55], [13, 30, 54], [17, 30, 59]],
+    // Team free for all: the Rebels start inside the fort; Midas down on the road around the jeep, not up on the hill
+    teamSpawns: { rebels: [0, 1, 2, 3, 4, 5, 6, 7], midas: [17, 18, 19, 20, 21, 22] },
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
       [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55]],
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52]],
@@ -540,9 +662,10 @@ function levelFortress() {
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
     // A door at the tower's entrance from the back corridor: open until someone locks it (E); bots break it down
     towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
-    // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts open;
-    // anyone at the computer in the tower room can shut it (and open it again)
-    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
+    // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts shut with a
+    // health pool (hp); Midas bots shoot it from the road (siege: [x, z] spots) until it gives way. Once open, E at the door
+    // (or the computer in the tower room) shuts it again, and a shut gate is whole again
+    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 1000, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
     core: { mesh: 'Important Computer', at: [5.29, 44.96, 1.4], hp: 260 },
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
@@ -554,12 +677,14 @@ function levelFortress() {
 // Battle at the Fort's, so its inside spots carry over. Positions are world metres [x, y, z]; y is a hint, items settle below it.
 function levelMinimal() {
   return {
-    mesh: 'Minimal', collide: 'Minimal_col', mode: 'ffa',
+    mesh: 'Minimal', collide: 'Minimal_col', mode: 'ffa', teams: true,
     cs: 2, ox: -70, oz: -26, killY: -18, fog: [70, 260], top: 0, wall: 0,
     // Inside the fort (courtyard, wall walk, tower room), then out across the island
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
       [-10, 23.7, 48], [-26, 25.3, 22], [-32, 24.8, 34], [-34, 27.2, 46], [-12, 33.6, 70], [10, 23.8, 52], [-24, 27.6, 0], [-14, 30.8, -14],
       [4, 33.3, 36], [24, 33.4, 46], [-26, 28.4, 58], [20, 23.7, 60], [2, 38.5, 70], [-44, 13.6, 18], [32, 20.2, 30], [0, 41.9, 82]],
+    // Team free for all: the Rebels start inside the fort, Midas out behind the hill
+    teamSpawns: { rebels: [0, 1, 2, 3, 4, 5, 6, 7], midas: [8, 11, 12, 13, 18, 19, 20, 23] },
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1],
       [-6, 29.3, 20], [-20, 23.7, 36], [-18, 28, 12], [-36, 27.5, 60], [0, 23.8, 50], [14, 38.4, 72], [38, 30, 48], [-48, 22.8, 34],
       [-2, 34, -12, 1], [-22, 32.1, 68, 1]],
@@ -718,7 +843,7 @@ function buildWorld(L) {
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
   camera.far = L.far || (L.mesh ? 400 : 300); camera.updateProjectionMatrix();
   if (!L.mesh) { sun.position.copy(SUN_DIR).multiplyScalar(60); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
-  sun.shadow.bias = L.mesh ? -0.0005 : 0; sun.shadow.normalBias = L.mesh ? 0.03 : 0;
+  sun.shadow.bias = L.mesh ? -0.0008 : 0; sun.shadow.normalBias = L.mesh ? 0.07 : 0; // enough to keep walls side-on to the sun free of stripes
   if (L.mesh) {
     const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
     col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
@@ -836,11 +961,11 @@ function buildWorld(L) {
 function loadLevel(id) {
   const L = buildGrid(id);
   buildWorld(L);
-  SPAWNS.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
+  SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
   FN.nodes = []; FN.cells = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
-    L.spawns.forEach(p => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else SPAWNS.push(s); });
+    L.spawns.forEach((p, i) => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else { SPAWNS.push(s); for (const t in SPAWN_SETS) if (L.teamSpawns && L.teamSpawns[t].includes(i)) SPAWN_SETS[t].push(s); } });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
     (L.atk || []).forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
@@ -1249,12 +1374,18 @@ let D;
 function setDiff(v) { const t = (v - 1) / 4; D = { acc: 0.35 + 0.7 * t, react: 1.1 - 0.8 * t, turn: 3 + 5 * t, nade: 0.03 + 0.15 * t }; }
 setDiff(3);
 $('sbots').oninput = e => $('obots').textContent = e.target.value;
+$('sbotsM').oninput = e => $('obotsM').textContent = e.target.value;
+$('sbotsR').oninput = e => $('obotsR').textContent = e.target.value;
 let GOD = false;
 $('sgod').onchange = e => { GOD = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
-let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'complex';
+// The fort is the game. ?dev (this page load only) also brings back the Arena, Test Drive and the Look panel.
+const DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams(location.search).get('dev') !== '0';
+document.body.classList.toggle('dev', DEV);
+let READY = false; // everything loaded: from then on the menu can switch levels
+let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
 document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
 document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); refreshPreview(); });
 function switchLevel(id) {
@@ -1265,14 +1396,14 @@ function switchLevel(id) {
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, def = mode === 'defend', drive = mode === 'drive';
-  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : `First to ${KILL_LIMIT} kills wins.` + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
-  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Test Drive' : selLevel === 'fortress' ? 'Battle at the Fort' : 'Battle in the Arena';
-  $('finelabel').textContent = def ? 'Instructions and controls' : drive ? 'Controls' : 'Options and controls'; $('maincard').classList.toggle('fort', def); $('maincard').classList.toggle('drive', drive);
+  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : (LEVEL_DEFS[selLevel]().teams ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
+  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Test Drive' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
+  $('maincard').classList.toggle('fort', def); $('maincard').classList.toggle('drive', drive);
   if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
   for (const id of ['setbots', 'setdiff']) $(id).style.display = drive ? 'none' : '';
   $('setlimit').style.display = def || drive ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
   // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
-  for (const [id, show] of [['setrole', def], ['setbots', !def && !drive], ['setchar', !def], ['looklink', !!LEVEL_DEFS[selLevel]().look]]) $(id).style.display = show ? '' : 'none';
+  for (const [id, show] of [['setrole', def], ['setbots', !def && !drive && !LEVEL_DEFS[selLevel]().teams], ['setbotsM', !def && !drive && !!LEVEL_DEFS[selLevel]().teams], ['setbotsR', !def && !drive && !!LEVEL_DEFS[selLevel]().teams], ['setchar', !def], ['looklink', !!LEVEL_DEFS[selLevel]().look], ['setteam', !!(NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {}).teams && !drive]]) $(id).style.display = show ? '' : 'none';
   $('ldiff').textContent = def ? 'Difficulty' : 'Bot difficulty'; $('chartitle').textContent = def ? 'You' : 'Your character';
   $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
 }
@@ -1287,6 +1418,7 @@ function makeEntity(name, isPlayer) {
 const MODEL_DEFS = [['Soldier_2_heavy', 'Eli'], ['Soldier_3_thin', 'Beto'], ['Soldier_4_bigframe', 'Zeke'], ['Soldier_5_smallframe', 'Deigo'],
   ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer']];
 const SOLDIER_COUNT = 4;
+const SUN_GRIDS = {}; // level sun grids by file (loadModels)
 const MODELS = [];
 const LEG_BONES = { thighL: 'DEF-Thigh_1L', thighR: 'DEF-Thigh_1R', kneeL: 'DEF-Knee_1L', kneeR: 'DEF-Knee_1R' };
 function b64ToBuf(str) { const bin = atob(str), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
@@ -1321,8 +1453,13 @@ function prepScene(sc) {
     if (!o.isMesh) return;
     const m = o.material;
     if (m.map) m.map.encoding = THREE.LinearEncoding;
+    if (m.emissiveMap) m.emissiveMap.encoding = THREE.LinearEncoding;
+    if (m.aoMap) m.aoMap.encoding = THREE.LinearEncoding;
     const color = m.color.clone(); if (!m.map) color.convertLinearToSRGB();
-    o.material = toonMat({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh }); o.material.name = m.name;
+    const emissive = m.emissive ? m.emissive.clone() : new THREE.Color(0); if (!m.emissiveMap) emissive.convertLinearToSRGB();
+    // Glowing parts (LEDs, the computer screen) keep their glow; the poster keeps its see-through edges
+    o.material = toonMat({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh, emissive, emissiveMap: m.emissiveMap || null,
+      transparent: m.transparent, alphaTest: m.alphaTest, depthWrite: m.depthWrite, aoMap: m.aoMap || null }); o.material.name = m.name;
     o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; o.frustumCulled = !o.isSkinnedMesh; // characters take shadows only with the look
   });
   sc.updateMatrixWorld(true); return sc;
@@ -1602,12 +1739,22 @@ function loadModels() {
       PROPS[n] = { proto, size: bb.getSize(new V3()) };
     }
   });
+  // Sun grids (the fort): the texture for the shaders, the pixels for sunAtCPU
+  const sunGrids = Promise.all(Object.values(LEVEL_DEFS).map(f => f().sun).filter(Boolean).map(d => new Promise(res => {
+    const img = new Image(); img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height; const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+      const tex = new THREE.Texture(img); tex.flipY = false; tex.generateMipmaps = false; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.needsUpdate = true;
+      SUN_GRIDS[d.file] = { ...d, tex, w: img.width, px: cx.getImageData(0, 0, img.width, img.height).data }; res();
+    };
+    img.onerror = () => { console.warn('No sun grid ' + d.file); res(); }; img.src = 'models/' + d.file + '.png';
+  })));
   // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
   const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
   const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col'], ['Minimal', 'Minimal_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
     sc.traverse(o => {
       if (!o.isMesh) return;
       if (o.material.map) o.material.map.anisotropy = 8;
+      if (o.material.aoMap) o.castShadow = false; // its shadows are baked in (the sun mask); real-time ones are for what moves
       if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
       if (o.material.name === 'Creek_Water') o.castShadow = false;
     });
@@ -1627,7 +1774,9 @@ function loadModels() {
     }
     for (const m of MODELS) if (m.poses) computeModelGuns(m);
   });
-  return Promise.all([soldiers, weps, props, sets, guns]);
+  // The fort's trucks: the asset library's Cargo Truck (vehicles.js draws it); without it they're built from boxes
+  const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
+  return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids]);
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -1840,14 +1989,14 @@ function makeBotMesh(ent, mi) {
 // positions. Bots get a "(bot)" suffix. Hidden until you hold the crosshair
 // on someone for a moment, then they fade in semi-transparent.
 const TAG_FONT = '600 40px "Segoe UI",system-ui,-apple-system,sans-serif';
-function makeNameTag(text) {
+function makeNameTag(text, color) {
   const c = document.createElement('canvas'), x = c.getContext('2d'), padX = 16, h = 56;
   x.font = TAG_FONT;
   const w = Math.ceil(x.measureText(text).width) + padX * 2;
   c.width = w; c.height = h;
   x.fillStyle = 'rgba(15,19,24,0.55)';
   const r = 12; x.beginPath(); x.moveTo(r, 0); x.arcTo(w, 0, w, h, r); x.arcTo(w, h, 0, h, r); x.arcTo(0, h, 0, 0, r); x.arcTo(0, 0, w, 0, r); x.fill();
-  x.font = TAG_FONT; x.fillStyle = '#eef3ea'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = TAG_FONT; x.fillStyle = color || '#eef3ea'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(text, w / 2, h / 2 + 2);
   const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, transparent: true, depthWrite: false }));
@@ -1858,10 +2007,11 @@ function makeNameTag(text) {
 // Keep an entity's tag in sync with its current mesh and name (cheap; called every frame)
 function updateNameTag(e) {
   if (!e.mesh) return;
-  const name = (e.name || 'Player') + (e.bot ? ' (bot)' : '');
-  if (e.tag && e.tag.parent === e.mesh && e.tag.userData.text === name) return;
+  const tm = teamsOn() && e.team ? TEAMS[e.team] : null;
+  const name = (e.name || 'Player') + (e.bot ? ' (bot)' : ''), key = name + '|' + (tm ? e.team : '');
+  if (e.tag && e.tag.parent === e.mesh && e.tag.userData.key === key) return;
   if (e.tag) { if (e.tag.parent) e.tag.parent.remove(e.tag); e.tag.material.map.dispose(); e.tag.material.dispose(); }
-  e.tag = makeNameTag(name);
+  e.tag = makeNameTag(name, tm && tm.color); e.tag.userData.key = key;
   e.tag.position.y = (e.rig ? e.rig.model.headY : 1.7) + 0.5;
   e.tag.material.opacity = e.tagA || 0; e.tag.visible = e.tag.material.opacity > 0;
   e.mesh.add(e.tag);
@@ -1903,7 +2053,14 @@ function updatePlayerRig(dt) {
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
 }
 
+// Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
+const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
+const teamsOn = () => !!(LV && LV.teams) && MODE !== 'defend' && MODE !== 'drive';
+const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
+const teamKills = t => ents.reduce((n, e) => n + (e.team === t ? e.kills : 0), 0);
+let myTeam = 'midas';
 const P = makeEntity('You', true);
+P.team = myTeam;
 P.role = 'master';
 P.eyeCur = 1.6; P.viewY = 0;
 const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], ['Echo', 0x9b59b6], ['Havoc', 0x2ecc71],
@@ -1912,12 +2069,15 @@ const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], 
     'Kestrel', 'Bolt', 'Saber', 'Tundra', 'Ember', 'Grim', 'Lynx', 'Orbit', 'Quake', 'Shade', 'Torque', 'Vex', 'Warden', 'Zero', 'Cinder'].map(n => [n, 0])];
 const bots = [];
 let ents = [P];
-function buildBots(n) {
-  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0;
-  for (let i = 0; i < n; i++) {
-    const [name] = BOT_DEFS[i];
-    const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true;
-    b.mesh = makeBotMesh(b, i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
+// plan: one entry per bot, its team ('midas' / 'rebels', or undefined without teams). Midas bots are soldiers, Rebels bots the Master and the Apprentice.
+let botSig = '';
+const REBEL_MODELS = [5, 4];
+function buildBots(plan) {
+  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botSig = plan.join();
+  for (let i = 0; i < plan.length; i++) {
+    const [name] = BOT_DEFS[i] || ['Bot ' + (i + 1)];
+    const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = plan[i];
+    b.mesh = makeBotMesh(b, plan[i] === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
       react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0 };
     bots.push(b);
@@ -1927,8 +2087,9 @@ function buildBots(n) {
 
 function pickSpawn(e) {
   if (MODE === 'defend' && isAtk(e)) return attackerSpawn();
-  let best = SPAWNS[0], bd = -1;
-  for (const s of SPAWNS) {
+  const pool = teamsOn() && e.team && SPAWN_SETS[e.team].length ? SPAWN_SETS[e.team] : SPAWNS;
+  let best = pool[0], bd = -1;
+  for (const s of pool) {
     let md = 999;
     for (const o of ents) if (o !== e && o.alive) md = Math.min(md, o.pos.distanceTo(s));
     md += Math.random() * 5;
@@ -1959,11 +2120,19 @@ const wrap = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) 
 const turn = (a, b, max) => { const d = wrap(b - a); return a + Math.max(-max, Math.min(max, d)); };
 const fwdOf = e => e.isPlayer ? new V3(-Math.sin(e.yaw), 0, -Math.cos(e.yaw)) : new V3(Math.sin(e.yaw), 0, Math.cos(e.yaw));
 const losRay = new THREE.Raycaster();
-function losPts(o, t) {
+function losPts(o, t, skip) {
   const d = t.clone().sub(o); const dist = d.length(); if (dist < 1e-3) return true; d.divideScalar(dist);
-  if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist) >= dist;
+  if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist) >= dist && !truckInWay(o, d, dist, skip);
   losRay.set(o, d); losRay.far = dist;
   return losRay.intersectObjects(W.meshes, false).length === 0;
+}
+// Trucks (and wrecks) are cover: their boxes stop eyes, bullets and blasts. A ray starting inside one (you, riding in the
+// back) gets out: the boxes only face outward.
+const truckRay = new THREE.Raycaster();
+function truckBoxes(skip) { const out = []; for (const tr of trucks) if (tr !== skip) out.push(...tr.hits); return out; }
+function truckInWay(o, d, dist, skip) {
+  if (!trucks.length) return false;
+  truckRay.set(o, d); truckRay.far = dist; return truckRay.intersectObjects(truckBoxes(skip), false).length > 0;
 }
 const eyePos = e => new V3(e.pos.x, e.pos.y + (e.isPlayer ? e.h - 0.2 : 1.6), e.pos.z);
 const midPos = e => new V3(e.pos.x, e.pos.y + e.h * 0.7, e.pos.z);
@@ -2330,17 +2499,36 @@ function buildDoors(d) {
     }
     leaves.push({ hinge, side });
   }
-  DOORS = { g, leaves, a: 0 };
+  DOORS = { g, leaves, a: 0, bars: [], shown: -1, hit: null };
+  // A health bar on each face of the wall over the doorway (flat planes set just off the stone so nothing pokes through;
+  // drawn when the gate's health changes), and an invisible slab over the doors that shots land on
+  const bc = document.createElement('canvas'); bc.width = 256; bc.height = 40; DOORS.canvas = bc;
+  const bmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), transparent: true, depthWrite: false }), cx = d.x0 + w;
+  for (const [z, y, ry] of [[5.36, 37.6, 0], [2.87, 36.8, Math.PI]]) {
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.3 * 40 / 256), bmat); bar.position.set(cx, y, z); bar.rotation.y = ry; bar.renderOrder = 10; DOORS.bars.push(bar); g.add(bar);
+  }
+  DOORS.hit = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0, h, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
+  DOORS.hit.position.set(cx, d.y0 + h / 2, d.z + 0.3); DOORS.hit.userData.gate = true; g.add(DOORS.hit);
   return g;
 }
 function updateGate(dt) {
   const g = TG && TG.gate; if (!g || !g.mesh) return;
+  gateLock = Math.max(0, gateLock - dt);
   const want = g.open ? -LV.gate.drop : 0;
   if (g.y !== want) { g.y = want < g.y ? Math.max(want, g.y - dt * 4) : Math.min(want, g.y + dt * 4); g.mesh.position.y = g.mesh.userData.y0 + g.y; }
   if (DOORS) {
     const to = !g.open ? 0 : WAVE.broken ? 1.95 : 1.5, k = WAVE.broken && g.open ? 6 : 1.4;
     DOORS.a += Math.max(-k * dt, Math.min(k * dt, to - DOORS.a));
     for (const l of DOORS.leaves) { l.hinge.rotation.y = l.side * DOORS.a; l.hinge.rotation.z = WAVE.broken ? l.side * 0.06 : 0; }
+  }
+  if (DOORS && DOORS.bars.length) { // shown while the gate is shut and still whole
+    const hp = Math.ceil(WAVE.hp), show = !g.open && !WAVE.broken && hp > 0; DOORS.bars.forEach(m => { m.visible = show; });
+    if (show && DOORS.shown !== hp) {
+      DOORS.shown = hp; const c = DOORS.canvas, x = c.getContext('2d'); x.clearRect(0, 0, 256, 40);
+      x.fillStyle = 'rgba(15,19,24,0.7)'; x.fillRect(0, 0, 256, 40);
+      x.fillStyle = hp > 50 ? '#7be07a' : hp > 25 ? '#f0c040' : '#ff4b3a'; x.fillRect(5, 5, 246 * hp / 100, 30);
+      DOORS.bars[0].material.map.needsUpdate = true;
+    }
   }
   const cm = coreMesh();
   if (cm) { if (!cm.userData.mat) { cm.material = cm.material.clone(); cm.userData.mat = cm.material; } coreFlash = Math.max(0, coreFlash - dt); cm.material.emissive.setHex(coreFlash > 0 ? 0xff3010 : 0x000000); }
@@ -2406,7 +2594,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (attacker.isRemote && attacker !== t) sendTo(attacker, { t: 'kill' });
     if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
-    if (MODE !== 'defend' && attacker !== t && attacker.kills >= KILL_LIMIT) endMatch(attacker);
+    if (MODE !== 'defend' && attacker !== t && (teamsOn() && attacker.team ? teamKills(attacker.team) >= KILL_LIMIT : attacker.kills >= KILL_LIMIT)) endMatch(attacker);
     if (MODE === 'defend' && !isAtk(t) && WAVE.phase !== 'won') { WAVE.fallen = t.name; endMatch(null, false); } // lose a defender, lose the fort (not after you've won)
   }
 }
@@ -2420,10 +2608,10 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open; the bike goes back to the courtyard
+    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open
     ents.forEach(e => { if (!e.bot) respawn(e); });
     note('The first wave is on its way. Man the walls', 4);
-  } else { ents.forEach(respawn); VEH.onLevel(); if (LV && LV.gate) setGate(true); if (LV && LV.towerDoor) resetTowerDoor(); } // the vehicles go back to the lot; the fort's gate starts open
+  } else { ents.forEach(respawn); VEH.onLevel(); if (LV && LV.gate) { WAVE.hp = 100; gateLock = 0; setGate(false); } if (LV && LV.towerDoor) resetTowerDoor(); } // the vehicles go back to the lot; the fort's gate starts shut and whole
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
 // Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
@@ -2431,13 +2619,14 @@ function endMatch(w, held) {
   matchOver = true;
   const def = MODE === 'defend';
   if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : w.isPlayer ? 'You win' : `${w.name} wins`;
-  const sub = def ? (held ? `You held off all ${WAVES} waves.` : `${WAVE.fallen === P.name ? 'You' : WAVE.fallen || 'A defender'} fell on wave ${Math.max(1, WAVE.n)} of ${WAVES}.`) : '';
+  const tm = !def && teamsOn() && w.team ? w.team : null;
+  const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : tm ? `${TEAMS[tm].name} win` : w.isPlayer ? 'You win' : `${w.name} wins`;
+  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : def ? (held ? `You held off all ${WAVES} waves.` : `${WAVE.fallen === P.name ? 'You' : WAVE.fallen || 'A defender'} fell on wave ${Math.max(1, WAVE.n)} of ${WAVES}.`) : '';
   const list = [...ents].filter(e => !def || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
-  showResults(title, sub, list.map(e => [e.id, e.name, e.kills, e.deaths]), P.id);
+  showResults(title, sub, list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]), P.id);
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
   $('setnext').style.display = def ? 'none' : ''; $('next').textContent = def ? 'Play again' : 'Next round';
-  broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name, e.kills, e.deaths]) });
+  broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]) });
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
 function showResults(title, sub, rows, me) {
@@ -2481,6 +2670,7 @@ function boom(pos, owner, R, maxD) {
     const m = midPos(e), d = m.distanceTo(o);
     if (d < R && losPts(o, m)) damage(e, Math.round(maxD * (1 - d / R)), owner, 'frag', false);
   }
+  if (gateSiegeOn()) { const dr = LV.gate.doors, dd = new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5; if (dd < R) damageGate(maxD * (1 - Math.max(0, dd) / R) * 0.6); } // blasts wear the gate down too
   for (const g of GASCANS) if (g.alive && g.pos.distanceTo(pos) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
   for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, maxD * (1 - d / R) * TRUCK.blastK); }
   const pd = P.pos.distanceTo(pos);
@@ -2782,7 +2972,8 @@ function fire() {
   const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
   for (const g of GASCANS) if (g.alive) targets.push(g.px);
-  for (const tr of trucks) if (tr.alive) targets.push(tr.hit);
+  for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
+  if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit); // a shut gate takes damage from anyone's bullets
   const start = vmMuzzleWorld();
   const pellets = w.pellets || 1;
   let sp = spread + (w.cone || 0) * (1 - 0.35 * adsK);
@@ -2807,6 +2998,7 @@ function fire() {
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
     } else if (ud.gas) shootGas(ud.gas, P);
     else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
+    else if (ud.gate) { shootGate(w); impact(hit.point); }
     else { const h = holeFromHit(hit, dir); if (h) newHoles.push(h); else impact(hit.point); }
   }
   addHoles(newHoles);
@@ -2874,8 +3066,9 @@ const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {
   const dir = aim.clone().sub(start).normalize();
   botRay.set(start, dir); botRay.far = 200;
-  const hit = botRay.intersectObjects([...W.meshes, ...W.floors], false)[0];
+  const hit = botRay.intersectObjects([...W.meshes, ...W.floors, ...truckBoxes()], false)[0];
   if (!hit) return start.clone().addScaledVector(dir, 200);
+  if (hit.object.userData.truck) return hit.point;
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
@@ -2935,7 +3128,7 @@ function findTarget(b) {
   const def = MODE === 'defend';
   let best = null, bd = def ? 80 : 55;
   for (const o of ents) {
-    if (o === b || !o.alive || (def && isAtk(o))) continue;
+    if (o === b || !o.alive || (def && isAtk(o)) || sameTeam(b, o)) continue;
     const d = b.pos.distanceTo(o.pos);
     if (d < bd && seenAt(b, o)) { bd = d; best = o; }
   }
@@ -2965,6 +3158,9 @@ function bridgedFloor(x, z, top, offs) {
   return best;
 }
 const GAP2 = [[0, 0], [0.06, 0.06]], GAP5 = [[0, 0], [0.06, 0], [-0.06, 0], [0, 0.06], [0, -0.06]];
+// Room for a body: clear at head height and at the waist (a wall too tall to step over stops you there, like the side
+// of a staircase)
+const fitsAt = (x, y, z) => !meshBlocked(x, y, z, STAND_H) && !meshBlocked(x, y, z, 1.4);
 function buildFortNav() {
   FN.nodes = []; FN.cells = null;
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
@@ -2975,7 +3171,7 @@ function buildFortNav() {
     const x = x0 + i * S, z = z0 + j * S, list = [];
     for (let top = A.top, k = 0; k < 12; k++) {
       const g = bridgedFloor(x, z, top, GAP2); if (g === null || g < A.bottom) break;
-      if (g > waterAt(x, z) + 0.3 && !meshBlocked(x, g + 0.05, z, STAND_H)) list.push(FN.nodes.push({ x, y: g, z, nb: [] }) - 1);
+      if (g > waterAt(x, z) + 0.3 && fitsAt(x, g + 0.05, z)) list.push(FN.nodes.push({ x, y: g, z, nb: [] }) - 1);
       top = g - 0.5;
     }
     cells[j * nx + i] = list;
@@ -2987,7 +3183,7 @@ function buildFortNav() {
       const na = FN.nodes[a], nb = FN.nodes[b]; if (Math.abs(na.y - nb.y) > STEP) continue;
       const mx = (na.x + nb.x) / 2, mz = (na.z + nb.z) / 2, top = Math.max(na.y, nb.y) + 0.3;
       let g = groundAt(mx, mz, top); if (g === null || Math.min(na.y, nb.y) - g > 0.3) g = bridgedFloor(mx, mz, top, GAP5);
-      if (g === null || Math.min(na.y, nb.y) - g > 0.3 || meshBlocked(mx, g + 0.05, mz, STAND_H)) continue;
+      if (g === null || Math.min(na.y, nb.y) - g > 0.3 || !fitsAt(mx, g + 0.05, mz)) continue;
       na.nb.push(b); nb.nb.push(a);
     }
   }
@@ -3144,7 +3340,8 @@ function updateBot(b, dt) {
   } else {
     if (def) botAdvance(b, wish, dt, true); // nobody in sight: march on the gate, or hunt the defenders inside
     b.pitch *= 1 - Math.min(1, dt * 4);
-    if (!def && FN.cells) roamFine(b, wish, dt);
+    if (!def && gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
+    else if (!def && FN.cells) roamFine(b, wish, dt);
     else if (!def && !ai.path) {
       let goal = null;
       if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
@@ -3170,6 +3367,7 @@ function updateBot(b, dt) {
   b.vel.z += (wish.z * speed - b.vel.z) * k;
   bodyBlock(b, dt);
   physics(b, dt);
+  VEH.block(b);
   if (b.pos.y < KILL_Y) { damage(b, 999, b, 'fall', false); return; }
   stepSound(b, dt);
   b.mesh.position.copy(b.pos);
@@ -3214,7 +3412,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P))) playerKnife(); }
+  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P))) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
@@ -3430,7 +3628,7 @@ function updateHUD(dt) {
     $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-    $('top').textContent = MODE === 'drive' ? 'Test Drive' : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
+    $('top').textContent = MODE === 'drive' ? 'Test Drive' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
     $('top').classList.remove('alert');
   }
   hitT -= dt; $('hit').style.opacity = hitT > 0 ? 1 : 0;
@@ -3449,7 +3647,7 @@ function updateHUD(dt) {
   bd.style.display = boardOpen ? 'block' : 'none';
   if (boardOpen) {
     const rows = [...ents].filter(e => MODE !== 'defend' || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
-      .map(e => `<tr class="${e.isPlayer ? 'me' : ''}"><td>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td></tr>`).join('');
+      .map(e => `<tr class="${e.isPlayer ? 'me' : ''}"><td${e.team && teamsOn() ? ` style="color:${TEAMS[e.team].color}"` : ''}>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td></tr>`).join('');
     bd.innerHTML = `<table><tr><th>Player</th><th>Kills</th><th>Deaths</th></tr>${rows}</table>`;
   }
 }
@@ -3468,24 +3666,29 @@ function applySettings() {
   const lim = +$('sglimit').value;
   if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; updateGoal(); }
   if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team') }); return; }
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam }); return; }
   const waves = MODE === 'defend' ? WAVE_SIZES.length : +$('swaves').value;
   if (selLevel !== curLevel) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
   else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
   if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  const n = botTarget();
-  if (n !== bots.length) { buildBots(n); resetMatch(); }
+  const plan = botPlan();
+  if (plan.join() !== botSig) { buildBots(plan); resetMatch(); }
 }
 // Fortress defend always has attackers: the slider is how many are on the field at once
-function botTarget() { return MODE === 'defend' ? Math.max(...WAVE_SIZES) : MODE === 'drive' ? 0 : +$('sbots').value; }
+function botPlan() {
+  if (MODE === 'defend') return Array(Math.max(...WAVE_SIZES)).fill(undefined);
+  if (MODE === 'drive') return [];
+  if (LEVEL_DEFS[selLevel]().teams) return [...Array(+$('sbotsM').value).fill('midas'), ...Array(+$('sbotsR').value).fill('rebels')]; // each side set separately
+  return Array(+$('sbots').value).fill(undefined);
+}
 function setPlaying(on) {
   if (on) applySettings();
   locked = on;
-  $('overlay').style.display = on || matchOver ? 'none' : 'flex';
+  $('overlay').style.display = on || matchOver ? 'none' : 'flex'; $('overlay').classList.add('ingame'); $('totitle').style.display = 'none';
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
   $('restart').textContent = MODE === 'defend' && WAVE.phase === 'won' ? 'Play again' : 'Restart game';
   if (!on) {
-    closeChat(); setAway(false); setMonitor(false);
+    closeChat(); setAway(false); setMonitor(false); showScreen('main');
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = null;
     $('joy').style.display = 'none';
@@ -3687,14 +3890,14 @@ function chooseMode(kind) {
   selLevel = kind === 'fort' ? 'fortress' : kind === 'drive' ? 'drive' : selLevel === 'drive' ? 'complex' : selLevel;
   document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
   updateGoal(); refreshPreview(); $('title').style.display = 'none';
-  $('finetoggle').checked = false; $('maincard').classList.remove('fine');
+  showScreen('main');
   // Get the chosen level ready behind the menu (the fort builds its walking map, a few seconds)
-  if (MODELS.length && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
+  if (READY && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
-const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Battle at the Fort', minimal: 'Minimal', drive: 'Test Drive' };
+const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', drive: 'Test Drive' };
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem('tse.last') || 'null'); } catch (e) { return null; } })();
-if (lastGame && LEVEL_DEFS[lastGame.level]) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
+if (lastGame && LEVEL_DEFS[lastGame.level] && (DEV || lastGame.level === 'fortress')) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
 $('goagain').onclick = () => {
   const lv = lastGame.level, kind = lv === 'fortress' ? 'fort' : lv === 'drive' ? 'drive' : 'arena';
   if (kind === 'arena') selLevel = lv;
@@ -3705,7 +3908,43 @@ $('goarena').onclick = () => chooseMode('arena');
 $('gofort').onclick = () => chooseMode('fort');
 $('godrive').onclick = () => chooseMode('drive');
 $('totitle').onclick = () => { $('title').style.display = ''; };
-$('finetoggle').onchange = e => $('maincard').classList.toggle('fine', e.target.checked);
+// Menu screens: the main buttons, How to play and Settings
+function showScreen(s) { $('maincard').dataset.scr = s; $('overlay').classList.toggle('sub', s !== 'main'); if (s === 'settings') syncMenu(); updateChatbox(); }
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showScreen(b.dataset.go));
+// Settings are buttons over hidden inputs: the inputs keep the values and run their usual handlers
+const poke = (inp, type) => inp.dispatchEvent(new Event(type));
+document.querySelectorAll('.step').forEach(st => st.querySelectorAll('button').forEach(b => b.onclick = () => {
+  const inp = $(st.dataset.for); inp.value = +inp.value + (+inp.step || 1) * b.dataset.d; poke(inp, 'input'); // a range input clamps and snaps to its step
+}));
+// The number between the buttons can be typed over: Enter or clicking away applies it (the range clamps and snaps it), Esc puts the old one back
+document.querySelectorAll('.step').forEach(st => {
+  const out = st.querySelector('output'), inp = $(st.dataset.for); let old = '';
+  out.contentEditable = 'plaintext-only'; out.inputMode = 'decimal'; out.spellcheck = false; out.title = 'Click to type a number';
+  out.onfocus = () => { old = out.textContent; const r = document.createRange(); r.selectNodeContents(out); const g = getSelection(); g.removeAllRanges(); g.addRange(r); };
+  out.onblur = () => { const v = parseFloat(out.textContent.replace(/[^0-9.\-]/g, '')); if (isFinite(v)) { inp.value = v; poke(inp, 'input'); } else out.textContent = old; getSelection().removeAllRanges(); };
+  for (const t of ['keydown', 'keyup']) out.addEventListener(t, e => { // the game's keys stay out of it
+    e.stopPropagation();
+    if (t === 'keydown' && (e.code === 'Enter' || e.code === 'NumpadEnter')) { e.preventDefault(); out.blur(); }
+    else if (t === 'keydown' && e.code === 'Escape') { e.preventDefault(); out.textContent = old; out.blur(); }
+  });
+});
+document.querySelectorAll('.seg[data-for]').forEach(sg => { // difficulty: one button per level
+  const inp = $(sg.dataset.for);
+  DIFF_LABELS.forEach((l, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = l; b.dataset.v = i + 1; b.onclick = () => { inp.value = i + 1; poke(inp, 'input'); syncMenu(); }; sg.append(b); });
+});
+document.querySelectorAll('.tog[data-for]').forEach(b => b.onclick = () => { const inp = $(b.dataset.for); inp.checked = !inp.checked; poke(inp, 'change'); syncMenu(); });
+function syncMenu() {
+  document.querySelectorAll('.seg[data-for]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === $(sg.dataset.for).value)));
+  document.querySelectorAll('.tog[data-for]').forEach(b => { const on = $(b.dataset.for).checked; b.textContent = b.dataset[on ? 'on' : 'off']; b.classList.toggle('on', on); });
+}
+syncMenu();
+// Team free for all: pick Midas or the Rebels (bots even the sides out; a guest tells the host)
+document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
+  const was = P.team; myTeam = P.team = b.dataset.team;
+  if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
+  document.querySelectorAll('#teams button').forEach(x => x.classList.toggle('on', x === b));
+  if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam });
+});
 // Fort invites: the apprentice link is the plain invite; the pirate link sends friends to the attackers
 function copyInvite(btn, team) {
   const v = $('invlink').value, label = btn.textContent;
@@ -3716,17 +3955,17 @@ function copyInvite(btn, team) {
 $('invapp').onclick = e => copyInvite(e.target, null);
 $('invpir').onclick = e => copyInvite(e.target, 'pirates');
 // Look panel: opens over the paused game with the scene showing through
-const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v] };
+const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lklit: ['lit', v => v], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v], lktop: ['top', v => v] };
 function showLook() {
   for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) { $(id).value = LOOK[k]; $('o' + id).textContent = fmt(LOOK[k]); }
 }
 for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) $(id).oninput = e => {
   const v = e.target.type === 'color' ? e.target.value : +e.target.value; LOOK[k] = v; $('o' + id).textContent = fmt(v);
-  applyLook(); try { localStorage.setItem('fortressLook', JSON.stringify(LOOK)); } catch (err) {}
+  applyLook(); try { localStorage.setItem('fortressLook3', JSON.stringify(LOOK)); } catch (err) {}
 };
 $('looklink').onclick = () => { showLook(); $('overlay').classList.add('looking'); };
 $('lkback').onclick = () => $('overlay').classList.remove('looking');
-$('lkreset').onclick = () => { LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook'); } catch (e) {} applyLook(); showLook(); };
+$('lkreset').onclick = () => { LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); };
 $('lkcopy').onclick = () => { const t = JSON.stringify(LOOK); navigator.clipboard.writeText(t).then(() => note('Look settings copied', 1.5)).catch(() => prompt('Look settings', t)); };
 $('next').onclick = () => {
   initAudio();
@@ -3894,7 +4133,7 @@ function cannonTarget() {
       const m = a.m, d = m.distanceTo(CN.pivot);
       if (d >= bd || Math.hypot(m.x - CN.pivot.x, m.z - CN.pivot.z) < CANNON.minRange) continue;
       const [yaw, pitch] = cannonAim(m);
-      if (pitch < CANNON.minPitch || pitch > CANNON.maxPitch || Math.abs(wrap(yaw)) > CANNON.maxYaw || !losPts(cannonMuzzle(yaw, pitch), m)) continue;
+      if (pitch < CANNON.minPitch || pitch > CANNON.maxPitch || Math.abs(wrap(yaw)) > CANNON.maxYaw || !losPts(cannonMuzzle(yaw, pitch), m, a.truck)) continue;
       bd = d; best = a;
     }
     return best;
@@ -3944,15 +4183,19 @@ function updateCannonVis() {
 // Each wave's soldiers ride up in trucks (TRUCK.seats each) from the far hills. A truck drives the terrain map to a drop-off
 // 20-30 m out from the gate, the soldiers jump out and go on foot, and the empty truck stays as cover. Trucks can be shot and
 // shelled; a destroyed truck burns, and anyone still in the back bails out hurt. The host drives them; guests draw them.
-const TRUCK = { seats: 4, hp: 400, cruise: 9, slow: 4.5, look: 7, len: 4.45, bulletK: 0.35, rifleHit: 120, blastK: 1.5, bailHp: 35 };
+const TRUCK = { seats: 4, hp: 400, cruise: 9, slow: 4.5, look: 7, bulletK: 0.35, rifleHit: 120, blastK: 1.5, bailHp: 35 };
 const trucks = [], truckQueue = []; // truckQueue: trucks still to come this wave
-// A truck is a vehicles.js vehicle (James's jeep tuning, two seats in front and six in the back) wrapped with what the fort
-// needs: health, the soldiers aboard, the NPC's route, and a box for bullets to hit
+// A truck is a vehicles.js vehicle (the Cargo Truck with James's jeep tuning, two seats in front and six in the back) wrapped
+// with what the fort needs: health, the soldiers aboard, the NPC's route, and boxes round the cab, container and chassis
+// for bullets to hit and to hide behind
+const HIT_BOX = new THREE.BoxGeometry(2, 2, 2), HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 function wrapTruck(v, seats) {
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(v.p.track + 0.1, 2.0, v.p.wheelbase + 1.0), new THREE.MeshBasicMaterial({ visible: false }));
-  hit.position.y = 1.1; v.hit = hit; v.g.add(hit);
-  const tr = { veh: v, hit, pos: v.pos, get yaw() { return v.yaw; }, get g() { return v.g; }, hp: TRUCK.hp, alive: !v.dead, seats, state: 'wait', wait: 0, route: null, pi: 0, smokeT: 0 };
-  hit.userData.truck = tr; return tr;
+  const hit = new THREE.Group();
+  for (const b of VEH.boxesOf(v)) { const m = new THREE.Mesh(HIT_BOX, HIT_MAT); m.position.copy(b.c); m.scale.copy(b.h); hit.add(m); }
+  v.hit = hit; v.g.add(hit); hit.updateMatrixWorld(true);
+  const tr = { veh: v, hit, hits: hit.children, pos: v.pos, get yaw() { return v.yaw; }, get g() { return v.g; }, hp: TRUCK.hp, alive: !v.dead, seats, state: 'wait', wait: 0, route: null, pi: 0, smokeT: 0 };
+  for (const m of hit.children) m.userData.truck = tr;
+  return tr;
 }
 function newTruck(at, yaw, seats) {
   const v = VEH.spawn('truck', at, yaw); v.npcBusy = true; v.npc = { thr: 0, steer: 0, hand: true };
@@ -3999,7 +4242,7 @@ function updateTrucks(dt) {
       const end = tr.route[tr.route.length - 1];
       while (tr.pi < tr.route.length - 1 && Math.hypot(tr.route[tr.pi].x - tr.pos.x, tr.route[tr.pi].z - tr.pos.z) < TRUCK.look) tr.pi++;
       const c = tr.route[tr.pi], fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), toEnd = Math.hypot(end.x - tr.pos.x, end.z - tr.pos.z);
-      const blocked = trucks.some(o => o !== tr && o.state === 'park' && Math.hypot(o.pos.x - tr.pos.x, o.pos.z - tr.pos.z) < TRUCK.len + 4 && (o.pos.x - tr.pos.x) * fx + (o.pos.z - tr.pos.z) * fz > 0);
+      const blocked = trucks.some(o => o !== tr && o.state === 'park' && Math.hypot(o.pos.x - tr.pos.x, o.pos.z - tr.pos.z) < VEH.lenOf(v) + 4 && (o.pos.x - tr.pos.x) * fx + (o.pos.z - tr.pos.z) * fz > 0);
       const passed = tr.pi === tr.route.length - 1 && (end.x - tr.pos.x) * fx + (end.z - tr.pos.z) * fz < 0; // the end is behind: close enough
       if (toEnd < 4 || passed || blocked) { tr.state = 'stop'; continue; }
       const err = wrap(Math.atan2(c.x - tr.pos.x, c.z - tr.pos.z) - v.yaw), want = Math.min(TRUCK.cruise, Math.abs(err) > 0.35 ? TRUCK.slow : TRUCK.cruise, 1.5 + toEnd * 0.4);
@@ -4014,14 +4257,14 @@ function updateTrucks(dt) {
     }
   }
 }
-// Soldiers out of the back (free bot slots), either at the drop-off or bailing out of a wreck
+// Soldiers out of the container's open back (free bot slots), either at the drop-off or bailing out of a wreck
 function unloadTruck(tr, hurt) {
-  const back = new V3(-Math.sin(tr.yaw), 0, -Math.cos(tr.yaw)), side = new V3(Math.cos(tr.yaw), 0, -Math.sin(tr.yaw));
+  const back = new V3(-Math.sin(tr.yaw), 0, -Math.cos(tr.yaw)), side = new V3(Math.cos(tr.yaw), 0, -Math.sin(tr.yaw)), rear = VEH.rearOf(tr.veh) + 0.8;
   let k = 0;
   for (const b of bots) {
     if (tr.seats <= 0) break;
     if (b.alive) continue;
-    const at = tr.pos.clone().addScaledVector(back, 3.0 + (k >> 1) * 0.9).addScaledVector(side, (k & 1 ? 1 : -1) * 0.7); k++;
+    const at = tr.pos.clone().addScaledVector(back, rear + (k >> 1) * 0.9).addScaledVector(side, (k & 1 ? 1 : -1) * 0.7); k++;
     const p = settle([at.x, tr.pos.y + 1.5, at.z]);
     respawn(b, p, 0); if (hurt) b.health = TRUCK.bailHp;
     tr.seats--; WAVE.queue--;
@@ -4138,7 +4381,59 @@ function toggleGate() {
 function switchGate(e) {
   if (!nearComputer(e) || matchOver) return;
   if (WAVE.broken) { if (e === P) note('The gate is destroyed', 1.5); else sendTo(e, { t: 'wn', x: 'The gate is destroyed' }); return; }
-  const open = !gateOpen(); setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
+  const open = !gateOpen();
+  if (!open && gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return; }
+  if (!open && MODE !== 'defend') WAVE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
+}
+// Free for all: Midas bots shoot a shut gate (its hp is WAVE.hp, a percentage) until it gives way; shutting it again mends it
+let gateLock = 0; // seconds until a gate that was shot open can be shut again
+const GATE_LOCK = 30;
+const gateSiegeOn = () => MODE !== 'defend' && teamsOn() && !!(LV && LV.gate && LV.gate.hp) && !gateOpen() && WAVE.hp > 0 && !matchOver;
+function damageGate(amt) {
+  if (!gateSiegeOn()) return;
+  WAVE.hp = Math.max(0, WAVE.hp - amt / LV.gate.hp * 100);
+  if (WAVE.hp <= 0) { setGate(true); gateLock = GATE_LOCK; const d = LV.gate.doors; _boomFx(new V3((d.x0 + d.x1) / 2, d.y0 + 1.2, d.z), 1.2); waveNote('The gate has been broken open! It can be shut again in 30 seconds'); }
+}
+const nearGateDoor = e => { const d = LV && LV.gate && LV.gate.doors; return !!d && MODE !== 'defend' && e.alive && Math.abs(e.pos.x - (d.x0 + d.x1) / 2) < 2.4 && Math.abs(e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5; };
+// E at the open gate: shut it (the host decides). Not with someone standing in the doorway.
+function useGateDoor(e) {
+  if (!gateOpen()) return false;
+  if (gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return true; }
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gdoor' }); return true; }
+  const d = LV.gate.doors, cx = (d.x0 + d.x1) / 2;
+  if (ents.some(o => o.alive && Math.abs(o.pos.x - cx) < (d.x1 - d.x0) / 2 && Math.abs(o.pos.z - d.z) < 0.9 && Math.abs(o.pos.y - d.y0) < 2)) { if (e === P) note('Something is in the way', 1.5); else sendTo(e, { t: 'wn', x: 'Something is in the way' }); return true; }
+  WAVE.hp = 100; setGate(false); waveNote(`${e.isPlayer ? 'You' : e.name} shut the gate`);
+  return true;
+}
+// Player bullets on the gate (guests tell the host)
+function shootGate(w) {
+  const amt = w.oneShot ? 40 : (w.dmg || 10) * (w.pellets ? 0.4 : 0.5);
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'ghit', amt: Math.round(amt) }); return; }
+  damageGate(amt);
+}
+// A Midas bot at the road in front of the gate: fire at the doors
+function botShootGate(b, dt) {
+  const ai = b.ai, d = LV.gate.doors, x = (d.x0 + d.x1) / 2, y = (d.y0 + d.y1) / 2, z = d.z + 0.3, dx = x - b.pos.x, dz = z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
+  b.yaw = turn(b.yaw, want, D.turn * dt);
+  b.pitch += (Math.atan2(y - b.pos.y - 1.5, dist) - b.pitch) * Math.min(1, dt * 8);
+  ai.fireCd -= dt;
+  if (b.reloading > 0 || b.ammo <= 0 || ai.fireCd > 0 || Math.abs(wrap(want - b.yaw)) > 0.2) return;
+  const w = WEAPONS[b.wpn]; b.ammo--;
+  ai.fireCd = w.auto ? 0.15 : Math.max(w.rate, 0.3) + Math.random() * 0.3;
+  sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
+  let total = 0; const start = botMuzzle(b, w), marks = [], aim0 = new V3(x + (Math.random() - 0.5) * 2.4, y + (Math.random() - 0.5) * 1.6, z);
+  muzzleFx(b.wpn, start, aim0.clone().sub(start).normalize(), false, b.id);
+  for (let i = 0; i < (w.pellets || 1); i++) { if (i < 3) tracer(start, aim0, w.tracer, w.trW, w.trLife); total += w.dmg; }
+  damageGate(total * BOT_DMG);
+}
+// Out of sight of anyone: march to a spot on the road, then shoot the gate
+function siegeGate(b, wish, dt) {
+  const ai = b.ai, d = LV.gate.doors, cx = (d.x0 + d.x1) / 2, dist = Math.hypot(b.pos.x - cx, b.pos.z - d.z);
+  if (dist < 14 && b.pos.z > d.z && Math.abs(b.pos.y - d.y0) < 4) { ai.hpath = null; botShootGate(b, dt); return; }
+  if (!ai.sg) { const sp = LV.gate.siege[Math.random() * LV.gate.siege.length | 0], g = groundAt(sp[0], sp[1], d.y0 + 6); ai.sg = g === null ? null : new V3(sp[0], g, sp[1]); }
+  if (!ai.sg) return;
+  if ((ai.huntT = (ai.huntT || 0) - dt) <= 0 || !ai.hpath) { ai.huntT = 1 + Math.random(); ai.hpath = fortPath(b.pos, ai.sg); ai.hi = 0; }
+  walkFine(b, wish, dt, true);
 }
 // Host: a dead attacking player takes over the soldier closest to the gate
 function takeOver(r) {
@@ -4159,6 +4454,7 @@ function updateComputer() {
   if (ws) text = ws === 'out' ? 'E: climb out the window' : 'E: climb back in';
   else if (near && !monitorOpen) text = 'E: use the computer';
   else if (locked && !chatOpen && nearTowerDoor(P) && TDOOR.state !== 'broken' && !isAtk(P)) text = TDOOR.state === 'open' ? 'E: close and lock the door' : 'E: open the door';
+  else if (locked && !chatOpen && gateOpen() && nearGateDoor(P)) text = gateLock > 0 ? `The broken gate can be shut in ${Math.ceil(gateLock)}s` : 'E: shut the gate';
   $('cprompt').style.display = text ? 'block' : 'none'; if (text) $('cprompt').textContent = text;
   if (monitorOpen) drawMap();
 }
@@ -4201,7 +4497,7 @@ function drawMap() {
   }
   const gate = WAVE.broken ? 'destroyed' : gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`;
   const cannon = !CN ? '' : CN.cd > 0 ? `recharging ${Math.ceil(CN.cd)}s` : 'ready';
-  $('cpuinfo').textContent = MODE === 'defend' ? `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}` : `Gate ${gateOpen() ? 'open' : 'closed'} · Others on the map ${n}`;
+  $('cpuinfo').textContent = MODE === 'defend' ? `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}` : `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`} · Others on the map ${n}`;
 }
 
 // ---------- Multiplayer: host-in-browser P2P (PeerJS / WebRTC) + voice chat ----------
@@ -4278,13 +4574,15 @@ function onGuestMsg(conn, m) {
       r = makeEntity(name, false);
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0 });
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
+      const humans = t => ents.filter(x => !x.bot && x.team === t).length;
+      r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       if (m.team === 'pirates') r.role = 'atk'; // invited as a pirate
       const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
       sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
       respawn(r); VEH.welcome(r);
       note(MODE === 'defend' ? `${name} joined as the ${ROLES[r.role].name}` : `${name} joined`, 2); updateRoster(); getMic();
     } else {
-      r.name = name;
+      r.name = name; if (TEAMS[m.tm] && m.tm !== r.team) { r.team = m.tm; if (r.alive) respawn(r); }
       r.helloModel = m.model | 0; if (MODE !== 'defend' && (m.model | 0) !== r.modelIdx) setRemoteModel(r, m.model);
       updateRoster();
     }
@@ -4311,6 +4609,8 @@ function onGuestMsg(conn, m) {
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
+    case 'ghit': damageGate(Math.min(60, Math.max(0, +m.amt || 0))); break;
+    case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
     case 'tdoor': if (nearTowerDoor(r)) useTowerDoor(r); break;
     case 'take': takeOver(r); break;
     case 'thit': { const tr = trucks[m.i | 0]; if (tr && r.alive) damageTruck(tr, Math.min(200, Math.max(0, +m.amt || 0))); break; }
@@ -4337,13 +4637,14 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver,
+    gh: MODE !== 'defend' && LV && LV.gate ? Math.ceil(WAVE.hp) : null, gl: MODE !== 'defend' && LV && LV.gate ? Math.ceil(gateLock) : null,
     gt: MODE !== 'defend' && LV && LV.gate ? (gateOpen() ? 1 : 0) : null, // the fort's gate in free for all (defend sends it with the waves)
     wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : WAVE.phase === 'won' ? -2 : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
     cn: CN ? [+CN.yaw.toFixed(3), +CN.pitch.toFixed(3), +CN.cd.toFixed(1)] : null,
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
-      hp: Math.ceil(e.health), k: e.kills, d: e.deaths, r: e.role || null,
+      hp: Math.ceil(e.health), k: e.kills, d: e.deaths, r: e.role || null, tm: e.team || null,
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
@@ -4362,7 +4663,7 @@ function startGuest() {
   const peer = new Peer(undefined, ICE); NET.peer = peer;
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
-    conn.on('open', () => { $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team') }); });
+    conn.on('open', () => { $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam }); });
     conn.on('data', onHostMsg);
     conn.on('close', () => { NET.joined = false; $('netstat').textContent = 'Disconnected from host'; note('Disconnected from host', 6); });
   });
@@ -4420,10 +4721,12 @@ function applySnapshot(s) {
     if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); }
   }
   if (s.gt !== null && s.gt !== undefined) setGate(!!s.gt);
+  if (s.gh !== null && s.gh !== undefined) WAVE.hp = +s.gh;
+  if (s.gl !== null && s.gl !== undefined) gateLock = +s.gl || 0;
   if (s.cn && CN) { CN.yaw = +s.cn[0] || 0; CN.pitch = +s.cn[1] || 0; CN.cd = +s.cn[2] || 0; }
   const seen = new Set();
   for (const d of s.e) {
-    if (d.i === NET.myId) { P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
+    if (d.i === NET.myId) { if (d.tm) P.team = d.tm; P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
     seen.add(d.i);
     let r = replicas.get(d.i);
     const mi = Math.max(0, Math.min(MODELS.length - 1, d.m | 0));
@@ -4438,7 +4741,7 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined, team: d.tm || undefined });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
@@ -4548,12 +4851,12 @@ loadModels().then(() => {
   if (pm) WEAPONS.rifle.scene.traverse(o => { if (o.isMesh) o.material = pm; });
   setPlayerModel(0);
   buildViewmodels();
-  // Fortress is the only level: the host switches to it as soon as its mesh has loaded
+  // The host switches to the chosen level (the fort unless a dev mode was picked) as soon as everything has loaded
   if (NET.role === 'host') { WAVES = WAVE_SIZES.length; switchLevel(selLevel); resetMatch(); }
   else { buildPickups(); placeProps(); }
-  if (NET.role === 'host') { buildBots(botTarget()); if (MODE !== 'defend') bots.forEach(respawn); }
+  if (NET.role === 'host') { buildBots(botPlan()); if (MODE !== 'defend') bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
-  $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = '';
+  $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = ''; READY = true;
   initPreview();
 }).catch(e => { console.error(e); $('play').textContent = 'Characters failed to load'; });
 let last = performance.now();
@@ -4598,12 +4901,15 @@ function loop(now) {
   updateHUD(dt);
   updateChatbox();
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
+  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
   renderer.clear();
-  renderer.render(scene, camera);
+  renderWorld();
   renderer.clearDepth();
   renderer.render(vmScene, vmCam);
 }
 requestAnimationFrame(loop);
+// Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
+if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js"></script>
 </body>
