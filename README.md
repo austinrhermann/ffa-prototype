@@ -185,9 +185,9 @@ These are drawn in code for now. To use your own art, add PNGs to an `fx/` folde
 
 ## Cobray M11 (draft)
 
-Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike). It fires faster than the Midas Carbine for less damage per hit, so it kills about as fast up close, but it sprays more and loses accuracy sooner with distance; 32-round magazine, quicker reload. It uses the carbine's sound for now. It replaces one carbine pickup on Complex, Facility, Bunker and Minimal (Creek and Fortress are unchanged). The numbers are a first draft in `WEAPONS.cobray`.
+Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike). It fires faster than the Midas Carbine for less damage per hit, so it kills about as fast up close, but it sprays more and loses accuracy sooner with distance; 32-round magazine, quicker reload. It uses the carbine's sound for now. The numbers are a first draft in `WEAPONS.cobray`.
 
-To try it without hunting for the pickup, add `?give=cobray` to the address: you spawn with it every life (it works for any gun, e.g. `?give=rifle`).
+It isn't on any map yet while it's being tuned. To try it, add `?give=cobray` to the address (or `&give=cobray` after an invite link): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Cobray can be picked up by others in that game.
 
 ## Controls
 
