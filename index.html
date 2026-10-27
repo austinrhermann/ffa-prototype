@@ -755,6 +755,7 @@ function addSetExtras(L) {
   if (L.fence) for (let i = 0; i + 1 < L.fence.length; i++) { // tall see-through panels from the valley floor up past head height
     const [x0, z0, t0] = L.fence[i], [x1, z1, t1] = L.fence[i + 1], len = Math.hypot(x1 - x0, z1 - z0) + 0.3, top = Math.max(t0, t1), bot = 8;
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
+    o.userData.noShot = true; // blocks walking only: bullets, bullet holes and sight lines pass through
   }
   if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
   if (L.balcony) {
@@ -847,7 +848,7 @@ function buildWorld(L) {
   if (L.mesh) {
     const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
     col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
-    col.traverse(o => { if (o.isMesh && !o.userData.water && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
+    col.traverse(o => { if (o.isMesh && !o.userData.water && !o.userData.noShot && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
     for (const l of L.ladders || []) levelGroup.add(makeLadder(l));
     if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
     if (L.towerDoor) levelGroup.add(buildTowerDoor(L.towerDoor));
@@ -1930,6 +1931,23 @@ function updateCorpses(dt, list = corpses) {
   }
 }
 function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.length = 0; }
+// Bodies lie for CORPSE_STAY seconds, fade out over CORPSE_FADE, then leave the map. Each body gets its own copy of its materials
+// when it starts fading (they're shared with the living characters), and stops casting a shadow so no solid shadow is left behind.
+const CORPSE_STAY = 15, CORPSE_FADE = 3;
+function fadeCorpses(dt) {
+  for (let i = corpses.length - 1; i >= 0; i--) {
+    const c = corpses[i]; c.age = (c.age || 0) + dt;
+    if (c.age < CORPSE_STAY) continue;
+    if (!c.mats) {
+      c.mats = [];
+      const own = m => { const m2 = m.clone(); m2.transparent = true; c.mats.push(m2); return m2; };
+      c.w.traverse(o => { if (!o.isMesh) return; o.castShadow = false; o.material = Array.isArray(o.material) ? o.material.map(own) : own(o.material); });
+    }
+    const k = Math.max(0, 1 - (c.age - CORPSE_STAY) / CORPSE_FADE);
+    for (const m of c.mats) m.opacity = k;
+    if (k <= 0) { scene.remove(c.w); c.mats.forEach(m => m.dispose()); corpses.splice(i, 1); }
+  }
+}
 const _q = new THREE.Quaternion();
 function setBone(bn, ang, C = 0) {
   if (!bn) return;
@@ -4878,7 +4896,7 @@ function loop(now) {
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (NET.role === 'guest') {
     if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); updateCook(dt); }
-    updateReplicas(dt, now); updateCorpses(dt);
+    updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
     VEH.update(dt);
@@ -4895,7 +4913,7 @@ function loop(now) {
     updateGas(dt);
     updateHeals(dt);
     updateCook(dt);
-    updateCorpses(dt);
+    updateCorpses(dt); fadeCorpses(dt);
   }
   netTick(dt);
   updateCamera(dt);
