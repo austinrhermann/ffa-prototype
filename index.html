@@ -58,6 +58,15 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #tmic{left:calc(244px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+#camgrid{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:50vw}
+.camtile{position:relative;width:120px;height:90px;border-radius:6px;overflow:hidden;background:#000;border:2px solid rgba(238,243,234,.35);transition:border-color .15s,box-shadow .15s}
+.camtile video{display:block;width:100%;height:100%;object-fit:cover}
+.camtile.self video{transform:scaleX(-1)}
+.camtile.speaking{border-color:var(--accent);box-shadow:0 0 12px 2px var(--accent)}
+.camname{position:absolute;left:4px;bottom:2px;max-width:calc(100% - 8px);padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.55);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.touch .camtile{width:84px;height:63px}
+#tcam{left:calc(376px + env(safe-area-inset-left,0px))}
+#tcam.on{background:var(--accent);color:#0d1a08}
 #title{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:24px;box-sizing:border-box;background:#000 url(title.jpg) center/cover no-repeat}
 #title h1{margin:0;color:#fff;font:800 clamp(34px,7.5vw,96px)/1.05 system-ui,sans-serif;letter-spacing:.08em;text-align:center;text-shadow:0 3px 22px rgba(0,0,0,.55)}
 .tbtns{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
@@ -201,6 +210,7 @@ body.touch .card small.tc{display:block}
   <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div>Space: open or close the gate &middot; E: step away</div></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
+  <div id="camgrid"></div>
   <div id="mic"></div>
   <input id="chatin" type="text" maxlength="120" placeholder="Say something… (Enter to send, Esc to cancel)" autocomplete="off" spellcheck="false" aria-label="Chat message">
   <div id="board"></div>
@@ -220,6 +230,7 @@ body.touch .card small.tc{display:block}
   <div class="tt" id="tgyro" data-act="gyro">Gyro</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
   <div class="tt" id="tchat" data-act="chat">Chat</div>
+  <div class="tt" id="tcam" data-act="cam">Cam</div>
 </div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
@@ -266,6 +277,7 @@ body.touch .card small.tc{display:block}
       <dt>F or G</dt><dd>Frag grenade (hold to cook)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a vehicle; as a pirate, take over another); otherwise knife</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
+      <dt>N</dt><dd>Turn your camera on or off</dd>
       <dt>Enter</dt><dd>Chat with everyone in the game</dd>
       <dt>Tab</dt><dd>Scoreboard</dd>
       <dt>Esc</dt><dd>Pause and settings</dd>
@@ -304,6 +316,7 @@ body.touch .card small.tc{display:block}
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb nodrive"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
   <div class="setrow hostonly nodrive"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
+  <div class="setrow hostonly"><button type="button" class="tog" data-for="sprox" data-off="Proximity voice chat: off (everyone hears everyone)" data-on="Proximity voice chat: on (hear only players nearby)"></button><input type="checkbox" id="sprox" hidden></div>
   <div class="setrow devonly"><button type="button" id="looklink" class="tog">Look: sun, shadow and sky</button></div>
   </div>
   <div class="mbtns"><button type="button" class="wide" data-go="main">‹ Back</button></div>
@@ -1380,6 +1393,10 @@ $('sbotsM').oninput = e => $('obotsM').textContent = e.target.value;
 $('sbotsR').oninput = e => $('obotsR').textContent = e.target.value;
 let GOD = false;
 $('sgod').onchange = e => { GOD = e.target.checked; };
+// Proximity voice chat: a host-only toggle. Off (default) keeps the mesh at full volume for everyone, as before.
+// On, each client fades its incoming calls by distance to that player (synced to guests through the snapshot's pv flag).
+let PROX_VOICE = false;
+$('sprox').onchange = e => { PROX_VOICE = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 $('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
@@ -3508,6 +3525,7 @@ addEventListener('keydown', e => {
   if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
   if (e.code === 'KeyR') reload();
   if (e.code === 'KeyM') setMute(!VOICE.muted);
+  if (e.code === 'KeyN') toggleCam();
   if (e.code === 'KeyF' || e.code === 'KeyG') playerNade();
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
@@ -3884,6 +3902,7 @@ function touchEnd(e) {
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
     if (e.type === 'touchend' && act === 'chat') openChat();
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
+    if (e.type === 'touchend' && act === 'cam') toggleCam();
     if (act === 'nade') releaseCook();
   }
 }
@@ -4693,7 +4712,7 @@ function onGuestMsg(conn, m) {
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       if (m.team === 'pirates') r.role = 'atk'; // invited as a pirate
       const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
-      sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [NET.peer.id, ...remotes.filter(x => x !== r).map(x => x.conn.peer)] });
+      sendTo(r, { t: 'welcome', id: r.id, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       respawn(r); VEH.welcome(r);
       note(MODE === 'defend' ? `${name} joined as the ${ROLES[r.role].name}` : `${name} joined`, 2); updateRoster(); getMic();
     } else {
@@ -4720,6 +4739,7 @@ function onGuestMsg(conn, m) {
       break;
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
+    case 'cam': r.camOn = !!m.on; break;
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
@@ -4751,7 +4771,7 @@ function updateRemotes(dt) {
 }
 function snapshot() {
   return {
-    t: 'sn', lim: KILL_LIMIT, over: matchOver,
+    t: 'sn', lim: KILL_LIMIT, over: matchOver, pv: PROX_VOICE,
     gh: MODE !== 'defend' && LV && LV.gate ? Math.ceil(WAVE.hp) : null, gl: MODE !== 'defend' && LV && LV.gate ? Math.ceil(gateLock) : null,
     gt: MODE !== 'defend' && LV && LV.gate ? (gateOpen() ? 1 : 0) : null, // the fort's gate in free for all (defend sends it with the waves)
     wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : WAVE.phase === 'won' ? -2 : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
@@ -4760,6 +4780,7 @@ function snapshot() {
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths, r: e.role || null, tm: e.team || null,
+      cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
@@ -4799,7 +4820,7 @@ function onHostMsg(m) {
       if (m.level !== curLevel) switchLevel(m.level);
       clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
       (Array.isArray(m.holes) ? m.holes : []).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); });
-      (m.peers || []).forEach(callPeer); updateMicHud();
+      (m.peers || []).forEach(p => callPeer(p[0], p[1])); updateMicHud();
       break;
     case 'level': switchLevel(m.id); break;
     case 'sn': applySnapshot(m); break;
@@ -4826,7 +4847,7 @@ function onHostMsg(m) {
   }
 }
 function applySnapshot(s) {
-  KILL_LIMIT = s.lim; matchOver = s.over;
+  KILL_LIMIT = s.lim; matchOver = s.over; PROX_VOICE = !!s.pv;
   if (Array.isArray(s.wv)) {
     const [n, total, left, hp, t, core, open] = s.wv, was = WAVE.core;
     Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : t === -2 ? 'won' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
@@ -4856,7 +4877,7 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined, team: d.tm || undefined });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined, team: d.tm || undefined, camOn: !!d.cm });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
@@ -4908,11 +4929,19 @@ function netTick(dt) {
     });
   }
   updateMicHud();
+  updateVoiceProximity();
+  updateCamGrid();
 }
 
 // ----- Voice chat (every player connects audio directly to every other player) -----
-// Guests join with their mic muted; M (or the Mic button) unmutes
-const VOICE = { stream: null, calls: {}, els: {}, muted: NET.role === 'guest', silent: null };
+// Guests join with their mic muted; M (or the Mic button) unmutes. Every call also carries a video track from the
+// start (a blank placeholder until the camera's turned on), so turning the camera on or off is just a local
+// replaceTrack and never needs to renegotiate the call. N (or the Cam button) toggles the camera.
+const VOICE = { stream: null, calls: {}, els: {}, muted: NET.role === 'guest', silent: null, blankVideo: null, peerEntity: {}, entityPeer: {} };
+const CAM = { stream: null };
+const CAMGRID = { tiles: {} };
+const PROX_NEAR = 9, PROX_FAR = 22; // proximity voice: full volume inside PROX_NEAR, silent beyond PROX_FAR
+const SPEAK_THRESH = 0.045; // RMS level above which a camera tile's border lights up
 async function getMic() {
   if (VOICE.stream || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   try {
@@ -4920,31 +4949,67 @@ async function getMic() {
     const track = VOICE.stream.getAudioTracks()[0];
     for (const [id, c] of Object.entries(VOICE.calls)) {
       const s = c.peerConnection && c.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
-      if (s) s.replaceTrack(track); else { closeVoice(id); callPeer(id); }
+      if (s) s.replaceTrack(track); else { const eid = VOICE.peerEntity[id]; closeVoice(id); callPeer(id, eid); }
     }
     setMute(VOICE.muted);
   } catch (e) { note('Microphone unavailable: voice chat is listen-only', 4); }
 }
+function blankVideoTrack() {
+  if (!VOICE.blankVideo) {
+    const c = document.createElement('canvas'); c.width = 2; c.height = 2; c.getContext('2d').fillRect(0, 0, 2, 2);
+    VOICE.blankVideo = c.captureStream(1).getVideoTracks()[0];
+  }
+  return VOICE.blankVideo;
+}
 function outStream() {
-  if (VOICE.stream) return VOICE.stream;
   if (!AC) initAudio();
   if (!VOICE.silent && AC) VOICE.silent = AC.createMediaStreamDestination().stream;
-  return VOICE.silent || new MediaStream();
+  const audioTrack = (VOICE.stream && VOICE.stream.getAudioTracks()[0]) || (VOICE.silent && VOICE.silent.getAudioTracks()[0]);
+  const tracks = []; if (audioTrack) tracks.push(audioTrack);
+  tracks.push(CAM.stream ? CAM.stream.getVideoTracks()[0] : blankVideoTrack());
+  return new MediaStream(tracks);
+}
+function linkPeer(peerId, entityId) { VOICE.peerEntity[peerId] = entityId; VOICE.entityPeer[entityId] = peerId; }
+// A small tile in the camera grid: 'self' is your own preview, anything else is keyed by the peer's PeerJS id.
+// Every connected peer gets one (hidden until that player's camera is actually on), since every call carries video.
+function camTile(key) {
+  let t = CAMGRID.tiles[key];
+  if (t) return t;
+  const wrap = document.createElement('div'); wrap.className = key === 'self' ? 'camtile self' : 'camtile'; wrap.style.display = 'none';
+  const video = document.createElement('video'); video.autoplay = true; video.playsInline = true; if (key === 'self') video.muted = true;
+  const label = document.createElement('div'); label.className = 'camname';
+  wrap.append(video, label);
+  $('camgrid').appendChild(wrap);
+  t = CAMGRID.tiles[key] = { wrap, video, label, meter: null };
+  return t;
+}
+// A lightweight speech-level meter on an audio stream (mic or an incoming call): polled each tick to light up a tile's border
+function speechMeter(stream) {
+  if (!AC || !stream || !stream.getAudioTracks().length) return null;
+  try {
+    const src = AC.createMediaStreamSource(stream), an = AC.createAnalyser();
+    an.fftSize = 512; an.smoothingTimeConstant = 0.6; src.connect(an);
+    const data = new Uint8Array(an.frequencyBinCount);
+    return () => { an.getByteTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; } return Math.sqrt(sum / data.length); };
+  } catch (e) { return null; }
 }
 function hookCall(c) {
   VOICE.calls[c.peer] = c;
   c.on('stream', s => {
-    let a = VOICE.els[c.peer];
-    if (!a) { a = document.createElement('audio'); a.autoplay = true; a.playsInline = true; document.body.appendChild(a); VOICE.els[c.peer] = a; }
-    a.srcObject = s; a.play().catch(() => {});
+    const tile = camTile(c.peer);
+    VOICE.els[c.peer] = tile.video;
+    tile.video.srcObject = s; tile.video.play().catch(() => {});
+    tile.meter = speechMeter(s);
   });
   c.on('close', () => closeVoice(c.peer));
 }
-function answerCall(c) { c.answer(outStream()); hookCall(c); }
-function callPeer(id) { if (!NET.peer || !id || id === NET.peer.id || VOICE.calls[id]) return; hookCall(NET.peer.call(id, outStream())); }
+function answerCall(c) { if (c.metadata && c.metadata.id) linkPeer(c.peer, c.metadata.id); c.answer(outStream()); hookCall(c); }
+function callPeer(id, eid) { if (!NET.peer || !id || id === NET.peer.id || VOICE.calls[id]) return; if (eid) linkPeer(id, eid); hookCall(NET.peer.call(id, outStream(), { metadata: { id: P.id } })); }
 function closeVoice(id) {
   const c = VOICE.calls[id]; delete VOICE.calls[id]; try { if (c) c.close(); } catch (e) {}
-  const a = VOICE.els[id]; if (a) { a.srcObject = null; a.remove(); delete VOICE.els[id]; }
+  delete VOICE.els[id];
+  const tile = CAMGRID.tiles[id]; if (tile) { tile.video.srcObject = null; tile.wrap.remove(); delete CAMGRID.tiles[id]; }
+  const eid = VOICE.peerEntity[id]; if (eid) delete VOICE.entityPeer[eid]; delete VOICE.peerEntity[id];
 }
 function setMute(m) { VOICE.muted = m; if (VOICE.stream) VOICE.stream.getAudioTracks().forEach(t => (t.enabled = !m)); updateMicHud(); }
 function updateMicHud() {
@@ -4952,6 +5017,66 @@ function updateMicHud() {
   const online = NET.role === 'host' ? remotes.length > 0 : NET.joined;
   el.textContent = !online ? '' : !VOICE.stream ? '🔈 Voice: listening only' : VOICE.muted ? '🔇 Mic muted (M)' : '🎙 Mic on (M to mute)';
   const tm = $('tmic'); if (tm) tm.classList.toggle('on', !!VOICE.stream && !VOICE.muted);
+}
+// ----- Camera: anyone can turn theirs on; it shows as a tile in the grid at the top-left, for every player in the game -----
+async function getCam() {
+  if (CAM.stream || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  try {
+    CAM.stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, frameRate: 15 } });
+    const track = CAM.stream.getVideoTracks()[0];
+    for (const c of Object.values(VOICE.calls)) {
+      const s = c.peerConnection && c.peerConnection.getSenders().find(x => x.track && x.track.kind === 'video');
+      if (s) s.replaceTrack(track);
+    }
+    const tile = camTile('self'); tile.video.srcObject = CAM.stream; tile.video.play().catch(() => {});
+    if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'cam', on: true });
+    updateCamHud();
+  } catch (e) { note('Camera unavailable', 3); }
+}
+function stopCam() {
+  if (!CAM.stream) return;
+  CAM.stream.getTracks().forEach(t => t.stop()); CAM.stream = null;
+  const blank = blankVideoTrack();
+  for (const c of Object.values(VOICE.calls)) {
+    const s = c.peerConnection && c.peerConnection.getSenders().find(x => x.track && x.track.kind === 'video');
+    if (s) s.replaceTrack(blank);
+  }
+  const tile = CAMGRID.tiles.self; if (tile) tile.video.srcObject = null;
+  if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'cam', on: false });
+  updateCamHud();
+}
+function toggleCam() { initAudio(); CAM.stream ? stopCam() : getCam(); }
+function updateCamHud() { const tc = $('tcam'); if (tc) tc.classList.toggle('on', !!CAM.stream); }
+// ----- Proximity voice and the camera grid: both run every ~50ms from netTick, for host and guest alike -----
+function entityById(id) { return NET.role === 'host' ? ents.find(x => x.id === id) : replicas.get(id); }
+function proxGain(dist) {
+  if (dist <= PROX_NEAR) return 1;
+  if (dist >= PROX_FAR) return 0;
+  const t = 1 - (dist - PROX_NEAR) / (PROX_FAR - PROX_NEAR);
+  return t * t * (3 - 2 * t);
+}
+function updateVoiceProximity() {
+  for (const [peerId, video] of Object.entries(VOICE.els)) {
+    if (!PROX_VOICE) { video.volume = 1; continue; }
+    const e = entityById(VOICE.peerEntity[peerId]);
+    video.volume = e && e.pos ? proxGain(P.pos.distanceTo(e.pos)) : 1;
+  }
+}
+function updateCamGrid() {
+  for (const [key, tile] of Object.entries(CAMGRID.tiles)) {
+    let on, name, speaking = false;
+    if (key === 'self') {
+      on = !!CAM.stream; name = P.name || 'You';
+      if (on && !tile.meter && VOICE.stream) tile.meter = speechMeter(VOICE.stream);
+      speaking = on && !VOICE.muted && tile.meter && tile.meter() > SPEAK_THRESH;
+    } else {
+      const e = entityById(VOICE.peerEntity[key]);
+      on = !!(e && e.camOn); name = e ? e.name : '';
+      speaking = on && tile.meter && tile.meter() > SPEAK_THRESH;
+    }
+    tile.wrap.style.display = on ? '' : 'none';
+    if (on) { tile.label.textContent = name; tile.wrap.classList.toggle('speaking', !!speaking); }
+  }
 }
 if (NET.role === 'host') startHost();
 $('copyinv').onclick = () => { const v = $('invlink').value; if (v.startsWith('http')) navigator.clipboard.writeText(v).then(() => note('Invite link copied', 1.5)).catch(() => $('invlink').select()); };

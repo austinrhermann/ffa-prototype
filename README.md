@@ -17,7 +17,7 @@ Every menu (start, join, pause and round results) looks like the title page: big
 
 - The fort's start screen: **Play**, **Invite an apprentice** (the normal invite), **Invite pirates** (`&team=pirates`, joins as an attacker), **How to play**, **Settings** and **‹ Back**, with your name, character and the chat beside them.
 - **How to play** has the rules and the controls.
-- **Settings** is all buttons: your role with a friend (Master or Apprentice), difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim and god mode. Sensitivity and the aim setting are remembered in your browser.
+- **Settings** is all buttons: your role with a friend (Master or Apprentice), difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim, god mode and proximity voice chat. Sensitivity and the aim setting are remembered in your browser.
 - The pause screen (Esc) has **Resume**, **Restart game**, the same **How to play** and **Settings**, and **Main menu**.
 - **Play again** on the title page starts the last game you hosted.
 
@@ -157,6 +157,12 @@ The file holds the body, the wreck, a left and a right wheel, the steering wheel
 
 Every player connects audio directly to every other player. The browser asks for microphone access when you join (guests) or when the first friend joins (host). Guests join with their mic muted. Press **M** to mute or unmute; on mobile use the **Mic** button. If mic access is denied you can still hear others.
 
+**Proximity voice** is a host-only toggle in Settings (off by default). Off, everyone hears everyone at full volume, as above. On, you only hear players within a sphere around you: full volume up close, fading out, then silent past about 22 m. Moving apart on the map splits a group's chat into smaller ones; walking back together lets everyone hear each other again. The setting applies live for the whole match.
+
+## Camera
+
+Anyone can turn their camera on, any time, with **N** (or the **Cam** button on mobile); it needs no host setting. Everyone with a camera on gets a small tile in a grid at the top-left of the screen, like a video call's thumbnail strip, labelled with their name. A tile's border lights up while that player is talking (it uses the same mic feed as voice chat, so a muted player's tile doesn't light up). Camera video rides along the same connection as voice chat, so there's nothing extra to connect.
+
 ## Text chat
 
 Press **Enter** to open the chat box, type, and press **Enter** again to send (Esc cancels). Messages appear for everyone in the kill feed. On mobile use the **Chat** button.
@@ -191,6 +197,6 @@ It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to th
 
 ## Controls
 
-WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · Enter chat · Tab scores · Esc pause
+WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · N camera · Enter chat · Tab scores · Esc pause
 
 Every action has a key, so a one-button Mac mouse or a trackpad can play everything. A scroll-wheel swipe switches weapon once, however long the swipe keeps scrolling. Short hints appear the moment they matter (the keys, low ammo, the wall walk, the computer, the vehicles) a few times per browser, then stop.
