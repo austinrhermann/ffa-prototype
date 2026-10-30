@@ -1,5 +1,5 @@
 // Playtest transcript recorder (host only). Records each player's raw voice stream (before any proximity-voice gain),
-// keeps the chunks in IndexedDB, and on demand sends them to Deepgram and merges the result into a
+// keeps the chunks in IndexedDB, and on demand transcribes them with Whisper running in this browser (transcript-worker.js) and merges the result into a
 // timestamped .txt. index.html calls window.TRANSCRIPT.* from a few places; everything else lives here.
 // Guests never load any of it: if this isn't the host the script does nothing and TRANSCRIPT stays undefined.
 (() => {
@@ -11,13 +11,10 @@
   const CT = MIME.split(';')[0];
     console.info('transcript: recording as', MIME);
 
-  const LS_KEY = 'ffa-transcript-key';
-  const GAP_MERGE_MS = 2000, CONCURRENCY = 3;
+  const GAP_MERGE_MS = 2000;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const pad = n => String(n).padStart(2, '0');
   const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
-  const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
-  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 
   // ----- Storage: IndexedDB, with the chunks kept in memory only if the database can't be opened -----
   let db = null, writeQ = Promise.resolve();
@@ -146,24 +143,26 @@
     await sleep(250); await writeQ;
   }
 
-  // ----- Transcription -----
-  async function http(url, opts) {
-    const res = await fetch(url, opts);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+  // ----- Transcription: Whisper runs in transcript-worker.js on this machine; nothing leaves the browser except the model download -----
+  let worker = null, jobs = 0;
+  const rpc = (msg, onMsg, transfer) => new Promise((resolve, reject) => {
+    const h = ({ data }) => {
+      if (data.type === 'error') { worker.removeEventListener('message', h); reject(new Error(data.message)); }
+      else if (data.type === 'ready' || data.type === 'done') { worker.removeEventListener('message', h); resolve(data); }
+      else if (onMsg) onMsg(data);
+    };
+    worker.addEventListener('message', h); worker.postMessage(msg, transfer || []);
+  });
+  async function decode16k(blobs) { // the recording as 16 kHz mono samples
+    const buf = await new OfflineAudioContext(1, 1, 16000).decodeAudioData(await new Blob(blobs, { type: CT }).arrayBuffer());
+    const out = new Float32Array(buf.length);
+    for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < out.length; i++) out[i] += d[i] / buf.numberOfChannels; }
+    return out;
   }
-  async function deepgram(blob, key) {
-    const j = await http('https://api.deepgram.com/v1/listen?model=nova-3&utterances=true&punctuate=true&smart_format=true', { method: 'POST', headers: { Authorization: `Token ${key}`, 'Content-Type': CT }, body: blob });
-    const u = (j.results && j.results.utterances) || [];
-    return u.map(x => ({ start: x.start, end: x.end, text: x.transcript }));
-  }
-  async function transcribeRec(rec, key) {
-    const utts = await deepgram(new Blob(await loadChunks(rec.rid), { type: CT }), key);
-    return utts.filter(u => u.text && u.text.trim()).map(u => ({ name: rec.name, start: rec.startOffsetMs + u.start * 1000, end: rec.startOffsetMs + u.end * 1000, text: u.text.trim() }));
-  }
-  async function pool(items, n, fn) {
-    let i = 0;
-    await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) await fn(items[i++]); }));
+  async function transcribeRec(rec, onPct) {
+    const audio = await decode16k(await loadChunks(rec.rid));
+    const r = await rpc({ type: 'run', id: ++jobs, audio }, d => { if (d.type === 'prog') onPct(d.pct); }, [audio.buffer]);
+    return r.utts.map(u => ({ name: rec.name, start: rec.startOffsetMs + u.start * 1000, end: rec.startOffsetMs + u.end * 1000, text: u.text }));
   }
 
   // ----- Merge and format -----
@@ -184,41 +183,42 @@
     return head.join('\n') + '\n\n' + (lines.length ? lines.map(l => l.s).join('\n') : '(no speech detected)') + '\n';
   }
   async function downloadTranscript(btn) {
-    const key = ui.key.value.trim();
-    if (!key) { ui.msg.textContent = 'Enter an API key first.'; return; }
     ui.msg.textContent = ''; btn.disabled = true;
     try {
       await flush();
-      const list = sorted(), utts = [], failed = []; let done = 0;
-      btn.textContent = `Transcribing 0/${list.length}`;
-      await pool(list, CONCURRENCY, async rec => {
-        try { utts.push(...await transcribeRec(rec, key)); }
-        catch (e) { failed.push({ rec, err: /^HTTP \d+$/.test(e.message) ? e.message : 'network error' }); }
-        btn.textContent = `Transcribing ${++done}/${list.length}`;
-      });
+      const list = sorted(), utts = [], failed = [];
+      worker = new Worker('transcript-worker.js', { type: 'module' });
+      btn.textContent = 'Loading model…';
+      const info = await rpc({ type: 'load' }, d => { if (d.type === 'progress') btn.textContent = `Loading model ${Math.round(d.pct * 100)}%`; });
+      ui.msg.textContent = `Transcribing on this computer (${info.model}, ${info.device}).`;
+      for (const [i, rec] of list.entries()) {
+        const label = pct => { btn.textContent = `Transcribing ${i + 1}/${list.length}${pct ? ` (${Math.round(pct * 100)}%)` : ''}`; };
+        label(0);
+        try { utts.push(...await transcribeRec(rec, label)); }
+        catch (e) { failed.push({ rec, err: 'error' }); }
+      }
       const d = new Date();
       save(new Blob([formatTranscript(utts, failed)], { type: 'text/plain' }), `playtest-${stamp(d)}-${pad(d.getHours())}${pad(d.getMinutes())}.txt`);
       ui.msg.textContent = failed.length ? `${failed.length} of ${list.length} recordings failed (listed in the file).` : '';
-    } finally { btn.disabled = false; btn.textContent = 'Download transcript'; }
+    } catch (e) { ui.msg.textContent = 'Could not load the speech model (needs internet the first time).'; }
+    finally { if (worker) worker.terminate(); worker = null; btn.disabled = false; btn.textContent = 'Download transcript'; }
   }
 
   // ----- Panel in the Settings screen of the pause menu (a host-only row) -----
   const ui = {};
   function build(host) {
     const css = document.createElement('style');
-    css.textContent = '#trpanel input{width:100%;box-sizing:border-box;margin:0 0 8px;padding:8px;font:inherit}#trpanel button{margin:0 0 8px}';
+    css.textContent = '#trpanel button{margin:0 0 8px}';
     document.head.appendChild(css);
     host.innerHTML = '<span>Playtest transcript</span><small id="trstat"></small>';
     ui.stat = host.querySelector('#trstat'); ui.stat.style.display = 'block'; ui.stat.style.marginBottom = '8px';
     const mk = (tag, props) => Object.assign(document.createElement(tag), props);
     ui.dl = mk('button', { type: 'button', className: 'tog', textContent: 'Download transcript' });
-    ui.key = mk('input', { type: 'password', placeholder: 'Deepgram API key', autocomplete: 'off', spellcheck: false, value: lsGet(LS_KEY) });
     ui.clear = mk('button', { type: 'button', className: 'tog', textContent: 'Clear recording…' });
     ui.msg = mk('small', {}); ui.msg.style.display = 'block';
-    ui.key.oninput = () => lsSet(LS_KEY, ui.key.value.trim());
     ui.dl.onclick = () => downloadTranscript(ui.dl);
     ui.clear.onclick = () => { if (confirm('Delete all recorded audio from this session? This cannot be undone.')) clearAll(); };
-    host.append(ui.dl, ui.key, ui.clear, ui.msg);
+    host.append(ui.dl, ui.clear, ui.msg);
   }
   function refresh() {
     if (!ui.stat) return;
