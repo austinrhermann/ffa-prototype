@@ -5,6 +5,7 @@
 (() => {
   'use strict';
   if (typeof NET === 'undefined' || NET.role !== 'host' || !window.MediaRecorder || !window.indexedDB) return;
+  if (new URLSearchParams(location.search).has('notranscript')) return; // kill switch: add ?notranscript to rule the recorder in or out
 
   const MIME = ['audio/webm;codecs=opus', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m));
   if (!MIME) return;
