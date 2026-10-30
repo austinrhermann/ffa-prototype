@@ -1158,6 +1158,15 @@ function buildTG(root) {
       B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
     }
   });
+  // Room for the open gate doors' collision (24 triangles, parked far away until the gate opens; see placeLeaves)
+  const leaf = [];
+  if (LV.gate && LV.gate.doors) {
+    const d = LV.gate.doors;
+    for (let i = 0; i < 24; i++) {
+      leaf.push(NR.length / 3); T.push(1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6); NR.push(1, 0, 0); OUT.push(0);
+      B.push(d.x0 - 2.5, d.y0 - 1, d.z - 3, d.x1 + 2.5, d.y1 + 1, d.z + 1);
+    }
+  }
   const nt = NR.length / 3, S = 4;
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (let t = 0; t < nt; t++) { x0 = Math.min(x0, B[t * 6]); z0 = Math.min(z0, B[t * 6 + 2]); x1 = Math.max(x1, B[t * 6 + 3]); z1 = Math.max(z1, B[t * 6 + 5]); }
@@ -1172,6 +1181,7 @@ function buildTG(root) {
   for (let t = 0; t < nt; t++) each(t, k => { list[fillAt[k]++] = t; });
   const G = { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
   G.gate = { mesh: gm, tris: gate, T: gate.map(t => G.T.slice(t * 9, t * 9 + 9)), B: gate.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false, y: 0 };
+  G.leaf = { tris: leaf, boxes: [] };
   G.toggles = {}; for (const [k, tris] of Object.entries(toggles)) G.toggles[k] = { tris, T: tris.map(t => G.T.slice(t * 9, t * 9 + 9)), B: tris.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false };
   return G;
 }
@@ -1183,6 +1193,31 @@ function setGateSolid(open) {
     if (open) { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); }
     else { TG.T.set(g.T[k], t * 9); TG.B.set(g.B[k], t * 6); }
   });
+}
+// The gate's two doors, swung open by angle a (null: shut, nothing to collide with; the shut gate is its own box): solid boxes
+// where the leaves stand, so nobody walks through them
+const LEAF_TRIS = [[0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6], [0, 4, 5], [0, 5, 1], [3, 2, 6], [3, 6, 7], [0, 3, 7], [0, 7, 4], [1, 5, 6], [1, 6, 2]];
+function placeLeaves(a) {
+  const L = TG && TG.leaf, d = LV && LV.gate && LV.gate.doors; if (!L || !L.tris.length || !d) return;
+  const G = TG, w = (d.x1 - d.x0) / 2 - 0.02, h = d.y1 - d.y0, v = [];
+  let k = 0;
+  for (const side of [1, -1]) {
+    const th = side * (a || 0), c = Math.cos(th), sn = Math.sin(th), hx = side > 0 ? d.x0 : d.x1;
+    const cs = [];
+    for (const [ux, uy, uz] of [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1], [0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 1, 1]]) {
+      const lx = side * ux * w, lz = uz * d.t;
+      cs.push([hx + lx * c + lz * sn, d.y0 + uy * h, d.z - lx * sn + lz * c]);
+    }
+    for (const [i, j, m] of LEAF_TRIS) {
+      const t = L.tris[k++], P0 = cs[i], P1 = cs[j], P2 = cs[m];
+      if (a === null || a === undefined) { G.T.fill(1e6, t * 9, t * 9 + 9); G.B.fill(1e6, t * 6, t * 6 + 6); continue; }
+      G.T.set([...P0, ...P1, ...P2], t * 9);
+      G.B.set([Math.min(P0[0], P1[0], P2[0]), Math.min(P0[1], P1[1], P2[1]), Math.min(P0[2], P1[2], P2[2]), Math.max(P0[0], P1[0], P2[0]), Math.max(P0[1], P1[1], P2[1]), Math.max(P0[2], P1[2], P2[2])], t * 6);
+      const ex = [P1[0] - P0[0], P1[1] - P0[1], P1[2] - P0[2]], ey = [P2[0] - P0[0], P2[1] - P0[1], P2[2] - P0[2]];
+      const nx = ex[1] * ey[2] - ex[2] * ey[1], ny = ex[2] * ey[0] - ex[0] * ey[2], nz = ex[0] * ey[1] - ex[1] * ey[0], l = Math.hypot(nx, ny, nz) || 1;
+      G.NR.set([nx / l, ny / l, nz / l], t * 3);
+    }
+  }
 }
 // Switch a named piece of collision (the tower door) between solid and open
 function setSolid(name, open) {
@@ -2526,7 +2561,7 @@ function hurtFx(amt) {
 }
 function hitMarker(head) { $('hit').className = head ? 'head' : ''; hitT = 0.15; }
 function note(t, d = 1.5) { $('note').textContent = t; noteT = d; }
-const ICON = { gun: '›', head: '⌖', knife: '🔪', frag: '💥', fall: '⬇' };
+const ICON = { gun: '›', head: '⌖', knife: '🔪', frag: '💥', fall: '⬇', car: '🚗' };
 function feed(k, v, icon) {
   const d = document.createElement('div');
   d.textContent = k === v ? `${k}  ${icon}` : `${k}  ${icon}  ${v}`;
@@ -2658,7 +2693,7 @@ function damageCore(amt) {
 // It starts shut and only moves when the Apprentice works it from the computer (or when the attackers break it).
 function setGate(open, breach) {
   if (!TG || !TG.gate || TG.gate.open === open) return;
-  setGateSolid(open);
+  setGateSolid(open); placeLeaves(open ? (WAVE.broken ? 1.95 : 1.5) : null); // the doors swing into the courtyard and stand there
   if (NET.role === 'host' && breach) { waveNote('The gate is down! Get to the tower and protect the computer'); sTone([392, 311, 262], 0.2, 'sawtooth', 0.12); }
 }
 // The front gate: two heavy doors hinged at the sides of the passage that swing into the courtyard (blown wide when broken)

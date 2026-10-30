@@ -383,6 +383,7 @@
       }
       _c.set(x, y, z);
       sphereTris(_c, r, (t, q, dist) => {
+        if (TG.leaf && TG.leaf.tris.length && t >= TG.leaf.tris[0]) return; // the gate doors stop people, not cars (they squeeze through)
         if (Math.abs(TG.NR[t * 3 + 1]) >= FLOOR_NY) return; // floors are the suspension's business
         if (q.y < v.pos.y + 0.45) return; // nor anything below the axles (a ramp's lip as you leave it)
         let nx = _c.x - q.x, nz = _c.z - q.z, l = Math.hypot(nx, nz); if (l < 1e-5) { nx = TG.NR[t * 3]; nz = TG.NR[t * 3 + 2]; l = Math.hypot(nx, nz) || 1; }
@@ -411,6 +412,21 @@
           if (sb) { b.vel.x -= nx * j2 / mb; b.vel.z -= nz * j2 / mb; b.susp.rv -= j2 / mb * 0.06 * b.p.travel; }
           if (-vn > 4) { thud(a, -vn); if (a === cur || b === cur) shake = Math.max(shake, Math.min(0.12, -vn * 0.01)); }
         }
+      }
+    }
+  }
+  // A vehicle with someone at the wheel hurts whoever it hits at speed (the driver's kill); parked and NPC ones just shove
+  function runOver(v) {
+    const driver = v === cur ? P : ents.find(e => e.id === v.owner); if (!driver || !driver.alive) return;
+    const now = performance.now();
+    for (const e of ents) {
+      if (e === driver || !e.alive || (e.vehHitT && now - e.vehHitT < 450) || v.occ.includes(e.id) || (e === P && ride === v)) continue;
+      if (v.pos.distanceTo(e.pos) > 12) continue;
+      for (const [x, y, z, r] of spheres(v)) {
+        if (e.pos.y > y + r || e.pos.y + e.h < y - r - 0.3) continue;
+        const dx = e.pos.x - x, dz = e.pos.z - z, d = Math.hypot(dx, dz); if (d >= r + R + 0.15 || d < 1e-4) continue;
+        const sp = (v.vel.x - e.vel.x) * dx / d + (v.vel.z - e.vel.z) * dz / d; if (sp < 4) continue;
+        e.vehHitT = now; damage(e, Math.round(Math.min(150, (sp - 2) * 14)), driver, 'car', false); break;
       }
     }
   }
@@ -823,6 +839,7 @@
       }
       resetQ = false;
       bumpVehicles();
+      for (const v of list) if (simulated(v) && v.owner && !v.dead && !matchOver) runOver(v);
       for (const v of list) { suspension(v, dt); pose(v, dt); }
       if (cur && cur.dead) { leave(true); note('Bail out! It\'s wrecked', 2); }
       if (ride && ride.dead) { unride(true); note('Bail out! It\'s wrecked', 2); }
