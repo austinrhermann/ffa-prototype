@@ -2818,7 +2818,7 @@ function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
   if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
-  if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t)) return; // no friendly fire
+  if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t) && weapon !== 'car') return; // no friendly fire (except under the wheels)
   t.health -= amt;
   if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
   if (t.isPlayer) hurtFx(amt);
