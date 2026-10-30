@@ -275,7 +275,10 @@
   function hAt(x, z, top, fallback) {
     let best = null, above = null; const G = TG;
     tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y === null) return; if (y <= top) { if (best === null || y > best) best = y; } else if (y <= top + 2.5 && (above === null || y < above)) above = y; });
-    return best !== null ? best : above !== null ? above : fallback; // nothing below: we've dipped into the ground, so come back up onto it
+    // A surface just above the wheel (a steep bank, or we've dipped into the ground) beats one far below it: Minimal has a sheet
+    // down at the sea floor under everything, and picking that dropped trucks straight through the hillsides
+    if (above !== null && (best === null || best < top - 2.5)) return above;
+    return best !== null ? best : fallback;
   }
   function drive(v, dt, inp) {
     const p = v.p, top = p.top / 3.6, rev = p.rev / 3.6, G = p.gravity;
