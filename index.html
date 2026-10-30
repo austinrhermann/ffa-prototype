@@ -822,7 +822,7 @@ function solidifyTrees(col, draw, cm) {
   shapes.push(...merged);
   for (const [x0, x1, y0, y1, z0, z1] of shapes) {
     const h = y1 - y0, r = Math.max(x1 - x0, z1 - z0) / 2 * 0.9; if (h < 0.4 || r < 0.15) continue;
-    const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.15, r, h, 8), cm); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); col.add(o); o.updateMatrixWorld();
+    const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.15, r, h, 8), cm); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.userData.noShot = true; o.userData.thru = true; col.add(o); o.updateMatrixWorld(); // stops walking only: the shape is a rough cone, the air round the foliage is open
   }
 }
 // A tin-roofed shed you can walk into (Shed.glb: 3.6 x 2.8 m, a doorway on the left of the front, which faces +z before yaw), set into the ground at (x, z).
@@ -922,7 +922,7 @@ function addSetExtras(L) {
   if (L.fence) for (let i = 0; i + 1 < L.fence.length; i++) { // tall see-through panels from the valley floor up past head height
     const [x0, z0, t0] = L.fence[i], [x1, z1, t1] = L.fence[i + 1], len = Math.hypot(x1 - x0, z1 - z0) + 0.3, top = Math.max(t0, t1), bot = 8;
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
-    if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
+    o.userData.noShot = true; o.userData.thru = true; // blocks walking only: bullets, bullet holes and sight lines pass through
   }
   if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
