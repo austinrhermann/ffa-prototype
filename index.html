@@ -923,6 +923,7 @@ function cellOf(p) {
 }
 
 // ---------- World meshes ----------
+const TOGGLE_SHAPES = {}; // name -> the bullet shapes taken out while that piece is open
 const W = { meshes: [], colliders: [], floors: [] }; // floors: tiled floor surfaces, hit by player shots and scorched, but not used for line of sight
 function gridTex() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -973,6 +974,7 @@ function buildWorld(L) {
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   levelGroup = new THREE.Group(); scene.add(levelGroup);
   W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0;
+  for (const k in TOGGLE_SHAPES) delete TOGGLE_SHAPES[k];
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
   camera.far = L.far || (L.mesh ? 400 : 300); camera.updateProjectionMatrix();
   if (!L.mesh) { sun.position.copy(SUN_DIR).multiplyScalar(60); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld(); }
@@ -1249,7 +1251,13 @@ function placeLeaves(a) {
 }
 // Switch a named piece of collision (the tower door) between solid and open
 function setSolid(name, open) {
-  const g = TG && TG.toggles && TG.toggles[name]; if (!g || g.open === open) return;
+  const g = TG && TG.toggles && TG.toggles[name]; if (!g) return;
+  // The piece is also a shape bullets test against (W.meshes): open means shots pass, shut means they stop again
+  // (kept in step even when the walking collision already matches, since a level reload rebuilds W.meshes)
+  const st = TOGGLE_SHAPES[name] = TOGGLE_SHAPES[name] || [];
+  if (open) { for (let i = W.meshes.length - 1; i >= 0; i--) if (W.meshes[i].userData.toggle === name) st.push(...W.meshes.splice(i, 1)); }
+  else { for (const m of st) if (!W.meshes.includes(m)) W.meshes.push(m); st.length = 0; }
+  if (g.open === open) return;
   g.open = open;
   g.tris.forEach((t, k) => {
     if (open) { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); }
