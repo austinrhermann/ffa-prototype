@@ -1,5 +1,5 @@
 // Playtest transcript recorder (host only). Records each player's raw voice stream (before any proximity-voice gain),
-// keeps the chunks in IndexedDB, and on demand sends them to a speech-to-text provider and merges the result into a
+// keeps the chunks in IndexedDB, and on demand sends them to Deepgram and merges the result into a
 // timestamped .txt. index.html calls window.TRANSCRIPT.* from a few places; everything else lives here.
 // Guests never load any of it: if this isn't the host the script does nothing and TRANSCRIPT stays undefined.
 (() => {
@@ -9,11 +9,10 @@
   const MIME = ['audio/webm;codecs=opus', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m));
   if (!MIME) return;
   const CT = MIME.split(';')[0];
-  const EXT = CT === 'audio/mp4' ? 'm4a' : 'webm';
-  console.info('transcript: recording as', MIME);
+    console.info('transcript: recording as', MIME);
 
-  const LS_KEY = 'ffa-transcript-key', LS_PROV = 'ffa-transcript-provider';
-  const GAP_MERGE_MS = 2000, CONCURRENCY = 3, OPENAI_LIMIT = 24e6, OPENAI_PART = 20e6;
+  const LS_KEY = 'ffa-transcript-key';
+  const GAP_MERGE_MS = 2000, CONCURRENCY = 3;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const pad = n => String(n).padStart(2, '0');
   const clock = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
@@ -136,8 +135,6 @@
   };
   try { if (VOICE.stream) window.TRANSCRIPT.onLocalMic(VOICE.stream); } catch (e) {}
 
-  // ----- Audio files -----
-  const safe = s => s.replace(/[^\w.\- ()]+/g, '_').trim() || 'player';
   const sorted = () => [...recs.values()].filter(r => r.chunks > 0).sort((a, b) => a.startOffsetMs - b.startOffsetMs);
   const stamp = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   function save(blob, filename) {
@@ -147,14 +144,6 @@
   async function flush() { // push whatever the live recorders are holding into the store
     for (const l of live.values()) { try { if (l.mr.state === 'recording') l.mr.requestData(); } catch (e) {} }
     await sleep(250); await writeQ;
-  }
-  async function downloadAudio() {
-    await flush();
-    for (const rec of sorted()) {
-      const blob = new Blob(await loadChunks(rec.rid), { type: rec.mime.split(';')[0] });
-      save(blob, `${safe(rec.name)}_${Math.round(rec.startOffsetMs / 1000)}.${rec.mime.startsWith('audio/mp4') ? 'm4a' : 'webm'}`);
-      await sleep(400); // browsers drop downloads fired in the same instant
-    }
   }
 
   // ----- Transcription -----
@@ -168,47 +157,8 @@
     const u = (j.results && j.results.utterances) || [];
     return u.map(x => ({ start: x.start, end: x.end, text: x.transcript }));
   }
-  async function whisper(blob, key, ext) {
-    const fd = new FormData(); fd.append('file', blob, `audio.${ext}`); fd.append('model', 'whisper-1'); fd.append('response_format', 'verbose_json');
-    const j = await http('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd });
-    return (j.segments || []).map(x => ({ start: x.start, end: x.end, text: x.text }));
-  }
-  // Whisper takes 25 MB per file. WebM pieces after the first have no header, so each one gets the first chunk's header
-  // (everything before its first Cluster) and starts at its own first Cluster, whose timecode gives the piece's offset.
-  const CLUSTER = [0x1F, 0x43, 0xB6, 0x75];
-  const findCluster = u8 => { for (let i = 0; i + 4 < u8.length; i++) if (u8[i] === CLUSTER[0] && u8[i + 1] === CLUSTER[1] && u8[i + 2] === CLUSTER[2] && u8[i + 3] === CLUSTER[3]) return i; return -1; };
-  function clusterTimeSec(u8, i) {
-    let p = i + 4; p += Math.clz32(u8[p]) - 23; // size vint: 1 + leading zero bits in the byte
-    if (u8[p] !== 0xE7) return null;
-    const n = u8[++p] & 0x7F; let v = 0; for (let k = 1; k <= n; k++) v = v * 256 + u8[p + k];
-    return v / 1000;
-  }
-  async function whisperParts(blobs) {
-    const total = blobs.reduce((s, b) => s + b.size, 0);
-    if (total <= OPENAI_LIMIT || EXT !== 'webm') return [{ blob: new Blob(blobs, { type: CT }), offset: 0 }];
-    const head = new Uint8Array(await blobs[0].arrayBuffer()), hc = findCluster(head);
-    if (hc < 0) return [{ blob: new Blob(blobs, { type: CT }), offset: 0 }];
-    const header = head.slice(0, hc), parts = [{ blob: new Blob(blobs.slice(0, 1), { type: CT }), offset: 0, groups: [blobs[0]] }];
-    let cur = parts[0], size = blobs[0].size;
-    for (const b of blobs.slice(1)) {
-      if (size + b.size > OPENAI_PART) { cur = { groups: [], offset: null }; parts.push(cur); size = 0; }
-      cur.groups.push(b); size += b.size;
-    }
-    const out = [];
-    for (const [i, p] of parts.entries()) {
-      if (i === 0) { out.push({ blob: new Blob(p.groups, { type: CT }), offset: 0 }); continue; }
-      const u8 = new Uint8Array(await p.groups[0].arrayBuffer()), at = findCluster(u8);
-      if (at < 0) continue; // a piece that starts mid-cluster loses a few seconds rather than failing the file
-      out.push({ blob: new Blob([header, u8.slice(at), ...p.groups.slice(1)], { type: CT }), offset: clusterTimeSec(u8, at) || 0 });
-    }
-    return out;
-  }
-  async function transcribeRec(rec, key, provider) {
-    const blobs = await loadChunks(rec.rid);
-    let utts = [];
-    if (provider === 'openai') {
-      for (const p of await whisperParts(blobs)) utts.push(...(await whisper(p.blob, key, EXT)).map(u => ({ ...u, start: u.start + p.offset, end: u.end + p.offset })));
-    } else utts = await deepgram(new Blob(blobs, { type: CT }), key);
+  async function transcribeRec(rec, key) {
+    const utts = await deepgram(new Blob(await loadChunks(rec.rid), { type: CT }), key);
     return utts.filter(u => u.text && u.text.trim()).map(u => ({ name: rec.name, start: rec.startOffsetMs + u.start * 1000, end: rec.startOffsetMs + u.end * 1000, text: u.text.trim() }));
   }
   async function pool(items, n, fn) {
@@ -230,25 +180,25 @@
     const head = [`Playtest transcript, ${stamp(new Date(meta.sessionStart))}`];
     const lv = levelLabel() || meta.level;
     head.push(`${lv ? `Level: ${lv}   ` : ''}Players: ${players.join(', ')}`, `Duration: ${clock(dur)}`);
-    if (failed.length) head.push(`Transcription failed for: ${failed.map(f => `${f.rec.name} at ${clock(f.rec.startOffsetMs)} (${f.err})`).join(', ')}. Their audio is available via Download audio files.`);
+    if (failed.length) head.push(`Transcription failed for: ${failed.map(f => `${f.rec.name} at ${clock(f.rec.startOffsetMs)} (${f.err})`).join(', ')}.`);
     return head.join('\n') + '\n\n' + (lines.length ? lines.map(l => l.s).join('\n') : '(no speech detected)') + '\n';
   }
   async function downloadTranscript(btn) {
-    const key = ui.key.value.trim(), provider = ui.prov.value;
-    if (!key) { ui.msg.textContent = 'Enter an API key first. "Download audio files" works without one.'; return; }
+    const key = ui.key.value.trim();
+    if (!key) { ui.msg.textContent = 'Enter an API key first.'; return; }
     ui.msg.textContent = ''; btn.disabled = true;
     try {
       await flush();
       const list = sorted(), utts = [], failed = []; let done = 0;
       btn.textContent = `Transcribing 0/${list.length}`;
       await pool(list, CONCURRENCY, async rec => {
-        try { utts.push(...await transcribeRec(rec, key, provider)); }
+        try { utts.push(...await transcribeRec(rec, key)); }
         catch (e) { failed.push({ rec, err: /^HTTP \d+$/.test(e.message) ? e.message : 'network error' }); }
         btn.textContent = `Transcribing ${++done}/${list.length}`;
       });
       const d = new Date();
       save(new Blob([formatTranscript(utts, failed)], { type: 'text/plain' }), `playtest-${stamp(d)}-${pad(d.getHours())}${pad(d.getMinutes())}.txt`);
-      ui.msg.textContent = failed.length ? `${failed.length} of ${list.length} recordings failed (listed in the file). Download audio files to keep them.` : '';
+      ui.msg.textContent = failed.length ? `${failed.length} of ${list.length} recordings failed (listed in the file).` : '';
     } finally { btn.disabled = false; btn.textContent = 'Download transcript'; }
   }
 
@@ -256,23 +206,19 @@
   const ui = {};
   function build(host) {
     const css = document.createElement('style');
-    css.textContent = '#trpanel input,#trpanel select{width:100%;box-sizing:border-box;margin:0 0 8px;padding:8px;font:inherit}#trpanel button{margin:0 0 8px}';
+    css.textContent = '#trpanel input{width:100%;box-sizing:border-box;margin:0 0 8px;padding:8px;font:inherit}#trpanel button{margin:0 0 8px}';
     document.head.appendChild(css);
     host.innerHTML = '<span>Playtest transcript</span><small id="trstat"></small>';
     ui.stat = host.querySelector('#trstat'); ui.stat.style.display = 'block'; ui.stat.style.marginBottom = '8px';
     const mk = (tag, props) => Object.assign(document.createElement(tag), props);
     ui.dl = mk('button', { type: 'button', className: 'tog', textContent: 'Download transcript' });
-    ui.audio = mk('button', { type: 'button', className: 'tog', textContent: 'Download audio files' });
-    ui.prov = mk('select', { innerHTML: '<option value="deepgram">Deepgram (nova-3)</option><option value="openai">OpenAI (whisper-1)</option>', value: lsGet(LS_PROV) || 'deepgram' });
-    ui.key = mk('input', { type: 'password', placeholder: 'Speech-to-text API key', autocomplete: 'off', spellcheck: false, value: lsGet(LS_KEY) });
+    ui.key = mk('input', { type: 'password', placeholder: 'Deepgram API key', autocomplete: 'off', spellcheck: false, value: lsGet(LS_KEY) });
     ui.clear = mk('button', { type: 'button', className: 'tog', textContent: 'Clear recording…' });
     ui.msg = mk('small', {}); ui.msg.style.display = 'block';
-    ui.prov.onchange = () => lsSet(LS_PROV, ui.prov.value);
     ui.key.oninput = () => lsSet(LS_KEY, ui.key.value.trim());
     ui.dl.onclick = () => downloadTranscript(ui.dl);
-    ui.audio.onclick = () => downloadAudio();
     ui.clear.onclick = () => { if (confirm('Delete all recorded audio from this session? This cannot be undone.')) clearAll(); };
-    host.append(ui.dl, ui.audio, ui.prov, ui.key, ui.clear, ui.msg);
+    host.append(ui.dl, ui.key, ui.clear, ui.msg);
   }
   function refresh() {
     if (!ui.stat) return;
