@@ -23,6 +23,13 @@ def mat(name, hexcol, rough=0.8):
     return MATS[name]
 
 
+def glow(name, hexcol, strength=3.0):
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    b = m.node_tree.nodes['Principled BSDF']; b.inputs['Base Color'].default_value = srgb(hexcol)
+    b.inputs['Emission Color'].default_value = srgb(hexcol); b.inputs['Emission Strength'].default_value = strength
+    return m
+
+
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     MATS.clear()
@@ -131,9 +138,17 @@ def shed():
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         me = bpy.data.meshes.new('End'); bm.to_mesh(me); bm.free()
         o = bpy.data.objects.new('End', me); bpy.context.collection.objects.link(o); o.data.materials.append(wall)
-    box('Back', wall, (W - 2 * T, T, H), (0, D / 2 - T / 2, H / 2))
+    WS, WT = 1.0, 1.8   # window sill and top heights
+    def wall_with_window(tag, y, xa, xb, wa, wb):   # a wall slab from xa to xb with a window hole from wa to wb, framed and with a sill
+        for nm, x0, x1, z0, z1 in ((f'{tag}Lo', xa, xb, 0, WS), (f'{tag}Hi', xa, xb, WT, H), (f'{tag}A', xa, wa, WS, WT), (f'{tag}B', wb, xb, WS, WT)):
+            if x1 - x0 > 1e-3: box(nm, wall, (x1 - x0, T, z1 - z0), ((x0 + x1) / 2, y, (z0 + z1) / 2))
+        cx, wd, out = (wa + wb) / 2, wb - wa, -1 if tag == 'Front' else 1
+        box(f'{tag}WTop', frame, (wd + 0.14, 0.1, 0.07), (cx, y + out * 0.02, WT + 0.035)); box(f'{tag}WSill', frame, (wd + 0.2, 0.16, 0.05), (cx, y + out * 0.05, WS - 0.025))
+        box(f'{tag}WL', frame, (0.06, 0.1, WT - WS), (wa - 0.03, y + out * 0.02, (WS + WT) / 2)); box(f'{tag}WR', frame, (0.06, 0.1, WT - WS), (wb + 0.03, y + out * 0.02, (WS + WT) / 2))
+        box(f'{tag}WBar', frame, (0.035, 0.05, WT - WS), (cx, y, (WS + WT) / 2)); box(f'{tag}WBar2', frame, (wd, 0.05, 0.035), (cx, y, (WS + WT) / 2))
+    wall_with_window('Back', D / 2 - T / 2, -W / 2 + T, W / 2 - T, -1.3, -0.5)
     box('FrontL', wall, (DX0 + W / 2 - T, T, H), ((DX0 - W / 2 + T) / 2, fy + T / 2, H / 2))
-    box('FrontR', wall, (W / 2 - T - DX1, T, H), ((DX1 + W / 2 - T) / 2, fy + T / 2, H / 2))
+    wall_with_window('Front', fy + T / 2, DX1, W / 2 - T, 0.45, 1.25)
     box('FrontTop', wall, (DX1 - DX0, T, H - DH), ((DX0 + DX1) / 2, fy + T / 2, (H + DH) / 2))
     box('Floor', plank, (W - 2 * T, D - 2 * T, 0.1), (0, 0, -0.05))
     # roof: two sloped sheets overhanging the walls, with ribs running down each slope
@@ -152,16 +167,15 @@ def shed():
     box('FrameR', frame, (0.08, 0.1, DH), (DX1 - 0.04, fy - 0.02, DH / 2))
     box('FrameTop', frame, (DX1 - DX0, 0.1, 0.08), ((DX0 + DX1) / 2, fy - 0.02, DH - 0.04))
     box('Lintel', frame, (W + 0.04, 0.09, 0.14), (0, fy - 0.045, 2.12))
-    box('WindowFrame', frame, (0.86, 0.07, 0.76), (0.85, fy - 0.02, 1.4))
-    box('Window', glass, (0.7, 0.08, 0.6), (0.85, fy - 0.04, 1.4))
-    box('WindowBar', frame, (0.04, 0.09, 0.62), (0.85, fy - 0.06, 1.4))
-    box('WindowSill', frame, (0.98, 0.12, 0.05), (0.85, fy - 0.07, 1.0))
     for i, (x, z) in enumerate(((-0.2, 1.45), (-0.1, 1.2), (-0.22, 0.95), (-0.12, 0.7))):
         box(f'Mark{i}', dark, (0.14, 0.03, 0.06), (x, fy - 0.02, z))
     for i, (dx, ln) in enumerate(((0, 1.35), (0.08, 1.25), (-0.05, 1.4), (0.1, 1.3), (0.0, 1.2))):
         box(f'Plank{i}', plank, (ln, 0.34, 0.1), (W / 2 - 0.55 + dx, fy - 0.4, 0.06 + i * 0.105))
     # shelves inside, on the back wall
-    box('Shelf', frame, (2.4, 0.3, 0.06), (0.5, D / 2 - T - 0.15, 1.2)); box('Shelf2', frame, (2.4, 0.3, 0.06), (0.5, D / 2 - T - 0.15, 0.6))
+    box('Shelf', frame, (1.5, 0.3, 0.06), (0.95, D / 2 - T - 0.15, 1.2)); box('Shelf2', frame, (1.5, 0.3, 0.06), (0.95, D / 2 - T - 0.15, 0.6))
+    # a bare bulb hanging from the ridge (the game puts a light there)
+    box('Cord', frame, (0.02, 0.02, 0.6), (0, 0, 2.85))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=0.075, location=(0, 0, 2.5)); bpy.context.object.name = 'Bulb'; bpy.context.object.data.materials.append(glow('Shed_Bulb', '#fff0b8', 6.0))
     # the door, hinged on its left edge: every part of it joined into one mesh whose origin is the hinge
     hx, hy = DX0 + 0.02, fy + T / 2
     parts = [box('Door', wood, (0.94, 0.06, 1.96), (hx + 0.47, hy, 0.99)),

@@ -691,7 +691,7 @@ function levelFortress() {
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
     // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
-    sheds: [[-34, 42, 1.8]],
+    sheds: [[-34, 42, 1.8]], clearTrees: [[-34, 42, 7]], // the trees standing where the shed is, and in front of its door
   };
 }
 // Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
@@ -758,6 +758,7 @@ function buildGrid(id) {
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
   if (L.mesh) addSetExtras(L);
   TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
+  if (TG) resetSheds();
   if (TG && L.towerDoor) setSolid('door', true); // the door starts open
   if (TG) { buildTerrainNav(); WALK.length = 0; for (let n = 0; n < N; n++) if (walk0(n)) WALK.push(n); return L; }
   // Second-floor walls sit above ground cells that border second-floor walkways
@@ -771,6 +772,18 @@ function buildGrid(id) {
   for (let i = 0; i < N; i++) if (walk0(i)) { if (H[i] < 0 && !STAIR[i]) OVER[i] = 0; else if (U[i]) OVER[i] = F2 - SLAB; else if (UW[i]) OVER[i] = F2; }
   WALK.length = 0; for (let n = 0; n < 2 * N; n++) if (nodeValid(n)) WALK.push(n);
   return L;
+}
+// Take away every tree (a connected piece of the tree mesh) with any part within r metres of (cx, cz): trees have no collision, only a picture
+function clearTrees(draw, cx, cz, r) {
+  const o = draw.getObjectByName('M_tree_balls001'); if (!o || !o.geometry.index) return;
+  draw.updateMatrixWorld(true);
+  const pa = o.geometry.attributes.position, ix = o.geometry.index, v = new V3(), par = new Int32Array(pa.count).map((_, i) => i);
+  const find = a => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+  for (let t = 0; t < ix.count; t += 3) { const a = find(ix.getX(t)); par[find(ix.getX(t + 1))] = a; par[find(ix.getX(t + 2))] = a; }
+  const near = new Set();
+  for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); if (Math.hypot(v.x - cx, v.z - cz) < r) near.add(find(i)); }
+  const keep = []; for (let t = 0; t < ix.count; t += 3) if (!near.has(find(ix.getX(t)))) keep.push(ix.getX(t), ix.getX(t + 1), ix.getX(t + 2));
+  o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
 }
 // A tin-roofed shed you can walk into (Shed.glb: 3.6 x 2.8 m, a doorway on the left of the front, which faces +z before yaw), set into the ground at (x, z).
 // The floor sits at the highest ground under it, on a stone plinth, with steps down to the ground at the door. Collision is hollow: four walls with the
@@ -806,18 +819,31 @@ function placeShed(col, draw, x, z, yaw) {
     const a = [S.dx0 - 0.1, S.dx1 + 0.1, bot, top, hd + (k - 1) * 0.7, hd + k * 0.7];
     stoneBox(...[a[0], a[1], a[2], a[3], a[4], a[5]]); solid(...a);
   }
-  const door = g.getObjectByName('Door'); if (door) SHEDS.push({ scene: draw, door, a: 0, p: at((S.dx0 + S.dx1) / 2, hd + 0.5), y: base });
+  // the door: a collision slab in the doorway that E takes out (setSolid) and puts back, and the picture that swings with it
+  const door = g.getObjectByName('Door'), tog = 'shed' + SHEDS.length, slab = new THREE.Mesh(new THREE.BoxGeometry(S.dx1 - S.dx0, S.dh, t), cm);
+  slab.position.set((S.dx0 + S.dx1) / 2, base + S.dh / 2, hd - t / 2); slab.userData.toggle = tog; cgrp.add(slab);
+  // a bulb in the middle of the roof space lights the inside (toon shading ignores nothing: a real point light)
+  const lamp = new THREE.PointLight(0xffd9a0, 1.1, 7, 1.5); lamp.position.set(0, base + 2.45, 0.2); grp.add(lamp);
+  if (door) SHEDS.push({ scene: draw, door, a: 0, open: false, tog, p: at((S.dx0 + S.dx1) / 2, hd + 0.5), y: base });
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
-// Doors: swing open when anyone is close, shut when they leave
+// Doors: E opens and shuts the one you're at the door of; the picture swings to follow
+const nearShed = e => { if (!LV || !LV.mesh) return -1; return SHEDS.findIndex(sh => sh.scene === LEVEL_SCENES[LV.mesh] && e.alive && Math.abs(e.pos.y - sh.y) < 2.5 && Math.hypot(e.pos.x - sh.p.x, e.pos.z - sh.p.z) < 2.6); };
+function setShedDoor(i, open) { const sh = SHEDS[i]; sh.open = open; if (TG) setSolid(sh.tog, open); netFx({ t: 'sd', i, o: open ? 1 : 0 }); }
+function useShedDoor(e) {
+  const i = nearShed(e); if (i < 0) return false;
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'sdoor' }); return true; }
+  setShedDoor(i, !SHEDS[i].open); return true;
+}
+function resetSheds() { for (const sh of SHEDS) { sh.open = false; sh.a = 0; sh.door.rotation.y = 0; } } // a fresh level load starts with every door shut
 function updateSheds(dt) {
   if (!LV || !LV.mesh) return;
   for (const sh of SHEDS) {
     if (sh.scene !== LEVEL_SCENES[LV.mesh]) continue;
-    const near = ents.some(e => e.alive && Math.abs(e.pos.y - sh.y) < 2.5 && Math.hypot(e.pos.x - sh.p.x, e.pos.z - sh.p.z) < 3);
-    const want = near ? -Math.PI / 2 : 0;
+    const want = sh.open ? -Math.PI / 2 : 0;
     sh.a += Math.max(-4 * dt, Math.min(4 * dt, want - sh.a)); sh.door.rotation.y = sh.a;
   }
+  if (P.alive && nearShed(P) >= 0) hint('shed', 'E opens and shuts the door', 3.5, 2);
 }
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
 function addSetExtras(L) {
@@ -831,6 +857,7 @@ function addSetExtras(L) {
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
     if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
   }
+  if (L.clearTrees) for (const [x, z, r] of L.clearTrees) clearTrees(draw, x, z, r);
   if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
   if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
   if (L.balcony) {
@@ -3688,7 +3715,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P))) playerKnife(); }
+  if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
@@ -4830,6 +4857,7 @@ function applyFx(m) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
     case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1, bazooka: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
+    case 'sd': { const sh = SHEDS[m.i]; if (sh) { sh.open = !!m.o; if (TG) setSolid(sh.tog, sh.open); } break; }
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
@@ -4922,6 +4950,7 @@ function onGuestMsg(conn, m) {
     case 'ghit': damageGate(Math.min(60, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
     case 'tdoor': if (nearTowerDoor(r)) useTowerDoor(r); break;
+    case 'sdoor': { const i = nearShed(r); if (i >= 0) setShedDoor(i, !SHEDS[i].open); break; }
     case 'take': takeOver(r); break;
     case 'thit': { const tr = trucks[m.i | 0]; if (tr && r.alive) damageTruck(tr, Math.min(200, Math.max(0, +m.amt || 0))); break; }
     default: VEH.onGuestMsg(r, m);
