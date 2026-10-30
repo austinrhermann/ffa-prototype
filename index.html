@@ -692,7 +692,9 @@ function levelFortress() {
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
     // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
-    sheds: [[-34, 42, 1.8]], clearTrees: [[-34, 42, 7]], // the trees standing where the shed is, and in front of its door
+    sheds: [[-34, 42, 1.8]], // Trees to take away: [x, z, radius, mesh]: the ones standing where the shed is and in front of its door, a few leftover pieces
+    // floating near it, the bush and the tree beside the road up to the gate, and the tree in the courtyard
+    clearTrees: [[-34, 42, 7], [-26.5, 43.7, 2.5], [-8, 9.9, 3.5], [-11.3, 11.6, 6, 'M_Material004'], [1.7, -1.4, 2.5]],
   };
 }
 // Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
@@ -777,8 +779,8 @@ function buildGrid(id) {
   return L;
 }
 // Take away every tree (a connected piece of the tree mesh) with any part within r metres of (cx, cz): trees have no collision, only a picture
-function clearTrees(draw, cx, cz, r) {
-  const o = draw.getObjectByName('M_tree_balls001'); if (!o || !o.geometry.index) return;
+function clearTrees(draw, cx, cz, r, mesh = 'M_tree_balls001') {
+  const o = draw.getObjectByName(mesh); if (!o || !o.geometry.index) return;
   draw.updateMatrixWorld(true);
   const pa = o.geometry.attributes.position, ix = o.geometry.index, v = new V3(), par = new Int32Array(pa.count).map((_, i) => i);
   const find = a => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
@@ -787,6 +789,40 @@ function clearTrees(draw, cx, cz, r) {
   for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); if (Math.hypot(v.x - cx, v.z - cz) < r) near.add(find(i)); }
   const keep = []; for (let t = 0; t < ix.count; t += 3) if (!near.has(find(ix.getX(t)))) keep.push(ix.getX(t), ix.getX(t + 1), ix.getX(t + 2));
   o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
+}
+// The trees and bushes are only a picture; give each remaining one a collision shape: a squat cone per foliage piece (a flat top would
+// be a floor to stand on, so the top is narrow and the sides count as wall), and one per bush
+function solidifyTrees(col, draw, cm) {
+  draw.updateMatrixWorld(true);
+  const v = new V3(), shapes = [];
+  const pieces = (name, grid) => { // [x0, x1, y0, y1, z0, z1] of each connected piece (or, with grid, each cluster of nearby pieces) still drawn
+    const o = draw.getObjectByName(name); if (!o || !o.geometry.index) return [];
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, par = new Int32Array(pa.count).map((_, i) => i), used = new Uint8Array(pa.count);
+    const find = a => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
+    for (let t = 0; t < ix.count; t += 3) { const a = find(ix.getX(t)); par[find(ix.getX(t + 1))] = a; par[find(ix.getX(t + 2))] = a; used[ix.getX(t)] = used[ix.getX(t + 1)] = used[ix.getX(t + 2)] = 1; }
+    const boxes = new Map(), at = new Map(); // piece root -> box
+    for (let i = 0; i < pa.count; i++) {
+      if (!used[i]) continue;
+      v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld);
+      let k = find(i);
+      if (grid) { const cell = Math.floor(v.x / grid) + ',' + Math.floor(v.y / grid) + ',' + Math.floor(v.z / grid); if (!at.has(cell)) at.set(cell, k); k = at.get(cell); } // pieces sharing a cell count as one
+      const b = boxes.get(k) || [1e9, -1e9, 1e9, -1e9, 1e9, -1e9]; boxes.set(k, b);
+      b[0] = Math.min(b[0], v.x); b[1] = Math.max(b[1], v.x); b[2] = Math.min(b[2], v.y); b[3] = Math.max(b[3], v.y); b[4] = Math.min(b[4], v.z); b[5] = Math.max(b[5], v.z);
+    }
+    return [...boxes.values()];
+  };
+  for (const b of pieces('M_tree_balls001')) shapes.push(b);
+  // the bushes are thousands of tiny pieces: merge the ones within a grid cell of each other, then merge the boxes that touch
+  const bush = pieces('M_Material004', 1.5), merged = [];
+  for (const b of bush) {
+    const m = merged.find(c => b[0] < c[1] + 1.5 && b[1] > c[0] - 1.5 && b[2] < c[3] + 1.5 && b[3] > c[2] - 1.5 && b[4] < c[5] + 1.5 && b[5] > c[4] - 1.5);
+    if (m) { m[0] = Math.min(m[0], b[0]); m[1] = Math.max(m[1], b[1]); m[2] = Math.min(m[2], b[2]); m[3] = Math.max(m[3], b[3]); m[4] = Math.min(m[4], b[4]); m[5] = Math.max(m[5], b[5]); } else merged.push(b.slice());
+  }
+  shapes.push(...merged);
+  for (const [x0, x1, y0, y1, z0, z1] of shapes) {
+    const h = y1 - y0, r = Math.max(x1 - x0, z1 - z0) / 2 * 0.9; if (h < 0.4 || r < 0.15) continue;
+    const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.15, r, h, 8), cm); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); col.add(o); o.updateMatrixWorld();
+  }
 }
 // A tin-roofed shed you can walk into (Shed.glb: 3.6 x 2.8 m, a doorway on the left of the front, which faces +z before yaw), set into the ground at (x, z).
 // The floor sits at the highest ground under it, on a stone plinth, with steps down to the ground at the door. Collision is hollow: four walls with the
@@ -887,7 +923,8 @@ function addSetExtras(L) {
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
     if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
   }
-  if (L.clearTrees) for (const [x, z, r] of L.clearTrees) clearTrees(draw, x, z, r);
+  if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
+  if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
   if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
   if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
   if (L.balcony) {
