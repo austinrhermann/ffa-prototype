@@ -308,10 +308,10 @@ body.touch .card small.tc{display:block}
   <div class="panel">
   <div class="setrow hostonly" id="setrole"><span>Your role with a friend</span><div class="seg" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
   <div class="setrow hostonly" id="setdiff"><span id="ldiff">Bot difficulty</span><div class="seg" data-for="sdiff"></div><input type="range" id="sdiff" min="1" max="5" value="3" hidden><output id="odiff" hidden>Normal</output></div>
-  <div class="setrow hostonly" id="setbots"><span id="lbots">Bots</span><div class="step" data-for="sbots"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obots">5</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbots" min="0" max="100" value="5" hidden></div>
-  <div class="setrow hostonly" id="setbotsM"><span>Midas bots</span><div class="step" data-for="sbotsM"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsM">5</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsM" min="0" max="50" value="5" hidden></div>
-  <div class="setrow hostonly" id="setbotsR"><span>Rebel bots</span><div class="step" data-for="sbotsR"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsR">2</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsR" min="0" max="50" value="2" hidden></div>
-  <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="50" step="5" value="20" hidden></div>
+  <div class="setrow hostonly" id="setbots"><span id="lbots">Bots</span><div class="step" data-for="sbots"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obots">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbots" min="0" max="100" value="0" hidden></div>
+  <div class="setrow hostonly" id="setbotsM"><span>Midas bots</span><div class="step" data-for="sbotsM"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsM">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsM" min="0" max="50" value="0" hidden></div>
+  <div class="setrow hostonly" id="setbotsR"><span>Rebel bots</span><div class="step" data-for="sbotsR"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsR">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsR" min="0" max="50" value="0" hidden></div>
+  <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">100</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="100" step="5" value="100" hidden></div>
   <div class="setrow hostonly" id="setwaves" style="display:none"><span>Waves to survive</span><div class="step" data-for="swaves"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="owaves">6</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="swaves" min="3" max="15" value="6" hidden></div>
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb nodrive"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
@@ -349,7 +349,7 @@ body.touch .card small.tc{display:block}
   <h1 id="rtitle">You win</h1>
   <p id="rsub"></p>
   <div class="panel"><table class="rt" id="rtable"></table></div>
-  <div class="setrow hostonly" id="setnext" style="margin-top:16px"><span>Score limit for next round</span><div class="step" data-for="slimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="olimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="slimit" min="5" max="50" step="5" value="20" hidden></div>
+  <div class="setrow hostonly" id="setnext" style="margin-top:16px"><span>Score limit for next round</span><div class="step" data-for="slimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="olimit">100</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="slimit" min="5" max="100" step="5" value="100" hidden></div>
   <div class="mbtns"><button type="button" id="next" class="hostonly wide">Next round</button></div>
   <p class="guestonly" style="margin-top:14px">Waiting for the host to start the next round…</p>
 </div></div>
@@ -364,7 +364,7 @@ body.touch .card small.tc{display:block}
 <script>
 const V3 = THREE.Vector3;
 const R = 0.4, STAND_H = 1.8, CROUCH_H = 1.2, GRAV = 22, JUMP = 8.6, STEP = 0.6;
-let KILL_LIMIT = 20;
+let KILL_LIMIT = 100;
 const UP = 3.0, WALL_H = 6.5, MAG = 30, START_RES = 60, MAX_RES = 120, RELOAD_T = 2.2;
 const $ = id => document.getElementById(id);
 
