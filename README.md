@@ -211,5 +211,5 @@ Every action has a key, so a one-button Mac mouse or a trackpad can play everyth
 ```
 
 - **Grenade**: the thrown frag grenade (and the one in your hand while you cook it) now uses the model; it tumbles in flight.
-- **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka lies by the door of each shed; it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
-- **Shed**: a solid 3.6 x 2.8 m hut (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). Two stand in the field outside the fort on both Fortress and Minimal.
+- **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka waits inside the shed on each map; it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
+- **Shed**: a 3.6 x 2.8 m hut you can walk into (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). The door swings open when anyone is within 3 m and shuts again after. One stands in the field outside the fort on both Fortress and Minimal.

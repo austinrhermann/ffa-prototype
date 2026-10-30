@@ -670,7 +670,7 @@ function levelFortress() {
     // the back corridor (an SMG for the tight indoor fights, not the open ground outside)
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3],
       ['uzi', -8, 30, 16], ['uzi', -22, 26, 26], ['uzi', 10, 32.5, 40], ['uzi', 2.2, 37.5, 3.9],
-      ['bazooka', -5.4, 24, 50.7], ['bazooka', -36.1, 28, 43.7]], // a bazooka by the door of each shed
+      ['bazooka', -34.5, 27.7, 42.6]], // a bazooka inside the shed
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck, James's jeep tuning) on the road behind the hill
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
@@ -691,7 +691,7 @@ function levelFortress() {
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
     // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
-    sheds: [[-6, 48, 0.6], [-34, 42, -0.5]],
+    sheds: [[-34, 42, 1.8]],
   };
 }
 // Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
@@ -715,12 +715,12 @@ function levelMinimal() {
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
       ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20], ['uzi', 0.3, 37.5, -5.3],
       ['uzi', -6, 29.3, 20], ['uzi', -18, 28, 12], ['uzi', 0, 23.8, 50], ['uzi', 38, 30, 48], ['uzi', 14, 38.4, 72],
-      ['bazooka', -18, 23, 46.7], ['bazooka', 13.5, 24, 53.3]], // a bazooka by the door of each shed
+      ['bazooka', -28.5, 27.5, 52.5]], // a bazooka inside the shed
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
     // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
-    sheds: [[-18, 44, 0.4], [14, 56, -2.57]],
+    sheds: [[-28, 52, 3.4]],
   };
 }
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
@@ -772,27 +772,52 @@ function buildGrid(id) {
   WALK.length = 0; for (let n = 0; n < 2 * N; n++) if (nodeValid(n)) WALK.push(n);
   return L;
 }
-// A tin-roofed shed (Shed.glb, 3.6 x 2.8 m, door side facing +z before yaw) set into the ground at (x, z). It stands on the highest ground under it,
-// on a stone plinth that hides the gap on a slope, and is solid from the ground to the roof: two boxes in the collision set (walls, then the ridge).
-const SHED = { w: 3.6, d: 2.8, eave: 2.3, ridge: 3.15 };
+// A tin-roofed shed you can walk into (Shed.glb: 3.6 x 2.8 m, a doorway on the left of the front, which faces +z before yaw), set into the ground at (x, z).
+// The floor sits at the highest ground under it, on a stone plinth, with steps down to the ground at the door. Collision is hollow: four walls with the
+// doorway left open, a floor and a roof. The door itself is only a picture: it swings open when anyone comes near (updateSheds) and shuts again.
+const SHED = { w: 3.6, d: 2.8, eave: 2.3, ridge: 3.15, t: 0.12, dx0: -1.55, dx1: -0.55, dh: 2.0 };
+const SHEDS = [];
 function placeShed(col, draw, x, z, yaw) {
   col.updateMatrixWorld(true);
-  const rc = new THREE.Raycaster(), cs = Math.cos(yaw), sn = Math.sin(yaw), down = new V3(0, -1, 0);
+  const rc = new THREE.Raycaster(), cs = Math.cos(yaw), sn = Math.sin(yaw), down = new V3(0, -1, 0), S = SHED;
+  const at = (lx, lz) => new V3(x + lx * cs + lz * sn, 0, z - lx * sn + lz * cs); // shed-local (lx, lz) to world x, z
+  const ground = p => { rc.set(new V3(p.x, 200, p.z), down); const h = rc.intersectObject(col, true).find(i => !i.object.userData.water); return h ? h.point.y : null; };
   let lo = Infinity, hi = -Infinity;
-  for (const [dx, dz] of [[0, 0], [-1.8, -1.4], [1.8, -1.4], [-1.8, 1.4], [1.8, 1.4]]) {
-    rc.set(new V3(x + dx * cs + dz * sn, 200, z - dx * sn + dz * cs), down);
-    const h = rc.intersectObject(col, true).find(i => !i.object.userData.water); if (!h) continue;
-    lo = Math.min(lo, h.point.y); hi = Math.max(hi, h.point.y);
+  for (const [lx, lz] of [[0, 0], [-S.w / 2, -S.d / 2], [S.w / 2, -S.d / 2], [-S.w / 2, S.d / 2], [S.w / 2, S.d / 2]]) {
+    const g = ground(at(lx, lz)); if (g === null) continue; lo = Math.min(lo, g); hi = Math.max(hi, g);
   }
   if (!isFinite(lo)) { console.warn('No ground for the shed at', x, z); return; }
-  const base = hi - 0.1, cm = new THREE.MeshBasicMaterial({ visible: false });
-  const g = SHED_MODEL.clone(true); g.position.set(x, base, z); g.rotation.y = yaw; draw.add(g);
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(SHED.w + 0.2, base + 0.12 - (lo - 0.6), SHED.d + 0.2), toonMat({ color: 0x8b887f }));
-  plinth.position.set(x, (base + 0.12 + lo - 0.6) / 2 - 0.0, z); plinth.rotation.y = yaw; plinth.castShadow = plinth.receiveShadow = true; draw.add(plinth);
-  for (const [ww, dd, y0, y1] of [[SHED.w, SHED.d, lo - 0.6, base + SHED.eave], [SHED.w, 1.0, base + SHED.eave, base + SHED.ridge]]) {
-    const o = new THREE.Mesh(new THREE.BoxGeometry(ww, y1 - y0, dd), cm); o.position.set(x, (y0 + y1) / 2, z); o.rotation.y = yaw; col.add(o);
+  const base = hi, cm = new THREE.MeshBasicMaterial({ visible: false }), stone = toonMat({ color: 0x8b887f });
+  const grp = new THREE.Group(); grp.position.set(x, 0, z); grp.rotation.y = yaw; draw.add(grp);   // the picture, in shed space
+  const cgrp = new THREE.Group(); cgrp.position.set(x, 0, z); cgrp.rotation.y = yaw; col.add(cgrp);   // the collision, in shed space
+  const g = SHED_MODEL.clone(true); g.position.y = base; grp.add(g);
+  const stoneBox = (x0, x1, y0, y1, z0, z1) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), stone); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.castShadow = o.receiveShadow = true; grp.add(o); };
+  const solid = (x0, x1, y0, y1, z0, z1) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), cm); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); cgrp.add(o); };
+  const hw = S.w / 2, hd = S.d / 2, t = S.t, bot = lo - 0.6, y0 = base, y1 = base + S.eave;
+  stoneBox(-hw - 0.1, hw + 0.1, bot, base - 0.1, -hd - 0.1, hd + 0.1);        // plinth, under the plank floor
+  solid(-hw, hw, bot, base, -hd, hd);                                             // floor
+  solid(-hw, hw, y0, y1, -hd, -hd + t); solid(-hw, -hw + t, y0, y1, -hd, hd); solid(hw - t, hw, y0, y1, -hd, hd);   // back and side walls
+  solid(-hw, S.dx0, y0, y1, hd - t, hd); solid(S.dx1, hw, y0, y1, hd - t, hd); solid(S.dx0, S.dx1, y0 + S.dh, y1, hd - t, hd);   // front, round the doorway
+  solid(-hw, hw, y1, y1 + 0.12, -hd - 0.2, hd + 0.2); solid(-0.5, 0.5, y1, base + S.ridge, -0.5, 0.5);   // roof
+  // steps from the door down to the ground (each at most 0.45 m, which anyone can step up)
+  const dg = ground(at((S.dx0 + S.dx1) / 2, hd + 0.9)), n = dg === null ? 0 : Math.min(4, Math.ceil((base - dg - 0.05) / 0.45));
+  for (let k = 1; k <= n; k++) {
+    const top = base - k * (base - Math.max(dg, base - 1.8)) / (n + 1);
+    const a = [S.dx0 - 0.1, S.dx1 + 0.1, bot, top, hd + (k - 1) * 0.7, hd + k * 0.7];
+    stoneBox(...[a[0], a[1], a[2], a[3], a[4], a[5]]); solid(...a);
   }
+  const door = g.getObjectByName('Door'); if (door) SHEDS.push({ scene: draw, door, a: 0, p: at((S.dx0 + S.dx1) / 2, hd + 0.5), y: base });
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
+}
+// Doors: swing open when anyone is close, shut when they leave
+function updateSheds(dt) {
+  if (!LV || !LV.mesh) return;
+  for (const sh of SHEDS) {
+    if (sh.scene !== LEVEL_SCENES[LV.mesh]) continue;
+    const near = ents.some(e => e.alive && Math.abs(e.pos.y - sh.y) < 2.5 && Math.hypot(e.pos.x - sh.p.x, e.pos.z - sh.p.z) < 3);
+    const want = near ? -Math.PI / 2 : 0;
+    sh.a += Math.max(-4 * dt, Math.min(4 * dt, want - sh.a)); sh.door.rotation.y = sh.a;
+  }
 }
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
 function addSetExtras(L) {
@@ -1552,7 +1577,7 @@ const WEAPONS = {
   uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 10, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.16, kick: 0.036, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
   // Rocket launcher: one rocket in the tube, three in all, and a slow reload. The rocket flies (rocketSpeed m/s) and blows up where it lands:
   // blast radius and damage are rocketR and rocketD (a grenade is 8 m and 130). yaw is fixed: the model already points down -z.
-  bazooka: { key: 'Bazooka',       name: 'Bazooka',       auto: false, rate: 0.5, dmg: 0, head: 0, mag: 1, startRes: 2, maxRes: 4, spread: 0, hip: 0.006, sprayAdd: 0.3, kick: 0.16, reload: 4.5, fov: 55, tracer: 0xffd28a, sound: 'bazooka', rocket: true, rocketSpeed: 38, rocketR: 11.5, rocketD: 240, fixedYaw: 0, vmScale: 0.62, vmDrop: 0.03, respawn: 60 },
+  bazooka: { key: 'Bazooka',       name: 'Bazooka',       auto: false, rate: 0.5, dmg: 0, head: 0, mag: 1, startRes: 2, maxRes: 4, spread: 0, hip: 0.006, sprayAdd: 0.3, kick: 0.16, reload: 4.5, fov: 55, tracer: 0xffd28a, sound: 'bazooka', rocket: true, rocketSpeed: 38, rocketR: 11.5, rocketD: 240, fixedYaw: 0, vmScale: 0.775, vmDrop: 0.03, respawn: 60 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
@@ -5296,6 +5321,7 @@ function loop(now) {
     updateRemotes(dt);
     updateNades(dt);
     updateRockets(dt);
+    updateSheds(dt);
     updateAmmo(dt, now);
     updatePickups(dt, now);
     updateGas(dt);

@@ -110,52 +110,73 @@ def bazooka():
     export('Bazooka')
 
 
-# ---------- Shed: a tin-roofed gabled hut, 3.6 x 2.8 m, 2.3 m to the eaves, with a door, a window and a stack of planks ----------
+# ---------- Shed: a tin-roofed gabled hut you can walk into, 3.6 x 2.8 m, 2.3 m to the eaves. Hollow: 12 cm walls, a plank floor,
+# a doorway on the left of the front (x -1.55 to -0.55, 2 m high) with a separate hinged "Door" (origin on its hinge, so the game
+# can swing it), a window on the right and a stack of planks. Origin at floor level in the middle; front faces +z in the game. ----------
 def shed():
     reset()
     wall, roof, rib = mat('Shed_Wall', '#b8b29e'), mat('Shed_Roof', '#9aa0a3', 0.5), mat('Shed_Rib', '#6f7578', 0.5)
     wood, frame, plank, glass, dark = mat('Shed_Door', '#6b4a2e'), mat('Shed_Frame', '#42301f'), mat('Shed_Plank', '#c49c62'), mat('Shed_Glass', '#26333d', 0.2), mat('Shed_Mark', '#4a463c')
-    W, D, H, PK = 3.6, 2.8, 2.3, 3.15   # width (x), depth (y), eave height, ridge height
-    # walls: a pentagon in the y-z plane (square body, gable top) extruded along x
-    bm = bmesh.new()
-    pts = [(-D / 2, 0), (D / 2, 0), (D / 2, H), (0, PK), (-D / 2, H)]
-    vs = [bm.verts.new((-W / 2, y, z)) for y, z in pts]
-    f = bm.faces.new(vs)
-    r = bmesh.ops.extrude_face_region(bm, geom=[f])
-    bmesh.ops.translate(bm, vec=(W, 0, 0), verts=[v for v in r['geom'] if isinstance(v, bmesh.types.BMVert)])
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    me = bpy.data.meshes.new('Walls'); bm.to_mesh(me); bm.free()
-    o = bpy.data.objects.new('Walls', me); bpy.context.collection.objects.link(o); o.data.materials.append(wall)
+    W, D, H, PK, T = 3.6, 2.8, 2.3, 3.15, 0.12   # width (x), depth (y), eave height, ridge height, wall thickness
+    DX0, DX1, DH = -1.55, -0.55, 2.0            # the doorway
+    fy = -D / 2
+    # gable end walls: a pentagon in the y-z plane, extruded T along x
+    for sx in (-1, 1):
+        bm = bmesh.new()
+        pts = [(-D / 2, 0), (D / 2, 0), (D / 2, H), (0, PK), (-D / 2, H)]
+        x0 = sx * W / 2 - (T if sx > 0 else 0)
+        f = bm.faces.new([bm.verts.new((x0, y, z)) for y, z in pts])
+        r = bmesh.ops.extrude_face_region(bm, geom=[f])
+        bmesh.ops.translate(bm, vec=(T, 0, 0), verts=[v for v in r['geom'] if isinstance(v, bmesh.types.BMVert)])
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        me = bpy.data.meshes.new('End'); bm.to_mesh(me); bm.free()
+        o = bpy.data.objects.new('End', me); bpy.context.collection.objects.link(o); o.data.materials.append(wall)
+    box('Back', wall, (W - 2 * T, T, H), (0, D / 2 - T / 2, H / 2))
+    box('FrontL', wall, (DX0 + W / 2 - T, T, H), ((DX0 - W / 2 + T) / 2, fy + T / 2, H / 2))
+    box('FrontR', wall, (W / 2 - T - DX1, T, H), ((DX1 + W / 2 - T) / 2, fy + T / 2, H / 2))
+    box('FrontTop', wall, (DX1 - DX0, T, H - DH), ((DX0 + DX1) / 2, fy + T / 2, (H + DH) / 2))
+    box('Floor', plank, (W - 2 * T, D - 2 * T, 0.1), (0, 0, -0.05))
     # roof: two sloped sheets overhanging the walls, with ribs running down each slope
     run, rise = D / 2 + 0.25, PK - H + 0.07
     L = math.hypot(run, rise); ang = math.atan2(rise, run)
     for s in (-1, 1):
         cy = s * (D / 2 + 0.25) / 2; cz = (H - 0.07 + PK + 0.02) / 2
-        box(f'Roof{s}', roof, (W + 0.5, L, 0.05), (0, cy + s * 0.0, cz), (-s * ang, 0, 0))
+        box(f'Roof{s}', roof, (W + 0.5, L, 0.05), (0, cy, cz), (-s * ang, 0, 0))
         n = 14
         for i in range(n + 1):
             x = -(W + 0.5) / 2 + 0.06 + i * ((W + 0.5 - 0.12) / n)
             box(f'Rib{s}_{i}', rib, (0.05, L, 0.04), (x, cy, cz + 0.035), (-s * ang, 0, 0))
     box('Ridge', rib, (W + 0.55, 0.22, 0.07), (0, 0, PK + 0.04))
-    # front (y = -D/2): door on the left, window on the right, a long board across at lintel height
-    fy = -D / 2
-    box('DoorFrame', frame, (1.0, 0.07, 2.0), (-1.05, fy - 0.02, 1.0))
-    box('Door', wood, (0.84, 0.08, 1.88), (-1.05, fy - 0.06, 0.97))
-    box('DoorBraceA', frame, (0.08, 0.03, 1.5), (-1.05, fy - 0.11, 0.97))
-    box('DoorBraceB', frame, (0.84, 0.03, 0.08), (-1.05, fy - 0.11, 0.35))
-    box('DoorBraceC', frame, (0.84, 0.03, 0.08), (-1.05, fy - 0.11, 1.6))
-    box('DoorKnob', rib, (0.07, 0.06, 0.07), (-0.7, fy - 0.15, 0.95))
+    # the front: door frame round the doorway, a board across at lintel height, a window and a few marks
+    box('FrameL', frame, (0.08, 0.1, DH), (DX0 + 0.04, fy - 0.02, DH / 2))
+    box('FrameR', frame, (0.08, 0.1, DH), (DX1 - 0.04, fy - 0.02, DH / 2))
+    box('FrameTop', frame, (DX1 - DX0, 0.1, 0.08), ((DX0 + DX1) / 2, fy - 0.02, DH - 0.04))
     box('Lintel', frame, (W + 0.04, 0.09, 0.14), (0, fy - 0.045, 2.12))
     box('WindowFrame', frame, (0.86, 0.07, 0.76), (0.85, fy - 0.02, 1.4))
     box('Window', glass, (0.7, 0.08, 0.6), (0.85, fy - 0.04, 1.4))
     box('WindowBar', frame, (0.04, 0.09, 0.62), (0.85, fy - 0.06, 1.4))
     box('WindowSill', frame, (0.98, 0.12, 0.05), (0.85, fy - 0.07, 1.0))
-    for i, (x, z) in enumerate(((-0.35, 1.45), (-0.25, 1.2), (-0.38, 0.95), (-0.28, 0.7))):   # the dashes between door and window
+    for i, (x, z) in enumerate(((-0.2, 1.45), (-0.1, 1.2), (-0.22, 0.95), (-0.12, 0.7))):
         box(f'Mark{i}', dark, (0.14, 0.03, 0.06), (x, fy - 0.02, z))
-    box('Post', frame, (0.1, 0.1, H), (-0.45, fy - 0.03, H / 2))
-    # a stack of planks leaning against the right-hand end
     for i, (dx, ln) in enumerate(((0, 1.35), (0.08, 1.25), (-0.05, 1.4), (0.1, 1.3), (0.0, 1.2))):
         box(f'Plank{i}', plank, (ln, 0.34, 0.1), (W / 2 - 0.55 + dx, fy - 0.4, 0.06 + i * 0.105))
+    # shelves inside, on the back wall
+    box('Shelf', frame, (2.4, 0.3, 0.06), (0.5, D / 2 - T - 0.15, 1.2)); box('Shelf2', frame, (2.4, 0.3, 0.06), (0.5, D / 2 - T - 0.15, 0.6))
+    # the door, hinged on its left edge: every part of it joined into one mesh whose origin is the hinge
+    hx, hy = DX0 + 0.02, fy + T / 2
+    parts = [box('Door', wood, (0.94, 0.06, 1.96), (hx + 0.47, hy, 0.99)),
+             box('BraceA', frame, (0.08, 0.03, 1.5), (hx + 0.47, hy - 0.04, 0.99)),
+             box('BraceB', frame, (0.94, 0.03, 0.08), (hx + 0.47, hy - 0.04, 0.35)),
+             box('BraceC', frame, (0.94, 0.03, 0.08), (hx + 0.47, hy - 0.04, 1.6)),
+             box('Knob', rib, (0.07, 0.1, 0.07), (hx + 0.84, hy - 0.04, 0.95))]
+    bpy.ops.object.select_all(action='DESELECT')
+    leaf = parts[0]; bpy.context.view_layer.objects.active = leaf
+    for o in parts: o.select_set(True)
+    bpy.ops.object.join()
+    bpy.context.scene.cursor.location = (hx, hy, 0)
+    bpy.ops.object.select_all(action='DESELECT'); leaf.select_set(True); bpy.context.view_layer.objects.active = leaf
+    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+    leaf.name = 'Door'
     export('Shed')
 
 
