@@ -4701,12 +4701,15 @@ function setRemoteModel(r, mi) {
 function onGuestMsg(conn, m) {
   if (!m || typeof m !== 'object') return;
   let r = remotes.find(x => x.conn === conn);
+  if (r) r.seen = performance.now();
+  if (m.t === 'bye') { removeRemote(conn); try { conn.close(); } catch (e) {} return; }
+  if (m.t === 'ping') return;
   if (m.t === 'hello') {
     if (!MODELS.length) return;
     const name = String(m.name || 'Guest').slice(0, 16);
     if (!r) {
       r = makeEntity(name, false);
-      Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0 });
+      Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0, seen: performance.now() });
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
@@ -4759,6 +4762,17 @@ function removeRemote(conn) {
   note(`${r.name} left`, 2); updateRoster(); closeVoice(conn.peer); VEH.onLeave(r);
   rekit(assignRoles());
 }
+// A closed tab doesn't always tear its connection down (the host may never hear a 'close'), so guests ping every couple of
+// seconds, and a guest the host hasn't heard from for NET_TIMEOUT is dropped like one that said goodbye
+const NET_TIMEOUT = 12000;
+let sweepT = performance.now();
+function dropSilentRemotes() {
+  const now = performance.now(), stalled = now - sweepT > 3000; sweepT = now;
+  for (const r of remotes.slice()) {
+    if (stalled) r.seen = now; // this tab was frozen or throttled, so the silence isn't necessarily theirs
+    else if (now - r.seen > NET_TIMEOUT) { removeRemote(r.conn); try { r.conn.close(); } catch (e) {} }
+  }
+}
 function updateRemotes(dt) {
   for (const r of remotes) {
     if (!r.alive) { if (MODE !== 'defend' || r.role !== 'atk') { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); } continue; } // attackers wait for the next wave (or take over a soldier)
@@ -4799,9 +4813,12 @@ function startGuest() {
   const peer = new Peer(undefined, ICE); NET.peer = peer;
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
-    conn.on('open', () => { $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam }); });
+    conn.on('open', () => {
+      $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam });
+      NET.beat = setInterval(() => { if (conn.open) conn.send({ t: 'ping' }); }, 2000); // a timer, not the frame loop, so a backgrounded tab still counts as here
+    });
     conn.on('data', onHostMsg);
-    conn.on('close', () => { NET.joined = false; $('netstat').textContent = 'Disconnected from host'; note('Disconnected from host', 6); });
+    conn.on('close', () => { clearInterval(NET.beat); NET.joined = false; $('netstat').textContent = 'Disconnected from host'; note('Disconnected from host', 6); });
   });
   peer.on('call', answerCall);
   peer.on('error', e => { $('netstat').textContent = e.type === 'peer-unavailable' ? 'Host not found. Ask them for a fresh link.' : 'Connection problem (' + e.type + ')'; });
@@ -4881,7 +4898,7 @@ function applySnapshot(s) {
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
   }
-  for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); }
+  for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); if (VOICE.entityPeer[id]) closeVoice(VOICE.entityPeer[id]); }
   VEH.applyNet(s.vh); syncGuestTrucks();
   if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
   const keys = new Set();
@@ -5078,7 +5095,13 @@ function updateCamGrid() {
     if (on) { tile.label.textContent = name; tile.wrap.classList.toggle('speaking', !!speaking); }
   }
 }
-if (NET.role === 'host') startHost();
+if (NET.role === 'host') { startHost(); setInterval(dropSilentRemotes, 1000); }
+// Leaving (closing the tab, navigating away): say goodbye and close the connections, so nobody is left looking at a frozen
+// avatar and camera tile. If the goodbye never makes it out, the host's silence check catches it.
+addEventListener('pagehide', () => {
+  try { if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'bye' }); } catch (e) {}
+  try { if (NET.peer) NET.peer.destroy(); } catch (e) {}
+});
 $('copyinv').onclick = () => { const v = $('invlink').value; if (v.startsWith('http')) navigator.clipboard.writeText(v).then(() => note('Invite link copied', 1.5)).catch(() => $('invlink').select()); };
 
 
