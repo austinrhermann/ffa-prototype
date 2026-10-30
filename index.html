@@ -584,7 +584,8 @@ function levelComplex() {
     top: F2 + 1.3, wall: 0x8d949c, roofCover: true, nestAt: [39, 4],
     spawns: [[6,20],[34,39],[39,51],[61,53],[12,65],[24,18],[36,60],[48,62],[44,26],[8,10],[10,2,1],[15,40,1],[50,30,1],[38,15,1]],
     ammo: [[17,4],[7,10],[44,30],[41,48],[21,48],[40,59],[46,63],[25,63],[25,66],[35,15,1],[34,25,1],[15,50,1],[55,31,1],[60,9],[52,4]],
-    pickups: [['carbine',24,22],['carbine',56,53],['rifle',36,15,1],['rifle',56,4],['shotgun',12,37],['shotgun',28,52]],
+    pickups: [['carbine',24,22],['carbine',56,53],['rifle',36,15,1],['rifle',56,4],['shotgun',12,37],['shotgun',28,52],
+      ['uzi',17,4],['uzi',44,30],['uzi',41,48],['uzi',25,63],['burst',7,10],['burst',46,63],['burst',35,15,1]],
   };
 }
 function levelFacility() {
@@ -607,7 +608,8 @@ function levelFacility() {
     top: 7, wall: 0xc3c8cc,
     spawns: p([[2,2],[20,7],[10,10],[12,22],[30,16],[45,18],[24,33],[6,34],[37,23],[14,26,1],[45,31,1],[31,40,1],[47,45,1]]),
     ammo: p([[6,3],[17,10],[10,23],[28,14],[38,18],[44,24],[22,35],[6,30],[31,42,1],[44,40,1],[34,26,1]]),
-    pickups: k([['rifle',31,37,1],['carbine',20,10],['shotgun',44,14],['carbine',25,36]]),
+    pickups: k([['rifle',31,37,1],['carbine',20,10],['shotgun',44,14],['carbine',25,36],
+      ['uzi',17,10],['uzi',28,14],['uzi',22,35],['uzi',44,40,1],['burst',6,3],['burst',38,18]]),
   };
 }
 function levelBunker() {
@@ -640,7 +642,8 @@ function levelBunker() {
     helipad: [48, 56],
     spawns: p([[20,8],[34,6],[19,20],[31,20],[6,33],[10,27],[22,33],[25,2],[36,22],[6,10],[48,48],[42,62],[56,60]]),
     ammo: p([[3,7],[21,7],[32,6],[23,19],[31,18],[22,31],[6,43],[12,33],[36,14]]),
-    pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['carbine',24,34]]),
+    pickups: k([['rifle',3,38],['carbine',19,22],['shotgun',31,22],['carbine',24,34],
+      ['uzi',21,7],['uzi',32,6],['uzi',22,31],['uzi',36,14],['burst',23,19],['burst',6,43]]),
   };
 }
 // Fortress (from the Blender set): a fort on a hilltop island, free for all in and around it. Positions are world metres
@@ -665,7 +668,8 @@ function levelFortress() {
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52]],
     // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill, the Uzi in
     // the back corridor (an SMG for the tight indoor fights, not the open ground outside)
-    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3]],
+    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3],
+      ['uzi', -8, 30, 16], ['uzi', -22, 26, 26], ['uzi', 10, 32.5, 40], ['uzi', 2.2, 37.5, 3.9], ['burst', 28, 35, 44], ['burst', 6, 23.5, 55], ['burst', -3.9, 34, 2.2]],
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck, James's jeep tuning) on the road behind the hill
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
@@ -706,7 +710,8 @@ function levelMinimal() {
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [6.1, 44.5, 2.6], [-16, 26.1, 26], [-8, 31.9, 10], [-46, 26.5, 46], [-24, 30.1, 78], [-48, 33.1, 60], [-8, 27.8, 58]],
     // A shotgun in the courtyard and the rifle in the tower room; the Uzi in the back corridor; the rest out on the island
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
-      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20], ['uzi', 0.3, 37.5, -5.3]],
+      ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20], ['uzi', 0.3, 37.5, -5.3],
+      ['uzi', -6, 29.3, 20], ['uzi', -18, 28, 12], ['uzi', 0, 23.8, 50], ['uzi', 38, 30, 48], ['uzi', 14, 38.4, 72], ['burst', -36, 27.5, 60], ['burst', -48, 22.8, 34], ['burst', 2.2, 37.5, 3.9]],
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
@@ -723,7 +728,8 @@ function levelCreek() {
     spawns: both([[26, 0.1, -6], [37, 0.1, 6], [27, 3.9, 3], [38, 5.4, -3], [42.5, 0.1, 0], [14, 0.5, 1], [9, 0.5, 9], [19, 0.5, -17], [7, 0.5, -19], [12, 0.5, -6]]),
     ammo: both([[24, 0.1, 8], [34, 0.1, -7], [25, 3.9, -7], [10, 0.5, -5], [16, 0.5, 18], [37, 0.1, 7, 1]]),
     heals: both([[38.5, 0.1, 8.5], [6, 0.5, 9.5]]),
-    pickups: [['rifle', 0, 3.4, 0], ['shotgun', 36, 0.1, 0], ['shotgun', -36, 0.1, 0], ['carbine', 38, 5.4, 3], ['carbine', -38, 5.4, -3]], // the rifle on top of the arch
+    pickups: [['rifle', 0, 3.4, 0], ['shotgun', 36, 0.1, 0], ['shotgun', -36, 0.1, 0], ['carbine', 38, 5.4, 3], ['carbine', -38, 5.4, -3],
+      ...both([['uzi', 24, 0.1, 8], ['uzi', 10, 0.5, -5], ['burst', 34, 0.1, -7], ['burst', 16, 0.5, 18]].map(([id, x, y, z]) => [x, y, z, id])).map(([x, y, z, id]) => [id, x, y, z])], // the rifle on top of the arch
     ladders: [],
     // Bots find their way on a fine walking map of every floor (inside the bases, the roofs, the arch), built at load
     fortNav: { box: [-46, -23, 46, 23], cell: 0.5, top: 7, bottom: -1.6 },
@@ -1507,12 +1513,16 @@ const WEAPONS = {
   pistol:  { key: 'Laser_Pistol',  name: 'Laser Pistol',  auto: false, rate: 0.17, dmg: 12, head: 36, mag: 12, startRes: 24, maxRes: 48,  spread: 0.033,  hip: 0,    sprayAdd: 0.12, kick: 0.021, reload: 1.4, fov: 60, tracer: 0xff4a3a, sound: 'laser', trW: 0.022, trLife: 0.16, botAcc: 0.3 },
   carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: true,  rate: 0.1,  dmg: 11.5, head: 41, mag: 30, startRes: 30, maxRes: 90, spread: 0.022,  hip: 0,    sprayAdd: 0.15, kick: 0.027, reload: 2.2, fov: 55, tracer: 0xffe08a, sound: 'gun', trW: 0.018, trLife: 0.12, rangeSpread: 0.097, botAcc: 0.27 },
   rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
-  shotgun: { key: null,            name: 'Double Barrel', auto: false, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.2,  kick: 0.1, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
+  // Midas Burst Rifle: three-round bursts, a weaker and faster Master Rifle that is far more accurate than the carbine (shares its model, in steel blue).
+  // rate = pause between bursts, burstGap = time between the three shots.
+  burst:   { key: 'Midas_Carbine', name: 'Burst Rifle',   auto: false, burst: 3, burstGap: 0.065, rate: 0.36, dmg: 21, head: 55, mag: 30, startRes: 30, maxRes: 90, spread: 0.006, hip: 0.008, sprayAdd: 0.07, kick: 0.03, reload: 2.2, fov: 45, tracer: 0xa8d8ff, sound: 'gun', trW: 0.02, trLife: 0.14, rangeSpread: 0.012, botAcc: 0.5 },
+  // holes = bullet holes left per pellet that hits a wall
+  shotgun: { key: null,            name: 'Double Barrel', auto: false, holes: 10, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.35,  kick: 0.22, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
   // Mike's machine pistol, an SMG (draft numbers): 16 shots/s for less per hit than the carbine, so it wins up close, but it sprays
   // (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (falloff: full damage to 10 m, half from 30 m).
   // Bigger magazine, quicker reload, its own sound (sounds/uzi.wav).
   // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
-  uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 10, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.1,  kick: 0.0194, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
+  uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 10, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.16, kick: 0.036, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
@@ -1531,6 +1541,8 @@ const GUN_FX = {
              smoke: { img: null, style: 'puff',  color: 0xeeeeea, count: 7, size: 0.16, grow: 1.1,  life: 2.4, speed: 1.4, rise: 0.25, opacity: 0.4 } },
   shotgun: { flash: { img: null, style: 'bloom', color: '#ff7a1e', size: 0.7,  vmSize: 0.26, life: 0.06 },
              smoke: { img: null, style: 'puff',  color: 0x8f8a84, count: 8, size: 0.14, grow: 0.9,  life: 1.6, speed: 2.2, rise: 0.3, opacity: 0.45 } },
+  burst:   { flash: { img: null, style: 'star4', color: '#9fd0ff', size: 0.4,  vmSize: 0.2,  life: 0.04 },
+             smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 2, size: 0.1,  grow: 0.45, life: 0.9, speed: 0.9, rise: 0.35, opacity: 0.3 } },
   uzi:     { flash: { img: null, style: 'star4', color: '#ffc040', size: 0.3,  vmSize: 0.16, life: 0.03 },
              smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 1, size: 0.08, grow: 0.3,  life: 0.6, speed: 0.8, rise: 0.35, opacity: 0.25 } },
 };
@@ -1757,6 +1769,7 @@ function loadModels() {
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
+    if (w.id === 'burst') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0x5a7fa8, specular: 0xcfe6ff, shininess: 60, side: o.material.side }); });
     w.scene = sc; w.yaw = orientWeapon(sc);
   })));
   const props = parseGLB('Props').then(sc => {
@@ -1865,7 +1878,7 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
-const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 } };
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, burst: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 } };
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
@@ -2223,7 +2236,7 @@ function impact(p) {
 }
 // Bullet holes: every player's shots leave a mark on what they hit until the round resets, so walls can be drawn on.
 // All holes live in one instanced mesh; once it is full the oldest ones are reused.
-const HOLE_MAX = 4000, HOLE_R = 0.045, holes = [];
+const HOLE_MAX = 8000, HOLE_R = 0.045, holes = [];
 const holeMesh = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -2253,6 +2266,14 @@ function holeFromHit(hit, dir) {
   const n = hit.face.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
   if (n.dot(dir) > 0) n.negate();
   return [_r3(hit.point.x), _r3(hit.point.y), _r3(hit.point.z), _r3(n.x), _r3(n.y), _r3(n.z)];
+}
+// Extra holes scattered round a hit for guns that leave several per pellet (the shotgun): same surface, jittered along it
+const _hj1 = new V3(), _hj2 = new V3();
+function scatterHoles(h, n) {
+  const nv = _hn.set(h[3], h[4], h[5]).normalize(), a = Math.abs(nv.y) < 0.9 ? _hj1.set(0, 1, 0) : _hj1.set(1, 0, 0), t1 = a.cross(nv).normalize().clone(), t2 = _hj2.copy(nv).cross(t1).clone(), out = [];
+  for (let i = 0; i < n; i++) { const r = Math.sqrt(Math.random()) * 0.22, th = Math.random() * Math.PI * 2, u = Math.cos(th) * r, v = Math.sin(th) * r;
+    out.push([_r3(h[0] + t1.x * u + t2.x * v), _r3(h[1] + t1.y * u + t2.y * v), _r3(h[2] + t1.z * u + t2.z * v), h[3], h[4], h[5]]); }
+  return out;
 }
 function addHoles(list) { if (!list.length) return; list.forEach(_addHole); netFx({ t: 'bh', h: list }); }
 // Scorch marks: explosions blacken every surface inside the blast sphere until the round resets.
@@ -2927,7 +2948,7 @@ function placeProps() {
   }
 }
 // Player gun
-const gun = { rate: 0.1, cd: 0, spray: 0 };
+const gun = { rate: 0.1, cd: 0, spray: 0, burstLeft: 0 };
 let punch = 0, vmKick = 0, flashT = 0, knifeT = 0, knifeCd = 0, throwT = 0, adsK = 0;
 let mouseDown = false, mouseRight = false;
 let curW = 'pistol', clickQ = false, wheelT = 0;
@@ -2945,6 +2966,7 @@ function initPlayerWeapons() {
 }
 function syncAmmo() { if (P.ammoBy && P.ammoBy[curW]) { P.ammoBy[curW].mag = P.ammo; P.ammoBy[curW].res = P.reserve; } }
 function selectWeapon(id, instant) {
+  gun.burstLeft = 0;
   syncAmmo();
   curW = id; P.ammo = P.ammoBy[id].mag; P.reserve = P.ammoBy[id].res; P.reloading = 0; clickQ = false;
   for (const k in VMW) VMW[k].holder.visible = k === id;
@@ -2985,7 +3007,7 @@ function botInitWeapons(b) {
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
-  const pref = dist < 8 ? ['shotgun', 'uzi', 'carbine', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'carbine', 'uzi', 'pistol', 'shotgun'] : ['carbine', 'uzi', 'rifle', 'shotgun', 'pistol'];
+  const pref = dist < 8 ? ['shotgun', 'uzi', 'carbine', 'burst', 'rifle', 'pistol'] : dist > 18 ? ['rifle', 'burst', 'carbine', 'uzi', 'pistol', 'shotgun'] : ['burst', 'carbine', 'uzi', 'rifle', 'shotgun', 'pistol'];
   const pick = pref.find(id => left(id) > 0) || 'pistol';
   if (pick !== b.wpn) botSelect(b, pick);
 }
@@ -2994,7 +3016,7 @@ function giveWeapon(e, id, ammo) {
   if (!e.inv.includes(id)) {
     const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
     e.inv.push(id); e.ammoBy[id] = { mag, res };
-    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–5 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
+    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–6 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
     return true;
   }
   const a = e.ammoBy[id]; if (a.res >= ammoCap(id)) return false;
@@ -3016,7 +3038,7 @@ function dropWeapons(e) {
   }
   e.inv = ['pistol'];
 }
-function reload() { if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
+function reload() { gun.burstLeft = 0; if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
 const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
@@ -3064,7 +3086,7 @@ function fire() {
     } else if (ud.gas) shootGas(ud.gas, P);
     else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
     else if (ud.gate) { shootGate(w); impact(hit.point); }
-    else { const h = holeFromHit(hit, dir); if (h) newHoles.push(h); else impact(hit.point); }
+    else { const h = holeFromHit(hit, dir); if (h) { newHoles.push(h); if (w.holes > 1) newHoles.push(...scatterHoles(h, w.holes - 1)); } else impact(hit.point); }
   }
   addHoles(newHoles);
   for (const [ent, d] of dmgBy) damage(ent, Math.round(d), P, 'gun', anyHead);
@@ -3086,11 +3108,18 @@ function updateGun(dt) {
     return;
   }
   if (P.alive && P.ammo <= 0 && P.reserve > 0) { reload(); return; } // reload the moment the magazine runs dry
+  // Burst guns: once triggered, the rest of the burst fires on its own
+  if (gun.burstLeft > 0) {
+    if (switchT > 0 || !P.alive || P.ammo <= 0) gun.burstLeft = 0;
+    else if (gun.cd <= 0) { gun.burstLeft--; gun.cd = gun.burstLeft > 0 ? WP().burstGap : WP().rate; P.ammo--; fire(); if (P.ammo === 0 && P.reserve > 0) { gun.burstLeft = 0; reload(); } return; }
+    else return;
+  }
   const want = !monitorOpen && (WP().auto ? mouseDown : clickQ);
   if (want && gun.cd <= 0 && P.alive && knifeT <= 0 && throwT <= 0 && switchT <= 0) {
     clickQ = false;
     if (P.ammo <= 0) { if (P.reserve > 0) reload(); else { note('Out of ammo — find an ammo box or pick up a weapon'); gun.cd = 0.4; } return; }
-    gun.cd = WP().rate; P.ammo--; fire();
+    if (WP().burst) { gun.burstLeft = WP().burst - 1; gun.cd = WP().burstGap; } else gun.cd = WP().rate;
+    P.ammo--; fire();
     if (P.ammo === 0 && P.reserve > 0) reload();
   }
 }
@@ -3438,6 +3467,7 @@ function updateBot(b, dt) {
       if (b.reloading <= 0 && b.ammo > 0 && ai.react <= 0 && ai.fireCd <= 0 && facing < (bw.oneShot ? 0.08 : 0.2) && (!bw.pellets || dist < 16)) {
         botShoot(b, t, dist);
         if (bw.auto) { ai.fireCd = 0.12; ai.burst++; if (ai.burst >= style.burstLo + (Math.random() * (style.burstHi - style.burstLo) | 0)) { ai.burst = 0; ai.fireCd = style.pauseLo + Math.random() * (style.pauseHi - style.pauseLo); } }
+        else if (bw.burst) { ai.burst = (ai.burst + 1) % bw.burst; ai.fireCd = ai.burst ? bw.burstGap : bw.rate * style.semiMul + Math.random() * 0.3; }
         else ai.fireCd = Math.max(bw.rate, 0.3) * style.semiMul + Math.random() * 0.35;
       }
       if (!def && b.nades > 0 && ai.nadeCd <= 0) { // attackers don't throw grenades
@@ -3535,7 +3565,7 @@ addEventListener('keydown', e => {
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
   if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P))) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
-  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 }[e.code];
+  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG' || e.code === 'KeyF') releaseCook(); });
