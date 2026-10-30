@@ -83,18 +83,20 @@
     const sess = ensureSession();
     const off = Date.now() - sess;
     const rec = { rid: `r${Date.now().toString(36)}${++ridN}`, name: uniqueName(base, key), key, startOffsetMs: off, endOffsetMs: off, mime: MIME, chunks: 0 };
+    // Record clones, so the recorder never holds the tracks voice chat is sending or playing
+    const clones = stream.getAudioTracks().map(t => t.clone()), release = () => clones.forEach(t => { try { t.stop(); } catch (e) {} });
     let mr;
-    try { mr = new MediaRecorder(new MediaStream(stream.getAudioTracks()), { mimeType: MIME, audioBitsPerSecond: 24000 }); } catch (e) { return; }
+    try { mr = new MediaRecorder(new MediaStream(clones), { mimeType: MIME, audioBitsPerSecond: 24000 }); } catch (e) { release(); return; }
     const entry = { rec, mr, streamId: stream.id };
     mr.ondataavailable = e => {
       if (!e.data || !e.data.size) return;
       rec.endOffsetMs = Date.now() - meta.sessionStart;
       saveChunk(rec.rid, rec.chunks++, e.data); saveRec(rec);
     };
-    mr.onstop = () => { if (live.get(key) === entry) live.delete(key); rec.endOffsetMs = Date.now() - meta.sessionStart; saveRec(rec); refresh(); };
+    mr.onstop = () => { if (live.get(key) === entry) live.delete(key); rec.endOffsetMs = Date.now() - meta.sessionStart; saveRec(rec); release(); refresh(); };
     mr.onerror = () => stopRec(entry);
     recs.set(rec.rid, rec); live.set(key, entry); saveRec(rec);
-    try { mr.start(5000); } catch (e) { live.delete(key); recs.delete(rec.rid); return; }
+    try { mr.start(5000); } catch (e) { live.delete(key); recs.delete(rec.rid); release(); return; }
     refresh();
     return entry;
   }
@@ -125,11 +127,13 @@
     ensureSession(); saveMeta();
   }
 
+  // Called from voice chat and match code: never throws into them, and never runs inside their event handlers
+  const later = fn => (...a) => { setTimeout(() => { try { fn(...a); } catch (e) {} }, 0); };
   window.TRANSCRIPT = {
-    onRemoteStream(peer, stream) { attach(peer, () => remoteName(peer), stream); },
-    onClose(peer) { const l = live.get(peer); if (l) stopRec(l); },
-    onLocalMic(stream) { attach('host', hostName, stream); },
-    event,
+    onRemoteStream: later((peer, stream) => attach(peer, () => remoteName(peer), stream)),
+    onClose: later(peer => { const l = live.get(peer); if (l) stopRec(l); }),
+    onLocalMic: later(stream => attach('host', hostName, stream)),
+    event: later(event),
   };
   try { if (VOICE.stream) window.TRANSCRIPT.onLocalMic(VOICE.stream); } catch (e) {}
 
