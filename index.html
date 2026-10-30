@@ -273,7 +273,7 @@ body.touch .card small.tc{display:block}
       <dt>Left click</dt><dd>Shoot</dd>
       <dt>X, right click</dt><dd>Aim down sights (X toggles; Ctrl-click works as right click)</dd>
       <dt>R</dt><dd>Reload (it also reloads by itself when the magazine runs dry)</dd>
-      <dt>Q, wheel, 1–4</dt><dd>Switch weapon</dd>
+      <dt>Q, wheel, 1–6</dt><dd>Switch weapon</dd>
       <dt>F or G</dt><dd>Frag grenade (hold to cook)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a vehicle; as a pirate, take over another); otherwise knife</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
@@ -669,7 +669,8 @@ function levelFortress() {
     // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill, the Uzi in
     // the back corridor (an SMG for the tight indoor fights, not the open ground outside)
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3],
-      ['uzi', -8, 30, 16], ['uzi', -22, 26, 26], ['uzi', 10, 32.5, 40], ['uzi', 2.2, 37.5, 3.9]],
+      ['uzi', -8, 30, 16], ['uzi', -22, 26, 26], ['uzi', 10, 32.5, 40], ['uzi', 2.2, 37.5, 3.9],
+      ['bazooka', -5.4, 24, 50.7], ['bazooka', -36.1, 28, 43.7]], // a bazooka by the door of each shed
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck, James's jeep tuning) on the road behind the hill
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
@@ -689,6 +690,8 @@ function levelFortress() {
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-28, -10, 36, 62], cell: 0.4, top: 52, bottom: 18 },
+    // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
+    sheds: [[-6, 48, 0.6], [-34, 42, -0.5]],
   };
 }
 // Minimal (tools/build_minimal.py, from James's blockout Collisions_Minimal.glb): the fort and the island as bare collision
@@ -711,10 +714,13 @@ function levelMinimal() {
     // A shotgun in the courtyard and the rifle in the tower room; the Uzi in the back corridor; the rest out on the island
     pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 6, 44.5, 4.5], ['carbine', -20, 23.7, 38], ['carbine', 24, 33.4, 48], ['shotgun', 0, 23.8, 52],
       ['rifle', 0, 41.9, 84], ['carbine', -34, 27.2, 48], ['shotgun', -44, 13.6, 20], ['uzi', 0.3, 37.5, -5.3],
-      ['uzi', -6, 29.3, 20], ['uzi', -18, 28, 12], ['uzi', 0, 23.8, 50], ['uzi', 38, 30, 48], ['uzi', 14, 38.4, 72]],
+      ['uzi', -6, 29.3, 20], ['uzi', -18, 28, 12], ['uzi', 0, 23.8, 50], ['uzi', 38, 30, 48], ['uzi', 14, 38.4, 72],
+      ['bazooka', -18, 23, 46.7], ['bazooka', 13.5, 24, 53.3]], // a bazooka by the door of each shed
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
+    // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
+    sheds: [[-18, 44, 0.4], [14, 56, -2.57]],
   };
 }
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
@@ -766,6 +772,28 @@ function buildGrid(id) {
   WALK.length = 0; for (let n = 0; n < 2 * N; n++) if (nodeValid(n)) WALK.push(n);
   return L;
 }
+// A tin-roofed shed (Shed.glb, 3.6 x 2.8 m, door side facing +z before yaw) set into the ground at (x, z). It stands on the highest ground under it,
+// on a stone plinth that hides the gap on a slope, and is solid from the ground to the roof: two boxes in the collision set (walls, then the ridge).
+const SHED = { w: 3.6, d: 2.8, eave: 2.3, ridge: 3.15 };
+function placeShed(col, draw, x, z, yaw) {
+  col.updateMatrixWorld(true);
+  const rc = new THREE.Raycaster(), cs = Math.cos(yaw), sn = Math.sin(yaw), down = new V3(0, -1, 0);
+  let lo = Infinity, hi = -Infinity;
+  for (const [dx, dz] of [[0, 0], [-1.8, -1.4], [1.8, -1.4], [-1.8, 1.4], [1.8, 1.4]]) {
+    rc.set(new V3(x + dx * cs + dz * sn, 200, z - dx * sn + dz * cs), down);
+    const h = rc.intersectObject(col, true).find(i => !i.object.userData.water); if (!h) continue;
+    lo = Math.min(lo, h.point.y); hi = Math.max(hi, h.point.y);
+  }
+  if (!isFinite(lo)) { console.warn('No ground for the shed at', x, z); return; }
+  const base = hi - 0.1, cm = new THREE.MeshBasicMaterial({ visible: false });
+  const g = SHED_MODEL.clone(true); g.position.set(x, base, z); g.rotation.y = yaw; draw.add(g);
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(SHED.w + 0.2, base + 0.12 - (lo - 0.6), SHED.d + 0.2), toonMat({ color: 0x8b887f }));
+  plinth.position.set(x, (base + 0.12 + lo - 0.6) / 2 - 0.0, z); plinth.rotation.y = yaw; plinth.castShadow = plinth.receiveShadow = true; draw.add(plinth);
+  for (const [ww, dd, y0, y1] of [[SHED.w, SHED.d, lo - 0.6, base + SHED.eave], [SHED.w, 1.0, base + SHED.eave, base + SHED.ridge]]) {
+    const o = new THREE.Mesh(new THREE.BoxGeometry(ww, y1 - y0, dd), cm); o.position.set(x, (y0 + y1) / 2, z); o.rotation.y = yaw; col.add(o);
+  }
+  draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
+}
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
 function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
@@ -778,6 +806,7 @@ function addSetExtras(L) {
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
     if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
   }
+  if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
   if (L.towerDoor) { const d = L.towerDoor; box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06).userData.toggle = 'door'; }
   if (L.balcony) {
     const b = L.balcony, y = b.y;
@@ -1521,6 +1550,9 @@ const WEAPONS = {
   // Bigger magazine, quicker reload, its own sound (sounds/uzi.wav).
   // vmDrop lowers it in first person: the long magazine makes it much taller than the other guns, so centred it would cover the crosshair.
   uzi:     { key: 'Cobray_M11',    name: 'Uzi',           auto: true,  rate: 0.0625, dmg: 10, head: 26, mag: 32, startRes: 64, maxRes: 128, spread: 0.03,  hip: 0,    sprayAdd: 0.16, kick: 0.036, reload: 1.8, fov: 60, tracer: 0xffd27a, sound: 'uzi', trW: 0.014, trLife: 0.1, rangeSpread: 0.17, falloff: [10, 30, 0.5], botAcc: 0.24, vmDrop: 0.075 },
+  // Rocket launcher: one rocket in the tube, three in all, and a slow reload. The rocket flies (rocketSpeed m/s) and blows up where it lands:
+  // blast radius and damage are rocketR and rocketD (a grenade is 8 m and 130). yaw is fixed: the model already points down -z.
+  bazooka: { key: 'Bazooka',       name: 'Bazooka',       auto: false, rate: 0.5, dmg: 0, head: 0, mag: 1, startRes: 2, maxRes: 4, spread: 0, hip: 0.006, sprayAdd: 0.3, kick: 0.16, reload: 4.5, fov: 55, tracer: 0xffd28a, sound: 'bazooka', rocket: true, rocketSpeed: 38, rocketR: 11.5, rocketD: 240, fixedYaw: 0, vmScale: 0.62, vmDrop: 0.03, respawn: 60 },
 };
 for (const [wid, w] of Object.entries(WEAPONS)) w.id = wid;
 // Damage multiplier with distance for guns that set falloff: [full until (m), weakest from (m), weakest multiplier]. Others: always 1.
@@ -1541,8 +1573,11 @@ const GUN_FX = {
              smoke: { img: null, style: 'puff',  color: 0x8f8a84, count: 8, size: 0.14, grow: 0.9,  life: 1.6, speed: 2.2, rise: 0.3, opacity: 0.45 } },
   uzi:     { flash: { img: null, style: 'star4', color: '#ffc040', size: 0.3,  vmSize: 0.16, life: 0.03 },
              smoke: { img: null, style: 'puff',  color: 0xd8d8d4, count: 1, size: 0.08, grow: 0.3,  life: 0.6, speed: 0.8, rise: 0.35, opacity: 0.25 } },
+  bazooka: { flash: { img: null, style: 'bloom', color: '#ff9a2a', size: 1.1,  vmSize: 0.34, life: 0.08 },
+             smoke: { img: null, style: 'puff',  color: 0xcfcac2, count: 10, size: 0.2, grow: 1.4,  life: 2.2, speed: 2.6, rise: 0.4, opacity: 0.5 } },
 };
 const PROPS = {};
+let NADE_MODEL = null, SHED_MODEL = null; // Grenade.glb and Shed.glb
 function makeShotgun() {
   const g = new THREE.Group();
   const metal = toonMat({ color: 0x3a3d42 }), wood = toonMat({ color: 0x7a4a26 });
@@ -1765,8 +1800,9 @@ function loadModels() {
   WEAPONS.shotgun.scene = makeShotgun(); WEAPONS.shotgun.yaw = 0;
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
-    w.scene = sc; w.yaw = orientWeapon(sc);
+    w.scene = sc; w.yaw = w.fixedYaw !== undefined ? w.fixedYaw : orientWeapon(sc);
   })));
+  const extras = Promise.all([parseGLB('Grenade').then(sc => { NADE_MODEL = sc; }), parseGLB('Shed').then(sc => { SHED_MODEL = sc; })]);
   const props = parseGLB('Props').then(sc => {
     for (const n of ['Gas_Can', 'Officer_Bottle', 'Midas_Crab']) {
       const o = sc.getObjectByName(n); if (!o) continue;
@@ -1813,7 +1849,7 @@ function loadModels() {
   });
   // The fort's trucks: the asset library's Cargo Truck (vehicles.js draws it); without it they're built from boxes
   const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
-  return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids]);
+  return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids, extras]);
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -1873,7 +1909,7 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
-const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 } };
+const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 }, bazooka: { y: -0.16, z: 0.02 } };
 function setRigWeapon(rig, id) {
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
@@ -2329,6 +2365,15 @@ function _boomFx(p, s = 4) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, depthWrite: false }));
   m.position.copy(p); scene.add(m); fx.push({ o: m, life: 0.4, max: 0.4, grow: s });
   boomLight.position.copy(p); boomLight.intensity = 4;
+  if (s >= 6) { // a big one (the bazooka): a fireball, a column of dark smoke, a brighter flash
+    const tex = GUN_FX.shotgun.smoke.tex;
+    _puff(GUN_FX.shotgun.flash.tex, p, s * 1.3, 0.35, { flash: true, additive: true });
+    for (let i = 0; i < 18; i++) {
+      const d = new V3(Math.random() - 0.5, Math.random() * 0.9, Math.random() - 0.5).normalize().multiplyScalar(2 + Math.random() * 4);
+      _puff(tex, p, 1.2 + Math.random(), 2.4 + Math.random() * 1.6, { color: i % 3 ? 0x4a4640 : 0x8a7a68, grow: 3.2, vel: d, rise: 1.4, opacity: 0.7, spin: 1.5 });
+    }
+    boomLight.intensity = 9;
+  }
 }
 // ---------- Muzzle flash and smoke ----------
 // Built-in pictures, one per style. Flashes are drawn in colour; smoke is drawn white and tinted by GUN_FX color.
@@ -2678,6 +2723,7 @@ function damage(t, amt, attacker, weapon, head) {
 function resetMatch() {
   ents.forEach(e => { e.kills = 0; e.deaths = 0; e.alive = false; if (e.mesh) e.mesh.visible = false; });
   nades.forEach(n => scene.remove(n.mesh)); nades.length = 0;
+  rockets.forEach(r => scene.remove(r.mesh)); rockets.length = 0;
   ammoBoxes.forEach(a => { a.active = true; a.mesh.visible = true; });
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   GASCANS.forEach(g => { g.alive = true; g.o.visible = true; }); pendingGas.length = 0;
@@ -2734,20 +2780,21 @@ function knifeAttack(att) {
 // Grenades
 const nades = [];
 const nadeGeo = new THREE.SphereGeometry(0.09, 10, 8), nadeMat = toonMat({ color: 0x3d4a2a });
+function nadeMesh() { const g = new THREE.Group(), c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g; } // the model stands on its base; the group spins about its middle
 function throwNade(owner, origin, vel, fuse = NADE_FUSE) {
   if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(origin), v: arr(vel), f: fuse }); return; }
-  const m = new THREE.Mesh(nadeGeo, nadeMat); m.castShadow = true; m.position.copy(origin); scene.add(m);
-  nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m });
+  const m = NADE_MODEL ? nadeMesh() : new THREE.Mesh(nadeGeo, nadeMat); m.castShadow = true; m.position.copy(origin); scene.add(m);
+  nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m, spin: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 14) });
 }
 const GASCANS = [], pendingGas = [];
-function boom(pos, owner, R, maxD) {
+function boom(pos, owner, R, maxD, selfK = 1) { // selfK: share of the damage the thrower takes (the bazooka spares you a bit)
   addScorch(pos, R * 0.3);
   _boomFx(pos, R * 0.6); sBoom(vol(pos, 90)); netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
   const o = pos.clone(); o.y += 0.3;
   for (const e of ents) {
     if (!e.alive) continue;
     const m = midPos(e), d = m.distanceTo(o);
-    if (d < R && losPts(o, m)) damage(e, Math.round(maxD * (1 - d / R)), owner, 'frag', false);
+    if (d < R && losPts(o, m)) damage(e, Math.round(maxD * (1 - d / R) * (e === owner ? selfK : 1)), owner, 'frag', false);
   }
   if (gateSiegeOn()) { const dr = LV.gate.doors, dd = new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5; if (dd < R) damageGate(maxD * (1 - Math.max(0, dd) / R) * 0.6); } // blasts wear the gate down too
   for (const g of GASCANS) if (g.alive && g.pos.distanceTo(pos) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
@@ -2806,8 +2853,52 @@ function updateNades(dt) {
       }
     }
     n.mesh.position.copy(n.pos);
+    if (n.spin && n.mesh.isGroup) { const sp = n.vel.length() > 1.5 ? 1 : 0; n.mesh.rotation.x += n.spin.x * dt * sp; n.mesh.rotation.y += n.spin.y * dt * sp; n.mesh.rotation.z += n.spin.z * dt * sp; }
     n.t -= dt;
     if (n.t <= 0) { explode(n); scene.remove(n.mesh); nades.splice(i, 1); }
+  }
+}
+
+// Rockets (the bazooka): they fly nearly straight, trail smoke, and blow up on the first wall, floor, soldier or truck they touch
+const rockets = [];
+function rocketMesh() {
+  const g = new THREE.Group(), body = toonMat({ color: 0x5d6842 }), dark = toonMat({ color: 0x26282b });
+  const add = (geo, m, z) => { const o = new THREE.Mesh(geo, m); o.position.z = z; g.add(o); return o; };
+  add(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 10).rotateX(Math.PI / 2), body, 0);
+  add(new THREE.ConeGeometry(0.04, 0.16, 10).rotateX(Math.PI / 2), dark, 0.33);
+  for (let i = 0; i < 4; i++) { const f = add(new THREE.BoxGeometry(0.012, 0.1, 0.12), dark, -0.2); f.rotation.z = i * Math.PI / 2; f.geometry.translate(0, 0.07, 0); }
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: GUN_FX.bazooka.flash.tex, color: 0xffb040, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  fl.scale.setScalar(0.7); fl.position.z = -0.4; g.add(fl);
+  return g;
+}
+function launchRocket(owner, origin, dir, w) {
+  if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'rkt', o: arr(origin), d: arr(dir) }); return; }
+  const m = rocketMesh(); m.position.copy(origin); m.lookAt(origin.clone().add(dir)); scene.add(m);
+  rockets.push({ owner, pos: origin.clone(), vel: dir.clone().normalize().multiplyScalar(w.rocketSpeed), t: 0, mesh: m, w, puff: 0 });
+}
+function rocketHits(r) {
+  const p = r.pos;
+  if (solidPt(p.x, p.y, p.z, 0.06)) return true;
+  for (const e of ents) {
+    if (!e.alive || (e === r.owner && r.t < 0.3)) continue;
+    if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 0.55 && p.y > e.pos.y - 0.1 && p.y < e.pos.y + e.h + 0.1) return true;
+  }
+  for (const tr of trucks) if (tr.alive && Math.hypot(tr.pos.x - p.x, tr.pos.z - p.z) < 2 && p.y > tr.pos.y && p.y < tr.pos.y + 3) return true;
+  return false;
+}
+function updateRockets(dt) {
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i]; r.t += dt;
+    r.vel.y -= 1.2 * dt; // only a little drop
+    const sub = Math.max(1, Math.ceil(r.vel.length() * dt / 0.25)), h = dt / sub; let hit = false;
+    for (let k = 0; k < sub && !hit; k++) { r.pos.addScaledVector(r.vel, h); hit = rocketHits(r); }
+    r.mesh.position.copy(r.pos); r.mesh.lookAt(r.pos.clone().add(r.vel));
+    r.puff -= dt;
+    if (r.puff <= 0 && !hit) { r.puff = 0.035; _puff(GUN_FX.bazooka.smoke.tex, r.pos.clone().addScaledVector(r.vel, -0.012), 0.3, 1.5, { color: 0xd8d4cc, grow: 0.9, rise: 0.25, opacity: 0.45, spin: 1 }); }
+    if (hit || r.t > 6) {
+      scene.remove(r.mesh); rockets.splice(i, 1);
+      boom(r.pos.clone().addScaledVector(r.vel.clone().normalize(), -0.4), r.owner, r.w.rocketR, r.w.rocketD, 0.5);
+    }
   }
 }
 
@@ -2853,7 +2944,7 @@ function addPickup(id, pos, opt) {
 }
 function nearestPickup(b) {
   let best = null, bd = 35;
-  for (const pk of PICKUPS) if (pk.active && !b.inv.includes(pk.id)) { const d = b.pos.distanceTo(pk.pos); if (d < bd) { bd = d; best = pk; } }
+  for (const pk of PICKUPS) if (pk.active && pk.id !== 'bazooka' && !b.inv.includes(pk.id)) { const d = b.pos.distanceTo(pk.pos); if (d < bd) { bd = d; best = pk; } }
   return best;
 }
 function centeredClone(sc, yaw) {
@@ -2868,10 +2959,10 @@ function updatePickups(dt, now) {
     if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
     pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
-      if (!e.alive || !e.inv) continue;
+      if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
       if (Math.hypot(e.pos.x - pk.pos.x, e.pos.z - pk.pos.z) < 1.1 && Math.abs(e.pos.y - pk.pos.y) < 1.3 && giveWeapon(e, pk.id, pk.ammo)) {
         if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); }
-        else { pk.active = false; pk.t = 25; pk.mesh.visible = false; }
+        else { pk.active = false; pk.t = WEAPONS[pk.id].respawn || 25; pk.mesh.visible = false; }
         break;
       }
     }
@@ -3011,7 +3102,7 @@ function giveWeapon(e, id, ammo) {
   if (!e.inv.includes(id)) {
     const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
     e.inv.push(id); e.ammoBy[id] = { mag, res };
-    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–5 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
+    if (e.isPlayer) { selectWeapon(id); note(`Picked up ${w.name}`, 1.5); if (e.inv.length > 1) setTimeout(() => hint('swap', 'Q or 1–6 switches weapon'), 1600); } else if (e.isRemote) { e.wpn = id; sendTo(e, { t: 'give', id, ammo }); } else botSelect(e, id);
     return true;
   }
   const a = e.ammoBy[id]; if (a.res >= ammoCap(id)) return false;
@@ -3057,6 +3148,7 @@ function fire() {
   for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
   if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit); // a shut gate takes damage from anyone's bullets
   const start = vmMuzzleWorld();
+  if (w.rocket) { fireRocket(w, start, targets); return; }
   const pellets = w.pellets || 1;
   let sp = spread + (w.cone || 0) * (1 - 0.35 * adsK);
   // Some guns lose accuracy with range: extra spread grows with distance to whatever is under the crosshair
@@ -3093,6 +3185,19 @@ function fire() {
   punch += w.kick * 1.2 * k; vmKick = 1; flashT = GUN_FX[curW] ? GUN_FX[curW].flash.life : 0.04;
   muzzleFx(curW, start, new V3(0, 0, -1).applyQuaternion(camera.quaternion), true, P.id);
   sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 60, g: 1 });
+}
+// The rocket leaves the tube and heads for whatever is under the crosshair
+function fireRocket(w, start, targets) {
+  const cdir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
+  shotRay.set(camera.position, cdir); shotRay.far = 200;
+  const hit = shotRay.intersectObjects(targets, false)[0];
+  const dir = hit && hit.point.distanceTo(start) > 1.5 ? hit.point.clone().sub(start).normalize() : cdir;
+  launchRocket(P, start, dir, w);
+  const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
+  P.pitch = Math.min(1.5, P.pitch + w.kick * 0.35 * k);
+  punch += w.kick * 1.2 * k; vmKick = 1; flashT = GUN_FX[curW].flash.life;
+  muzzleFx(curW, start, cdir, true, P.id);
+  sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 90, g: 1 });
 }
 function updateGun(dt) {
   gun.cd -= dt; knifeCd -= dt;
@@ -3560,7 +3665,7 @@ addEventListener('keydown', e => {
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
   if (e.code === 'KeyE') { if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P))) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
-  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 }[e.code];
+  const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG' || e.code === 'KeyF') releaseCook(); });
@@ -3700,6 +3805,7 @@ function buildViewmodels() {
   for (const [id, w] of Object.entries(WEAPONS)) {
     const holder = centeredClone(w.scene, w.yaw);
     holder.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    if (w.vmScale) holder.scale.setScalar(w.vmScale);   // the bazooka is a metre long: shrink it in first person so it doesn't fill the screen
     const sz = new THREE.Box3().setFromObject(holder).getSize(new V3()), L = sz.z;
     holder.visible = false; vm.add(holder);
     w.len = L;
@@ -3719,8 +3825,19 @@ const knifeVM = new THREE.Group();
 knifeVM.visible = false; vmScene.add(knifeVM);
 let switchT = 0;
 let bobT = 0;
+// The grenade in your hand while you cook it, then lobbed away as you throw
+let nadeVM = null;
+function updateNadeVM() {
+  if (!nadeVM && NADE_MODEL) { nadeVM = new THREE.Group(); const c = NADE_MODEL.clone(true); c.position.y = -0.085; nadeVM.add(c); nadeVM.scale.setScalar(1.15); nadeVM.visible = false; vmScene.add(nadeVM); }
+  if (!nadeVM) return;
+  const throwing = throwT > 0.2, show = P.alive && (cookT >= 0 || throwing);
+  nadeVM.visible = show; if (!show) return;
+  const k = throwing ? 1 - (throwT - 0.2) / 0.2 : 0;   // 0 held, 1 gone
+  nadeVM.position.set(0.1 - k * 0.1, -0.12 + k * 0.05, -0.42 - k * 0.5);
+  nadeVM.rotation.set(0.5 - k * 2, 0.4, -0.3);
+}
 function updateVM(dt) {
-  knifeT -= dt; throwT -= dt;
+  knifeT -= dt; throwT -= dt; updateNadeVM();
   const kp = knifeT > 0 ? 1 - knifeT / 0.6 : 0;
   const ks = Math.max(0, Math.min(1, (kp - 0.2) / 0.6));
   vm.visible = P.alive;
@@ -4184,6 +4301,7 @@ function sGrunt(v) {
   o.connect(bp); bp.connect(g); g.connect(master); o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
   noise(t, dur * 0.6, 0.16 * v, 2000, 500);
 }
+function sBazooka(v) { if (!AC || v < 0.02) return; const t = AC.currentTime; noise(t, 1.1, 0.9 * v, 1600, 120); thump(t, 0.5, 1.0 * v, 70, 22); }
 function sShotgun(v) { if (!AC || v < 0.02) return; const t = AC.currentTime; noise(t, 0.45, 1.0 * v, 2500, 90); thump(t, 0.35, 1.0 * v, 95, 28); }
 // Recorded gun shots in sounds/ (gun=carbine); the laser pistol stays synthesized; any that fail to load fall back to the synth above
 // uzi.wav is an original sound made in code for the Uzi, already levelled to match the carbine at its 0.5 gain
@@ -4198,7 +4316,7 @@ function playSample(buf, v) {
 }
 function sfx(k, v) {
   if (sampleBuf[k]) { if (AC && v >= 0.02) playSample(sampleBuf[k], v * (SAMPLE_GAIN[k] || 1)); return; }
-  ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun, uzi: sGun })[k](v);
+  ({ gun: sGun, laser: sLaser, rifle: sRifle, shotgun: sShotgun, uzi: sGun, bazooka: sBazooka })[k](v);
 }
 function sPin() {
   if (!AC) return; const t = AC.currentTime;
@@ -4686,7 +4804,7 @@ function applyFx(m) {
   switch (m.t) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
-    case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
+    case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1, bazooka: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
@@ -4772,6 +4890,7 @@ function onGuestMsg(conn, m) {
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'cam': r.camOn = !!m.on; break;
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
+    case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
@@ -5176,6 +5295,7 @@ function loop(now) {
     updateTrucks(dt);
     updateRemotes(dt);
     updateNades(dt);
+    updateRockets(dt);
     updateAmmo(dt, now);
     updatePickups(dt, now);
     updateGas(dt);

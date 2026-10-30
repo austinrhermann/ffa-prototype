@@ -182,8 +182,9 @@ Each gun has its own muzzle flash and smoke, seen on your own gun and on other p
 | Master Rifle | Big flash with long side jets | Large white plume that lingers |
 | Double Barrel | Ragged fireball | Thick dark-grey cloud |
 | Uzi | Small four-pointed star | One small light puff |
+| Bazooka | Huge orange fireball | Big grey cloud out the back, and a trail behind the rocket |
 
-These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle`, `shotgun` or `uzi`.
+These are drawn in code for now. To use your own art, add PNGs to an `fx/` folder and set `img` for that gun in `GUN_FX` near the top of the script in `index.html`, for example `img: 'fx/carbine_flash.png'`. Suggested names are `fx/<gun>_flash.png` and `fx/<gun>_smoke.png`, where `<gun>` is `pistol`, `carbine`, `rifle`, `shotgun`, `uzi` or `bazooka`.
 
 - **Flash:** a square PNG (256×256 works well), centred, in full colour on a transparent or black background. It's drawn additively, so black shows as see-through. Each shot rotates it randomly.
 - **Smoke:** a square, centred PNG of one soft puff on a transparent background. Draw it white or light grey, because `color` in `GUN_FX` tints it. Several puffs are spawned per shot, then rotated, grown and faded.
@@ -200,3 +201,15 @@ It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to th
 WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · N camera · Enter chat · Tab scores · Esc pause
 
 Every action has a key, so a one-button Mac mouse or a trackpad can play everything. A scroll-wheel swipe switches weapon once, however long the swipe keeps scrolling. Short hints appear the moment they matter (the keys, low ammo, the wall walk, the computer, the vehicles) a few times per browser, then stop.
+
+## Bazooka, grenade and shed (`tools/build_new_props.py`)
+
+`models/Bazooka.glb`, `models/Grenade.glb` and `models/Shed.glb` are built from the sketches by a Blender script (no source file needed):
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_new_props.py -- models
+```
+
+- **Grenade**: the thrown frag grenade (and the one in your hand while you cook it) now uses the model; it tumbles in flight.
+- **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka lies by the door of each shed; it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
+- **Shed**: a solid 3.6 x 2.8 m hut (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). Two stand in the field outside the fort on both Fortress and Minimal.
