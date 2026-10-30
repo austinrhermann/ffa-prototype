@@ -317,6 +317,7 @@ body.touch .card small.tc{display:block}
   <div class="setrow kb nodrive"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
   <div class="setrow hostonly nodrive"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sprox" data-off="Proximity voice chat: off (everyone hears everyone)" data-on="Proximity voice chat: on (hear only players nearby)"></button><input type="checkbox" id="sprox" hidden></div>
+  <div class="setrow hostonly" id="trpanel"></div>
   <div class="setrow devonly"><button type="button" id="looklink" class="tog">Look: sun, shadow and sky</button></div>
   </div>
   <div class="mbtns"><button type="button" class="wide" data-go="main">‹ Back</button></div>
@@ -2667,6 +2668,7 @@ function resetMatch() {
   HEALS.forEach(h => setHeal(h, true));
   clearCorpses(); clearHoles();
   matchOver = false;
+  if (window.TRANSCRIPT) TRANSCRIPT.event('start');
   if (MODE === 'defend') {
     Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open
     ents.forEach(e => { if (!e.bot) respawn(e); });
@@ -2677,6 +2679,7 @@ function resetMatch() {
 // Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
 function endMatch(w, held) {
   matchOver = true;
+  if (window.TRANSCRIPT) TRANSCRIPT.event('end');
   const def = MODE === 'defend';
   if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const tm = !def && teamsOn() && w.team ? w.team : null;
@@ -4969,6 +4972,7 @@ async function getMic() {
       if (s) s.replaceTrack(track); else { const eid = VOICE.peerEntity[id]; closeVoice(id); callPeer(id, eid); }
     }
     setMute(VOICE.muted);
+    if (window.TRANSCRIPT) TRANSCRIPT.onLocalMic(VOICE.stream);
   } catch (e) { note('Microphone unavailable: voice chat is listen-only', 4); }
 }
 function blankVideoTrack() {
@@ -5017,6 +5021,7 @@ function hookCall(c) {
     VOICE.els[c.peer] = tile.video;
     tile.video.srcObject = s; tile.video.play().catch(() => {});
     tile.meter = speechMeter(s);
+    if (window.TRANSCRIPT) TRANSCRIPT.onRemoteStream(c.peer, s);
   });
   c.on('close', () => closeVoice(c.peer));
 }
@@ -5024,6 +5029,7 @@ function answerCall(c) { if (c.metadata && c.metadata.id) linkPeer(c.peer, c.met
 function callPeer(id, eid) { if (!NET.peer || !id || id === NET.peer.id || VOICE.calls[id]) return; if (eid) linkPeer(id, eid); hookCall(NET.peer.call(id, outStream(), { metadata: { id: P.id } })); }
 function closeVoice(id) {
   const c = VOICE.calls[id]; delete VOICE.calls[id]; try { if (c) c.close(); } catch (e) {}
+  if (window.TRANSCRIPT) TRANSCRIPT.onClose(id);
   delete VOICE.els[id];
   const tile = CAMGRID.tiles[id]; if (tile) { tile.video.srcObject = null; tile.wrap.remove(); delete CAMGRID.tiles[id]; }
   const eid = VOICE.peerEntity[id]; if (eid) delete VOICE.entityPeer[eid]; delete VOICE.peerEntity[id];
@@ -5175,5 +5181,6 @@ requestAnimationFrame(loop);
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js"></script>
+<script src="transcript.js"></script>
 </body>
 </html>
