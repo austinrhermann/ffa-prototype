@@ -694,6 +694,7 @@ function levelFortress() {
     // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
     sheds: [[-34, 42, 1.8]], // Trees to take away: [x, z, radius, mesh]: the ones standing where the shed is and in front of its door, a few leftover pieces
     // floating near it, the bush and the tree beside the road up to the gate, and the tree in the courtyard
+    dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     clearTrees: [[-34, 42, 7], [-26.5, 43.7, 2.5], [-8, 9.9, 3.5], [-11.3, 11.6, 6, 'M_Material004'], [1.7, -1.4, 2.5]],
   };
 }
@@ -923,6 +924,7 @@ function addSetExtras(L) {
     const o = new THREE.Mesh(new THREE.BoxGeometry(0.3, top - bot, len), cm); o.position.set((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2); o.rotation.y = Math.atan2(x1 - x0, z1 - z0); col.add(o); o.updateMatrixWorld();
     if (TEST) o.userData.noShot = true; // test switch: blocks walking only, so bullets, bullet holes and sight lines pass through
   }
+  if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
   if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
