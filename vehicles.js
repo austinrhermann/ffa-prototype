@@ -274,7 +274,7 @@
   // The surface under a wheel: any slope counts (people can't walk up steep hillsides, but a wheel still sits on one)
   function hAt(x, z, top, fallback) {
     let best = null, above = null; const G = TG;
-    tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y === null) return; if (y <= top) { if (best === null || y > best) best = y; } else if (y <= top + 2.5 && (above === null || y < above)) above = y; });
+    tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y === null) return; if (y <= top) { if (best === null || y > best) best = y; } else if (y <= top + 0.8 && (above === null || y < above)) above = y; });
     return best !== null ? best : above !== null ? above : fallback; // nothing below: we've dipped into the ground, so come back up onto it
   }
   function drive(v, dt, inp) {
@@ -307,7 +307,14 @@
     }
     vf -= 0.0009 * vf * Math.abs(vf) * dt;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
+    const ox = v.pos.x, oz = v.pos.z;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
+    // Cliffs and the island's edge are a wall for vehicles too (people get one from onLand): the nose never goes out over a drop
+    // of more than a couple of metres, or over open air (the Test Drive keeps its ramps and jumps)
+    if (TG && TG.nt && v.onGround && !driveMode()) {
+      const lead = p.wheelbase / 2 + 0.8, sg = vf >= 0 ? 1 : -1, ex = v.pos.x + fx * lead * sg, ez = v.pos.z + fz * lead * sg, h = hAt(ex, ez, v.pos.y + 1.2, null);
+      if (h === null || h < v.pos.y - lead * 0.6) { v.pos.x = ox; v.pos.z = oz; v.vel.x *= -0.2; v.vel.z *= -0.2; vf *= -0.2; }
+    }
     v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0); v.speed = vf; // locked wheels squeal too
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
     const L = p.wheelbase / 2, W = (v.kind === 'bike' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5, fb = v.pos.y - 3; // wheels climb ramps, banking and hills, never up a wall
