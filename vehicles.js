@@ -844,6 +844,8 @@
       bumpVehicles();
       for (const v of list) if (simulated(v) && v.owner && !v.dead && !matchOver) runOver(v);
       for (const v of list) { suspension(v, dt); pose(v, dt); }
+      // Dying in a vehicle leaves it where it is (you come back at a spawn point, on foot)
+      if (!P.alive) { if (cur) leave(true); if (ride) unride(true); }
       if (cur && cur.dead) { leave(true); note('Bail out! It\'s wrecked', 2); }
       if (ride && ride.dead) { unride(true); note('Bail out! It\'s wrecked', 2); }
       if (cur) { // the game still sees you where you're sitting
