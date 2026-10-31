@@ -245,7 +245,7 @@ body.touch .card small.tc{display:block}
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button></div>
+  <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button><button type="button" data-lv="sewer">Sewer</button></div>
   <div class="mbtns">
     <button type="button" id="play" class="wide" disabled>Loading characters…</button>
     <button type="button" id="restart" class="hostonly wide" style="display:none">Restart game</button>
@@ -755,6 +755,35 @@ function levelCreek() {
     fortNav: { box: [-46, -23, 46, 23], cell: 0.5, top: 7, bottom: -1.6 },
   };
 }
+// Sewer (Mike's map; tools/build_sewer.py builds it from his iso drafts): a walled hall over a sewer channel, three floors (the
+// sewer walkways, a second floor split by an opening down to the water, a platform on top with two long ramps down), a rocket
+// room, a long curved stair, a square stairwell shaft from the sewer to the top, and a perch tower: a lift from the sewer up to
+// the second floor, then a ladder up through a hatch to the perch. A bare blockout to play-test, drawn like the arena levels.
+// Free for all, 2-8 players. Positions are in the drawings' plan metres [X east, Y north, Z up] (the hall is X 0..48, Y 0..24,
+// floors at 0, 5 and 10), turned into world metres by at(). SCALE stretches the map across and must match the build script's.
+function levelSewer() {
+  const SCALE = 1, at = ([X, Y, Z]) => [(X - 24) * SCALE, Z + 0.4, (12 - Y) * SCALE];
+  const area = (X0, X1, Y0, Y1) => [(X0 - 24) * SCALE, (X1 - 24) * SCALE, (12 - Y1) * SCALE, (12 - Y0) * SCALE]; // [x0, x1, z0, z1]
+  return {
+    mesh: 'Sewer', collide: 'Sewer_col', mode: 'ffa',
+    cs: 2, ox: -64, oz: -70, killY: -8, fog: [60, 220], top: 0, wall: 0,
+    // The sewer walkways and the perch tower's foot; the second floor; the platform, the rocket room and the perch
+    spawns: [[4, 21, 0], [24, 21, 0], [45, 21, 0], [6, 3, 0], [24, 3, 0], [44, 3, 0], [39, 33, 0],
+      [8, 20, 5], [8, 4, 5], [16, 12, 5], [33, 21, 5], [46, 3, 5], [46, 13, 5],
+      [3, 21, 10], [12, 4, 10], [-8, 18, 10], [42, 34, 10]].map(at),
+    ammo: [[14, 21, 0], [40, 3, 0], [13.5, 9, 0], [7, 30, 0], [8, 12, 5], [39.5, 11, 5], [7.6, 12.8, 10], [-1.3, 12, 10], [38, 35, 10]].map(at),
+    heals: [[20, 21, 0], [33, 12, 0], [37, 27, 0], [2, 12, 5], [12.2, 26.5, 5], [12, 21, 10]].map(at),
+    // The rifle up in the perch, the bazooka in the rocket room (on its crate), the rest spread over the three floors
+    pickups: [['rifle', 46, 35, 10], ['bazooka', -8.5, 12, 11], ['shotgun', 26, 21, 0], ['uzi', 13.5, 15, 0], ['shotgun', 25, 12.5, 5],
+      ['carbine', 6, 12, 5], ['carbine', 40, 21, 5], ['uzi', 3, 12, 10]].map(([w, ...p]) => [w, ...at(p)]),
+    // Up from the perch tower's second floor through the hatch: the ladder stands on the short wall under the hatch's east edge
+    ladders: [{ box: [...area(36.2, 37.2, 29.4, 30.6), 5, 10], dir: [1, 0] }],
+    // The lift: a pad in the perch tower's north-east corner, from the sewer (0) up to the second floor (5). See updateLifts
+    lifts: [{ box: area(43.1, 47.6, 32.7, 37.2), y0: 0, y1: 5, th: 0.3 }],
+    // Bots find their way on a fine walking map of every floor, built at load (wall tops and the perch roof are left out)
+    fortNav: { box: [-40 * SCALE, -27 * SCALE, 26 * SCALE, 25 * SCALE], cell: 0.5, top: 12, bottom: -1.6 },
+  };
+}
 // Test Drive (vehicles.js builds the stadium and the vehicles): a small oval with walls, banked turns and ramps, and a
 // parking lot of cars and motorcycles in the infield. No guns, no bots, no score; everyone drives, in third person on foot.
 function levelDrive() {
@@ -764,7 +793,7 @@ function levelDrive() {
     spawns: [[-8, 0.5, 13], [-3, 0.5, 13], [2, 0.5, 13], [7, 0.5, 13], [-13, 0.5, 13], [12, 0.5, 13]], ammo: [], heals: [], pickups: [], ladders: [],
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, minimal: levelMinimal, drive: levelDrive };
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, minimal: levelMinimal, sewer: levelSewer, drive: levelDrive };
 function buildGrid(id) {
   H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
@@ -938,6 +967,11 @@ function addSetExtras(L) {
   if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
   // The tower door's walking shape (shut or open with the door). Bullets don't test it: they hit the door you see (TDOOR.shot),
   // which swings with the door, so only a shut door stops them
+  // Lifts: the pad you see and its walking shape (in the collision set like any floor); updateLifts moves both
+  if (L.lifts) L.lifts.forEach((l, i) => {
+    const [x0, x1, z0, z1] = l.box, th = l.th || 0.3, pad = toonMat({ color: l.color || 0xd9a62e });
+    for (const [g, m] of [[col, cm], [draw, pad]]) { const o = box(g, m, x0, x1, l.y0 - th, l.y0, z0, z1); o.userData.lift = i; o.userData.y0 = o.position.y; }
+  });
   if (L.towerDoor) { const d = L.towerDoor, o = box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06); o.userData.toggle = 'door'; o.userData.noShot = true; }
   if (L.balcony) {
     const b = L.balcony, y = b.y;
@@ -1219,8 +1253,10 @@ function buildTG(root) {
   // The gate starts closed: put it back in its frame before reading its triangles
   const gm = LV.gate ? root.getObjectByName(LV.gate.mesh) : null;
   if (gm) { if (gm.userData.y0 === undefined) gm.userData.y0 = gm.position.y; gm.position.y = gm.userData.y0; }
+  const liftMeshes = [];
+  for (const sc of new Set([root, LEVEL_SCENES[LV.mesh]])) if (sc) sc.traverse(o => { if (o.userData.lift !== undefined) { o.position.y = o.userData.y0; o.updateMatrixWorld(); liftMeshes.push(o); } });
   root.updateMatrixWorld(true);
-  const T = [], B = [], NR = [], water = [], OUT = [], THRU = [], gate = [], toggles = {};
+  const T = [], B = [], NR = [], water = [], OUT = [], THRU = [], gate = [], toggles = {}, lifts = {};
   const a = new V3(), b = new V3(), c = new V3(), e1 = new V3(), e2 = new V3(), n = new V3();
   root.traverse(m => {
     if (!m.isMesh) return;
@@ -1233,6 +1269,7 @@ function buildTG(root) {
       if (m.userData.water) { water.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); continue; }
       if (m === gm) gate.push(NR.length / 3);
       if (m.userData.toggle) (toggles[m.userData.toggle] = toggles[m.userData.toggle] || []).push(NR.length / 3);
+      if (m.userData.lift !== undefined) (lifts[m.userData.lift] = lifts[m.userData.lift] || []).push(NR.length / 3);
       T.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); NR.push(n.x, n.y, n.z); OUT.push(m.material.name === 'FX_Ground' ? 1 : 0); THRU.push(m.userData.thru ? 1 : 0);
       B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
     }
@@ -1262,6 +1299,8 @@ function buildTG(root) {
   G.gate = { mesh: gm, tris: gate, T: gate.map(t => G.T.slice(t * 9, t * 9 + 9)), B: gate.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false, y: 0 };
   G.leaf = { tris: leaf, boxes: [] };
   G.toggles = {}; for (const [k, tris] of Object.entries(toggles)) G.toggles[k] = { tris, T: tris.map(t => G.T.slice(t * 9, t * 9 + 9)), B: tris.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false };
+  G.lifts = Object.entries(lifts).map(([i, tris]) => ({ def: LV.lifts[i], tris, T: tris.map(t => G.T.slice(t * 9, t * 9 + 9)), B: tris.map(t => G.B.slice(t * 6, t * 6 + 6)),
+    meshes: liftMeshes.filter(o => o.userData.lift === +i), y: 0, state: 'down', t: 0, cool: 0 }));
   return G;
 }
 // Opening the gate takes its triangles out of play (collapsed to a point far away, so floors, walls and rays all miss them)
@@ -1296,6 +1335,28 @@ function placeLeaves(a) {
       const nx = ex[1] * ey[2] - ex[2] * ey[1], ny = ex[2] * ey[0] - ex[0] * ey[2], nz = ex[0] * ey[1] - ex[1] * ey[0], l = Math.hypot(nx, ny, nz) || 1;
       G.NR.set([nx / l, ny / l, nz / l], t * 3);
     }
+  }
+}
+// Lifts (Mike's: "Starts at bottom. Auto up when on it. Resets."): the pad waits at the bottom; stand on it for a moment and it
+// rides up to the top, waits there until it's been empty a moment (or long enough), then goes back down. Whoever stands on
+// it rides with it (it's a floor that moves). Every player's game runs this from where everyone is, so they agree near enough.
+function updateLifts(dt) {
+  if (!TG || !TG.lifts || !TG.lifts.length) return;
+  const who = NET.role === 'guest' ? [P, ...replicas.values()] : ents, SPEED = 2.5;
+  for (const L of TG.lifts) {
+    const d = L.def, [x0, x1, z0, z1] = d.box, rise = d.y1 - d.y0, top = d.y0 + L.y;
+    const on = who.some(e => e && e.alive && e.pos.x > x0 + 0.1 && e.pos.x < x1 - 0.1 && e.pos.z > z0 + 0.1 && e.pos.z < z1 - 0.1 && Math.abs(e.pos.y - top) < 0.35);
+    const y = L.y; L.cool = Math.max(0, L.cool - dt);
+    if (L.state === 'down') { L.t = on && !L.cool ? L.t + dt : 0; if (L.t > 0.4) { L.state = 'up'; L.t = 0; } }
+    else if (L.state === 'up') { L.y = Math.min(rise, L.y + SPEED * dt); if (L.y >= rise) { L.state = 'top'; L.t = 0; L.empty = 0; } }
+    else if (L.state === 'top') { L.t += dt; L.empty = on ? 0 : L.empty + dt; if (L.empty > 1.5 || L.t > 8) L.state = 'back'; }
+    else { L.y = Math.max(0, L.y - SPEED * dt); if (L.y <= 0) { L.state = 'down'; L.t = 0; L.cool = 1.5; } }
+    if (L.y === y) continue;
+    L.tris.forEach((t, k) => {
+      for (const j of [1, 4, 7]) TG.T[t * 9 + j] = L.T[k][j] + L.y;
+      TG.B[t * 6 + 1] = L.B[k][1] + L.y; TG.B[t * 6 + 4] = L.B[k][4] + L.y;
+    });
+    for (const o of L.meshes) { o.position.y = o.userData.y0 + L.y; o.updateMatrixWorld(); }
   }
 }
 // Switch a named piece of collision (the tower door) between solid and open
@@ -1654,9 +1715,9 @@ function b64ToBuf(str) { const bin = atob(str), u = new Uint8Array(bin.length); 
 // Draw a level set like the arena levels: whatever faces up enough to walk on gets the tiled floor (2m tiles, laid out in
 // world x and z), everything else the grey wall
 const ARENA_WALL = toonMat({ color: 0x8d949c });
-function arenaStyle(sc) {
+function arenaStyle(sc, keep = () => false) {
   sc.updateMatrixWorld(true);
-  const meshes = []; sc.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const meshes = []; sc.traverse(o => { if (o.isMesh && !keep(o)) meshes.push(o); });
   const a = new V3(), b = new V3(), c = new V3(), n = new V3(), e = new V3();
   for (const m of meshes) {
     const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, pos = g.attributes.position;
@@ -1997,16 +2058,17 @@ function loadModels() {
   })));
   // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
   const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
-  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col'], ['Minimal', 'Minimal_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
+  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col'], ['Minimal', 'Minimal_col'], ['Sewer', 'Sewer_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c)]).then(([sc, col]) => {
     sc.traverse(o => {
       if (!o.isMesh) return;
       if (o.material.map) o.material.map.anisotropy = 8;
       if (o.material.aoMap) o.castShadow = false; // its shadows are baked in (the sun mask); real-time ones are for what moves
       if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
-      if (o.material.name === 'Creek_Water') o.castShadow = false;
+      if (o.material.name === 'Creek_Water' || o.material.name === 'Sewer_Water') o.castShadow = false;
     });
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
     if (d === levelMinimal().mesh) arenaStyle(sc); // blockouts are drawn like the arena levels
+    if (d === levelSewer().mesh) arenaStyle(sc, o => o.material.name === 'Sewer_Water'); // (the sewer's water stays water)
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
   // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
@@ -4349,7 +4411,7 @@ function chooseMode(kind) {
   if (READY && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
-const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', drive: 'Test Drive' };
+const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', sewer: 'Sewer', drive: 'Test Drive' };
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem('tse.last') || 'null'); } catch (e) { return null; } })();
 if (lastGame && LEVEL_DEFS[lastGame.level] && (DEV || lastGame.level === 'fortress')) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
 $('goagain').onclick = () => {
@@ -5507,6 +5569,7 @@ function loop(now) {
   renderPreview(dt);
   updateFx(dt);
   updateGate(dt);
+  updateLifts(dt);
   updateTowerDoorVis(dt);
   updateShells(dt);
   updateCannonVis();
