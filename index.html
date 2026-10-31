@@ -708,9 +708,12 @@ function levelMinimal() {
     // Inside the fort (courtyard, wall walk, tower room), then out across the island
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
       [-10, 23.7, 48], [-26, 25.3, 22], [-32, 24.8, 34], [-34, 27.2, 46], [-12, 33.6, 70], [10, 23.8, 52], [-24, 27.6, 0], [-14, 30.8, -14],
-      [4, 33.3, 36], [24, 33.4, 46], [-26, 28.4, 58], [20, 23.7, 60], [2, 38.5, 70], [-44, 13.6, 18], [32, 20.2, 30], [0, 41.9, 82]],
-    // Team free for all: the Rebels start inside the fort, Midas out behind the hill
-    teamSpawns: { rebels: [0, 1, 2, 3, 4, 5, 6, 7], midas: [8, 11, 12, 13, 18, 19, 20, 23] },
+      [4, 33.3, 36], [24, 33.4, 46], [-26, 28.4, 58], [20, 23.7, 60], [2, 38.5, 70], [-44, 13.6, 18], [32, 20.2, 30], [0, 41.9, 82],
+      // Behind the shed (the side away from its door)
+      [-22.7, 28.9, 56.3], [-26.6, 28.2, 57.3], [-30.5, 28, 58.3], [-20, 31.3, 58.7], [-23.9, 30, 59.7], [-27.8, 29.6, 60.7], [-31.6, 29.2, 61.8], [-25.1, 31.2, 63.1]],
+    // Team free for all: both sides start on the far side of the island from the fort, in opposite corners: the Rebels
+    // behind the shed (west), Midas over to the east. The fort is in the middle for whoever gets there first
+    teamSpawns: { rebels: [24, 25, 26, 27, 28, 29, 30, 31], midas: [13, 17, 19, 20, 22, 23] },
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1],
       [-6, 29.3, 20], [-20, 23.7, 36], [-18, 28, 12], [-36, 27.5, 60], [0, 23.8, 50], [14, 38.4, 72], [38, 30, 48], [-48, 22.8, 34],
       [-2, 34, -12, 1], [-22, 32.1, 68, 1]],
@@ -2715,7 +2718,8 @@ const ROLES = {
 };
 const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
 const isAtk = e => !!(e.bot || e.role === 'atk');
-const maxHp = e => { const k = kitOf(e); return k ? k.hp : 100; };
+const HP = 150; // everyone's health outside the defend roles (was 100: people died too fast)
+const maxHp = e => { const k = kitOf(e); return k ? k.hp : HP; };
 const maxNades = e => { const k = kitOf(e); return k ? k.nades : MAX_NADES; };
 let hostPick = 'master';
 // Host: returns the entities whose role changed so they can be re-equipped
@@ -4063,8 +4067,8 @@ function updateHUD(dt) {
   noteT -= dt; if (noteT <= 0) $('note').textContent = '';
   vig = Math.max(0, vig - dt * 1.1); $('vig').style.opacity = vig;
   hurtT = Math.max(0, hurtT - dt * 3); $('hurt').style.opacity = hurtT;
-  // Below 25 health the world drains of colour and the edges close in, fully grey at 1 health or when dead
-  const lowTo = !P.alive ? 1 : P.health >= 25 ? 0 : Math.min(1, (25 - P.health) / 24);
+  // Below a quarter health the world drains of colour and the edges close in, fully grey at 1% or when dead
+  const pct = P.health / maxHp(P) * 100, lowTo = !P.alive ? 1 : pct >= 25 ? 0 : Math.min(1, (25 - pct) / 24);
   if (lowK !== lowTo) {
     const step = dt * (lowTo > lowK ? 3 : 1.2);
     lowK = Math.abs(lowTo - lowK) <= step ? lowTo : lowK + Math.sign(lowTo - lowK) * step;
