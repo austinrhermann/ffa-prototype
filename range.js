@@ -1,19 +1,24 @@
 // Shooting Range: one player with every weapon and infinite ammo, dummies down the lanes, and a Tab panel to dial the
 // weapons in. It runs the simpler weapon system the other games are moving to:
-//   - Everyone has 10 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage, 1 to 10.
+//   - Everyone has 20 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
 //   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun take B batteries, the Master Rifle its own rounds),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
-//   - One explosive used three ways: thrown, set as a mine, or fired from the tube. A blast does 10 in its centre ring and
+//   - One explosive used three ways: thrown, set as a mine, or fired from the tube. A blast does 7 in its centre ring and
 //     one less in each ring out; walls block it, and it hurts anyone in reach (you too).
-//   - The knife is a weapon you switch to, like the others: 6 from the front, 10 (a kill) from behind.
+//   - The knife is a weapon you switch to, like the others: 4 from the front, a kill from behind.
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, WEAPONS, VMW, gun, ...).
 // The game calls into RANGE (declared in index.html) from its loop, input and blasts; nothing changes outside the range.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const HP = 10;
-  // Health colours, from 1 left (red) to full (blue): HEALTH[h - 1]
-  const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'];
-  const hpColour = h => (h > 0 ? HEALTH[Math.min(HP, h) - 1] : '#2a2a2a');
+  const HP = 20;
+  // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
+  const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
+  const _hc = new THREE.Color();
+  function hpColour(h) {
+    if (h <= 0) return '#2a2a2a';
+    const f = (Math.min(HP, h) - 1) / (HP - 1) * (HEALTH.length - 1), i = Math.floor(f);
+    return '#' + _hc.copy(HEALTH[i]).lerp(HEALTH[Math.min(i + 1, HEALTH.length - 1)], f - i).getHexString();
+  }
   // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of.
   const SLOTS = [
     { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', ammo: 'A battery' },
@@ -30,40 +35,46 @@
   // grow: extra spread built up by holding the trigger (all of it after 8 shots in a row); it settles once you let go.
   const DEFAULTS = {
     guns: {
-      pistol:  { body: 4, head: 7, spread: 3,  grow: 0, rate: 5,  clip: 8,  count: 1,  reload: 1.4, auto: false },
-      carbine: { body: 4, head: 7, spread: 1,  grow: 0, rate: 4,  clip: 8,  count: 1,  reload: 2.0, auto: false },
-      izu:     { body: 1, head: 3, spread: 4,  grow: 4, rate: 16, clip: 32, count: 1,  reload: 1.8, auto: true },
+      pistol:  { body: 3, head: 5, spread: 3,  grow: 0, rate: 5,  clip: 8,  count: 1,  reload: 1.4, auto: false },
+      carbine: { body: 3, head: 5, spread: 1,  grow: 0, rate: 4,  clip: 8,  count: 1,  reload: 2.0, auto: false },
+      izu:     { body: 1, head: 2, spread: 4,  grow: 4, rate: 16, clip: 32, count: 1,  reload: 1.8, auto: true },
       battery: { body: 1, head: 1, spread: 14, grow: 0, rate: 2,  clip: 1,  count: 12, reload: 2.4, auto: false },
-      rifle:   { body: 7, head: 10, spread: 0,  grow: 0, rate: 1,  clip: 1,  count: 1,  reload: 2.6, auto: false },
+      rifle:   { body: 5, head: 7, spread: 0,   grow: 0, rate: 1,  clip: 1,  count: 1,  reload: 2.6, auto: false },
     },
-    blast: { ring: 0.8, show: true },        // ring: width of each damage ring (m); show: draw the rings where a blast goes off
+    blast: { max: 7, ring: 1.1, show: true }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
     tube: { speed: 38, reload: 4.5 },        // rocket speed (m/s)
-    knife: { front: 6, back: 10, reach: 2 },
+    knife: { front: 4, back: HP, reach: 2 },
     move: { walk: 1, run: 16, jump: 12, crouch: 0.55, aim: 0.45 }, // spread added walking, running, in the air; crouching and aiming multiply it
     targets: { strafe: 0, heal: 3 },         // strafe: lane dummies pace side to side at this speed (m/s); heal: damage wears off after this long
   };
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
-  const SAVE = 'tse.range.v2';
-  // Settings saved when everyone had 7 health come across scaled to 10 (damage × 10/7, rings × 7/10: the same reach)
-  function from7(o) {
-    if (!o) return null;
-    const k = v => Math.max(1, Math.min(10, Math.round(v * 10 / 7)));
-    for (const g of Object.values(o.guns || {})) for (const f of ['body', 'head']) if (typeof g[f] === 'number') g[f] = k(g[f]);
-    if (o.knife) for (const f of ['front', 'back']) if (typeof o.knife[f] === 'number') o.knife[f] = k(o.knife[f]);
-    if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.max(0.3, Math.round(o.blast.ring * 7) / 10);
+  const SAVE = 'tse.range.v3';
+  // Older saves: damage stays as it was tuned with 7 health (v1); the brief 10-health version (v2) scaled it up by 10/7, so
+  // that comes back down. A knife from behind that killed then still kills.
+  function oldSave() {
+    const read = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+    let o = read('tse.range.v2'), was = 10;
+    if (o) {
+      const k = v => Math.max(1, Math.round(v * 7 / 10));
+      for (const g of Object.values(o.guns || {})) for (const f of ['body', 'head']) if (typeof g[f] === 'number') g[f] = k(g[f]);
+      if (o.knife && typeof o.knife.front === 'number') o.knife.front = k(o.knife.front);
+      if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.round(o.blast.ring * 100 / 7) / 10;
+    } else { o = read('tse.range.v1'); was = 7; }
+    if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? HP : o.knife.back;
     return o;
   }
-  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null') || from7(JSON.parse(localStorage.getItem('tse.range.v1') || 'null'))); } catch (e) { return clone(DEFAULTS); } })();
+  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave()); } catch (e) { return clone(DEFAULTS); } })();
   function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
 
   const on = () => MODE === 'range';
   let cur = 0, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const slot = () => SLOTS[cur];
   const gunOf = s => S.guns[s.id];
-  const ringDmg = d => d >= HP * S.blast.ring ? 0 : HP - Math.floor(d / S.blast.ring);
+  const blastR = () => S.blast.max * S.blast.ring; // how far a blast reaches
+  const ringDmg = d => d >= blastR() ? 0 : S.blast.max - Math.floor(d / S.blast.ring);
 
   // ---------------------------------------------------------------- the yard (built once, like Test Drive's stadium)
   function canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; }
@@ -111,13 +122,18 @@
   }
   buildYard();
 
-  // The damage rings, as a picture: 10 in the middle band, 1 in the outer one (drawn once, scaled to the ring width)
-  const ringTex = canvasTex(1024, 1024, (g, w) => {
-    const c = w / 2, step = c / HP;
-    for (let k = HP; k >= 1; k--) { g.beginPath(); g.arc(c, c, k * step - 2, 0, Math.PI * 2); g.fillStyle = `rgba(255,${120 + Math.round(130 * k / HP)},60,${0.05 + 0.25 * (HP - k) / HP})`; g.fill(); g.lineWidth = 5; g.strokeStyle = 'rgba(255,240,220,.85)'; g.stroke(); }
-    g.font = '700 36px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
-    for (let k = 0; k < HP; k++) g.fillText(String(HP - k), c, c - (k + 0.5) * step);
-  });
+  // The damage rings, as a picture: the centre damage in the middle band, 1 in the outer one (scaled to the ring width;
+  // redrawn when the centre damage changes)
+  const ringTex = canvasTex(1024, 1024, () => {}), ringN = { n: 0 };
+  function drawRings() {
+    const n = S.blast.max; if (n === ringN.n) return; ringN.n = n;
+    const g = ringTex.image.getContext('2d'), w = 1024, c = w / 2, step = c / n; g.clearRect(0, 0, w, w);
+    for (let k = n; k >= 1; k--) { g.beginPath(); g.arc(c, c, k * step - 2, 0, Math.PI * 2); g.fillStyle = `rgba(255,${120 + Math.round(130 * k / n)},60,${0.05 + 0.25 * (n - k) / n})`; g.fill(); g.lineWidth = 5; g.strokeStyle = 'rgba(255,240,220,.85)'; g.stroke(); }
+    g.font = `700 ${Math.min(46, Math.round(step * 0.7))}px system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+    for (let k = 0; k < n; k++) g.fillText(String(n - k), c, c - (k + 0.5) * step);
+    ringTex.needsUpdate = true;
+  }
+  drawRings();
   const ringGeo = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
   const ringMesh = () => new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, opacity: 0.9 }));
   let pitRings = null;
@@ -125,7 +141,7 @@
   function showRings(p) {
     if (!S.blast.show) return;
     const m = ringMesh(), g = groundAt(p.x, p.z, p.y + 0.5);
-    m.position.set(p.x, (g === null ? p.y : g) + 0.05, p.z); m.scale.setScalar(HP * S.blast.ring); scene.add(m); flashes.push({ m, t: 2.5 });
+    m.position.set(p.x, (g === null ? p.y : g) + 0.05, p.z); m.scale.setScalar(blastR()); scene.add(m); flashes.push({ m, t: 2.5 });
   }
 
   // ---------------------------------------------------------------- dummies
@@ -149,7 +165,6 @@
   function drawPips(t) {
     const g = t.ctx, w = 192; g.clearRect(0, 0, w, w);
     g.beginPath(); g.arc(w / 2, 54, 40, 0, Math.PI * 2); g.fillStyle = hpColour(t.dead > 0 ? 0 : HP - t.dmg); g.fill();
-    g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.85)'; g.stroke();
     if (t.last) { g.font = '700 34px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 6; g.strokeText(t.last, w / 2, 150); g.fillText(t.last, w / 2, 150); }
     t.tex.needsUpdate = true;
   }
@@ -225,7 +240,7 @@
   const myRockets = new Set();
   // Damage in rings round the blast: 10 at the centre, one less each ring out. Anyone with a clear line to it is hurt.
   function blast(pos, owner, src) {
-    const R = HP * S.blast.ring;
+    const R = blastR();
     addScorch(pos, Math.min(4, R * 0.3)); _boomFx(pos, src === 'tube' ? 6.5 : R * 0.6); sBoom(vol(pos, 90));
     const o = pos.clone(); o.y += 0.3;
     showRings(o);
@@ -373,7 +388,7 @@
   #rslots div{background:rgba(0,0,0,.45);padding:4px 9px;border-radius:3px;border-left:3px solid transparent}
   #rslots div.on{background:rgba(0,0,0,.75);border-left-color:#f0874d;color:#fff}
   #rslots small{opacity:.6;font-weight:500}
-  #rhp{position:fixed;left:14px;top:14px;z-index:6;width:46px;height:46px;border-radius:50%;box-sizing:border-box;border:2px solid rgba(255,255,255,.85);display:none;transition:background-color .15s;pointer-events:none}
+  #rhp{position:fixed;left:14px;top:14px;z-index:6;width:46px;height:46px;border-radius:50%;display:none;transition:background-color .15s;pointer-events:none}
   body.range-on #hpbar{visibility:hidden}
   #rcard{position:fixed;left:72px;top:14px;z-index:6;display:none;max-width:min(430px,calc(100vw - 86px));background:rgba(0,0,0,.55);border-radius:4px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;color:#e8ece6;pointer-events:none}
   #rcard .w{font:700 15px system-ui,sans-serif;color:#fff}#rcard .k{color:#9aa5b1}#rcard .h{margin-top:4px;color:#cfd6dd}#rcard .h div:first-child{color:#8fe39a}
@@ -393,7 +408,7 @@
   #rpanel button.go{background:#f0874d;color:#1a1208;border-color:#f0874d}
   #rpanel button.sm{flex:0 0 auto;padding:4px 8px;font-size:12px;margin-top:4px}
   #rpanel .info{color:#9aa5b1;font-size:12px;margin-top:10px}
-  #rcross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;box-sizing:border-box;display:none;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  #rcross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;box-sizing:border-box;display:none}
   body.range-on .ch{display:none}
   body.touch #rslots,body.touch #rcard,body.touch #rhp{display:none!important}`;
   document.head.append(css);
@@ -420,7 +435,7 @@
     const nb = Math.ceil(HP / g.body), nh = Math.ceil(HP / g.head), t = n => (n === 1 ? 'instant' : shotsTime(g, n).toFixed(2) + ' s');
     return `Body: ${plural(nb, 'shot')} to kill (${t(nb)}). Head: ${plural(nh, 'shot')} (${t(nh)}).`;
   }
-  function blastMath() { const r = S.blast.ring, h = Math.ceil(HP / 2); return `${HP} within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: ${h} at ${fmt((HP - h) * r, 0.1)} m, 1 at ${fmt((HP - 1) * r, 0.1)} m, nothing past ${fmt(HP * r, 0.1)} m.`; }
+  function blastMath() { const r = S.blast.ring, n = S.blast.max, h = Math.ceil(n / 2); return n === 1 ? `1 within ${fmt(r, 0.1)} m, nothing past that.` : `${n} within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: ${h} at ${fmt((n - h) * r, 0.1)} m, 1 at ${fmt((n - 1) * r, 0.1)} m, nothing past ${fmt(n * r, 0.1)} m.`; }
   let aimT = null, cardT = 0;
   function drawCard() {
     const s = slot();
@@ -435,8 +450,8 @@
   // ---------------------------------------------------------------- the Tab panel
   // Projectile rows: [key, label, min, max, step, unit, help]
   const GUN_ROWS = [
-    ['body', 'Body damage', 1, 10, 1, '', ''],
-    ['head', 'Head damage', 1, 10, 1, '', ''],
+    ['body', 'Body damage', 1, HP, 1, '', ''],
+    ['head', 'Head damage', 1, HP, 1, '', ''],
     ['spread', 'Spread', 0, 30, 0.5, '', 'How wide the shots land: N covers a circle N × 10 cm across at 10 m (twice that at 20 m). 0 goes exactly where you aim.'],
     ['grow', 'Spread growth (recoil)', 0, 20, 0.5, '', 'Extra spread you build up holding the trigger: all of it after 8 shots in a row. It settles back once you stop.'],
     ['rate', 'Rate of fire', 0.5, 20, 0.5, 'shots/s', ''],
@@ -447,7 +462,8 @@
   // Other rows: [path, label, min, max, step, unit, help]
   const OTHER = [
     ['Explosive (all three ways)', [
-      ['blast.ring', 'Ring width', 0.3, 3, 0.1, 'm', 'Each ring out from the centre does one less damage.'],
+      ['blast.max', 'Centre damage', 1, HP, 1, '', 'What a blast does in its middle ring. Each ring out does one less.'],
+      ['blast.ring', 'Ring width', 0.3, 3, 0.1, 'm', ''],
       ['throw.fuse', 'Grenade fuse', 0.5, 5, 0.25, 's', 'From pulling the pin. Hold the button to cook it.'],
       ['mine.arm', 'Mine arms after', 0, 5, 0.25, 's', ''],
       ['mine.radius', 'Mine trigger distance', 0.5, 6, 0.25, 'm', 'Anyone this close sets it off (you too).'],
@@ -456,8 +472,8 @@
       ['tube.reload', 'Tube reload', 0.5, 8, 0.1, 's', ''],
     ], 'blast'],
     ['Knife', [
-      ['knife.front', 'From the front', 1, 10, 1, '', ''],
-      ['knife.back', 'From behind', 1, 10, 1, '', ''],
+      ['knife.front', 'From the front', 1, HP, 1, '', ''],
+      ['knife.back', 'From behind', 1, HP, 1, '', ''],
       ['knife.reach', 'Reach', 1, 4, 0.1, 'm', ''],
     ]],
     ['Moving (every gun)', [
@@ -508,13 +524,13 @@
       if (el.type === 'checkbox') setP(p, el.checked);
       else { setP(p, +el.value); const row = OTHER.flatMap(o => o[1]).find(r => r[0] === p); panel.querySelector(`#rq-${CSS.escape(p)}`).textContent = `${fmt(getP(p), row[4])} ${row[5]}`; }
       const bm = panel.querySelector('#rm-blast'); if (bm) bm.textContent = blastMath();
-      if (p === 'blast.ring' && pitRings) pitRings.scale.setScalar(HP * S.blast.ring);
+      if ((p === 'blast.ring' || p === 'blast.max') && pitRings) { drawRings(); pitRings.scale.setScalar(blastR()); }
       save();
     });
     panel.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { S.guns[b.dataset.reset] = clone(DEFAULTS.guns[b.dataset.reset]); save(); buildPanel(); });
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
     panel.querySelector('#r-mines').onclick = e => { clearMines(); e.target.textContent = 'Mines cleared'; };
-    panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); if (pitRings) pitRings.scale.setScalar(HP * S.blast.ring); buildPanel(); };
+    panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); if (pitRings) pitRings.scale.setScalar(blastR()); buildPanel(); };
     panel.querySelector('#r-copy').onclick = e => {
       const txt = JSON.stringify(S, null, 1);
       navigator.clipboard.writeText(txt).then(() => { e.target.textContent = 'Copied'; }).catch(() => { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'width:100%;height:120px;margin-top:8px'; panel.append(ta); ta.select(); });
@@ -545,7 +561,7 @@
       if (!on()) { if (built) teardown(); return; }
       if (!built) {
         buildDummies();
-        pitRings = ringMesh(); pitRings.position.set(PIT.x, 0.045, PIT.z); pitRings.scale.setScalar(HP * S.blast.ring); pitRings.material.opacity = 0.55; scene.add(pitRings);
+        pitRings = ringMesh(); pitRings.position.set(PIT.x, 0.045, PIT.z); pitRings.scale.setScalar(blastR()); pitRings.material.opacity = 0.55; scene.add(pitRings);
         built = true;
       }
       dummies.forEach(resetDummy); clearMines(); myRockets.clear(); myHp = HP; myDownT = 0;
