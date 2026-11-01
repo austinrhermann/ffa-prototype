@@ -117,10 +117,10 @@ The lift waits at the bottom. Stand on it and it rides up, waits until it's been
 
 Mike's third way into the fort, on a copy of the Minimal map (dev only while it's tried out: open it with `?dev&level=tunnel`, or pick **Minimal + tunnel** on the `?dev` title page; plain Minimal is unchanged). The fort now has three ways in: the front gate, James's back trail, and the tunnel.
 
-- **Shed:** a square hole in the shed's floor opens on a shaft. Drop down it, or climb the ladder back up.
+- **Shed:** a square hole in the shed's floor opens on a shaft. Drop down it, or climb the ladder back up. The Master rifle waits in the shed's corner (the tunnel makes a long hallway for it); the bazooka moved out to the top of the hill in the middle, between the fort and the shed.
 - **Tunnel:** about 52 m long, 2 m wide and 2.4 m tall, lit by bulbs on a wire. It runs level under the valley, then ramps up toward the fort.
 - **Cellar:** under the fort's west wall, with crates and barrels.
-- **Way in:** open stairs (nothing between the flights, so the two sides can shoot each other across the stairwell) wind up from the cellar to a wooden door in the back wall of the room left of the gate. E opens and shuts it from either side, and nobody can lock it.
+- **Way in:** open stairs (nothing between the flights, so the two sides can shoot each other across the stairwell) wind up from the cellar to a wooden door in the back wall of the room left of the gate. E opens and shuts it from either side, and nobody can lock it. Bots open it (and the shed's doors) when their way goes through.
 
 It's built when the level loads (`TUNNEL_MINIMAL`, `buildTunnel`): `cutConvex` cuts the doorway, the stairwell, the cellar and the shaft out of the set (picture and collision alike), then the tunnel's pieces are added. To carry it over to the Fortress, the same description with Fortress's shed spot and ground heights should do.
 
@@ -221,6 +221,12 @@ Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the 
 
 It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link; the older `?give=cobray` also works): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
 
+## Headshots and the Master rifle
+
+- **Master rifle:** a headshot kills, and so does a shot through the middle of the upper chest (the top half of the torso, its middle three quarters across, `core` in `makeBotMesh`). Anywhere else (stomach, arms, legs) takes half your health, so two of those kill. A bot's rifle hit kills about half the time.
+- **Midas Carbine:** a headshot kills; a body hit does 22. Bots' carbine headshots still do 58 (`botHead`), so a lucky bot burst doesn't one-shot a player.
+- **Fortress gate:** twice as tough as before (`hp: 2000`).
+
 ## Controls
 
 WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · N camera · Enter chat · Tab scores · Esc pause
@@ -236,5 +242,5 @@ Every action has a key, so a one-button Mac mouse or a trackpad can play everyth
 ```
 
 - **Grenade**: the thrown frag grenade (and the one in your hand while you cook it) now uses the model; it tumbles in flight.
-- **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka waits inside the shed on each map; it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
-- **Shed**: a 3.6 x 2.8 m hut you can walk into (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). E at the door opens and shuts it (a shut door blocks movement, bullets and sight). A bulb lights the inside, and there is a window in the front and one in the back. A level's `clearTrees: [[x, z, r]]` removes the trees standing within r metres of a spot (the Fortress shed needed one). One stands in the field outside the fort on both Fortress and Minimal.
+- **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka waits inside the shed on each map (on Minimal + tunnel, on the middle hill instead); it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
+- **Shed**: a 3.6 x 2.8 m hut you can walk into (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). E at the door opens and shuts it (a shut door blocks movement, bullets and sight); bots open a shut door when their way goes through it. `shedCut: true` cuts away ground that pokes up through the floor (Minimal has it). A bulb lights the inside, and there is a window in the front and one in the back. A level's `clearTrees: [[x, z, r]]` removes the trees standing within r metres of a spot (the Fortress shed needed one). One stands in the field outside the fort on both Fortress and Minimal.

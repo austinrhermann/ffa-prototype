@@ -689,8 +689,8 @@ function levelFortress() {
     towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
     // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts shut with a
     // health pool (hp); Midas bots shoot it from the road (siege: [x, z] spots) until it gives way. Once open, E at the door
-    // (or the computer in the tower room) shuts it again, and a shut gate is whole again
-    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 1000, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
+    // (or the computer in the tower room) shuts it again, and a shut gate is whole again. (hp was 1000: twice as tough now)
+    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 2000, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
     core: { mesh: 'Important Computer', at: [5.29, 44.96, 1.4], hp: 260 },
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
@@ -732,8 +732,8 @@ function levelMinimal() {
     ladders: [],
     // Bots find their way on a fine walking map of every floor, built at load: area [x0, z0, x1, z1], cell size, height range
     fortNav: { box: [-52, -18, 42, 98], cell: 0.5, top: 50, bottom: 6 },
-    // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0)
-    sheds: [[-28, 52, 3.4]],
+    // Sheds out in the field: [x, z, yaw] (the door faces +z at yaw 0); shedCut: take away the ground that pokes up through the floor
+    sheds: [[-28, 52, 3.4]], shedCut: true,
     vehicles: [['truck', 15, 57.5, -2.03]], // the same truck, in the same spot, as the Fortress
   };
 }
@@ -774,8 +774,10 @@ const TUNNEL_MINIMAL = {
 function levelMinimalTunnel() {
   const L = levelMinimal(), T = TUNNEL_MINIMAL;
   L.mesh = 'MinimalTunnel'; L.collide = 'MinimalTunnel_col'; L.tunnel = T;
-  // the shed's bazooka stood where the hole is: into the corner
-  L.pickups = L.pickups.map(p => p[0] === 'bazooka' && Math.hypot(p[1] + 28.5, p[3] - 52.5) < 1 ? ['bazooka', -29.0, 27.5, 53.2] : p);
+  // the Master Rifle in the shed's corner instead of the bazooka (the tunnel makes a long hallway for it), and the bazooka up on the
+  // hill in the middle, between the fort and the shed
+  L.pickups = L.pickups.map(p => p[0] === 'bazooka' && Math.hypot(p[1] + 28.5, p[3] - 52.5) < 1 ? ['rifle', -29.0, 27.5, 53.2] : p);
+  L.pickups.push(['bazooka', 3, 34, 35.5]);
   // the ladder up the shaft, on its back wall: you face it (dir) to climb, and step off onto the shed floor at the top
   const u = [T.to[0] - T.from[0], T.to[1] - T.from[1]], len = Math.hypot(...u); u[0] /= len; u[1] /= len;
   const n = [-u[1], u[0]], corners = [[-T.shaft, -0.35], [-T.shaft, 0.35], [-0.1, -0.35], [-0.1, 0.35]].map(([s, l]) => [T.from[0] + u[0] * s + n[0] * l, T.from[1] + u[1] * s + n[1] * l]);
@@ -913,7 +915,7 @@ function solidifyTrees(col, draw, cm) {
 // doorway left open, a floor and a roof. The door itself is only a picture: it swings open when anyone comes near (updateSheds) and shuts again.
 const SHED = { w: 3.6, d: 2.8, eave: 2.3, ridge: 3.15, t: 0.12, dx0: -1.55, dx1: -0.55, dh: 2.0, wl: 0.97, wh: 1.84, fwin: [0.45, 1.25], bwin: [-1.3, -0.5], bdoor: [0.55, 1.55] };
 const SHEDS = [];
-function placeShed(col, draw, x, z, yaw) {
+function placeShed(col, draw, x, z, yaw, cutGround) {
   col.updateMatrixWorld(true);
   const rc = new THREE.Raycaster(), cs = Math.cos(yaw), sn = Math.sin(yaw), down = new V3(0, -1, 0), S = SHED;
   const at = (lx, lz) => new V3(x + lx * cs + lz * sn, 0, z - lx * sn + lz * cs); // shed-local (lx, lz) to world x, z
@@ -924,6 +926,9 @@ function placeShed(col, draw, x, z, yaw) {
   }
   if (!isFinite(lo)) { console.warn('No ground for the shed at', x, z); return; }
   const base = hi, cm = new THREE.MeshBasicMaterial({ visible: false }), stone = toonMat({ color: 0x8b887f });
+  // the floor sits at the highest of five spots, so a ridge between them can still poke through it: cut that ground away (picture and
+  // collision), before the shed goes in so the shed itself isn't cut
+  if (cutGround) { const box = obbPlanes([x, z], [cs, -sn], S.w / 2, S.d / 2, base + 0.002, base + S.ridge + 0.5); cutConvex(draw, box); cutConvex(col, box); }
   const grp = new THREE.Group(); grp.position.set(x, 0, z); grp.rotation.y = yaw; draw.add(grp);   // the picture, in shed space
   const cgrp = new THREE.Group(); cgrp.position.set(x, 0, z); cgrp.rotation.y = yaw; col.add(cgrp);   // the collision, in shed space
   const g = SHED_MODEL.clone(true); g.position.y = base; grp.add(g);
@@ -979,7 +984,11 @@ function placeShed(col, draw, x, z, yaw) {
 }
 // Doors: E opens and shuts the one you're at the door of; the picture swings to follow
 const nearShed = e => { if (!LV || !LV.mesh) return -1; return SHEDS.findIndex(sh => sh.scene === LEVEL_SCENES[LV.mesh] && e.alive && Math.abs(e.pos.y - sh.y) < 2.5 && Math.hypot(e.pos.x - sh.p.x, e.pos.z - sh.p.z) < 2.6); };
-function setShedDoor(i, open) { const sh = SHEDS[i]; sh.open = open; if (TG) setSolid(sh.tog, open); netFx({ t: 'sd', i, o: open ? 1 : 0 }); }
+// The doors of the level being played, in the order its set builds them (the same on every machine; SHEDS itself fills up in the order
+// levels were first visited, which differs between the host and a guest, so the network counts doors within the level)
+const levelSheds = () => LV && LV.mesh ? SHEDS.filter(sh => sh.scene === LEVEL_SCENES[LV.mesh]) : [];
+function setShedDoor(i, open) { const sh = SHEDS[i]; sh.open = open; if (TG) setSolid(sh.tog, open); netFx({ t: 'sd', k: levelSheds().indexOf(sh), o: open ? 1 : 0 }); }
+function syncShedDoor(sh, open) { if (sh && sh.open !== open) { sh.open = open; if (TG) setSolid(sh.tog, open); } } // guests: as the host says
 function useShedDoor(e) {
   const i = nearShed(e); if (i < 0) return false;
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'sdoor' }); return true; }
@@ -1142,7 +1151,7 @@ function addSetExtras(L) {
   if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
-  if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
+  if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0, L.shedCut);
   if (L.tunnel) buildTunnel(L.tunnel, col, draw, cm); // after the shed: the hole goes through its floor
   // The tower door's walking shape (shut or open with the door). Bullets don't test it: they hit the door you see (TDOOR.shot),
   // which swings with the door, so only a shut door stops them
@@ -1955,8 +1964,10 @@ function orientWeapon(sc) {
 const WEAPONS = {
   pistol:  { key: 'Laser_Pistol',  name: 'Laser Pistol',  auto: false, rate: 0.17, dmg: 12, head: 36, mag: 12, startRes: 24, maxRes: 48,  spread: 0.033,  hip: 0,    sprayAdd: 0.12, kick: 0.021, reload: 1.4, fov: 60, tracer: 0xff4a3a, sound: 'laser', trW: 0.022, trLife: 0.16, botAcc: 0.3 },
   // 3-round burst: a weaker, faster Master Rifle that is far more accurate than a spray gun. rate = pause between bursts, burstGap = time between the three shots.
-  carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: false, burst: 3, burstGap: 0.072, rate: 0.4, dmg: 22, head: 58, mag: 24, startRes: 30, maxRes: 90, spread: 0.006, hip: 0.008, sprayAdd: 0.07, kick: 0.03, reload: 2.2, fov: 45, tracer: 0xffe08a, sound: 'gun', trW: 0.02, trLife: 0.14, rangeSpread: 0.012, botAcc: 0.5 },
-  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
+  // A headshot kills outright (players' shots; a bot's headshot does botHead, so a lucky bot burst doesn't one-shot a player)
+  carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: false, burst: 3, burstGap: 0.072, rate: 0.4, dmg: 22, head: 999, botHead: 58, mag: 24, startRes: 30, maxRes: 90, spread: 0.006, hip: 0.008, sprayAdd: 0.07, kick: 0.03, reload: 2.2, fov: 45, tracer: 0xffe08a, sound: 'gun', trW: 0.02, trLife: 0.14, rangeSpread: 0.012, botAcc: 0.5 },
+  // The Master Rifle (zones): the head, or the middle of the upper chest (makeBotMesh's core), kills; anywhere else takes half your health
+  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, zones: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   // holes = bullet holes left per pellet that hits a wall
   shotgun: { key: null,            name: 'Double Barrel', auto: false, holes: 10, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.35,  kick: 0.22, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1 },
   // Mike's machine pistol, an SMG (draft numbers): 16 shots/s for less per hit than the carbine, so it wins up close, but it sprays
@@ -2474,6 +2485,7 @@ function crouchHit(e) {
   if (!e.hit || !e.rig) return;
   const k = 1 - e.rig.cr * (1 - CROUCH_H / STAND_H);
   for (const o of e.hit) { o.position.y = o.userData.y * k; if (o.userData.part !== 'head') o.scale.y = k; }
+  if (e.core) { e.core.position.y = e.core.userData.y * k; e.core.scale.y = k; }
 }
 // Turn a networked body smoothly toward its latest reported yaw
 function smoothYaw(e, dt) { e.yawV = e.yawV === undefined ? e.yaw : e.yawV + wrap(e.yaw - e.yawV) * Math.min(1, dt * 16); return e.yawV; }
@@ -2488,6 +2500,10 @@ function makeBotMesh(ent, mi) {
     part(0.7, torsoH, 0.45, 0.8 * k + torsoH / 2, 'body'),
     part(0.4, 0.4, 0.4, hy + 0.08, 'head'),
   ];
+  // The Master Rifle's kill zone besides the head: the upper half of the torso, its middle three quarters across (and front to back),
+  // so the arms and the outside of the shoulders don't count. Not a target itself: a shot that hits the body is tested against it
+  const cy = 0.8 * k + torsoH * 0.75;
+  ent.core = new THREE.Mesh(new THREE.BoxGeometry(0.7 * 0.75, torsoH / 2, 0.45 * 0.75), inv); ent.core.position.y = cy; ent.core.userData = { y: cy }; g.add(ent.core);
   return g;
 }
 // ---------- Name tags over other players ----------
@@ -3000,7 +3016,7 @@ document.querySelectorAll('#roles button').forEach(b => b.onclick = () => {
   hostPick = b.dataset.role; document.querySelectorAll('#roles button').forEach(x => x.classList.toggle('on', x === b));
   rekit(assignRoles());
 });
-const SIEGE_RATE = 0.8; // gate health lost per second per attacker at it
+const SIEGE_RATE = 0.4; // gate health lost per second per attacker at it (was 0.8: the gate is twice as tough now)
 const ATK_SPEED = 0.7; // attackers move at this fraction of normal bot speed
 const WAVE_SIZES = [4, 8, 12], waveSize = n => WAVE_SIZES[Math.min(n, WAVE_SIZES.length) - 1]; // attackers in each wave, all on the field at once
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
@@ -3588,6 +3604,8 @@ function fire() {
       const head = ud.part === 'head';
       let d = (head ? w.head : w.dmg) * falloffAt(w, hit.distance);
       if (w.pellets) d *= Math.max(0.25, Math.min(1, 1 - (hit.distance - 8) / 24));
+      // the rifle: the head, or a shot into the torso that goes through the middle of the upper chest, kills; anything else takes half
+      if (w.zones && !head && !(hit.object === ud.ent.hit[1] && ud.ent.core && shotRay.intersectObject(ud.ent.core, false).length)) d = Math.ceil(maxHp(ud.ent) / 2);
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
     } else if (ud.gas) shootGas(ud.gas, P);
     else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
@@ -3725,10 +3743,11 @@ function botShoot(b, t, dist) {
     let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
-    if (hit) { total += (hd ? w.head : w.dmg) * falloffAt(w, dist); head = head || hd; }
+    if (hit) { total += (hd ? (w.botHead || w.head) : w.dmg) * falloffAt(w, dist); head = head || hd; }
   }
   addHoles(marks);
-  if (total) damage(t, w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head);
+  // the rifle: a headshot kills, and so does about half of the body hits (the middle of the chest); the rest take half your health
+  if (total) damage(t, w.zones ? (head || Math.random() < 0.5 ? 999 : Math.ceil(maxHp(t) / 2)) : w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head);
 }
 function botNade(b, t) {
   b.nades--;
@@ -3779,6 +3798,15 @@ function buildFortNav() {
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
   const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
   const wasOpen = TG.gate && TG.gate.open; if (TG.gate) setGateSolid(true); // map the gate passage as open
+  // and every shed and cellar door: bots open a shut one when their path goes through it (walkFine). Only the walking shape is
+  // taken out for the mapping, then put back as it was
+  const doors = levelSheds().map(sh => ({ sh, i: SHEDS.indexOf(sh), g: TG.toggles && TG.toggles[sh.tog] })).filter(d => d.g);
+  const tgSolid = (g, solid) => g.tris.forEach((t, k) => { if (solid) { TG.T.set(g.T[k], t * 9); TG.B.set(g.B[k], t * 6); } else { TG.T.fill(1e6, t * 9, t * 9 + 9); TG.B.fill(1e6, t * 6, t * 6 + 6); } });
+  for (const d of doors) {
+    const v = d.g.T.flatMap(T => [0, 3, 6].map(o => [T[o], T[o + 1], T[o + 2]]));
+    d.box = [Math.min(...v.map(p => p[0])), Math.max(...v.map(p => p[0])), Math.min(...v.map(p => p[1])), Math.max(...v.map(p => p[1])), Math.min(...v.map(p => p[2])), Math.max(...v.map(p => p[2]))];
+    if (!d.g.open) tgSolid(d.g, false);
+  }
   const cells = new Array(nx * nz), N8 = [[1, 0], [0, 1], [1, 1], [1, -1]];
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
     const x = x0 + i * S, z = z0 + j * S, list = [];
@@ -3800,7 +3828,26 @@ function buildFortNav() {
       na.nb.push(b); nb.nb.push(a);
     }
   }
+  // a node in the middle of each doorway, joined to the floor either side of it: a 1 m doorway can fall between the map's cells, so
+  // none of them fits a body there
+  for (const d of doors) {
+    const [bx0, bx1, by0, , bz0, bz1] = d.box, cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
+    let nx = d.sh.p.x - cx, nz = d.sh.p.z - cz, nl = Math.hypot(nx, nz);
+    if (nl < 0.2) { nx = bx1 - bx0 < bz1 - bz0 ? 1 : 0; nz = 1 - nx; nl = 1; } // a door square to the axes, its point in the doorway
+    nx /= nl; nz /= nl;
+    const g = groundAt(cx, cz, by0 + 0.5); if (g === null || !fitsAt(cx, g + 0.05, cz)) continue;
+    const k = FN.nodes.push({ x: cx, y: g, z: cz, nb: [], door: d.i }) - 1;
+    for (let m = 0; m < k; m++) {
+      const o = FN.nodes[m], dx = o.x - cx, dz = o.z - cz, along = Math.abs(dx * nx + dz * nz), side = Math.abs(dx * nz - dz * nx);
+      if (along > 0.25 && along < 1.1 && side < 0.4 && Math.abs(o.y - g) < STEP) { o.nb.push(k); FN.nodes[k].nb.push(m); }
+    }
+  }
   if (TG.gate) setGateSolid(wasOpen);
+  for (const d of doors) {
+    if (!d.g.open) tgSolid(d.g, true);
+    const [bx0, bx1, by0, by1, bz0, bz1] = d.box; // the nodes in and either side of the doorway know which door they go through
+    for (const n of FN.nodes) if (n.x > bx0 - 0.45 && n.x < bx1 + 0.45 && n.z > bz0 - 0.45 && n.z < bz1 + 0.45 && n.y > by0 - 0.6 && n.y < by1) n.door = d.i;
+  }
   // Nodes in the gate passage can only be used while it's open
   const d = LV.gate && LV.gate.doors;
   if (d) for (const n of FN.nodes) n.gate = n.x > d.x0 - 0.5 && n.x < d.x1 + 0.5 && n.z > d.z - 0.5 && n.z < d.z + d.t + 0.5 && n.y < d.y1;
@@ -3905,6 +3952,12 @@ function walkFine(b, wish, dt, face) {
   const ai = b.ai, p = ai.hpath; if (!p || !p.length) return false;
   let n = FN.nodes[p[ai.hi]];
   while (ai.hi < p.length - 1 && Math.hypot(n.x - b.pos.x, n.z - b.pos.z) < 0.3) n = FN.nodes[p[++ai.hi]];
+  // a shut door on the way, close ahead: open it (E), as a player would
+  for (let j = ai.hi; j < Math.min(p.length, ai.hi + 6); j++) {
+    const q = FN.nodes[p[j]]; if (q.door === undefined) continue;
+    if (!SHEDS[q.door].open && Math.hypot(q.x - b.pos.x, q.z - b.pos.z) < 1.8 && Math.abs(q.y - b.pos.y) < 1.5) setShedDoor(q.door, true);
+    break;
+  }
   const dx = n.x - b.pos.x, dz = n.z - b.pos.z; if (Math.hypot(dx, dz) < 0.1) return false;
   wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
   return true;
@@ -5237,7 +5290,7 @@ function applyFx(m) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
     case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1, bazooka: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
-    case 'sd': { const sh = SHEDS[m.i]; if (sh) { sh.open = !!m.o; if (TG) setSolid(sh.tog, sh.open); } break; }
+    case 'sd': syncShedDoor(levelSheds()[m.k], !!m.o); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
@@ -5385,6 +5438,7 @@ function snapshot() {
     nd: nades.map(n => arr(n.pos)),
     vh: VEH.netSnapshot(),
     td: LV && LV.towerDoor ? ['open', 'closed', 'broken'].indexOf(TDOOR.state) : null,
+    dr: levelSheds().map(sh => (sh.open ? 1 : 0)), // the shed and cellar doors
   };
 }
 
@@ -5483,6 +5537,7 @@ function applySnapshot(s) {
   for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); if (VOICE.entityPeer[id]) closeVoice(VOICE.entityPeer[id]); }
   VEH.applyNet(s.vh); syncGuestTrucks();
   if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
+  if (Array.isArray(s.dr)) levelSheds().forEach((sh, k) => syncShedDoor(sh, !!s.dr[k]));
   const keys = new Set();
   for (const [key, wid, p, a] of s.pk) {
     keys.add(key);
@@ -5720,7 +5775,7 @@ function loop(now) {
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (NET.role === 'guest') {
     if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); updateCook(dt); }
-    updateRockets(dt);
+    updateRockets(dt); updateSheds(dt);
     updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
