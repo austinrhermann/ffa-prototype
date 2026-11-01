@@ -33,14 +33,15 @@
   ];
   // Spread is how wide the shots land: spread N covers a circle N × 10 cm across at 10 m (twice that at 20 m).
   // grow: extra spread built up by holding the trigger (all of it after 8 shots in a row); it settles once you let go.
-  // aim: aiming down the sights multiplies the spread by this (1: no help).
+  // aim: aiming down the sights multiplies the spread by this (1: no help). moving: how much of the walk/run/jump spread the gun takes.
+  // Pistol and Carbine are the same gun but for the barrel: the Pistol shoots well on the move, the Carbine when you stand and aim.
   const DEFAULTS = {
     guns: {
-      pistol:  { body: 2,  head: 4,  spread: 6,  grow: 20, rate: 4,   clip: 12, count: 1,  reload: 2,   aim: 0.15, auto: false },
-      carbine: { body: 2,  head: 4,  spread: 2,  grow: 20, rate: 6,   clip: 12, count: 1,  reload: 2,   aim: 0.15, auto: true },
-      izu:     { body: 1,  head: 2,  spread: 5,  grow: 20, rate: 12,  clip: 24, count: 1,  reload: 2.5, aim: 1,    auto: true },
-      battery: { body: 1,  head: 2,  spread: 20, grow: 0,  rate: 0.5, clip: 1,  count: 16, reload: 2.5, aim: 1,    auto: false },
-      rifle:   { body: 10, head: 20, spread: 3,  grow: 0,  rate: 1,   clip: 1,  count: 1,  reload: 1.5, aim: 0.15, auto: false },
+      pistol:  { body: 2,  head: 4,  spread: 4,  grow: 0,  rate: 5,   clip: 12, count: 1,  reload: 2,   aim: 0.4,  moving: 0.3, auto: false },
+      carbine: { body: 2,  head: 4,  spread: 2,  grow: 0,  rate: 5,   clip: 12, count: 1,  reload: 2,   aim: 0.15, moving: 1,   auto: false },
+      izu:     { body: 1,  head: 2,  spread: 5,  grow: 20, rate: 12,  clip: 24, count: 1,  reload: 2.5, aim: 1,    moving: 0.6, auto: true },
+      battery: { body: 1,  head: 2,  spread: 20, grow: 0,  rate: 0.5, clip: 1,  count: 16, reload: 2.5, aim: 1,    moving: 0.5, auto: false },
+      rifle:   { body: 10, head: 20, spread: 3,  grow: 0,  rate: 1,   clip: 1,  count: 1,  reload: 1.5, aim: 0.15, moving: 1,   auto: false },
     },
     blast: { max: 7, ring: 1.1, show: true }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
@@ -279,7 +280,7 @@
   const dummyParts = () => dummies.flatMap(t => t.parts);
   function spreadNow(g) {
     const m = S.move, hs = Math.hypot(P.vel.x, P.vel.z);
-    let sp = g.spread + heat * g.grow + (!P.onGround ? m.jump : hs > 5 ? m.run : hs > 0.5 ? m.walk : 0);
+    let sp = g.spread + heat * g.grow + g.moving * (!P.onGround ? m.jump : hs > 5 ? m.run : hs > 0.5 ? m.walk : 0);
     if (P.h < STAND_H) sp *= m.crouch;
     return sp * (1 - (1 - g.aim) * adsK);
   }
@@ -468,6 +469,7 @@
     ['clip', 'Clip size', 1, 60, 1, 'shots', 'Shots per battery (or per load) before a reload.'],
     ['count', 'Pellets per shot', 1, 20, 1, '', 'Each pellet does the damage above.', 'battery'],
     ['reload', 'Reload time', 0.3, 6, 0.1, 's', ''],
+    ['moving', 'Moving penalty', 0, 1.5, 0.05, '×', 'How much of the walking, running and in-the-air spread (under Moving) this gun takes. 0: as steady on the move as standing still.'],
     ['aim', 'Aiming down sights multiplies spread by', 0.1, 1, 0.05, '×', '1: aiming doesn\'t tighten it.'],
   ];
   // Other rows: [path, label, min, max, step, unit, help]
@@ -487,7 +489,7 @@
       ['knife.back', 'From behind', 1, HP, 1, '', ''],
       ['knife.reach', 'Reach', 1, 4, 0.1, 'm', ''],
     ]],
-    ['Moving (every gun)', [
+    ['Moving (each gun takes its share: Moving penalty)', [
       ['move.walk', 'Walking adds', 0, 20, 0.5, 'spread', ''],
       ['move.run', 'Running adds', 0, 30, 0.5, 'spread', ''],
       ['move.jump', 'In the air adds', 0, 30, 0.5, 'spread', ''],
