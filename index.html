@@ -737,14 +737,14 @@ function levelMinimal() {
     vehicles: [['truck', 15, 57.5, -2.03]], // the same truck, in the same spot, as the Fortress
   };
 }
-// Minimal + tunnel (Mike's, dev only while it's tried out): the Minimal map plus a way into the fort from the shed. A star-shaped
+// Minimal + tunnel (Mike's, dev only while it's tried out): the Minimal map plus a way into the fort from the shed. A square
 // hole in the shed's floor, a ladder down a shaft, a 52 m tunnel with bulbs on a wire (level under the valley, then up),
 // a small cellar under the fort's west wall, stairs up to a door (E) in the back wall of the room left of the gate.
 // Its own copy of the Minimal set, so plain Minimal stays as it was. World metres [x, y, z]; boxes [x0, x1, y0, y1, z0, z1].
 const TUNNEL_MINIMAL = {
   from: [-28, 52], to: [-10.8, 2.9, 28.0],    // the shaft under the shed's middle, and where the tunnel meets the cellar
   profile: [[0, 19.0], [16, 19.0], [32, 22.6], [42, 24.6], [47.5, 28.0], [52.03, 28.0]], // floor height along it
-  w: 2.0, h: 2.4, shaft: 0.67, shaftTop: 27.25, star: [1.0, 1.32],   // tunnel size; the shaft's half width; the star's radii
+  w: 2.0, h: 2.4, shaft: 0.67, shaftTop: 27.25,                    // tunnel size; the shaft's half width (the hole in the shed's floor)
   cellarFloor: 28.0,
   door: { x0: -8.36, x1: -7.36, y: 33.51, z: 0.06, h: 2.0 },        // in the room's back wall, at its west end
   cuts: [[-8.36, -7.36, 33.53, 35.51, -0.2, 0.3],                     // the doorway
@@ -754,13 +754,17 @@ const TUNNEL_MINIMAL = {
     ['stone', [-12.75, -4.9, 27.7, 28.0, -6.15, 2.9]],                // cellar floor
     ['stone', [-12.75, -9.15, 30.6, 30.9, -6.15, 2.9]], ['stone', [-9.15, -4.9, 30.6, 30.9, 0.0, 2.9]],   // its ceiling (open under the stairwell)
     ['stone', [-9.15, -5.14, 30.9, 33.45, -0.25, 0.0]],               // the stairwell's south side, above the cellar ceiling
-    ['stone', [-12.75, -12.5, 27.7, 30.9, -6.15, 2.9]], ['stone', [-12.75, -4.9, 27.7, 33.6, -6.15, -5.9]], ['stone', [-5.14, -4.9, 27.7, 33.6, -5.9, 2.9]],   // west, north, east walls
+    ['stone', [-12.75, -12.5, 27.7, 30.9, -6.15, 2.9]], ['stone', [-12.75, -9.4, 27.7, 30.9, -6.15, -5.9]], ['stone', [-5.14, -4.9, 27.7, 30.9, 0.0, 2.9]],   // the cellar's west, north and east walls
+    // the stairwell, lined up to its ceiling (just under the fort's upper floor) so none of the fort's insides show
+    ['stone', [-9.4, -4.9, 27.7, 37.0, -6.15, -5.9]], ['stone', [-9.4, -9.15, 30.6, 37.0, -5.9, 0.0]], ['stone', [-5.14, -4.9, 27.7, 37.0, -5.9, 0.0]],   // north, west, east
+    ['stone', [-9.15, -8.36, 33.51, 37.0, -0.12, 0.0]], ['stone', [-7.36, -5.14, 33.51, 37.0, -0.12, 0.0]], ['stone', [-8.36, -7.36, 35.51, 37.0, -0.12, 0.0]],   // south, round the door
+    ['stone', [-9.4, -4.9, 37.0, 37.12, -6.15, 0.0]],                  // its ceiling
     ['stone', [-12.75, -11.86, 27.7, 30.9, 2.65, 2.9]], ['stone', [-9.74, -4.9, 27.7, 30.9, 2.65, 2.9]], ['stone', [-11.86, -9.74, 30.4, 30.9, 2.65, 2.9]],   // south wall, round the tunnel's mouth
     ['wood', [-9.15, -7.05, 33.21, 33.51, -0.8, 0.0]],                // landing behind the door
-    ...Array.from({ length: 12 }, (_, k) => ['wood', [-9.15, -7.05, 28.0, 33.51 - (k + 1) * 0.2092, -0.8 - (k + 1) * 0.2917, -0.8 - k * 0.2917]]),   // down, going north
-    ['wood', [-9.15, -5.14, 28.0, 31.0, -5.9, -4.3]],                  // landing along the north wall
-    ...Array.from({ length: 13 }, (_, k) => ['wood', [-6.95, -5.14, 28.0, 31.0 - (k + 1) * 0.2143, -4.3 + k * 0.3462, -4.3 + (k + 1) * 0.3462]]),   // down, going south
-    ['stone', [-7.05, -6.95, 28.0, 36.9, -4.3, -0.25]], ['stone', [-7.05, -5.14, 30.9, 36.9, -0.25, 0.0]],   // the wall between the two flights
+    // open stairs (each step a slab, nothing between the flights): from the door, down going north, along the north wall, down going south
+    ...Array.from({ length: 12 }, (_, k) => ['wood', [-9.15, -7.05, 33.26 - (k + 1) * 0.2092, 33.51 - (k + 1) * 0.2092, -0.8 - (k + 1) * 0.2917, -0.8 - k * 0.2917]]),
+    ['wood', [-9.15, -5.14, 30.7, 31.0, -5.9, -4.3]],
+    ...Array.from({ length: 13 }, (_, k) => ['wood', [-7.05, -5.14, Math.max(28.0, 30.75 - (k + 1) * 0.2143), 31.0 - (k + 1) * 0.2143, -4.3 + k * 0.3462, -4.3 + (k + 1) * 0.3462]]),
     ['crate', [-12.45, -11.45, 28.0, 29.0, -5.85, -4.85]], ['crate', [-11.35, -10.35, 28.0, 29.0, -5.85, -4.85]], ['crate', [-12.3, -11.5, 29.0, 29.8, -5.7, -4.9]],
   ],
   barrels: [[-12.05, -3.6], [-12.05, -2.85], [-11.3, -3.25]],
@@ -1038,7 +1042,7 @@ function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit di
   const n = [-u[1], u[0]], cu = c[0] * u[0] + c[1] * u[1], cn = c[0] * n[0] + c[1] * n[1];
   return [[u[0], 0, u[1], cu + hu], [-u[0], 0, -u[1], -(cu - hu)], [n[0], 0, n[1], cn + hl], [-n[0], 0, -n[1], -(cn - hl)], [0, 1, 0, y1], [0, -1, 0, -y0]];
 }
-// The tunnel: a hole in the shed's floor and a ladder down a shaft, a tunnel with bulbs on a wire, a small cellar, stairs up
+// The tunnel: a square hole in the shed's floor and a ladder down a shaft, a tunnel with bulbs on a wire, a small cellar, stairs up
 // to a door in the back wall of the room left of the gate. Built once into the set (both the picture and the collision).
 function buildTunnel(T, col, draw, cm) {
   const u = [T.to[0] - T.from[0], T.to[1] - T.from[1]], len = Math.hypot(u[0], u[1]); u[0] /= len; u[1] /= len;
@@ -1091,12 +1095,6 @@ function buildTunnel(T, col, draw, cm) {
   for (const l of [-0.28, 0.28]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.07, lh, 0.07), MAT.crate); r.position.set(-sh + 0.08, y0 + lh / 2, l); lad.add(r); }
   for (let y = y0 + 0.3; y < top - 0.1; y += 0.35) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.56), MAT.crate); r.position.set(-sh + 0.08, y, 0); lad.add(r); }
   lad.position.set(T.from[0], 0, T.from[1]); lad.rotation.y = Math.atan2(-u[1], u[0]); g.add(lad);
-  // the hole in the shed's floor: a black cartoon star round the open square
-  const star = new THREE.Shape(), NP = 7;
-  for (let k = 0; k < NP * 2; k++) { const r = k % 2 ? T.star[0] : T.star[1], a = k * Math.PI / NP + 0.2; star[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
-  const sq = new THREE.Path(); sq.moveTo(-sh, -sh); sq.lineTo(-sh, sh); sq.lineTo(sh, sh); sq.lineTo(sh, -sh); sq.lineTo(-sh, -sh); star.holes.push(sq);
-  const decal = new THREE.Mesh(new THREE.ShapeGeometry(star), new THREE.MeshBasicMaterial({ color: 0x0b0a09, side: THREE.DoubleSide }));
-  decal.rotation.set(-Math.PI / 2, 0, Math.atan2(-u[1], u[0])); decal.position.set(T.from[0], top + 0.012, T.from[1]); g.add(decal);
   // 3. The cellar, the stairs and the door
   for (const [kind, b, solid] of T.pieces) box(kind, b, solid !== false);
   for (const [x, z] of T.barrels) {
