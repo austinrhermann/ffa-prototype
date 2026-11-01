@@ -121,6 +121,7 @@ Mike's third way into the fort, on a copy of the Minimal map (dev only while it'
 - **Tunnel:** about 52 m long, 2 m wide and 2.4 m tall, lit by bulbs on a wire. It runs level under the valley, then ramps up toward the fort.
 - **Cellar:** under the fort's west wall, with crates and barrels.
 - **Way in:** open stairs (nothing between the flights, so the two sides can shoot each other across the stairwell) wind up from the cellar to a wooden door in the back wall of the room left of the gate. E opens and shuts it from either side, and nobody can lock it. Bots open it (and the shed's doors) when their way goes through.
+- **Bots' ways in:** Midas bots head into the fort by one of three ways, taken in turn as they spawn: the front twice in every four, then James's back trail, then the tunnel, so over a game half go in the front and a quarter each by the trail and the tunnel. Rebel bots hold their ground behind the shed as before. Tunnel bots drop down the hole (they can't climb the ladder, so for them the tunnel only leads into the fort). `fortRoutes`, `drops` and `navLinks` in `levelMinimalTunnel`; the last joins the narrow squeeze from the back door's corridor into the room behind it, which the bots' 0.5 m walking map misses.
 
 It's built when the level loads (`TUNNEL_MINIMAL`, `buildTunnel`): `cutConvex` cuts the doorway, the stairwell, the cellar and the shaft out of the set (picture and collision alike), then the tunnel's pieces are added. To carry it over to the Fortress, the same description with Fortress's shed spot and ground heights should do.
 
@@ -223,9 +224,10 @@ It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to th
 
 ## Headshots and the Master rifle
 
-- **Master rifle:** a headshot kills, and so does a shot through the middle of the upper chest (the top half of the torso, its middle three quarters across, `core` in `makeBotMesh`). Anywhere else (stomach, arms, legs) takes half your health, so two of those kill. A bot's rifle hit kills about half the time.
+- **Master rifle:** a headshot kills, and so does a shot through the middle of the upper chest, from the front, back or side (the top half of the torso, its middle three quarters across and front to back, `core` in `makeBotMesh`). Anywhere else (stomach, arms, legs) takes half your health, so two of those kill. A bot's rifle hit kills about half the time.
 - **Midas Carbine:** a headshot kills; a body hit does 22. Bots' carbine headshots still do 58 (`botHead`), so a lucky bot burst doesn't one-shot a player.
 - **Fortress gate:** twice as tough as before (`hp: 2000`).
+- **Stuck bots:** a bot that makes no headway for 1.5 s on its way somewhere (a lip the walking map thinks it can step, a parked truck) keeps off that spot for 20 s and plans another way (`walkFine`, `blockT` in `fortPath`).
 
 ## Controls
 

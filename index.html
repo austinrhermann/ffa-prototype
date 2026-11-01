@@ -783,6 +783,21 @@ function levelMinimalTunnel() {
   const n = [-u[1], u[0]], corners = [[-T.shaft, -0.35], [-T.shaft, 0.35], [-0.1, -0.35], [-0.1, 0.35]].map(([s, l]) => [T.from[0] + u[0] * s + n[0] * l, T.from[1] + u[1] * s + n[1] * l]);
   const xs = corners.map(c => c[0]), zs = corners.map(c => c[1]);
   L.ladders = [{ box: [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), T.profile[0][1], T.shaftTop], dir: [-u[0], -u[1]], drawn: true }];
+  // Bots heading into the fort go in by one of three ways, taken in turn as they spawn: the front twice in every four, then
+  // James's back trail, then the tunnel (fortRoutes: points [x, y, z] walked through in order, the last one inside the fort;
+  // fortZone: [x0, x1, z0, z1, above y]). Bots can't climb the shaft's ladder, so their walking map gets a one-way drop down
+  // the hole (drops): for them the tunnel is a way in, not out
+  const along = d => [T.from[0] + u[0] * d, T.from[1] + u[1] * d], court = [-1.5, 33.5, 1.5];
+  L.fortZone = [-9.5, 8.5, -11, 5.5, 31];
+  L.fortRoutes = {
+    front: [[-1.9, 33, 8], court],
+    back: [[-16.5, 30, -3], [-12, 30, -13], [-3.5, 33.5, -12], court],
+    tunnel: [[along(1.2)[0], T.profile[0][1], along(1.2)[1]], [along(26)[0], 21.2, along(26)[1]], [-10.5, T.cellarFloor, 1], [-7.86, 33.5, 1.4], court],
+  };
+  L.drops = [{ from: [T.from[0], T.shaftTop, T.from[1]], r: 1.4, to: [T.from[0], T.profile[0][1], T.from[1]] }]; // to the bottom, right under the hole
+  // navLinks: points [x, y, z] the bots' walking map joins in a chain, through gaps too narrow for its 0.5 m cells to find: the
+  // squeeze from the back door's corridor into the room behind it
+  L.navLinks = [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]]];
   return L;
 }
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
@@ -2649,7 +2664,11 @@ function respawn(e, at, atYaw) { // at/atYaw: a set spot (taking over a soldier)
     e.wpn = inv[0]; setRigWeapon(e.rig, e.wpn);
     sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq, k: e.role });
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit(); }
-  else { e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e); }
+  else {
+    e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e);
+    // this life's way into the fort (only bots that go in by one take a turn: in a team game the Rebels hold their own ground)
+    e.ai.wps = null; e.ai.routeDone = false; e.ai.route = LV && LV.fortRoutes && (!teamsOn() || e.team === 'midas') ? ROUTE_TURNS[routeTurn++ % ROUTE_TURNS.length] : null;
+  }
 }
 
 // ---------- Helpers ----------
@@ -3828,6 +3847,22 @@ function buildFortNav() {
       na.nb.push(b); nb.nb.push(a);
     }
   }
+  // chains through narrow gaps (navLinks): each point joins the node already there, or gets one of its own, and joins the next
+  for (const chain of LV.navLinks || []) {
+    let prev = -1;
+    for (const [x, y, z] of chain) {
+      let k = FN.nodes.findIndex(n => Math.hypot(n.x - x, n.z - z) < 0.3 && Math.abs(n.y - y) < 0.8);
+      if (k < 0) { const g = groundAt(x, z, y + 0.8); if (g === null || Math.abs(g - y) > 0.8) { prev = -1; continue; } k = FN.nodes.push({ x, y: g, z, nb: [] }) - 1; }
+      if (prev >= 0 && !FN.nodes[prev].nb.includes(k)) { FN.nodes[prev].nb.push(k); FN.nodes[k].nb.push(prev); }
+      prev = k;
+    }
+  }
+  // one-way drops (down the shaft under the shed): the floor round the hole leads to the node at the bottom, and nothing leads back up
+  for (const dr of LV.drops || []) {
+    let to = -1, best = Infinity;
+    FN.nodes.forEach((n, k) => { const dd = Math.hypot(n.x - dr.to[0], n.y - dr.to[1], n.z - dr.to[2]); if (dd < best) { best = dd; to = k; } });
+    if (to >= 0 && best < 1.5) FN.nodes.forEach((n, k) => { if (k !== to && Math.hypot(n.x - dr.from[0], n.z - dr.from[2]) < dr.r && Math.abs(n.y - dr.from[1]) < 1 && !n.nb.includes(to)) n.nb.push(to); });
+  }
   // a node in the middle of each doorway, joined to the floor either side of it: a 1 m doorway can fall between the map's cells, so
   // none of them fits a body there
   for (const d of doors) {
@@ -3871,7 +3906,7 @@ function fortNode(p, anyFloor) {
 // A* from one node toward another (the gate passage only counts while the gate is open)
 function fortPath(from, to) {
   const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
-  const open = gateOpen(), nodes = FN.nodes, g = new Map([[a, 0]]), came = new Map(), heap = [[0, a]], done = new Set(), goal = nodes[b];
+  const open = gateOpen(), nodes = FN.nodes, g = new Map([[a, 0]]), came = new Map(), heap = [[0, a]], done = new Set(), goal = nodes[b], now = performance.now();
   const h = k => { const n = nodes[k]; return Math.hypot(n.x - goal.x, n.y - goal.y, n.z - goal.z); };
   let near = a, nearH = h(a); // if the goal can't be reached, settle for the closest place that can
   const push = e => { heap.push(e); let i = heap.length - 1; while (i) { const q = (i - 1) >> 1; if (heap[q][0] <= e[0]) break; heap[i] = heap[q]; i = q; } heap[i] = e; };
@@ -3882,7 +3917,7 @@ function fortPath(from, to) {
     if (k === b) break;
     const n = nodes[k];
     for (const m of n.nb) {
-      if (done.has(m) || (!open && nodes[m].gate)) continue;
+      if (done.has(m) || (!open && nodes[m].gate) || (nodes[m].blockT > now && m !== b)) continue; // (blockT: where a bot just got stuck)
       const o = nodes[m], ng = g.get(k) + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z);
       if (ng < (g.has(m) ? g.get(m) : Infinity)) { g.set(m, ng); came.set(m, k); push([ng + h(m), m]); }
     }
@@ -3907,9 +3942,33 @@ function huntMove(b, wish, dt, face) {
 }
 // Free for all on a mesh level with a fine walking map (Creek): with nobody in sight, head for ammo when low, a weapon
 // lying about, where someone was last seen, one of the level's key spots, or anywhere at all
+// Ways into the fort (levels with fortRoutes): each bot that spawns takes the next one in this order, so over a game half the bots go
+// in the front, a quarter by the back trail and a quarter through the tunnel
+const ROUTE_TURNS = ['front', 'back', 'front', 'tunnel'];
+let routeTurn = 0;
+const inFortZone = p => { const Z = LV && LV.fortZone; return !!Z && p.x > Z[0] && p.x < Z[1] && p.z > Z[2] && p.z < Z[3] && p.y > Z[4]; };
+// The next leg of a bot's way in: a path to its next waypoint (false once it's through, or when a leg can't be walked and it gives up)
+function routeLeg(b) {
+  const ai = b.ai;
+  while (ai.wps && ai.wpi < ai.wps.length) {
+    const [x, y, z] = ai.wps[ai.wpi];
+    if (Math.hypot(x - b.pos.x, z - b.pos.z) < 1.6 && Math.abs(y - b.pos.y) < 2.2) { ai.wpi++; continue; }
+    const p = fortPath(b.pos, new V3(x, y, z)), end = p && FN.nodes[p[p.length - 1]];
+    if (!p || Math.hypot(end.x - x, end.z - z) > 2.5 || Math.abs(end.y - y) > 2.5) break; // can't get there from here
+    if (p.length < 2) { ai.wpi++; continue; }
+    ai.hpath = p; ai.hi = 0; return true;
+  }
+  ai.wps = null; ai.routeDone = true; return false;
+}
 function roamFine(b, wish, dt, face = true) {
   const ai = b.ai;
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
+  // the fort first, by this life's way in: Midas in a team game (the Rebels hold their own ground), every bot otherwise
+  if (ai.route && !ai.routeDone && LV.fortRoutes && (!teamsOn() || b.team === 'midas')) {
+    if (ai.wps && !b.onGround) return; // dropping down the shaft: plan the next leg once it lands
+    if (!ai.wps) { if (inFortZone(b.pos)) ai.routeDone = true; else { ai.wps = LV.fortRoutes[ai.route]; ai.wpi = 0; } }
+    if (ai.wps && routeLeg(b)) { walkFine(b, wish, dt, face); return; }
+  }
   let goal = null;
   if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.pos; }
   if (!goal && Math.random() < 0.5) { const pk = nearestPickup(b); if (pk) goal = pk.pos; }
@@ -3959,6 +4018,15 @@ function walkFine(b, wish, dt, face) {
     break;
   }
   const dx = n.x - b.pos.x, dz = n.z - b.pos.z; if (Math.hypot(dx, dz) < 0.1) return false;
+  // Stuck (the walking map says there's a way, the ground disagrees: a lip, a parked truck): keep off the spot it was heading for
+  // for a while and plan again. Not while it's fighting (it may be standing to shoot) or in the air
+  if (!ai.target && b.onGround) {
+    if (!ai.stkP) { ai.stkP = b.pos.clone(); ai.stkT = 0; }
+    if ((ai.stkT += dt) > 1.5) {
+      const moved = Math.hypot(b.pos.x - ai.stkP.x, b.pos.z - ai.stkP.z); ai.stkP.copy(b.pos); ai.stkT = 0;
+      if (moved < 0.4) { n.blockT = performance.now() + 20000; ai.hpath = null; return false; }
+    }
+  }
   wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
   return true;
 }
