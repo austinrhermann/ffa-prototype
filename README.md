@@ -113,6 +113,17 @@ The lift waits at the bottom. Stand on it and it rides up, waits until it's been
 
 `tools/build_sewer.py` builds it (the command is at the top) into `models/Sewer.glb` and `models/Sewer_col.glb`. The game draws it like the arena levels. Its first argument scales the map across, keeping floor heights; `levelSewer`'s `SCALE` has to match it.
 
+## Minimal + tunnel
+
+Mike's third way into the fort, on a copy of the Minimal map (dev only while it's tried out: open it with `?dev&level=tunnel`, or pick **Minimal + tunnel** on the `?dev` title page; plain Minimal is unchanged). The fort now has three ways in: the front gate, James's back trail, and the tunnel.
+
+- **Shed:** a cartoon star-shaped hole in the shed's floor opens on a shaft. Drop down it, or climb the ladder back up.
+- **Tunnel:** about 52 m long, 2 m wide and 2.4 m tall, lit by bulbs on a wire. It runs level under the valley, then ramps up toward the fort.
+- **Cellar:** under the fort's west wall, with crates and barrels.
+- **Way in:** stairs wind up from the cellar to a wooden door in the back wall of the room left of the gate. E opens and shuts it from either side, and nobody can lock it.
+
+It's built when the level loads (`TUNNEL_MINIMAL`, `buildTunnel`): `cutConvex` cuts the doorway, the stairwell, the cellar and the shaft out of the set (picture and collision alike), then the tunnel's pieces are added. To carry it over to the Fortress, the same description with Fortress's shed spot and ground heights should do.
+
 ## Fortress defend
 
 The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). Each wave sets off as soon as the last one is beaten; the trucks' drive in is the only breather. If any defender dies, the fort is lost. Beat all three waves and nobody shoots at you any more: the island is yours to explore, and Esc shows **Play again**. Settings has the difficulty and your role; the pause screen has Restart game.

@@ -245,7 +245,7 @@ body.touch .card small.tc{display:block}
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
-  <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button><button type="button" data-lv="sewer">Sewer</button></div>
+  <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button><button type="button" data-lv="tunnel">Minimal + tunnel</button><button type="button" data-lv="sewer">Sewer</button></div>
   <div class="mbtns">
     <button type="button" id="play" class="wide" disabled>Loading characters…</button>
     <button type="button" id="restart" class="hostonly wide" style="display:none">Restart game</button>
@@ -737,6 +737,48 @@ function levelMinimal() {
     vehicles: [['truck', 15, 57.5, -2.03]], // the same truck, in the same spot, as the Fortress
   };
 }
+// Minimal + tunnel (Mike's, dev only while it's tried out): the Minimal map plus a way into the fort from the shed. A star-shaped
+// hole in the shed's floor, a ladder down a shaft, a 52 m tunnel with bulbs on a wire (level under the valley, then up),
+// a small cellar under the fort's west wall, stairs up to a door (E) in the back wall of the room left of the gate.
+// Its own copy of the Minimal set, so plain Minimal stays as it was. World metres [x, y, z]; boxes [x0, x1, y0, y1, z0, z1].
+const TUNNEL_MINIMAL = {
+  from: [-28, 52], to: [-10.8, 2.9, 28.0],    // the shaft under the shed's middle, and where the tunnel meets the cellar
+  profile: [[0, 19.0], [16, 19.0], [32, 22.6], [42, 24.6], [47.5, 28.0], [52.03, 28.0]], // floor height along it
+  w: 2.0, h: 2.4, shaft: 0.67, shaftTop: 27.25, star: [1.0, 1.32],   // tunnel size; the shaft's half width; the star's radii
+  cellarFloor: 28.0,
+  door: { x0: -8.36, x1: -7.36, y: 33.51, z: 0.06, h: 2.0 },        // in the room's back wall, at its west end
+  cuts: [[-8.36, -7.36, 33.53, 35.51, -0.2, 0.3],                     // the doorway
+    [-9.15, -5.14, 27.0, 36.9, -5.9, 0.0],                           // the stairwell, in the closed space behind the room
+    [-12.5, -5.14, 27.9, 30.65, -5.9, 2.65]],                         // the cellar
+  pieces: [
+    ['stone', [-12.75, -4.9, 27.7, 28.0, -6.15, 2.9]],                // cellar floor
+    ['stone', [-12.75, -9.15, 30.6, 30.9, -6.15, 2.9]], ['stone', [-9.15, -4.9, 30.6, 30.9, 0.0, 2.9]],   // its ceiling (open under the stairwell)
+    ['stone', [-9.15, -5.14, 30.9, 33.45, -0.25, 0.0]],               // the stairwell's south side, above the cellar ceiling
+    ['stone', [-12.75, -12.5, 27.7, 30.9, -6.15, 2.9]], ['stone', [-12.75, -4.9, 27.7, 33.6, -6.15, -5.9]], ['stone', [-5.14, -4.9, 27.7, 33.6, -5.9, 2.9]],   // west, north, east walls
+    ['stone', [-12.75, -11.86, 27.7, 30.9, 2.65, 2.9]], ['stone', [-9.74, -4.9, 27.7, 30.9, 2.65, 2.9]], ['stone', [-11.86, -9.74, 30.4, 30.9, 2.65, 2.9]],   // south wall, round the tunnel's mouth
+    ['wood', [-9.15, -7.05, 33.21, 33.51, -0.8, 0.0]],                // landing behind the door
+    ...Array.from({ length: 12 }, (_, k) => ['wood', [-9.15, -7.05, 28.0, 33.51 - (k + 1) * 0.2092, -0.8 - (k + 1) * 0.2917, -0.8 - k * 0.2917]]),   // down, going north
+    ['wood', [-9.15, -5.14, 28.0, 31.0, -5.9, -4.3]],                  // landing along the north wall
+    ...Array.from({ length: 13 }, (_, k) => ['wood', [-6.95, -5.14, 28.0, 31.0 - (k + 1) * 0.2143, -4.3 + k * 0.3462, -4.3 + (k + 1) * 0.3462]]),   // down, going south
+    ['stone', [-7.05, -6.95, 28.0, 36.9, -4.3, -0.25]], ['stone', [-7.05, -5.14, 30.9, 36.9, -0.25, 0.0]],   // the wall between the two flights
+    ['crate', [-12.45, -11.45, 28.0, 29.0, -5.85, -4.85]], ['crate', [-11.35, -10.35, 28.0, 29.0, -5.85, -4.85]], ['crate', [-12.3, -11.5, 29.0, 29.8, -5.7, -4.9]],
+  ],
+  barrels: [[-12.05, -3.6], [-12.05, -2.85], [-11.3, -3.25]],
+  bulbs: [[-10.9, 30.15, -1.5], [-7.0, 30.15, 1.4], [-8.2, 36.5, -2.6]],
+  lamp: [-9.6, 30.0, -1.0],
+};
+function levelMinimalTunnel() {
+  const L = levelMinimal(), T = TUNNEL_MINIMAL;
+  L.mesh = 'MinimalTunnel'; L.collide = 'MinimalTunnel_col'; L.tunnel = T;
+  // the shed's bazooka stood where the hole is: into the corner
+  L.pickups = L.pickups.map(p => p[0] === 'bazooka' && Math.hypot(p[1] + 28.5, p[3] - 52.5) < 1 ? ['bazooka', -29.0, 27.5, 53.2] : p);
+  // the ladder up the shaft, on its back wall: you face it (dir) to climb, and step off onto the shed floor at the top
+  const u = [T.to[0] - T.from[0], T.to[1] - T.from[1]], len = Math.hypot(...u); u[0] /= len; u[1] /= len;
+  const n = [-u[1], u[0]], corners = [[-T.shaft, -0.35], [-T.shaft, 0.35], [-0.1, -0.35], [-0.1, 0.35]].map(([s, l]) => [T.from[0] + u[0] * s + n[0] * l, T.from[1] + u[1] * s + n[1] * l]);
+  const xs = corners.map(c => c[0]), zs = corners.map(c => c[1]);
+  L.ladders = [{ box: [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), T.profile[0][1], T.shaftTop], dir: [-u[0], -u[1]], drawn: true }];
+  return L;
+}
 // Creek (built from scratch by tools/build_creek.py): a canyon with a creek across the middle, a rock arch over it, and a
 // base at each end (rooms on the ground floor, ramps up the sides to the roof, a raised platform at the back). Free for all.
 // Positions are world metres [x, y, z]; y is a hint, items settle onto the floor below it. The two halves mirror each other.
@@ -793,7 +835,7 @@ function levelDrive() {
     spawns: [[-8, 0.5, 13], [-3, 0.5, 13], [2, 0.5, 13], [7, 0.5, 13], [-13, 0.5, 13], [12, 0.5, 13]], ammo: [], heals: [], pickups: [], ladders: [],
   };
 }
-const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, minimal: levelMinimal, sewer: levelSewer, drive: levelDrive };
+const LEVEL_DEFS = { complex: levelComplex, facility: levelFacility, bunker: levelBunker, creek: levelCreek, fortress: levelFortress, minimal: levelMinimal, tunnel: levelMinimalTunnel, sewer: levelSewer, drive: levelDrive };
 function buildGrid(id) {
   H.fill(SOLID); U.fill(0); STAIR.fill(0); UW.fill(0); OVER.fill(1e9); EDGE.fill(0);
   const L = LEVEL_DEFS[id](); curLevel = id; TOP = L.top; SNOW = L.snow || null; LV = L;
@@ -949,6 +991,144 @@ function updateSheds(dt) {
   }
   if (P.alive && nearShed(P) >= 0) hint('shed', 'E opens and shuts the door', 3.5, 2);
 }
+// ---------- Cutting holes in a level's set, and the tunnel (Minimal + tunnel) ----------
+// cutConvex(root, planes): take out of every mesh under root the part of each triangle that lies inside a convex region,
+// given as half-spaces [nx, ny, nz, d] (inside: n.p <= d, world space). uv, normals and any other attributes are
+// interpolated along the cut, so what's left keeps its texture and shading. Meshes get a new (non-indexed) geometry, so
+// a set cloned from another (sharing geometry) can be cut without touching the original.
+function cutConvex(root, planes, yRange) {
+  root.updateMatrixWorld(true);
+  const meshes = []; root.traverse(o => { if (o.isMesh && !o.userData.noCut) meshes.push(o); });
+  const w = new V3(), lerp = (A, B, t) => ({ d: A.d.map((x, i) => x + (B.d[i] - x) * t), a: A.a.map((arr, j) => arr.map((x, c) => x + (B.a[j][c] - x) * t)) });
+  const clip = (poly, k, keepOut) => { // keep the side of plane k that's outside (keepOut) or inside the region
+    const res = [], f = v => keepOut ? v.d[k] : -v.d[k];
+    for (let i = 0; i < poly.length; i++) {
+      const A = poly[i], B = poly[(i + 1) % poly.length], fa = f(A), fb = f(B);
+      if (fa >= 0) res.push(A);
+      if ((fa >= 0) !== (fb >= 0)) res.push(lerp(A, B, fa / (fa - fb)));
+    }
+    return res.length >= 3 ? res : [];
+  };
+  for (const m of meshes) {
+    const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, pos = src.attributes.position; if (!pos) continue;
+    const names = Object.keys(src.attributes), n = pos.count, D = new Float32Array(n * planes.length), Y = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      w.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); Y[i] = w.y;
+      planes.forEach((p, k) => { D[i * planes.length + k] = p[0] * w.x + p[1] * w.y + p[2] * w.z - p[3]; });
+    }
+    const out = names.map(() => []); let touched = false;
+    const vert = i => ({ d: Array.from(D.subarray(i * planes.length, (i + 1) * planes.length)), a: names.map(k => { const A = src.attributes[k]; return [A.getX(i), A.getY(i), A.getZ(i), A.getW(i)].slice(0, A.itemSize); }) });
+    const emit = poly => { for (let k = 1; k + 1 < poly.length; k++) for (const v of [poly[0], poly[k], poly[k + 1]]) names.forEach((nm, j) => out[j].push(...v.a[j])); };
+    for (let t = 0; t < n; t += 3) {
+      let away = false; // all three corners outside the same plane: untouched
+      for (let k = 0; k < planes.length && !away; k++) if (D[t * planes.length + k] >= 0 && D[(t + 1) * planes.length + k] >= 0 && D[(t + 2) * planes.length + k] >= 0) away = true;
+      if (away) { emit([vert(t), vert(t + 1), vert(t + 2)]); continue; }
+      touched = true; let rem = [vert(t), vert(t + 1), vert(t + 2)];
+      for (let k = 0; k < planes.length && rem.length; k++) { emit(clip(rem, k, true)); rem = clip(rem, k, false); }
+    }
+    if (!touched) continue;
+    const ng = new THREE.BufferGeometry();
+    names.forEach((k, j) => ng.setAttribute(k, new THREE.Float32BufferAttribute(out[j], src.attributes[k].itemSize)));
+    m.geometry = ng;
+  }
+}
+// The planes of a box: axis-aligned [x0, x1, y0, y1, z0, z1], or turned about y (yaw: its x axis points along (cos, -sin))
+const boxPlanes = ([x0, x1, y0, y1, z0, z1]) => [[1, 0, 0, x1], [-1, 0, 0, -x0], [0, 1, 0, y1], [0, -1, 0, -y0], [0, 0, 1, z1], [0, 0, -1, -z0]];
+function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit direction u (half length hu), half width hl, from y0 to y1
+  const n = [-u[1], u[0]], cu = c[0] * u[0] + c[1] * u[1], cn = c[0] * n[0] + c[1] * n[1];
+  return [[u[0], 0, u[1], cu + hu], [-u[0], 0, -u[1], -(cu - hu)], [n[0], 0, n[1], cn + hl], [-n[0], 0, -n[1], -(cn - hl)], [0, 1, 0, y1], [0, -1, 0, -y0]];
+}
+// The tunnel: a hole in the shed's floor and a ladder down a shaft, a tunnel with bulbs on a wire, a small cellar, stairs up
+// to a door in the back wall of the room left of the gate. Built once into the set (both the picture and the collision).
+function buildTunnel(T, col, draw, cm) {
+  const u = [T.to[0] - T.from[0], T.to[1] - T.from[1]], len = Math.hypot(u[0], u[1]); u[0] /= len; u[1] /= len;
+  const n = [-u[1], u[0]], at = (s, l) => [T.from[0] + u[0] * s + n[0] * l, T.from[1] + u[1] * s + n[1] * l];
+  const floorAt = s => { const P = T.profile; for (let i = 0; i + 1 < P.length; i++) if (s <= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * Math.max(0, s - P[i][0]) / (P[i + 1][0] - P[i][0]); return P[P.length - 1][1]; };
+  // 1. Holes: the doorway, the stairwell and the cellar, the shaft under the shed, the tunnel's mouth at the cellar
+  // the shaft comes up through the middle of the shed's floor: its top is the floor's height there
+  const shed = SHEDS.filter(x => x.scene === draw).sort((a, b) => Math.hypot(a.p.x - T.from[0], a.p.z - T.from[1]) - Math.hypot(b.p.x - T.from[0], b.p.z - T.from[1]))[0];
+  const hw = T.w / 2, sh = T.shaft, top = shed ? shed.y : T.shaftTop;
+  const cuts = [...T.cuts.map(boxPlanes), obbPlanes(T.from, u, sh, sh, floorAt(0) + T.h - 0.2, top + 0.03), obbPlanes(at(len - 2.4, 0), u, 2.4, hw, T.to[2] + 0.05, T.to[2] + T.h)];
+  for (const P of cuts) { cutConvex(col, P); cutConvex(draw, P); }
+  // 2. What's built: the picture and (unless decorative) the collision
+  const M = { stone: toonMat({ color: 0x8b887f, side: THREE.DoubleSide }), wood: toonMat({ color: 0x7a5636, side: THREE.DoubleSide }), earth: toonMat({ color: 0x5c4b3c, side: THREE.DoubleSide }),
+    roof: toonMat({ color: 0x40352b, side: THREE.DoubleSide }), crate: MAT.crate, barrel: toonMat({ color: 0x6e4a2c }) };
+  const g = new THREE.Group(); g.name = 'Tunnel'; draw.add(g); const cg = new THREE.Group(); col.add(cg);
+  const prism = (kind, ring0, ring1, solid = true) => { // two rings of 4 corners ([x, y, z]), bottom and top
+    const P = [], q = (a, b, c) => P.push(...a, ...b, ...c), quad = (a, b, c, d) => { q(a, b, c); q(a, c, d); };
+    quad(ring0[3], ring0[2], ring0[1], ring0[0]); quad(ring1[0], ring1[1], ring1[2], ring1[3]);
+    for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(ring0[i], ring0[j], ring1[j], ring1[i]); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals();
+    const o = new THREE.Mesh(geo, M[kind]); o.castShadow = o.receiveShadow = true; g.add(o);
+    if (solid) cg.add(new THREE.Mesh(geo, cm));
+    return o;
+  };
+  const box = (kind, [x0, x1, y0, y1, z0, z1], solid) => prism(kind, [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], solid);
+  // a piece in tunnel space: from s0 to s1 along it, l0 to l1 across, heights given at each end [bottom, top] relative to the floor
+  const slab = (kind, s0, s1, l0, l1, b0, t0, b1, t1) => {
+    const f0 = floorAt(s0), f1 = floorAt(s1), c = (s, l, y) => { const p = at(s, l); return [p[0], y, p[1]]; };
+    return prism(kind, [c(s0, l0, f0 + b0), c(s1, l0, f1 + b1), c(s1, l1, f1 + b1), c(s0, l1, f0 + b0)], [c(s0, l0, f0 + t0), c(s1, l0, f1 + t1), c(s1, l1, f1 + t1), c(s0, l1, f0 + t0)]);
+  };
+  // the tunnel, piece by piece along its profile, from the shaft's back wall to the cellar
+  const S = [-sh - 0.25, ...T.profile.map(p => p[0]).filter(s => s > -sh - 0.25 && s < len), len];
+  for (let i = 0; i + 1 < S.length; i++) {
+    const s0 = S[i], s1 = S[i + 1];
+    slab('earth', s0, s1, -hw - 0.3, hw + 0.3, -0.3, 0, -0.3, 0);                                  // floor
+    slab('earth', s0, s1, -hw - 0.3, -hw, -0.3, T.h + 0.3, -0.3, T.h + 0.3);                     // walls
+    slab('earth', s0, s1, hw, hw + 0.3, -0.3, T.h + 0.3, -0.3, T.h + 0.3);
+    const a = Math.max(s0, sh), b = s1;                                                              // the roof, open under the shaft
+    if (b > a) slab('roof', a, b, -hw, hw, T.h, T.h + 0.3, T.h, T.h + 0.3);
+    const a2 = Math.max(s0, -sh), b2 = Math.min(s1, sh);
+    if (b2 > a2) { slab('roof', a2, b2, -hw, -sh, T.h, T.h + 0.3, T.h, T.h + 0.3); slab('roof', a2, b2, sh, hw, T.h, T.h + 0.3, T.h, T.h + 0.3); }
+  }
+  slab('earth', -sh - 0.25, -sh, -hw - 0.3, hw + 0.3, -0.3, T.h + 0.3, -0.3, T.h + 0.3);           // its back wall, under the shed
+  // the shaft: four walls from the tunnel's roof up to the shed's floor
+  const fy = floorAt(0) + T.h, sp = (s, l, y) => { const p = at(s, l); return [p[0], y, p[1]]; };
+  const shaftWall = (s0, s1, l0, l1) => prism('earth', [sp(s0, l0, fy), sp(s1, l0, fy), sp(s1, l1, fy), sp(s0, l1, fy)], [sp(s0, l0, top - 0.02), sp(s1, l0, top - 0.02), sp(s1, l1, top - 0.02), sp(s0, l1, top - 0.02)]);
+  shaftWall(-sh - 0.25, -sh, -sh - 0.25, sh + 0.25); shaftWall(sh, sh + 0.25, -sh - 0.25, sh + 0.25); shaftWall(-sh, sh, -sh - 0.25, -sh); shaftWall(-sh, sh, sh, sh + 0.25);
+  // the ladder on the shaft's back wall (the climb itself is the level's ladders entry)
+  const lad = new THREE.Group(), y0 = floorAt(0), lh = top - y0;
+  for (const l of [-0.28, 0.28]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.07, lh, 0.07), MAT.crate); r.position.set(-sh + 0.08, y0 + lh / 2, l); lad.add(r); }
+  for (let y = y0 + 0.3; y < top - 0.1; y += 0.35) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.56), MAT.crate); r.position.set(-sh + 0.08, y, 0); lad.add(r); }
+  lad.position.set(T.from[0], 0, T.from[1]); lad.rotation.y = Math.atan2(-u[1], u[0]); g.add(lad);
+  // the hole in the shed's floor: a black cartoon star round the open square
+  const star = new THREE.Shape(), NP = 7;
+  for (let k = 0; k < NP * 2; k++) { const r = k % 2 ? T.star[0] : T.star[1], a = k * Math.PI / NP + 0.2; star[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+  const sq = new THREE.Path(); sq.moveTo(-sh, -sh); sq.lineTo(-sh, sh); sq.lineTo(sh, sh); sq.lineTo(sh, -sh); sq.lineTo(-sh, -sh); star.holes.push(sq);
+  const decal = new THREE.Mesh(new THREE.ShapeGeometry(star), new THREE.MeshBasicMaterial({ color: 0x0b0a09, side: THREE.DoubleSide }));
+  decal.rotation.set(-Math.PI / 2, 0, Math.atan2(-u[1], u[0])); decal.position.set(T.from[0], top + 0.012, T.from[1]); g.add(decal);
+  // 3. The cellar, the stairs and the door
+  for (const [kind, b, solid] of T.pieces) box(kind, b, solid !== false);
+  for (const [x, z] of T.barrels) {
+    const o = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 14), M.barrel); o.position.set(x, T.cellarFloor + 0.475, z); o.castShadow = o.receiveShadow = true; g.add(o);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.62), cm); c.position.set(x, T.cellarFloor + 0.475, z); cg.add(c);
+  }
+  const D = T.door, hinge = new THREE.Group(), dw = D.x1 - D.x0, dh = D.h;
+  hinge.position.set(D.x0, D.y, D.z); g.add(hinge);
+  const dp = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); };
+  dp(DOOR_WOOD, dw / 2, dh / 2, 0, dw - 0.04, dh - 0.03, 0.08);
+  for (const y of [0.35, dh / 2, dh - 0.35]) dp(DOOR_IRON, dw / 2, y, 0.05, dw - 0.1, 0.09, 0.02);
+  dp(DOOR_IRON, dw - 0.15, dh * 0.48, 0.07, 0.05, 0.16, 0.05);
+  box('wood', [D.x0 - 0.1, D.x0, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false); box('wood', [D.x1, D.x1 + 0.1, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false);
+  box('wood', [D.x0 - 0.1, D.x1 + 0.1, D.y + dh, D.y + dh + 0.12, D.z - 0.08, D.z + 0.08], false);
+  const tog = 'cellar' + SHEDS.length, slabC = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, 0.1), cm);
+  slabC.position.set((D.x0 + D.x1) / 2, D.y + dh / 2, D.z); slabC.userData.toggle = tog; cg.add(slabC);
+  SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3((D.x0 + D.x1) / 2, 0, D.z), y: D.y, rot: 0 });
+  // 4. Bulbs on a wire along the tunnel roof (they only glow), a few more in the cellar, and one warm light down there
+  const bulbM = new THREE.MeshBasicMaterial({ color: 0xffd36e }), wireM = new THREE.LineBasicMaterial({ color: 0x15110d }), bulbG = new THREE.SphereGeometry(0.075, 10, 8);
+  const bulb = (x, y, z) => { const o = new THREE.Mesh(bulbG, bulbM); o.position.set(x, y, z); g.add(o); };
+  const wire = [];
+  for (let s = sh + 0.6; s < len - 1; s += 4.2) {
+    for (let k = 0; k <= 12; k++) {
+      const t = k / 12, ss = Math.min(len - 0.6, s + 4.2 * t), p = at(ss, 0.45), y = floorAt(ss) + T.h - 0.1 - 0.4 * Math.sin(Math.PI * t);
+      wire.push(new V3(p[0], y, p[1])); if (k === 4 || k === 8) bulb(p[0], y - 0.16, p[1]);
+    }
+  }
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(wire), wireM));
+  for (const [x, y, z] of T.bulbs) { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.55, z)]), wireM)); }
+  const lamp = new THREE.PointLight(0xffc98a, 1.2, 10, 1.6); lamp.position.set(...T.lamp); g.add(lamp);
+  draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
+}
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
 function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
@@ -965,6 +1145,7 @@ function addSetExtras(L) {
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
   if (L.sheds && SHED_MODEL) for (const [x, z, yaw] of L.sheds) placeShed(col, draw, x, z, yaw || 0);
+  if (L.tunnel) buildTunnel(L.tunnel, col, draw, cm); // after the shed: the hole goes through its floor
   // The tower door's walking shape (shut or open with the door). Bullets don't test it: they hit the door you see (TDOOR.shot),
   // which swings with the door, so only a shut door stops them
   // Lifts: the pad you see and its walking shape (in the collision set like any floor); updateLifts moves both
@@ -1066,7 +1247,7 @@ function buildWorld(L) {
     const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
     col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
     col.traverse(o => { if (o.isMesh && !o.userData.water && !o.userData.noShot && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
-    for (const l of L.ladders || []) levelGroup.add(makeLadder(l));
+    for (const l of L.ladders || []) if (!l.drawn) levelGroup.add(makeLadder(l));
     if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
     if (L.towerDoor) { levelGroup.add(buildTowerDoor(L.towerDoor)); W.meshes.push(TDOOR.shot); }
     return;
@@ -2068,6 +2249,7 @@ function loadModels() {
     });
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
     if (d === levelMinimal().mesh) arenaStyle(sc); // blockouts are drawn like the arena levels
+    if (d === 'Minimal') { LEVEL_SCENES.MinimalTunnel = sc.clone(true); LEVEL_SCENES.MinimalTunnel_col = col.clone(true); } // Minimal + tunnel cuts its own copy
     if (d === levelSewer().mesh) arenaStyle(sc, o => o.material.name === 'Sewer_Water'); // (the sewer's water stays water)
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
   })));
@@ -4411,7 +4593,7 @@ function chooseMode(kind) {
   if (READY && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
-const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', sewer: 'Sewer', drive: 'Test Drive' };
+const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', tunnel: 'Minimal + tunnel', sewer: 'Sewer', drive: 'Test Drive' };
 const lastGame = (() => { try { return JSON.parse(localStorage.getItem('tse.last') || 'null'); } catch (e) { return null; } })();
 if (lastGame && LEVEL_DEFS[lastGame.level] && (DEV || lastGame.level === 'fortress')) { $('goagain').hidden = false; $('goagain').textContent = `Play again: ${LEVEL_NAMES[lastGame.level] || lastGame.level}`; }
 $('goagain').onclick = () => {
