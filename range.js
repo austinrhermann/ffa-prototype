@@ -1,16 +1,19 @@
 // Shooting Range: one player with every weapon and infinite ammo, dummies down the lanes, and a Tab panel to dial the
 // weapons in. It runs the simpler weapon system the other games are moving to:
-//   - Everyone has 7 health. Every hit does a whole number of damage, 1 to 7.
+//   - Everyone has 10 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage, 1 to 10.
 //   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun take B batteries, the Master Rifle its own rounds),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
-//   - One explosive used three ways: thrown, set as a mine, or fired from the tube. A blast does 7 in its centre ring and
+//   - One explosive used three ways: thrown, set as a mine, or fired from the tube. A blast does 10 in its centre ring and
 //     one less in each ring out; walls block it, and it hurts anyone in reach (you too).
-//   - The knife is a weapon you switch to, like the others: 4 from the front, 7 (a kill) from behind.
+//   - The knife is a weapon you switch to, like the others: 6 from the front, 10 (a kill) from behind.
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, WEAPONS, VMW, gun, ...).
 // The game calls into RANGE (declared in index.html) from its loop, input and blasts; nothing changes outside the range.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const HP = 7;
+  const HP = 10;
+  // Health colours, from 1 left (red) to full (blue): HEALTH[h - 1]
+  const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'];
+  const hpColour = h => (h > 0 ? HEALTH[Math.min(HP, h) - 1] : '#2a2a2a');
   // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of.
   const SLOTS = [
     { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', ammo: 'A battery' },
@@ -27,24 +30,33 @@
   // grow: extra spread built up by holding the trigger (all of it after 8 shots in a row); it settles once you let go.
   const DEFAULTS = {
     guns: {
-      pistol:  { body: 3, head: 5, spread: 3,  grow: 0, rate: 5,  clip: 8,  count: 1,  reload: 1.4, auto: false },
-      carbine: { body: 3, head: 5, spread: 1,  grow: 0, rate: 4,  clip: 8,  count: 1,  reload: 2.0, auto: false },
-      izu:     { body: 1, head: 2, spread: 4,  grow: 4, rate: 16, clip: 32, count: 1,  reload: 1.8, auto: true },
+      pistol:  { body: 4, head: 7, spread: 3,  grow: 0, rate: 5,  clip: 8,  count: 1,  reload: 1.4, auto: false },
+      carbine: { body: 4, head: 7, spread: 1,  grow: 0, rate: 4,  clip: 8,  count: 1,  reload: 2.0, auto: false },
+      izu:     { body: 1, head: 3, spread: 4,  grow: 4, rate: 16, clip: 32, count: 1,  reload: 1.8, auto: true },
       battery: { body: 1, head: 1, spread: 14, grow: 0, rate: 2,  clip: 1,  count: 12, reload: 2.4, auto: false },
-      rifle:   { body: 5, head: 7, spread: 0,  grow: 0, rate: 1,  clip: 1,  count: 1,  reload: 2.6, auto: false },
+      rifle:   { body: 7, head: 10, spread: 0,  grow: 0, rate: 1,  clip: 1,  count: 1,  reload: 2.6, auto: false },
     },
-    blast: { ring: 1.1, show: true },        // ring: width of each damage ring (m); show: draw the rings where a blast goes off
+    blast: { ring: 0.8, show: true },        // ring: width of each damage ring (m); show: draw the rings where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
     tube: { speed: 38, reload: 4.5 },        // rocket speed (m/s)
-    knife: { front: 4, back: 7, reach: 2 },
+    knife: { front: 6, back: 10, reach: 2 },
     move: { walk: 1, run: 16, jump: 12, crouch: 0.55, aim: 0.45 }, // spread added walking, running, in the air; crouching and aiming multiply it
     targets: { strafe: 0, heal: 3 },         // strafe: lane dummies pace side to side at this speed (m/s); heal: damage wears off after this long
   };
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
-  const SAVE = 'tse.range.v1';
-  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
+  const SAVE = 'tse.range.v2';
+  // Settings saved when everyone had 7 health come across scaled to 10 (damage × 10/7, rings × 7/10: the same reach)
+  function from7(o) {
+    if (!o) return null;
+    const k = v => Math.max(1, Math.min(10, Math.round(v * 10 / 7)));
+    for (const g of Object.values(o.guns || {})) for (const f of ['body', 'head']) if (typeof g[f] === 'number') g[f] = k(g[f]);
+    if (o.knife) for (const f of ['front', 'back']) if (typeof o.knife[f] === 'number') o.knife[f] = k(o.knife[f]);
+    if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.max(0.3, Math.round(o.blast.ring * 7) / 10);
+    return o;
+  }
+  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null') || from7(JSON.parse(localStorage.getItem('tse.range.v1') || 'null'))); } catch (e) { return clone(DEFAULTS); } })();
   function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
 
   const on = () => MODE === 'range';
@@ -99,11 +111,11 @@
   }
   buildYard();
 
-  // The damage rings, as a picture: 7 in the middle band, 1 in the outer one (drawn once, scaled to the ring width)
+  // The damage rings, as a picture: 10 in the middle band, 1 in the outer one (drawn once, scaled to the ring width)
   const ringTex = canvasTex(1024, 1024, (g, w) => {
     const c = w / 2, step = c / HP;
-    for (let k = HP; k >= 1; k--) { g.beginPath(); g.arc(c, c, k * step - 2, 0, Math.PI * 2); g.fillStyle = `rgba(255,${120 + 18 * k},60,${0.05 + 0.035 * (HP - k)})`; g.fill(); g.lineWidth = 5; g.strokeStyle = 'rgba(255,240,220,.85)'; g.stroke(); }
-    g.font = '700 46px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+    for (let k = HP; k >= 1; k--) { g.beginPath(); g.arc(c, c, k * step - 2, 0, Math.PI * 2); g.fillStyle = `rgba(255,${120 + Math.round(130 * k / HP)},60,${0.05 + 0.25 * (HP - k) / HP})`; g.fill(); g.lineWidth = 5; g.strokeStyle = 'rgba(255,240,220,.85)'; g.stroke(); }
+    g.font = '700 36px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
     for (let k = 0; k < HP; k++) g.fillText(String(HP - k), c, c - (k + 0.5) * step);
   });
   const ringGeo = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
@@ -128,18 +140,17 @@
     const part = (w, h, d, y, p) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), t.mats[p]); o.position.y = y; o.castShadow = o.receiveShadow = true; o.userData = { rangeT: t, part: p, half: new V3(w / 2, h / 2, d / 2) }; g.add(o); t.parts.push(o); return o; };
     part(0.6, 0.8, 0.4, 0.4, 'body'); part(0.7, 0.72, 0.45, 1.16, 'body'); part(0.4, 0.4, 0.4, 1.72, 'head');
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.6), toonMat({ color: 0x3e4247 })); base.position.y = 0.025; base.receiveShadow = true; g.add(base);
-    // Health over its head: seven pips, filled as it takes damage
-    const c = document.createElement('canvas'); c.width = 256; c.height = 96; t.ctx = c.getContext('2d'); t.tex = new THREE.CanvasTexture(c);
-    t.pips = new THREE.Sprite(new THREE.SpriteMaterial({ map: t.tex, transparent: true, depthWrite: false })); t.pips.scale.set(1.2, 0.45, 1); t.pips.position.y = 2.35; g.add(t.pips);
+    // Health over its head: a circle in the health colour (as over a player's name), the last hit written under it
+    const c = document.createElement('canvas'); c.width = 192; c.height = 192; t.ctx = c.getContext('2d'); t.tex = new THREE.CanvasTexture(c);
+    t.pips = new THREE.Sprite(new THREE.SpriteMaterial({ map: t.tex, transparent: true, depthWrite: false })); t.pips.scale.set(0.9, 0.9, 1); t.pips.position.y = 2.45; g.add(t.pips);
     drawPips(t); scene.add(g); dummies.push(t);
     return t;
   }
   function drawPips(t) {
-    const g = t.ctx, w = 256, h = 96; g.clearRect(0, 0, w, h);
-    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(4, 4, w - 8, 52);
-    const cw = (w - 8 - 8 * 4) / HP;
-    for (let i = 0; i < HP; i++) { g.fillStyle = t.dead > 0 ? '#4ccf5a' : i < t.dmg ? '#e8483a' : 'rgba(255,255,255,.22)'; g.fillRect(8 + i * (cw + 4), 10, cw, 40); }
-    if (t.last) { g.font = '700 30px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 6; g.strokeText(t.last, w / 2, 78); g.fillText(t.last, w / 2, 78); }
+    const g = t.ctx, w = 192; g.clearRect(0, 0, w, w);
+    g.beginPath(); g.arc(w / 2, 54, 40, 0, Math.PI * 2); g.fillStyle = hpColour(t.dead > 0 ? 0 : HP - t.dmg); g.fill();
+    g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.85)'; g.stroke();
+    if (t.last) { g.font = '700 34px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 6; g.strokeText(t.last, w / 2, 150); g.fillText(t.last, w / 2, 150); }
     t.tex.needsUpdate = true;
   }
   const tint = (t, k) => { for (const p of ['body', 'head']) t.mats[p].color.setHex(k || DUMMY[p]); };
@@ -212,7 +223,7 @@
 
   // ---------------------------------------------------------------- blasts
   const myRockets = new Set();
-  // Damage in rings round the blast: 7 at the centre, one less each ring out. Anyone with a clear line to it is hurt.
+  // Damage in rings round the blast: 10 at the centre, one less each ring out. Anyone with a clear line to it is hurt.
   function blast(pos, owner, src) {
     const R = HP * S.blast.ring;
     addScorch(pos, Math.min(4, R * 0.3)); _boomFx(pos, src === 'tube' ? 6.5 : R * 0.6); sBoom(vol(pos, 90));
@@ -223,13 +234,21 @@
       const d = distTo(t, o), dmg = ringDmg(d);
       if (dmg > 0 && centres(t).some(c => losPts(o, c))) hitDummy(t, dmg, false, name, 1, 0, 'blast');
     }
-    // You: the range spares you, but tells you what it would have done
+    // You: blasts hurt you too (your health circle shows it); the range doesn't kill you, it just fills you back up
     const me = Math.max(0, Math.hypot(Math.max(0, Math.abs(o.x - P.pos.x) - 0.3), Math.max(0, P.pos.y - o.y, o.y - (P.pos.y + P.h)), Math.max(0, Math.abs(o.z - P.pos.z) - 0.3)));
     const mine = ringDmg(me);
-    if (mine > 0 && losPts(o, new V3(P.pos.x, P.pos.y + P.h * 0.6, P.pos.z))) note(`Your own ${name} would have done ${mine} damage to you${mine >= HP ? ' (dead)' : ''}`, 2.2);
+    if (mine > 0 && losPts(o, new V3(P.pos.x, P.pos.y + P.h * 0.6, P.pos.z))) hurtMe(mine, name);
     // Other mines in reach go off too
     for (const m of mines) if (m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) { m.state = 'warn'; m.t = 0.15; }
     const pd = P.pos.distanceTo(pos); if (pd < 14) punch += 0.06 * (1 - pd / 14);
+  }
+
+  let myHp = HP, myLastT = 0, myDownT = 0;
+  function hurtMe(d, name) {
+    if (myDownT > 0) return;
+    myHp = Math.max(0, myHp - d); myLastT = performance.now() / 1000;
+    if (myHp <= 0) { myDownT = 1.5; note(`Your own ${name} would have killed you`, 2); }
+    else note(`Your own ${name} hit you for ${d}`, 1.5);
   }
 
   // ---------------------------------------------------------------- shooting
@@ -354,7 +373,9 @@
   #rslots div{background:rgba(0,0,0,.45);padding:4px 9px;border-radius:3px;border-left:3px solid transparent}
   #rslots div.on{background:rgba(0,0,0,.75);border-left-color:#f0874d;color:#fff}
   #rslots small{opacity:.6;font-weight:500}
-  #rcard{position:fixed;left:14px;top:14px;z-index:6;display:none;max-width:min(430px,calc(100vw - 28px));background:rgba(0,0,0,.55);border-radius:4px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;color:#e8ece6;pointer-events:none}
+  #rhp{position:fixed;left:14px;top:14px;z-index:6;width:46px;height:46px;border-radius:50%;box-sizing:border-box;border:2px solid rgba(255,255,255,.85);display:none;transition:background-color .15s;pointer-events:none}
+  body.range-on #hpbar{visibility:hidden}
+  #rcard{position:fixed;left:72px;top:14px;z-index:6;display:none;max-width:min(430px,calc(100vw - 86px));background:rgba(0,0,0,.55);border-radius:4px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;color:#e8ece6;pointer-events:none}
   #rcard .w{font:700 15px system-ui,sans-serif;color:#fff}#rcard .k{color:#9aa5b1}#rcard .h{margin-top:4px;color:#cfd6dd}#rcard .h div:first-child{color:#8fe39a}
   #rpanel{position:fixed;top:0;right:0;bottom:0;width:min(400px,100vw);z-index:40;background:rgba(18,22,27,.95);color:#e8ece6;font:14px/1.35 system-ui,sans-serif;overflow-y:auto;padding:16px 16px 28px;box-sizing:border-box;display:none;border-left:1px solid #2f3742}
   #rpanel h2{margin:0 0 2px;font-size:20px}#rpanel .sub{color:#9aa5b1;margin:0 0 10px;font-size:13px}
@@ -374,13 +395,14 @@
   #rpanel .info{color:#9aa5b1;font-size:12px;margin-top:10px}
   #rcross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;box-sizing:border-box;display:none;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
   body.range-on .ch{display:none}
-  body.touch #rslots,body.touch #rcard{display:none!important}`;
+  body.touch #rslots,body.touch #rcard,body.touch #rhp{display:none!important}`;
   document.head.append(css);
   const slotsEl = document.createElement('div'); slotsEl.id = 'rslots';
   const card = document.createElement('div'); card.id = 'rcard';
   const panel = document.createElement('div'); panel.id = 'rpanel';
   const cross = document.createElement('div'); cross.id = 'rcross';
-  document.body.append(slotsEl, card, panel); ($('hud') || document.body).append(cross);
+  const hpEl = document.createElement('div'); hpEl.id = 'rhp';
+  document.body.append(slotsEl, card, panel, hpEl); ($('hud') || document.body).append(cross);
   let crossR = 0;
   function drawSlots() {
     slotsEl.innerHTML = SLOTS.map((s, i) => `<div class="${i === cur ? 'on' : ''}">${i + 1}&nbsp; ${s.name}${s.ammo ? ` <small>${s.ammo}</small>` : ''}</div>`).join('');
@@ -398,7 +420,7 @@
     const nb = Math.ceil(HP / g.body), nh = Math.ceil(HP / g.head), t = n => (n === 1 ? 'instant' : shotsTime(g, n).toFixed(2) + ' s');
     return `Body: ${plural(nb, 'shot')} to kill (${t(nb)}). Head: ${plural(nh, 'shot')} (${t(nh)}).`;
   }
-  function blastMath() { const r = S.blast.ring; return `7 within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: 4 at ${fmt(3 * r, 0.1)} m, 1 at ${fmt(6 * r, 0.1)} m, nothing past ${fmt(7 * r, 0.1)} m.`; }
+  function blastMath() { const r = S.blast.ring, h = Math.ceil(HP / 2); return `${HP} within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: ${h} at ${fmt((HP - h) * r, 0.1)} m, 1 at ${fmt((HP - 1) * r, 0.1)} m, nothing past ${fmt(HP * r, 0.1)} m.`; }
   let aimT = null, cardT = 0;
   function drawCard() {
     const s = slot();
@@ -413,8 +435,8 @@
   // ---------------------------------------------------------------- the Tab panel
   // Projectile rows: [key, label, min, max, step, unit, help]
   const GUN_ROWS = [
-    ['body', 'Body damage', 1, 7, 1, '', ''],
-    ['head', 'Head damage', 1, 7, 1, '', ''],
+    ['body', 'Body damage', 1, 10, 1, '', ''],
+    ['head', 'Head damage', 1, 10, 1, '', ''],
     ['spread', 'Spread', 0, 30, 0.5, '', 'How wide the shots land: N covers a circle N × 10 cm across at 10 m (twice that at 20 m). 0 goes exactly where you aim.'],
     ['grow', 'Spread growth (recoil)', 0, 20, 0.5, '', 'Extra spread you build up holding the trigger: all of it after 8 shots in a row. It settles back once you stop.'],
     ['rate', 'Rate of fire', 0.5, 20, 0.5, 'shots/s', ''],
@@ -434,8 +456,8 @@
       ['tube.reload', 'Tube reload', 0.5, 8, 0.1, 's', ''],
     ], 'blast'],
     ['Knife', [
-      ['knife.front', 'From the front', 1, 7, 1, '', ''],
-      ['knife.back', 'From behind', 1, 7, 1, '', ''],
+      ['knife.front', 'From the front', 1, 10, 1, '', ''],
+      ['knife.back', 'From behind', 1, 10, 1, '', ''],
       ['knife.reach', 'Reach', 1, 4, 0.1, 'm', ''],
     ]],
     ['Moving (every gun)', [
@@ -526,7 +548,7 @@
         pitRings = ringMesh(); pitRings.position.set(PIT.x, 0.045, PIT.z); pitRings.scale.setScalar(HP * S.blast.ring); pitRings.material.opacity = 0.55; scene.add(pitRings);
         built = true;
       }
-      dummies.forEach(resetDummy); clearMines(); myRockets.clear();
+      dummies.forEach(resetDummy); clearMines(); myRockets.clear(); myHp = HP; myDownT = 0;
     },
     kit() { if (on()) kit(); },
     updateGun,
@@ -566,13 +588,16 @@
         if (d < 0.6 && d > 1e-4 && P.pos.y < t.g.position.y + 2) { P.pos.x = t.g.position.x + dx / d * 0.6; P.pos.z = t.g.position.z + dz / d * 0.6; }
       }
       updateMines(dt);
+      if (myDownT > 0) { if ((myDownT -= dt) <= 0) myHp = HP; }
+      else if (myHp < HP && now - myLastT > S.targets.heal) myHp = HP;
     },
     after(dt) {
       const show = on() && (locked || panelOpen) && P.alive;
       slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show ? 'block' : 'none';
       document.body.classList.toggle('range-on', on());
-      cross.style.display = show ? 'block' : 'none';
+      cross.style.display = show ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none';
       if (!on()) return;
+      hpEl.style.backgroundColor = hpColour(myHp);
       scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;
