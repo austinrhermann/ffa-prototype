@@ -70,13 +70,13 @@
     const box = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; both(o); return o; };
     const decal = (w, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), m); o.position.set(x, y, z); o.receiveShadow = true; draw.add(o); return o; };
     const tiled = (tex, rep) => { tex.repeat.set(rep[0], rep[1]); return toonMat({ map: tex }); };
-    const grass = tiled(speckle('#5f7a3c', ['#5a7439', '#64803f', '#587237', '#68843f'], 9000), [40, 40]);
-    const concrete = speckle('#a3a19a', ['#9a9891', '#acaaa3', '#93918b'], 5000);
-    const wallM = toonMat({ map: concrete }), dirt = toonMat({ map: speckle('#7a6244', ['#6f5a3e', '#846a4a', '#6a5338'], 6000) });
-    const paint = toonMat({ color: 0xece8dc }), sand = toonMat({ map: speckle('#c9b27c', ['#bfa874', '#d3bc86', '#b39d6a'], 5000) });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300).rotateX(-Math.PI / 2), grass); ground.receiveShadow = true; both(ground);
+    // A black world on a grey floor: nothing to look at but the dummies
+    const floor = tiled(speckle('#6c6c6c', ['#666666', '#727272', '#606060', '#787878'], 9000), [40, 40]);
+    const wallM = toonMat({ color: 0x0c0c0c }), dirt = wallM;
+    const paint = toonMat({ color: 0xece8dc }), sand = toonMat({ map: speckle('#4e4e4e', ['#484848', '#545454', '#444444'], 5000) });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300).rotateX(-Math.PI / 2), floor); ground.receiveShadow = true; both(ground);
     // The firing area: a concrete pad, the line, and the lane stripes out to the berm
-    const pad = speckle('#a3a19a', ['#9a9891', '#acaaa3', '#93918b'], 5000); pad.repeat.set(8, 3);
+    const pad = speckle('#8a8a8a', ['#848484', '#909090', '#7e7e7e'], 5000); pad.repeat.set(8, 3);
     decal(34, 10, toonMat({ map: pad }), 0, 0.012, 4);
     decal(30, 0.18, paint, 0, 0.022, 0);
     for (const x of [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5]) decal(0.1, 52, paint, x, 0.018, -26);
@@ -372,12 +372,16 @@
   #rpanel button.go{background:#f0874d;color:#1a1208;border-color:#f0874d}
   #rpanel button.sm{flex:0 0 auto;padding:4px 8px;font-size:12px;margin-top:4px}
   #rpanel .info{color:#9aa5b1;font-size:12px;margin-top:10px}
+  #rcross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;box-sizing:border-box;display:none;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  body.range-on .ch{display:none}
   body.touch #rslots,body.touch #rcard{display:none!important}`;
   document.head.append(css);
   const slotsEl = document.createElement('div'); slotsEl.id = 'rslots';
   const card = document.createElement('div'); card.id = 'rcard';
   const panel = document.createElement('div'); panel.id = 'rpanel';
-  document.body.append(slotsEl, card, panel);
+  const cross = document.createElement('div'); cross.id = 'rcross';
+  document.body.append(slotsEl, card, panel); ($('hud') || document.body).append(cross);
+  let crossR = 0;
   function drawSlots() {
     slotsEl.innerHTML = SLOTS.map((s, i) => `<div class="${i === cur ? 'on' : ''}">${i + 1}&nbsp; ${s.name}${s.ammo ? ` <small>${s.ammo}</small>` : ''}</div>`).join('');
   }
@@ -566,7 +570,17 @@
     after(dt) {
       const show = on() && (locked || panelOpen) && P.alive;
       slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show ? 'block' : 'none';
+      document.body.classList.toggle('range-on', on());
+      cross.style.display = show ? 'block' : 'none';
       if (!on()) return;
+      scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); // (each level load sets the sky back)
+      // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
+      const g = slot().kind === 'gun' ? gunOf(slot()) : null;
+      const half = g ? spreadNow(g) * 0.005 : 0, h = renderer.domElement.clientHeight || innerHeight;
+      const want = Math.tan(half) / Math.tan(camera.fov * Math.PI / 360) * h / 2;
+      crossR += (want - crossR) * Math.min(1, dt * 18);
+      if (crossR < 2.5) cross.style.cssText = 'display:' + cross.style.display + ';width:5px;height:5px;background:#fff;border:0';
+      else { const d = (2 * crossR).toFixed(1) + 'px'; cross.style.cssText = `display:${cross.style.display};width:${d};height:${d};background:none;border:1.5px solid #fff`; }
       for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.t -= dt; f.m.material.opacity = Math.min(0.9, f.t / 1.2); if (f.t <= 0) { scene.remove(f.m); f.m.material.dispose(); flashes.splice(i, 1); } }
       const s = slot();
       // What's in your hands: a gun is the game's own viewmodel; the knife, the grenade and the mine are drawn here
