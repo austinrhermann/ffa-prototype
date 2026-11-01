@@ -19,9 +19,9 @@
     const f = (Math.min(HP, h) - 1) / (HP - 1) * (HEALTH.length - 1), i = Math.floor(f);
     return '#' + _hc.copy(HEALTH[i]).lerp(HEALTH[Math.min(i + 1, HEALTH.length - 1)], f - i).getHexString();
   }
-  // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of.
+  // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of (sound: a different sound).
   const SLOTS = [
-    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', ammo: 'A battery' },
+    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', sound: 'gun', ammo: 'A battery' },
     { id: 'carbine', name: 'Carbine', kind: 'gun', model: 'carbine', ammo: 'A battery' },
     { id: 'izu', name: 'Izu', kind: 'gun', model: 'uzi', ammo: 'B battery' },
     { id: 'battery', name: 'Battery Gun', kind: 'gun', model: 'shotgun', ammo: 'B battery' },
@@ -33,21 +33,22 @@
   ];
   // Spread is how wide the shots land: spread N covers a circle N × 10 cm across at 10 m (twice that at 20 m).
   // grow: extra spread built up by holding the trigger (all of it after 8 shots in a row); it settles once you let go.
+  // aim: aiming down the sights multiplies the spread by this (1: no help).
   const DEFAULTS = {
     guns: {
-      pistol:  { body: 3, head: 5, spread: 3,  grow: 0, rate: 5,  clip: 8,  count: 1,  reload: 1.4, auto: false },
-      carbine: { body: 3, head: 5, spread: 1,  grow: 0, rate: 4,  clip: 8,  count: 1,  reload: 2.0, auto: false },
-      izu:     { body: 1, head: 2, spread: 4,  grow: 4, rate: 16, clip: 32, count: 1,  reload: 1.8, auto: true },
-      battery: { body: 1, head: 1, spread: 14, grow: 0, rate: 2,  clip: 1,  count: 12, reload: 2.4, auto: false },
-      rifle:   { body: 5, head: 7, spread: 0,   grow: 0, rate: 1,  clip: 1,  count: 1,  reload: 2.6, auto: false },
+      pistol:  { body: 2,  head: 4,  spread: 6,  grow: 20, rate: 4,   clip: 12, count: 1,  reload: 2,   aim: 0.15, auto: false },
+      carbine: { body: 2,  head: 4,  spread: 2,  grow: 20, rate: 6,   clip: 12, count: 1,  reload: 2,   aim: 0.15, auto: true },
+      izu:     { body: 1,  head: 2,  spread: 5,  grow: 20, rate: 12,  clip: 24, count: 1,  reload: 2.5, aim: 1,    auto: true },
+      battery: { body: 1,  head: 2,  spread: 20, grow: 0,  rate: 0.5, clip: 1,  count: 16, reload: 2.5, aim: 1,    auto: false },
+      rifle:   { body: 10, head: 20, spread: 3,  grow: 0,  rate: 1,   clip: 1,  count: 1,  reload: 1.5, aim: 0.15, auto: false },
     },
     blast: { max: 7, ring: 1.1, show: true }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
     tube: { speed: 38, reload: 4.5 },        // rocket speed (m/s)
     knife: { front: 4, back: HP, reach: 2 },
-    move: { walk: 1, run: 16, jump: 12, crouch: 0.55, aim: 0.45 }, // spread added walking, running, in the air; crouching and aiming multiply it
-    targets: { strafe: 0, heal: 3 },         // strafe: lane dummies pace side to side at this speed (m/s); heal: damage wears off after this long
+    move: { walk: 5, run: 20.5, jump: 12, crouch: 0.5 }, // spread added walking, running, in the air; crouching multiplies it
+    targets: { strafe: 0.5, heal: 3 },         // strafe: lane dummies pace side to side at this speed (m/s); heal: damage wears off after this long
   };
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
@@ -66,7 +67,12 @@
     if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? HP : o.knife.back;
     return o;
   }
-  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave()); } catch (e) { return clone(DEFAULTS); } })();
+  // Aiming used to be one setting for every gun (move.aim); a save from then gives it to the guns that aim.
+  function aimPerGun(o) {
+    if (o && o.move && typeof o.move.aim === 'number') for (const id of ['pistol', 'carbine', 'rifle']) { const g = o.guns && o.guns[id]; if (g && g.aim === undefined) g.aim = o.move.aim; }
+    return o;
+  }
+  const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
   function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
 
   const on = () => MODE === 'range';
@@ -275,7 +281,7 @@
     const m = S.move, hs = Math.hypot(P.vel.x, P.vel.z);
     let sp = g.spread + heat * g.grow + (!P.onGround ? m.jump : hs > 5 ? m.run : hs > 0.5 ? m.walk : 0);
     if (P.h < STAND_H) sp *= m.crouch;
-    return sp * (1 - (1 - m.aim) * adsK);
+    return sp * (1 - (1 - g.aim) * adsK);
   }
   function fireGun(s) {
     const g = gunOf(s), w = WEAPONS[s.model], q = aimQ(), half = spreadNow(g) * 0.005; // spread N: N × 0.01 rad across
@@ -298,7 +304,7 @@
     const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
     punch += w.kick * 0.6 * k; vmKick = 1; flashT = GUN_FX[s.model] ? GUN_FX[s.model].flash.life : 0.04;
     muzzleFx(s.model, start, new V3(0, 0, -1).applyQuaternion(q), true, P.id);
-    sfx(w.sound, 1);
+    sfx(s.sound || w.sound, 1);
   }
   function fireTube() {
     const q = aimQ(), cdir = new V3(0, 0, -1).applyQuaternion(q), start = vmMuzzleWorld();
@@ -452,7 +458,7 @@
   }
 
   // ---------------------------------------------------------------- the Tab panel
-  // Projectile rows: [key, label, min, max, step, unit, help]
+  // Projectile rows: [key, label, min, max, step, unit, help, only this gun]
   const GUN_ROWS = [
     ['body', 'Body damage', 1, HP, 1, '', ''],
     ['head', 'Head damage', 1, HP, 1, '', ''],
@@ -460,8 +466,9 @@
     ['grow', 'Spread growth (recoil)', 0, 20, 0.5, '', 'Extra spread you build up holding the trigger: all of it after 8 shots in a row. It settles back once you stop.'],
     ['rate', 'Rate of fire', 0.5, 20, 0.5, 'shots/s', ''],
     ['clip', 'Clip size', 1, 60, 1, 'shots', 'Shots per battery (or per load) before a reload.'],
-    ['count', 'Pellets per shot', 1, 20, 1, '', 'More than 1 makes a spread of pellets, each doing the damage above.'],
+    ['count', 'Pellets per shot', 1, 20, 1, '', 'Each pellet does the damage above.', 'battery'],
     ['reload', 'Reload time', 0.3, 6, 0.1, 's', ''],
+    ['aim', 'Aiming down sights multiplies spread by', 0.1, 1, 0.05, '×', '1: aiming doesn\'t tighten it.'],
   ];
   // Other rows: [path, label, min, max, step, unit, help]
   const OTHER = [
@@ -485,7 +492,6 @@
       ['move.run', 'Running adds', 0, 30, 0.5, 'spread', ''],
       ['move.jump', 'In the air adds', 0, 30, 0.5, 'spread', ''],
       ['move.crouch', 'Crouching multiplies by', 0.1, 1, 0.05, '×', ''],
-      ['move.aim', 'Aiming down sights multiplies by', 0.1, 1, 0.05, '×', ''],
     ]],
     ['Dummies', [
       ['targets.strafe', 'Lane dummies strafe at', 0, 7, 0.5, 'm/s', 'Side to side, 1.5 m each way. 0 stands still; 4.2 is walking pace, 6.8 running.'],
@@ -500,7 +506,7 @@
     for (const sl of SLOTS) if (sl.kind === 'gun') {
       const g = gunOf(sl);
       html += `<details data-sec="${sl.id}"${sl === s ? ' open' : ''}><summary>${sl.name}<small>${sl.ammo}</small></summary><div class="math" id="rm-${sl.id}">${killMath(g)}</div>`;
-      for (const [k, label, min, max, step, unit, help] of GUN_ROWS)
+      for (const [k, label, min, max, step, unit, help, only] of GUN_ROWS) if (!only || only === sl.id)
         html += `<div class="row"><label for="rg-${sl.id}-${k}">${label}</label><output id="ro-${sl.id}-${k}">${fmt(g[k], step)} ${unit}</output><input type="range" id="rg-${sl.id}-${k}" data-g="${sl.id}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${g[k]}">${help ? `<div class="help">${help}</div>` : ''}</div>`;
       html += `<label class="chk"><input type="checkbox" data-g="${sl.id}" data-k="auto"${g.auto ? ' checked' : ''}> Full auto (hold to keep firing)</label><button type="button" class="sm" data-reset="${sl.id}">Reset ${sl.name}</button></details>`;
     }
