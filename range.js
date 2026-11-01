@@ -180,7 +180,7 @@
   let lastKill = '', history = [];
   // n, nh: how many hits (pellets) and head hits this was; unit: what one use of the weapon is called
   function hitDummy(t, dmg, head, src, n = 1, nh = head ? 1 : 0, unit = 'shot') {
-    if (t.dead > 0 || dmg <= 0) return;
+    if (t.dead > 0 || dmg <= 0) return false;
     const now = performance.now() / 1000;
     if (!t.dmg) { t.firstT = now; t.shot0 = shotN; t.hits = 0; t.heads = 0; }
     t.dmg = Math.min(HP, t.dmg + dmg); t.hits += n; t.heads += nh; t.lastT = now; t.flashT = 0.07;
@@ -192,6 +192,7 @@
       history.unshift(lastKill); history = history.slice(0, 4);
     } else tint(t, DUMMY.hit);
     drawPips(t);
+    return t.dead > 0; // a kill
   }
   function resetDummy(t) { t.dmg = 0; t.dead = 0; t.last = ''; t.hits = t.heads = 0; tint(t); drawPips(t); }
   function buildDummies() {
@@ -247,7 +248,7 @@
     const name = { throw: 'grenade', mine: 'mine', tube: 'tube' }[src] || 'blast';
     for (const t of dummies) {
       const d = distTo(t, o), dmg = ringDmg(d);
-      if (dmg > 0 && centres(t).some(c => losPts(o, c))) hitDummy(t, dmg, false, name, 1, 0, 'blast');
+      if (dmg > 0 && centres(t).some(c => losPts(o, c))) hitFeedback(false, hitDummy(t, dmg, false, name, 1, 0, 'blast'));
     }
     // You: blasts hurt you too (your health circle shows it); the range doesn't kill you, it just fills you back up
     const me = Math.max(0, Math.hypot(Math.max(0, Math.abs(o.x - P.pos.x) - 0.3), Math.max(0, P.pos.y - o.y, o.y - (P.pos.y + P.h)), Math.max(0, Math.abs(o.z - P.pos.z) - 0.3)));
@@ -291,8 +292,8 @@
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point); }
     }
     addHoles(holes);
-    for (const [t, a] of byT) hitDummy(t, a.d, a.nh > 0, s.name, a.n, a.nh);
-    if (byT.size) hitMarker([...byT.values()].some(a => a.nh > 0));
+    let kill = false; for (const [t, a] of byT) kill = hitDummy(t, a.d, a.nh > 0, s.name, a.n, a.nh) || kill;
+    if (byT.size) hitFeedback([...byT.values()].some(a => a.nh > 0), kill);
     if (g.grow > 0) heat = Math.min(1, heat + 1 / 8);
     const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
     punch += w.kick * 0.6 * k; vmKick = 1; flashT = GUN_FX[s.model] ? GUN_FX[s.model].flash.life : 0.04;
@@ -321,8 +322,7 @@
     if (!best) return;
     // The dummies face the firing line (+z): you're behind one when you're on its -z side
     const back = (best.g.position.z - P.pos.z) / Math.max(bd, 1e-3) > 0.5;
-    hitDummy(best, back ? S.knife.back : S.knife.front, false, back ? 'knife (from behind)' : 'knife', 1, 0, 'stab');
-    hitMarker(false);
+    hitFeedback(false, hitDummy(best, back ? S.knife.back : S.knife.front, false, back ? 'knife (from behind)' : 'knife', 1, 0, 'stab'));
   }
   const clipOf = s => (s.kind === 'tube' ? 1 : s.kind === 'gun' ? gunOf(s).clip : 0);
   const reloadOf = s => (s.kind === 'tube' ? S.tube.reload : gunOf(s).reload);
@@ -409,6 +409,8 @@
   #rpanel button.sm{flex:0 0 auto;padding:4px 8px;font-size:12px;margin-top:4px}
   #rpanel .info{color:#9aa5b1;font-size:12px;margin-top:10px}
   #rcross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;box-sizing:border-box;display:none}
+  #rcross i{position:absolute;left:50%;top:50%;width:2px;height:20px;margin:-10px 0 0 -1px;background:#e51c1c;display:none}#rcross i:first-child{transform:rotate(45deg)}#rcross i:last-child{transform:rotate(-45deg)}
+  #rcross.kill i{display:block}
   body.range-on .ch{display:none}
   body.touch #rslots,body.touch #rcard,body.touch #rhp{display:none!important}`;
   document.head.append(css);
@@ -418,7 +420,9 @@
   const cross = document.createElement('div'); cross.id = 'rcross';
   const hpEl = document.createElement('div'); hpEl.id = 'rhp';
   document.body.append(slotsEl, card, panel, hpEl); ($('hud') || document.body).append(cross);
-  let crossR = 0;
+  let crossR = 0, hitT = 0, hitCol = '#fff', killT = 0;
+  cross.innerHTML = '<i></i><i></i>'; // the kill X's two strokes
+  function hitFeedback(head, kill) { if (kill) killT = 0.5; else { hitT = 0.12; hitCol = head ? '#e51c1c' : '#ffcc00'; } }
   function drawSlots() {
     slotsEl.innerHTML = SLOTS.map((s, i) => `<div class="${i === cur ? 'on' : ''}">${i + 1}&nbsp; ${s.name}${s.ammo ? ` <small>${s.ammo}</small>` : ''}</div>`).join('');
   }
@@ -485,7 +489,7 @@
     ]],
     ['Dummies', [
       ['targets.strafe', 'Lane dummies strafe at', 0, 7, 0.5, 'm/s', 'Side to side, 1.5 m each way. 0 stands still; 4.2 is walking pace, 6.8 running.'],
-      ['targets.heal', 'Damage wears off after', 0.5, 10, 0.5, 's', 'With no new hits, a dummy goes back to full health.'],
+      ['targets.heal', 'Your health comes back after', 0.5, 10, 0.5, 's', 'With no new hits, you go back to full health. Dummies keep their damage until they go down.'],
     ]],
   ];
   const getP = p => p.split('.').reduce((o, k) => o[k], S);
@@ -594,7 +598,6 @@
       for (const t of dummies) {
         if (t.flashT > 0 && (t.flashT -= dt) <= 0 && t.dead <= 0) tint(t);
         if (t.dead > 0) { if ((t.dead -= dt) <= 0) resetDummy(t); }
-        else if (t.dmg > 0 && now - t.lastT > S.targets.heal) resetDummy(t);
         // Strafing: lane dummies pace 1.5 m each side of their spot
         const sp = t.lane ? S.targets.strafe : 0;
         if (sp > 0) { t.g.position.x += t.dir * sp * dt; if (Math.abs(t.g.position.x - t.home.x) > 1.5) { t.g.position.x = t.home.x + Math.sign(t.g.position.x - t.home.x) * 1.5; t.dir = -t.dir; } }
@@ -620,8 +623,12 @@
       const half = g ? spreadNow(g) * 0.005 : 0, h = renderer.domElement.clientHeight || innerHeight;
       const want = Math.tan(half) / Math.tan(camera.fov * Math.PI / 360) * h / 2;
       crossR += (want - crossR) * Math.min(1, dt * 18);
-      if (crossR < 2.5) cross.style.cssText = 'display:' + cross.style.display + ';width:5px;height:5px;background:#fff;border:0';
-      else { const d = (2 * crossR).toFixed(1) + 'px'; cross.style.cssText = `display:${cross.style.display};width:${d};height:${d};background:none;border:1.5px solid #fff`; }
+      hitT -= dt; killT -= dt;
+      const col = hitT > 0 ? hitCol : '#fff', dsp = 'display:' + cross.style.display;
+      cross.classList.toggle('kill', killT > 0);
+      if (killT > 0) cross.style.cssText = dsp + ';width:0;height:0;background:none;border:0'; // the X stands in for the circle
+      else if (crossR < 2.5) cross.style.cssText = `${dsp};width:5px;height:5px;background:${col};border:0`;
+      else { const d = (2 * crossR).toFixed(1) + 'px'; cross.style.cssText = `${dsp};width:${d};height:${d};background:none;border:1.5px solid ${col}`; }
       for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.t -= dt; f.m.material.opacity = Math.min(0.9, f.t / 1.2); if (f.t <= 0) { scene.remove(f.m); f.m.material.dispose(); flashes.splice(i, 1); } }
       const s = slot();
       // What's in your hands: a gun is the game's own viewmodel; the knife, the grenade and the mine are drawn here
