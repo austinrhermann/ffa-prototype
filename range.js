@@ -1,4 +1,4 @@
-// The new weapon system, and the Shooting Range to dial it in. Under ?dev every game uses it (not Test Drive or the fort's waves):
+// The weapon system, and the Shooting Range to dial it in. Every game uses it (not Test Drive or the fort's waves, which keep the old one):
 //   - Everyone has 40 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
 //     The game keeps its own health numbers (HP), so damage is scaled by HP / LIFE on the way in.
 //   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun D batteries, the Master Rifle its own rounds),
@@ -6,7 +6,8 @@
 //   - An F battery is a grenade or a mine, or a shell for the F tube (a mortar). A blast does its centre damage in the middle
 //     ring and one less in each ring out; walls block it, and it hurts anyone in reach (you too).
 //   - Three weapons and the knife (4 from the front, a kill from behind). Ammo is carried apart from the weapons.
-//   - Tab opens the weapon settings, in the range and in a game.
+//   - Tab opens the weapon settings, in the range and in a game (the host's; they're sent to everyone as they change).
+//   - The weapons you aren't holding hang on your back (the Pistol at your hip), your batteries on your belt.
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, ents, WEAPONS, VMW, gun, ...).
 // The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
@@ -91,10 +92,21 @@
   }
   const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
   if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
-  function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
+  // Saved in this browser; the host also sends them to everyone in the game (a moment after the last change)
+  let sendT = 0;
+  function save() {
+    try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {}
+    if (NET.role === 'host' && remotes.length) { clearTimeout(sendT); sendT = setTimeout(() => netFx({ t: 'wset', s: S }), 120); }
+  }
+  // A guest plays by the host's settings (in memory only: their own saved ones are back next time they play alone)
+  function useSettings(o) {
+    if (!o || typeof o !== 'object') return;
+    for (const k in DEFAULTS) S[k] = merge(clone(DEFAULTS[k]), o[k]);
+    drawRings(); if (pitRings) pitRings.scale.setScalar(blastR());
+  }
 
   const on = () => MODE === 'range'; // the Shooting Range itself
-  const live = () => on() || (DEV && MODE !== 'drive' && MODE !== 'defend'); // the new weapons: the range, and every ?dev game
+  const live = () => MODE !== 'drive' && MODE !== 'defend'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
   const K = () => maxHp(P) / LIFE; // our damage in the game's health (1: under ?dev everyone has LIFE)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
@@ -587,7 +599,12 @@
     if (it.pos.y < -20) { if (!on()) { it.gone = true; return; } const sp = SPOTS.find(q => q.id === it.id); it.pos.copy(spotPos(sp)); it.vel = null; return; } // off the world: back to its spot
     if (ground && Math.hypot(it.vel.x, it.vel.z) < 0.4) {
       it.vel = null; it.pos.y -= 0.12;
-      if (!on()) { const sl = byId(it.id); addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: 30 }); it.gone = true; }
+      if (!on()) { // the host keeps the pickups, so a guest's dropped weapon is handed to it
+        const sl = byId(it.id);
+        if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'drop', id: sl.model, p: arr(it.pos), a: it.load }); }
+        else addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: 30 });
+        it.gone = true;
+      }
     }
   }
   const near = (p, r) => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < r && Math.abs(P.pos.y - p.y) < 1.3;
@@ -676,6 +693,57 @@
     d.center.y = e.tagA > 0.05 ? -0.8 : 0.5; // above the name while it shows
     const h = Math.ceil(e.health / K() - 1e-6);
     if (h !== d.userData.k) { d.userData.k = h; const x = d.userData.c.getContext('2d'); x.clearRect(0, 0, 64, 64); x.beginPath(); x.arc(32, 32, 28, 0, Math.PI * 2); x.fillStyle = hpColour(h); x.fill(); d.material.map.needsUpdate = true; }
+  }
+  // ---------------------------------------------------------------- what everyone carries, on their character
+  // The weapons not in their hands hang on their back (the Pistol in a holster at the right hip); their batteries ride on the
+  // belt. A first pass for other players to read at a glance, until the art and animation do it properly.
+  // Bots carry rounds rather than batteries, so they only show their grenades (as F batteries).
+  function gearOf(e) {
+    if (e === P) return { inv: P.inv || [], cur: curW, b: [bats.A, bats.D, bats.F, bats.R] };
+    if (e.isReplica) return { inv: e.gInv || [], cur: e.wpn, b: e.gBats || [0, 0, 0, 0] };
+    return { inv: e.inv || [], cur: e.wpn, b: e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0] };
+  }
+  const gearMat = {}, GEAR_BAT = { A: [0.025, 0.08], D: [0.035, 0.1], R: [0.012, 0.075] };
+  const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion(), _ax = { x: new V3(1, 0, 0), y: new V3(0, 1, 0), z: new V3(0, 0, 1) };
+  function gear(e) {
+    const r = e.rig; if (!r || !r.root) return;
+    const g = gearOf(e), keep = g.inv.filter(id => id !== g.cur && WEAPONS[id]);
+    const key = live() ? keep.join() + '|' + g.b.join() : '';
+    if (r.gearKey === key) return;
+    r.gearKey = key;
+    if (r.gear) { if (r.gear.parent) r.gear.parent.remove(r.gear); r.gear = null; }
+    if (!key) return;
+    const sp = r.root.getObjectByName('DEF-Spine1'), up = r.upper && r.upper.find(u => u.b === sp); if (!sp || !up) return;
+    // The spine's rest pose, once: gear hangs in the body's own frame (forward +z, up +y), from the spine joint
+    if (!r.gearM) {
+      const pos = sp.position.clone(), q = sp.quaternion.clone();
+      sp.position.copy(up.pos); sp.quaternion.copy(up.rest); r.wrap.updateMatrixWorld(true);
+      const rel = new THREE.Matrix4().copy(r.wrap.matrixWorld).invert().multiply(sp.matrixWorld), at = new V3().setFromMatrixPosition(rel);
+      r.gearM = rel.clone().invert().multiply(new THREE.Matrix4().makeTranslation(at.x, at.y, at.z)); r.gearY = at.y;
+      sp.position.copy(pos); sp.quaternion.copy(q); r.wrap.updateMatrixWorld(true);
+    }
+    const holder = new THREE.Group(); holder.matrixAutoUpdate = false; holder.matrix.copy(r.gearM);
+    const body = new THREE.Group(); body.rotation.y = RIG_TURN; holder.add(body); // turned with the body
+    const headY = r.model.headY || 1.7, backY = headY * 0.78 - r.gearY, beltY = headY * 0.56 - r.gearY; // (by proportion: the characters differ in size)
+    const gun = id => { const w = WEAPONS[id], m = centeredClone(w.scene, w.yaw); m.traverse(o => { if (o.isMesh) o.castShadow = true; }); return m; };
+    // Back: barrels up, flat side out, crossed when there are two
+    const back = keep.filter(id => id !== 'pistol'), slots = back.length === 1 ? [[0, 0.15]] : [[0.06, 0.4], [-0.06, -0.4], [0, 0]];
+    back.slice(0, 3).forEach((id, i) => {
+      const m = gun(id), [x, roll] = slots[i];
+      m.quaternion.copy(_q1.setFromAxisAngle(_ax.z, roll)).multiply(_q2.setFromAxisAngle(_ax.y, Math.PI / 2)).multiply(_q3.setFromAxisAngle(_ax.x, Math.PI / 2));
+      m.position.set(x, backY, -0.19 - i * 0.03); body.add(m);
+    });
+    if (keep.includes('pistol')) { const m = gun('pistol'); m.rotation.x = -Math.PI / 2; m.position.set(-0.23, beltY - 0.05, 0.03); body.add(m); }
+    // Belt: the batteries round the back, A then D then F then rifle rounds
+    const list = []; ['A', 'D', 'F', 'R'].forEach((k, j) => { for (let n = 0; n < Math.min(4, g.b[j] | 0); n++) list.push(k); });
+    const arc = Math.min(1.4, list.length * 0.16);
+    list.forEach((k, i) => {
+      const mat = gearMat[k] || (gearMat[k] = toonMat({ color: new THREE.Color(COL[k]).getHex() }));
+      const m = k === 'F' ? new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mat) : new THREE.Mesh(new THREE.CylinderGeometry(GEAR_BAT[k][0], GEAR_BAT[k][0], GEAR_BAT[k][1], 10), mat);
+      const th = Math.PI + (list.length > 1 ? (i / (list.length - 1) - 0.5) * 2 * arc : 0);
+      m.position.set(Math.sin(th) * 0.2, beltY, Math.cos(th) * 0.2); m.castShadow = true; body.add(m);
+    });
+    sp.add(holder); r.gear = holder;
   }
   function hitFeedback(head, kill) { if (kill) killT = 0.5; else { hitT = 0.12; hitCol = head ? '#e51c1c' : '#ffcc00'; } }
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
@@ -867,7 +935,9 @@
     kit() { if (live()) kit(); },
     life: LIFE, give, addBats, packMesh, knifeDmg,
     mine(p, owner) { if (live() && p.distanceTo(owner.pos) < 5) addMine(p, owner); }, // a guest set one (host)
-    fx: mineFx, // the host's mines, on a guest
+    fx(m) { if (m.t === 'wset') useSettings(m.s); else mineFx(m); }, // the host's settings and mines, on a guest
+    cfg: () => S,
+    bats: () => [bats.A, bats.D, bats.F, bats.R],
     // What a box gives: the pack for a weapon spot's gun (rifle rounds by the rifle), and how long it takes to come back
     ammoOf: model => { const sl = byId(BY_MODEL[model]); return sl ? sl.ammo : null; },
     packWait: k => (k === 'R' ? S.game.rifle : S.game.packs),
@@ -888,7 +958,7 @@
       if (code === 'KeyR') { startReload(); return true; }
       return (on() && code === 'KeyE') || code === 'KeyF' || code === 'KeyG'; // no knife or grenade hotkeys: they're weapons you switch to
     },
-    tab() { if (!live() || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; },
+    tab() { if (!live() || NET.role === 'guest' || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; }, // only the host tunes the weapons
     // The game's blasts (grenades and the tube's rockets) land here in the range
     boom(pos, owner, src) { blast(pos, owner || P, src || 'throw'); }, // grenades and F tube shells (the game's), gas cans
     solid(p) { return onDummy(p); },
@@ -917,7 +987,7 @@
       slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show && on() ? 'block' : 'none'; // the card is the range's
       document.body.classList.toggle('range-on', live());
       cross.style.display = show ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none';
-      for (const e of ents) if (e !== P && (e.hpDot || live())) hpDot(e);
+      for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
       const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
