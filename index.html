@@ -243,7 +243,7 @@ body.touch .card small.tc{display:block}
   <h1 id="mtitle">Defend the Fort</h1>
   <div class="scr scr-main">
   <p class="drive-only" id="driveintro">A little stadium oval with walls, ramps and banked turns. Walk up to a car or a motorcycle in the infield parking lot and press E to drive. In a vehicle, Tab opens its tuning: acceleration, brakes, steering, weight, size, suspension. Invite friends to race and crash into each other.</p>
-  <p class="range-only" id="rangeintro">Every weapon, infinite ammo, and dummies down the lanes at 5, 10, 20, 30 and 45 m, and a blast pit to the left. A dummy has 20 health, shown as a circle over its head from blue (full) to red (1 left): it turns green when you've done lethal damage, then resets. Tab opens the weapon settings.</p>
+  <p class="range-only" id="rangeintro">Every weapon lies on the ground behind you with its ammo: walk over one to pick it up (3 at most, plus the knife; Q drops one). Dummies stand down the lanes at 5, 10, 20, 30 and 45 m, and a blast pit to the left. A dummy has 20 health, shown as a circle over its head from blue (full) to red (1 left): it turns green when you've done lethal damage, then resets. Tab opens the weapon settings.</p>
   <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
   <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
@@ -288,7 +288,8 @@ body.touch .card small.tc{display:block}
       <dt>WASD, Shift, C, Space</dt><dd>Move, run, crouch, jump (they all change your spread)</dd>
       <dt>Left click</dt><dd>Use the weapon in your hands (hold to cook a grenade)</dd>
       <dt>X, right click</dt><dd>Aim down sights</dd>
-      <dt>1–9, Q, wheel</dt><dd>Pick a weapon: five guns, then grenade, mine, tube and knife</dd>
+      <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
+      <dt>Q</dt><dd>Drop the weapon in your hands</dd>
       <dt>R</dt><dd>Reload</dd>
       <dt>Tab</dt><dd>Weapon settings (Tab again to shoot)</dd>
     </dl>
@@ -866,7 +867,7 @@ function levelDrive() {
     spawns: [[-8, 0.5, 13], [-3, 0.5, 13], [2, 0.5, 13], [7, 0.5, 13], [-13, 0.5, 13], [12, 0.5, 13]], ammo: [], heals: [], pickups: [], ladders: [],
   };
 }
-// Shooting Range (range.js builds the yard, the dummies and the weapon settings): one player, every weapon, infinite ammo.
+// Shooting Range (range.js builds the yard, the dummies and the weapon settings): one player, every weapon on the ground with its ammo.
 // It's where the simpler weapon system (7 health, damage 1-7, one shared explosive) gets dialled in.
 function levelRange() {
   return {
@@ -4196,7 +4197,7 @@ const VEH = { cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() {
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Shooting Range (range.js fills this in) ----------
-const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; } };
+const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; } };
 
 // ---------- Input ----------
 const keys = {};
@@ -4296,6 +4297,7 @@ function updatePlayer(dt) {
   const running = (keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.9) && !crouched && adsK < 0.5;
   let speed = crouched ? 2.2 : running ? 6.8 : 4.2;
   if (adsK > 0.5) speed *= 0.75;
+  speed *= RANGE.speedK(); // carrying the range's F tube slows you down
   const k = Math.min(1, (P.onGround ? 12 : 2.5) * dt);
   P.vel.x += (wx * speed - P.vel.x) * k;
   P.vel.z += (wz * speed - P.vel.z) * k;
@@ -5927,7 +5929,7 @@ requestAnimationFrame(loop);
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js?v=6"></script>
-<script src="range.js?v=3"></script>
+<script src="range.js?v=5"></script>
 <script src="transcript.js"></script>
 </body>
 </html>
