@@ -554,6 +554,8 @@ const MAX_NADES = 3;
 let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
+// The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
+const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 20, botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {}, ATK_SPAWNS = [], ASSAULT = [];
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
@@ -3024,7 +3026,7 @@ const ROLES = {
 const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
 const isAtk = e => !!(e.bot || e.role === 'atk');
 const HP = 150; // everyone's health outside the defend roles (was 100: people died too fast)
-const maxHp = e => { const k = kitOf(e); return k ? k.hp : HP; };
+const maxHp = e => { const k = kitOf(e); return k ? k.hp : RANGE.on ? RANGE.life : HP; }; // under ?dev everyone has the new system's 20
 const maxNades = e => { const k = kitOf(e); return k ? k.nades : MAX_NADES; };
 let hostPick = 'master';
 // Host: returns the entities whose role changed so they can be re-equipped
@@ -3177,8 +3179,9 @@ function damage(t, amt, attacker, weapon, head) {
   if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
   if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t) && weapon !== 'car') return; // no friendly fire (except under the wheels)
   t.health -= amt;
-  if (t.isRemote) sendTo(t, { t: 'hurt', a: amt });
-  if (t.isPlayer) hurtFx(amt);
+  const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (2 of 20 shows like 15 of 150)
+  if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
+  if (t.isPlayer) hurtFx(felt);
   if (t.health <= 0) {
     t.health = 0; t.alive = false; t.deaths++; t.respawnT = 3;
     dropWeapons(t);
@@ -3246,7 +3249,7 @@ function knifeAttack(att) {
   if (!best) return false;
   const dir = new V3(best.pos.x - att.pos.x, 0, best.pos.z - att.pos.z).normalize();
   const back = fwdOf(best).dot(dir) > 0.5;
-  damage(best, back ? 100 : 55, att, 'knife', false);
+  damage(best, RANGE.on ? RANGE.knifeDmg(back) : back ? 100 : 55, att, 'knife', false);
   return true;
 }
 
@@ -3254,14 +3257,16 @@ function knifeAttack(att) {
 const nades = [];
 const nadeGeo = new THREE.SphereGeometry(0.09, 10, 8), nadeMat = toonMat({ color: 0x3d4a2a });
 function nadeMesh() { const g = new THREE.Group(), c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g; } // the model stands on its base; the group spins about its middle
-function throwNade(owner, origin, vel, fuse = NADE_FUSE) {
-  if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(origin), v: arr(vel), f: fuse }); return; }
+// impact: it goes off when it hits something (the ?dev F tube's shells) rather than when the fuse runs out
+function throwNade(owner, origin, vel, fuse = NADE_FUSE, impact = false) {
+  if (NET.role === 'guest') { if (owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(origin), v: arr(vel), f: fuse, im: impact ? 1 : 0 }); return; }
   const m = NADE_MODEL ? nadeMesh() : new THREE.Mesh(nadeGeo, nadeMat); m.castShadow = true; m.position.copy(origin); scene.add(m);
-  nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m, spin: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 14) });
+  if (impact) m.scale.setScalar(1.5);
+  nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m, impact, spin: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 14) });
 }
 const GASCANS = [], pendingGas = [];
-function boom(pos, owner, R, maxD, selfK = 1) { // selfK: share of the damage the thrower takes (the bazooka spares you a bit)
-  if (RANGE.on) return RANGE.boom(pos, owner); // the range's blasts: damage in rings, 7 at the centre
+function boom(pos, owner, R, maxD, selfK = 1, src) { // selfK: share of the damage the thrower takes (the bazooka spares you a bit)
+  if (RANGE.on) return RANGE.boom(pos, owner, src); // the new weapons' blasts (?dev): damage in rings
   addScorch(pos, R * 0.3);
   _boomFx(pos, R * 0.6); sBoom(vol(pos, 90)); netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
   const o = pos.clone(); o.y += 0.3;
@@ -3278,7 +3283,7 @@ function boom(pos, owner, R, maxD, selfK = 1) { // selfK: share of the damage th
 }
 function explode(n) {
   if (NET.role === 'guest') { if (n.owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(n.pos), v: [0, 0, 0], f: 0.01 }); return; }
-  boom(n.pos, n.owner, 8.05, 130);
+  boom(n.pos, n.owner, 8.05, 130, 1, n.impact ? 'tube' : 'throw');
 }
 function registerGas(o) {
   if (!o || !PROPS.Gas_Can) return;
@@ -3317,6 +3322,7 @@ function updateNades(dt) {
       n.vel.y -= GRAV * h;
       for (const ax of ['x', 'y', 'z']) {
         const p = n.pos.clone(); p[ax] += n.vel[ax] * h;
+        if (n.impact && (solidPt(p.x, p.y, p.z, 0.09) || RANGE.solid(p) || ents.some(e => e !== n.owner && e.alive && Math.abs(p.x - e.pos.x) < 0.4 && Math.abs(p.z - e.pos.z) < 0.4 && p.y > e.pos.y && p.y < e.pos.y + e.h + 0.1))) { n.t = 0; break; }
         if (solidPt(p.x, p.y, p.z, 0.09)) {
           const hard = Math.abs(n.vel[ax]) > 2.5; // a real impact bounces a little; resting on the ground just rolls
           n.vel[ax] = hard ? -n.vel[ax] * NADE_BOUNCE : 0;
@@ -3325,6 +3331,7 @@ function updateNades(dt) {
         }
         else n.pos[ax] = p[ax];
       }
+      if (n.t <= 0) break;
     }
     n.mesh.position.copy(n.pos);
     if (n.spin && n.mesh.isGroup) { const sp = n.vel.length() > 1.5 ? 1 : 0; n.mesh.rotation.x += n.spin.x * dt * sp; n.mesh.rotation.y += n.spin.y * dt * sp; n.mesh.rotation.z += n.spin.z * dt * sp; }
@@ -3385,6 +3392,16 @@ const AMMO_MAT = toonMat({ color: 0x4f5b34 }), BAND_MAT = toonMat({ color: 0xe8c
 const NADE_MAT = toonMat({ color: 0x33402a }), NBAND_MAT = toonMat({ color: 0xc8402f });
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
+  // Under ?dev the boxes are battery packs: A and D in turn, F where the grenades were, and each weapon's own pack on its spot
+  if (RANGE.on) {
+    let i = 0; const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : i++ % 2 ? 'D' : 'A' }));
+    for (const [id, p] of STATIC_PICKUPS) { const kind = RANGE.ammoOf(id); if (kind) spots.push({ pos: p, kind }); }
+    for (const { pos: p, cell, kind } of spots) {
+      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
+      ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
+    }
+    return;
+  }
   for (const { pos: p, cell, nade } of AMMO_SPOTS) {
     const g = new THREE.Group();
     const box = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.45, 0.3, 0.35) : new THREE.BoxGeometry(0.7, 0.35, 0.45), nade ? NADE_MAT : AMMO_MAT), band = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.47, 0.07, 0.37) : new THREE.BoxGeometry(0.72, 0.08, 0.47), nade ? NBAND_MAT : BAND_MAT);
@@ -3399,6 +3416,15 @@ function updateAmmo(dt, now) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
     a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
+      if (a.kind) { // a battery pack: you take what you can carry; a guest is sent it; a bot refills the old way
+        if (!e.alive || Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
+        if (e.isPlayer) { if (!RANGE.addBats(a.kind)) continue; }
+        else if (e.isRemote) sendTo(e, { t: 'bat', k: a.kind });
+        else if (a.nade) { if (e.nades >= maxNades(e)) continue; e.nades = Math.min(maxNades(e), e.nades + 2); }
+        else { if (!needsAmmo(e)) continue; giveAmmoAll(e); }
+        a.active = false; a.t = RANGE.packWait(a.kind); a.mesh.visible = false;
+        break;
+      }
       if (!e.alive || (a.nade ? e.nades >= maxNades(e) : !needsAmmo(e))) continue;
       if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) < 1.0 && Math.abs(e.pos.y - a.pos.y) < 1.2) {
         if (a.nade) e.nades++; else giveAmmoAll(e);
@@ -3439,7 +3465,7 @@ function updatePickups(dt, now) {
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
       if (Math.hypot(e.pos.x - pk.pos.x, e.pos.z - pk.pos.z) < 1.1 && Math.abs(e.pos.y - pk.pos.y) < 1.3 && giveWeapon(e, pk.id, pk.ammo)) {
         if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); }
-        else { pk.active = false; pk.t = WEAPONS[pk.id].respawn || 25; pk.mesh.visible = false; }
+        else { pk.active = false; pk.t = RANGE.on ? RANGE.weaponWait() : WEAPONS[pk.id].respawn || 25; pk.mesh.visible = false; }
         break;
       }
     }
@@ -3577,6 +3603,9 @@ function botChooseWeapon(b, dist) {
   if (pick !== b.wpn) botSelect(b, pick);
 }
 function giveWeapon(e, id, ammo) {
+  // Under ?dev: you carry three weapons (the range's rules), and so does a guest as far as the host can tell
+  if (RANGE.on && e.isPlayer) return RANGE.give(id, ammo);
+  if (RANGE.on && e.isRemote && (e.inv.includes(id) || e.inv.length >= 3)) return false;
   const w = WEAPONS[id]; syncE(e);
   if (!e.inv.includes(id)) {
     const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
@@ -3737,6 +3766,7 @@ function updateCook(dt) {
 
 // Bots
 const BOT_DMG = 0.55;
+const BW = id => (RANGE.on ? RANGE.botW(id) : WEAPONS[id]); // a bot's gun: under ?dev, the new weapon numbers
 // A missed bot bullet flies on past the aim point: the hole goes where it lands, and the tracer ends there
 const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {
@@ -3776,7 +3806,7 @@ function botShootCore(b, dt) {
 }
 function botShoot(b, t, dist) {
   const seen = b.ammo > 0 && seenAt(b, t); if (!seen) return;
-  const w = WEAPONS[b.wpn], m = b.rig.model; b.ammo--;
+  const w = BW(b.wpn), m = b.rig.model; b.ammo--;
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
   muzzleFx(b.wpn, start, seen.p.clone().sub(start).normalize(), false, b.id);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
@@ -3792,7 +3822,7 @@ function botShoot(b, t, dist) {
   }
   addHoles(marks);
   // the rifle: a headshot kills, and so does about half of the body hits (the middle of the chest); the rest take half your health
-  if (total) damage(t, w.zones ? (head || Math.random() < 0.5 ? 999 : Math.ceil(maxHp(t) / 2)) : w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head);
+  if (total) damage(t, w.live ? total : w.zones ? (head || Math.random() < 0.5 ? 999 : Math.ceil(maxHp(t) / 2)) : w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head); // (the new numbers: bots hit as hard as you)
 }
 function botNade(b, t) {
   b.nades--;
@@ -3996,7 +4026,7 @@ function roamFine(b, wish, dt, face = true) {
     if (ai.wps && routeLeg(b)) { walkFine(b, wish, dt, face); return; }
   }
   let goal = null;
-  if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.pos; }
+  if (b.reserve < BW(b.wpn).mag * 2) { const box = nearestBox(b); if (box) goal = box.pos; }
   if (!goal && Math.random() < 0.5) { const pk = nearestPickup(b); if (pk) goal = pk.pos; }
   if (!goal && ai.lastSeenT > 0 && ai.lastSeen) goal = ai.lastSeen;
   if (!goal && Math.random() < 0.6) goal = SPAWNS[Math.random() * SPAWNS.length | 0]; // the level's key spots: rooms, roofs, platforms
@@ -4025,7 +4055,7 @@ function roamHome(b, wish, dt, face, home) {
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
   const within = p => Math.hypot(p.x - home.pos.x, p.z - home.pos.z) < home.r;
   let goal = null;
-  if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box && within(box.pos)) goal = box.pos; }
+  if (b.reserve < BW(b.wpn).mag * 2) { const box = nearestBox(b); if (box && within(box.pos)) goal = box.pos; }
   if (!goal && Math.random() < 0.5) { const pk = nearestPickup(b); if (pk && within(pk.pos)) goal = pk.pos; }
   if (!goal && ai.lastSeenT > 0 && ai.lastSeen && within(ai.lastSeen)) goal = ai.lastSeen;
   if (!goal) { const ang = Math.random() * Math.PI * 2, rad = Math.random() * home.r; goal = new V3(home.pos.x + Math.cos(ang) * rad, home.pos.y, home.pos.z + Math.sin(ang) * rad); }
@@ -4084,8 +4114,8 @@ function updateBot(b, dt) {
     return;
   }
   const ai = b.ai, def = MODE === 'defend', style = BOT_STYLES[ai.style];
-  if (b.reloading > 0) { b.reloading -= dt; if (b.reloading <= 0) { const take = Math.min(WEAPONS[b.wpn].mag - b.ammo, b.reserve); b.ammo += take; b.reserve -= take; } }
-  else if (b.ammo === 0 && b.reserve > 0) b.reloading = WEAPONS[b.wpn].reload + 0.3;
+  if (b.reloading > 0) { b.reloading -= dt; if (b.reloading <= 0) { const take = Math.min(BW(b.wpn).mag - b.ammo, b.reserve); b.ammo += take; b.reserve -= take; } }
+  else if (b.ammo === 0 && b.reserve > 0) b.reloading = BW(b.wpn).reload + 0.3;
   const noAmmo = b.ammo === 0 && b.reserve === 0;
   ai.scanT -= dt; ai.knifeCd -= dt; ai.nadeCd -= dt; ai.lastSeenT -= dt;
   if (ai.scanT <= 0) {
@@ -4129,7 +4159,7 @@ function updateBot(b, dt) {
       if (ai.cover && dist > 5 && facing < 0.7 && b.onGround && !(def && gateOpen() && inFort(b.pos))) ai.crouchHold = 0.4;
       speed = 3.5;
       ai.react -= dt; ai.fireCd -= dt;
-      const bw = WEAPONS[b.wpn];
+      const bw = BW(b.wpn);
       if (b.reloading <= 0 && b.ammo > 0 && ai.react <= 0 && ai.fireCd <= 0 && facing < (bw.oneShot ? 0.08 : 0.2) && (!bw.pellets || dist < 16)) {
         botShoot(b, t, dist);
         if (bw.auto) { ai.fireCd = 0.12; ai.burst++; if (ai.burst >= style.burstLo + (Math.random() * (style.burstHi - style.burstLo) | 0)) { ai.burst = 0; ai.fireCd = style.pauseLo + Math.random() * (style.pauseHi - style.pauseLo); } }
@@ -4149,7 +4179,7 @@ function updateBot(b, dt) {
     else if (!def && FN.cells) roamFine(b, wish, dt);
     else if (!def && !ai.path) {
       let goal = null;
-      if (b.reserve < WEAPONS[b.wpn].mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
+      if (b.reserve < BW(b.wpn).mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
       if (goal === null && Math.random() < 0.6) { const pk = nearestPickup(b); if (pk) goal = cellOf(pk.pos); }
       if (goal === null && ai.lastSeenT > 0 && ai.lastSeen) goal = cellOf(ai.lastSeen);
       if (goal === null) goal = WALK[Math.random() * WALK.length | 0];
@@ -4197,7 +4227,6 @@ const VEH = { cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() {
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Shooting Range (range.js fills this in) ----------
-const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; } };
 
 // ---------- Input ----------
 const keys = {};
@@ -4314,9 +4343,9 @@ function playHints(dt) {
   hintT += dt; if (hintT < 3) return;
   if (MODE === 'drive') return hint('veh', 'Walk up to a vehicle and press E to get in', 4);
   if (MODE === 'range') return hint('range', '1–9 or Q picks a weapon · Tab opens the weapon settings', 5);
-  hint('keys', 'X aims · Q switches weapon · F throws a grenade · E is the knife', 4.5);
+  hint('keys', RANGE.on ? 'X aims · 1–6 picks a weapon · Q drops the one you hold · Tab: weapon settings' : 'X aims · Q switches weapon · F throws a grenade · E is the knife', 4.5);
   const w = WP();
-  if (w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
+  if (!RANGE.on && w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
   if (curLevel === 'fortress' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
 }
 function updateCamera(dt) {
@@ -5479,7 +5508,7 @@ function onGuestMsg(conn, m) {
     case 'cam': r.camOn = !!m.on; break;
     case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
-    case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(NADE_FUSE, +m.f || NADE_FUSE))); break;
+    case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(60, Math.max(0, +m.amt || 0))); break;
@@ -5589,6 +5618,7 @@ function onHostMsg(m) {
     case 'kill': sKill(); break;
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
+    case 'bat': RANGE.addBats(String(m.k)); break; // a battery pack (?dev)
     case 'nade': P.nades = Math.min(maxNades(P), P.nades + 1); note('+1 grenade', 1); break;
     case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
@@ -5875,7 +5905,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (NET.role === 'guest') {
-    if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); updateCook(dt); }
+    if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); RANGE.update(dt); updateCook(dt); }
     updateRockets(dt); updateSheds(dt);
     updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
@@ -5928,8 +5958,8 @@ requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
-<script src="vehicles.js?v=6"></script>
-<script src="range.js?v=6"></script>
+<script src="vehicles.js?v=7"></script>
+<script src="range.js?v=9"></script>
 <script src="transcript.js"></script>
 </body>
 </html>

@@ -429,7 +429,7 @@
         if (e.pos.y > y + r || e.pos.y + e.h < y - r - 0.3) continue;
         const dx = e.pos.x - x, dz = e.pos.z - z, d = Math.hypot(dx, dz); if (d >= r + R + 0.15 || d < 1e-4) continue;
         const sp = (v.vel.x * dx + v.vel.z * dz) / d; if (sp < 4) continue; // the vehicle's own speed toward them (blockBody has already shoved them clear, which would cancel a relative speed)
-        e.vehHitT = now; damage(e, Math.round(Math.min(300, (sp - 2) * 14 * (v.layout === 'truck' || v.p.mass > 2500 ? 2.5 : 1))), driver, 'car', false); break; // trucks hit much harder
+        e.vehHitT = now; damage(e, Math.max(1, Math.round(Math.min(300, (sp - 2) * 14 * (v.layout === 'truck' || v.p.mass > 2500 ? 2.5 : 1)) * maxHp(e) / HP)), driver, 'car', false); break; // trucks hit much harder
       }
     }
   }

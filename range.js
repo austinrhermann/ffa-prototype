@@ -1,22 +1,23 @@
-// Shooting Range: one player with every weapon and infinite ammo, dummies down the lanes, and a Tab panel to dial the
-// weapons in. It runs the simpler weapon system the other games are moving to:
+// The new weapon system, and the Shooting Range to dial it in. Under ?dev every game uses it (not Test Drive or the fort's waves):
 //   - Everyone has 20 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
-//   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun take B batteries, the Master Rifle its own rounds),
+//     The game keeps its own health numbers (HP), so damage is scaled by HP / LIFE on the way in.
+//   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun D batteries, the Master Rifle its own rounds),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
-//   - One explosive used three ways: thrown, set as a mine, or fired from the tube. A blast does 7 in its centre ring and
-//     one less in each ring out; walls block it, and it hurts anyone in reach (you too).
-//   - The knife is a weapon you switch to, like the others: 4 from the front, a kill from behind.
-// Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, WEAPONS, VMW, gun, ...).
-// The game calls into RANGE (declared in index.html) from its loop, input and blasts; nothing changes outside the range.
+//   - An F battery is a grenade or a mine, or a shell for the F tube (a mortar). A blast does its centre damage in the middle
+//     ring and one less in each ring out; walls block it, and it hurts anyone in reach (you too).
+//   - Three weapons and the knife (4 from the front, a kill from behind). Ammo is carried apart from the weapons.
+//   - Tab opens the weapon settings, in the range and in a game.
+// Loaded after the main game script, so it uses the game's globals (scene, camera, P, ents, WEAPONS, VMW, gun, ...).
+// The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const HP = 20;
+  const LIFE = 20;
   // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
   const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
   const _hc = new THREE.Color();
   function hpColour(h) {
     if (h <= 0) return '#2a2a2a';
-    const f = (Math.min(HP, h) - 1) / (HP - 1) * (HEALTH.length - 1), i = Math.floor(f);
+    const f = (Math.min(LIFE, h) - 1) / (LIFE - 1) * (HEALTH.length - 1), i = Math.floor(f);
     return '#' + _hc.copy(HEALTH[i]).lerp(HEALTH[Math.min(i + 1, HEALTH.length - 1)], f - i).getHexString();
   }
   // Every weapon, as it lies on the ground. model: which gun the game draws and plays the sounds of (sound: different sounds,
@@ -56,12 +57,15 @@
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
     tube: { launch: 40, reload: 4.5, slow: 0.5 }, // launch: how hard it lobs the shell (the grenade throw is 25); slow: your speed while you carry it
-    knife: { front: 4, back: HP, reach: 2 },
+    knife: { front: 4, back: LIFE, reach: 2 },
     move: { walk: 5, run: 20.5, jump: 12, crouch: 0.5 }, // spread added walking, running, in the air; crouching multiplies it
     targets: { strafe: 0.5, heal: 3 },       // strafe: lane dummies pace side to side at this speed (m/s); heal: your damage wears off after this long
     cross: { ease: 0.2 },                    // how long the crosshair circle takes to catch up with the spread (s), easing in and out
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
     ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: false },
+    // In a game: you spawn with the Pistol loaded and startA spare A batteries; packs come back after packs seconds (rifle
+    // rounds after rifle), weapons on their spots after weapons seconds
+    game: { startA: 1, packs: 30, rifle: 60, weapons: 25 },
   };
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
@@ -77,7 +81,7 @@
       if (o.knife && typeof o.knife.front === 'number') o.knife.front = k(o.knife.front);
       if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.round(o.blast.ring * 100 / 7) / 10;
     } else { o = read('tse.range.v1'); was = 7; }
-    if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? HP : o.knife.back;
+    if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? LIFE : o.knife.back;
     return o;
   }
   // Aiming used to be one setting for every gun (move.aim); a save from then gives it to the guns that aim.
@@ -88,7 +92,9 @@
   const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
   function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
 
-  const on = () => MODE === 'range';
+  const on = () => MODE === 'range'; // the Shooting Range itself
+  const live = () => on() || (DEV && MODE !== 'drive' && MODE !== 'defend'); // the new weapons: the range, and every ?dev game
+  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1: under ?dev everyone has LIFE)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
@@ -199,7 +205,7 @@
   }
   function drawPips(t) {
     const g = t.ctx, w = 192; g.clearRect(0, 0, w, w);
-    g.beginPath(); g.arc(w / 2, 54, 40, 0, Math.PI * 2); g.fillStyle = hpColour(t.dead > 0 ? 0 : HP - t.dmg); g.fill();
+    g.beginPath(); g.arc(w / 2, 54, 40, 0, Math.PI * 2); g.fillStyle = hpColour(t.dead > 0 ? 0 : LIFE - t.dmg); g.fill();
     if (t.last) { g.font = '700 34px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 6; g.strokeText(t.last, w / 2, 150); g.fillText(t.last, w / 2, 150); }
     t.tex.needsUpdate = true;
   }
@@ -218,9 +224,9 @@
     if (t.dead > 0 || dmg <= 0) return false;
     const now = performance.now() / 1000;
     if (!t.dmg) { t.firstT = now; t.shot0 = shotN; t.hits = 0; t.heads = 0; }
-    t.dmg = Math.min(HP, t.dmg + dmg); t.hits += n; t.heads += nh; t.lastT = now; t.flashT = 0.07;
+    t.dmg = Math.min(LIFE, t.dmg + dmg); t.hits += n; t.heads += nh; t.lastT = now; t.flashT = 0.07;
     t.last = `+${dmg}${head ? ' head' : ''}`;
-    if (t.dmg >= HP) {
+    if (t.dmg >= LIFE) {
       t.dead = 1.1; tint(t, DUMMY.dead);
       const shots = shotN - t.shot0 + 1, secs = now - t.firstT;
       lastKill = `<b>${t.label}</b> down with the ${src}: ${plural(shots, unit)}, ${plural(t.hits, n > 1 ? 'pellet' : 'hit')}${n > 1 ? ' on it' : ''}${t.heads ? ` (${t.heads} head)` : ''}, ${secs < 0.005 ? 'instant' : secs.toFixed(2) + ' s'}`;
@@ -261,7 +267,7 @@
       if (m.state === 'armed') {
         m.light.visible = m.blink % 1.2 < 0.12;
         const close = e => Math.hypot(e.x - m.pos.x, e.z - m.pos.z) < S.mine.radius && Math.abs(e.y - m.pos.y) < 2;
-        if (close(P.pos) || dummies.some(t => t.dead <= 0 && close(t.g.position))) { m.state = 'warn'; m.t = S.mine.warn; }
+        if ((on() ? close(P.pos) : ents.some(e => e.alive && close(e.pos))) || dummies.some(t => t.dead <= 0 && close(t.g.position))) { m.state = 'warn'; m.t = S.mine.warn; }
         continue;
       }
       // Warning: beeps faster and faster, then the blast
@@ -284,16 +290,30 @@
       const d = distTo(t, o), dmg = ringDmg(d);
       if (dmg > 0 && centres(t).some(c => losPts(o, c))) hitFeedback(false, hitDummy(t, dmg, false, name, 1, 0, 'blast'));
     }
-    // You: blasts hurt you too (your health circle shows it); the range doesn't kill you, it just fills you back up
-    const me = Math.max(0, Math.hypot(Math.max(0, Math.abs(o.x - P.pos.x) - 0.3), Math.max(0, P.pos.y - o.y, o.y - (P.pos.y + P.h)), Math.max(0, Math.abs(o.z - P.pos.z) - 0.3)));
-    const mine = ringDmg(me);
-    if (mine > 0 && losPts(o, new V3(P.pos.x, P.pos.y + P.h * 0.6, P.pos.z))) hurtMe(mine, name);
+    const gap = e => Math.hypot(Math.max(0, Math.abs(o.x - e.pos.x) - 0.3), Math.max(0, e.pos.y - o.y, o.y - (e.pos.y + e.h)), Math.max(0, Math.abs(o.z - e.pos.z) - 0.3));
+    const seen = e => losPts(o, new V3(e.pos.x, e.pos.y + e.h * 0.6, e.pos.z));
+    if (on()) { // You: blasts hurt you too (your health circle shows it); the range doesn't kill you, it just fills you back up
+      const mine = ringDmg(gap(P));
+      if (mine > 0 && seen(P)) hurtMe(mine, name);
+    } else {
+      for (const e of ents) {
+        const d = e.alive ? ringDmg(gap(e)) : 0;
+        if (d <= 0 || !seen(e)) continue;
+        const kill = e.health - d * K() <= 0;
+        damage(e, d * K(), owner, 'frag', false);
+        if (owner === P && e !== P) hitFeedback(false, kill);
+      }
+      // gas cans and trucks, as the game's blasts did
+      for (const g of GASCANS) if (g.alive && g.pos.distanceTo(o) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
+      for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, ringDmg(d) * K() * TRUCK.blastK); }
+      netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
+    }
     // Other mines in reach go off too
     for (const m of mines) if (m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) { m.state = 'warn'; m.t = 0.15; }
     const pd = P.pos.distanceTo(pos); if (pd < 14) punch += 0.06 * (1 - pd / 14);
   }
 
-  let myHp = HP, myLastT = 0, myDownT = 0;
+  let myHp = LIFE, myLastT = 0, myDownT = 0;
   function hurtMe(d, name) {
     if (myDownT > 0) return;
     myHp = Math.max(0, myHp - d); myLastT = performance.now() / 1000;
@@ -314,7 +334,12 @@
   }
   function fireGun(s) {
     const g = gunOf(s), w = WEAPONS[s.model], q = aimQ(), half = spreadNow(g) * 0.005; // spread N: N × 0.01 rad across
-    const targets = [...W.meshes, ...W.floors, ...dummyParts()], start = vmMuzzleWorld(), byT = new Map(), holes = [];
+    const targets = [...W.meshes, ...W.floors, ...dummyParts()], start = vmMuzzleWorld(), byT = new Map(), byE = new Map(), holes = [];
+    if (!on()) {
+      for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
+      for (const gc of GASCANS) if (gc.alive) targets.push(gc.px);
+      for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
+    }
     for (let i = 0; i < g.count; i++) {
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
       const dir = new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q);
@@ -324,41 +349,30 @@
       if (!hit) continue;
       const ud = hit.object.userData;
       if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += head ? g.head : g.body; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
+      else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += head ? g.head : g.body; a.head = a.head || head; byE.set(ud.ent, a); }
+      else if (ud.gas) shootGas(ud.gas, P);
+      else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point); }
     }
     addHoles(holes);
     let kill = false; for (const [t, a] of byT) kill = hitDummy(t, a.d, a.nh > 0, s.name, a.n, a.nh) || kill;
-    if (byT.size) hitFeedback([...byT.values()].some(a => a.nh > 0), kill);
+    for (const [e, a] of byE) { kill = e.health - a.d * K() <= 0 || kill; damage(e, a.d * K(), P, 'gun', a.head); }
+    if (byT.size || byE.size) hitFeedback([...byT.values()].some(a => a.nh > 0) || [...byE.values()].some(a => a.head), kill);
     if (g.grow > 0) heat = Math.min(1, heat + 1 / 8);
     const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
     punch += w.kick * 0.6 * k; vmKick = 1; flashT = GUN_FX[s.model] ? GUN_FX[s.model].flash.life : 0.04;
     muzzleFx(s.model, start, new V3(0, 0, -1).applyQuaternion(q), true, P.id);
-    for (const k of [].concat(s.sound || w.sound)) sfx(k, 1);
+    for (const k of [].concat(s.sound || w.sound)) { sfx(k, 1); netFx({ t: 'sf', k, p: arr(P.pos), r: 60, g: 1 }); }
   }
-  // The F tube: a mortar. It lobs an F battery like a grenade throw, only harder, and it goes off where it lands.
-  const shells = [];
+  // The F tube: a mortar. It lobs an F battery like a grenade throw, only harder, and it goes off where it lands
+  // (the game's grenades, with impact set)
   function fireTube() {
     const dir = new V3(0, 0, -1).applyQuaternion(aimQ()), start = vmMuzzleWorld();
     const v = dir.clone().multiplyScalar(S.tube.launch); v.y += 4.5; v.x += P.vel.x * 0.5; v.z += P.vel.z * 0.5; // as throwNow
-    const m = NADE_MODEL ? nadeMesh() : new THREE.Mesh(nadeGeo, nadeMat); m.scale.setScalar(1.5); m.castShadow = true; m.position.copy(start); scene.add(m);
-    shells.push({ pos: camera.position.clone().addScaledVector(dir, 0.6), vel: v, mesh: m, t: 15 });
+    throwNade(P, camera.position.clone().addScaledVector(dir, 0.6), v, 15, true);
     punch += WEAPONS.bazooka.kick * 0.8; vmKick = 1; flashT = GUN_FX.bazooka.flash.life;
-    muzzleFx('bazooka', start, dir, true, P.id); sfx('bazooka', 1);
+    muzzleFx('bazooka', start, dir, true, P.id); sfx('bazooka', 1); netFx({ t: 'sf', k: 'bazooka', p: arr(P.pos), r: 90, g: 1 });
   }
-  function updateShells(dt) {
-    for (let i = shells.length - 1; i >= 0; i--) {
-      const sh = shells[i], sub = Math.max(1, Math.min(12, Math.ceil(sh.vel.length() * dt / 0.12))), h = dt / sub;
-      let hit = false;
-      for (let k = 0; k < sub && !hit; k++) {
-        sh.vel.y -= GRAV * h;
-        const p = sh.pos.clone().addScaledVector(sh.vel, h);
-        if (solidPt(p.x, p.y, p.z, 0.1) || onDummy(p)) hit = true; else sh.pos.copy(p);
-      }
-      sh.mesh.position.copy(sh.pos); sh.mesh.rotation.x += dt * 9;
-      if (hit || (sh.t -= dt) <= 0 || sh.pos.y < -30) { scene.remove(sh.mesh); shells.splice(i, 1); if (hit) blast(sh.pos.clone(), P, 'tube'); }
-    }
-  }
-  function clearShells() { for (const sh of shells) scene.remove(sh.mesh); shells.length = 0; }
   // A point touching a dummy
   function onDummy(p) {
     for (const t of dummies) for (const o of t.parts) { const h = o.userData.half; if (Math.abs(p.x - t.g.position.x) < h.x + 0.05 && Math.abs(p.y - t.g.position.y - o.position.y) < h.y + 0.05 && Math.abs(p.z - t.g.position.z) < h.z + 0.05) return true; }
@@ -373,11 +387,23 @@
       const dx = t.g.position.x - P.pos.x, dz = t.g.position.z - P.pos.z, d = Math.hypot(dx, dz);
       if (d < bd && (dx * fx + dz * fz) / Math.max(d, 1e-3) > 0.7) { best = t; bd = d; }
     }
+    let ent = null;
+    if (!on()) for (const e of ents) {
+      if (e === P || !e.alive || Math.abs(e.pos.y - P.pos.y) > 1.2) continue;
+      const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fx + dz * fz) / Math.max(d, 1e-3) > 0.7) { ent = e; best = null; bd = d; }
+    }
+    if (ent) { // behind them: they face the way you're stabbing
+      const back = fwdOf(ent).dot(new V3(ent.pos.x - P.pos.x, 0, ent.pos.z - P.pos.z).normalize()) > 0.5, d = knifeDmg(back);
+      const kill = ent.health - d <= 0; damage(ent, d, P, 'knife', false); hitFeedback(false, kill);
+      return;
+    }
     if (!best) return;
     // The dummies face the firing line (+z): you're behind one when you're on its -z side
     const back = (best.g.position.z - P.pos.z) / Math.max(bd, 1e-3) > 0.5;
     hitFeedback(false, hitDummy(best, back ? S.knife.back : S.knife.front, false, back ? 'knife (from behind)' : 'knife', 1, 0, 'stab'));
   }
+  const knifeDmg = back => (back ? S.knife.back : S.knife.front) * K(); // in the game's health
   const clipOf = s => (s.kind === 'tube' ? 1 : s.kind === 'gun' ? gunOf(s).clip : 0);
   const reloadOf = s => (s.kind === 'tube' ? S.tube.reload : gunOf(s).reload);
   let outT = 0;
@@ -400,7 +426,7 @@
     if (cur > HANDS && !has('F') && cooking < 0 && throwT <= 0) pick(HANDS); // that was your last F battery
     const s = slot();
     if (!s.model) { mouseRight = false; tAim = false; } // nothing to aim down
-    if (!P.alive || monitorOpen) return;
+    if (!P.alive || monitorOpen || VEH.noGuns) return;
     if (P.reloading > 0) { P.reloading -= dt; if (P.reloading <= 0) { P.reloading = 0; if (spend(s.ammo)) P.ammo = clipOf(s); } return; }
     if (switchT > 0) { if (s.kind !== 'throw') clickQ = false; return; }
     if (s.model && P.ammo <= 0) { if (has(s.ammo)) startReload(); else if (clickQ || mouseDown) { clickQ = false; outOf(s.ammo); } return; }
@@ -438,12 +464,28 @@
     drawSlots();
   }
   const syncInv = () => { P.inv = held.filter(h => h && h.model).map(h => h.model); };
-  // You start with the knife and nothing else
+  // In the range you start with the knife and nothing else; in a game with the Pistol loaded and a spare A battery or so
   function kit() {
     held.fill(null); for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
-    syncInv(); curW = 'pistol'; P.ammo = 0; P.reserve = 0;
-    cur = HANDS; pick(HANDS, true);
+    curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
+    if (!on()) { held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA); }
+    syncInv(); pick(on() ? HANDS : 0, true);
+  }
+  // A weapon from a pickup in a game (model: the game's weapon id; ammo: rounds it carries, or none for a full clip)
+  const BY_MODEL = { pistol: 'pistol', carbine: 'carbine', uzi: 'izu', shotgun: 'battery', rifle: 'rifle', bazooka: 'tube' };
+  function give(model, ammo) {
+    const sl = byId(BY_MODEL[model]); if (!sl) return false;
+    if (held.some(h => h === sl)) return false;
+    if (held.indexOf(null) < 0) { if (fullT <= 0) { fullT = 2; note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); } return false; }
+    return take({ id: sl.id, load: ammo === undefined ? clipOf(sl) : Math.min(clipOf(sl), ammo) });
+  }
+  // A pack of batteries (k: A, D, F or R); returns how many you could carry
+  function addBats(k) {
+    const a = S.ammo[k]; if (!a) return 0;
+    const n = Math.min(a.pack, a.max - bats[k]); if (n <= 0) return 0;
+    bats[k] += n; note(`+${n} ${n === 1 ? AMMO[k] : AMMOS[k]}`, 1);
+    return n;
   }
   // A weapon off the ground into your first free hand; you take it in hand if you were holding the knife
   function take(it) {
@@ -506,7 +548,7 @@
     for (const sp of weaponSpots()) { sp.t = 0; if (!held.some(h => h && h.id === sp.id)) makeItem(sp.id, spotPos(sp), fresh(byId(sp.id))); }
     for (const pk of packs) { pk.active = true; pk.mesh.visible = true; }
   }
-  // A dropped weapon flies, lands and slides to a stop
+  // A dropped weapon flies, lands and slides to a stop (in a game it then becomes one of the game's pickups)
   function fly(it, dt) {
     const sub = Math.max(1, Math.min(12, Math.ceil(it.vel.length() * dt / 0.1))), h = dt / sub;
     let ground = false;
@@ -518,21 +560,26 @@
         else it.pos[ax] = p[ax];
       }
     }
-    if (it.pos.y < -20) { const sp = SPOTS.find(q => q.id === it.id); it.pos.copy(spotPos(sp)); it.vel = null; return; } // off the world: back to its spot
-    if (ground && Math.hypot(it.vel.x, it.vel.z) < 0.4) { it.vel = null; it.pos.y -= 0.12; }
+    if (it.pos.y < -20) { if (!on()) { it.gone = true; return; } const sp = SPOTS.find(q => q.id === it.id); it.pos.copy(spotPos(sp)); it.vel = null; return; } // off the world: back to its spot
+    if (ground && Math.hypot(it.vel.x, it.vel.z) < 0.4) {
+      it.vel = null; it.pos.y -= 0.12;
+      if (!on()) { const sl = byId(it.id); addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: 30 }); it.gone = true; }
+    }
   }
   const near = (p, r) => Math.hypot(P.pos.x - p.x, P.pos.z - p.z) < r && Math.abs(P.pos.y - p.y) < 1.3;
   function updateGround(dt, now) {
     fullT -= dt; outT -= dt;
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
-      if (it.vel) { fly(it, dt); it.mesh.position.set(it.pos.x, it.pos.y + 0.12, it.pos.z); it.mesh.rotation.y += dt * 7; continue; }
+      if (it.vel) { fly(it, dt); it.mesh.position.set(it.pos.x, it.pos.y + 0.12, it.pos.z); it.mesh.rotation.y += dt * 7; if (it.gone) { scene.remove(it.mesh); items.splice(i, 1); } continue; }
+      if (!on()) continue;
       it.mesh.rotation.y += dt * 1.5; it.mesh.position.set(it.pos.x, it.pos.y + 0.45 + Math.sin(now / 350) * 0.06, it.pos.z);
       if (!near(it.pos, 1.1)) { it.armed = true; continue; } // one you dropped waits until you've stepped off it
       if (!it.armed || !P.alive) continue;
       if (take(it)) { scene.remove(it.mesh); items.splice(i, 1); }
       else if (fullT <= 0) { fullT = 2; note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); }
     }
+    if (!on()) return;
     // A weapon nobody has, held or on the ground, comes back to its spot
     for (const sp of weaponSpots()) {
       if (items.some(it => it.id === sp.id) || held.some(h => h && h.id === sp.id)) { sp.t = S.ammo.respawn; continue; }
@@ -591,6 +638,21 @@
   document.body.append(slotsEl, card, panel, hpEl); ($('hud') || document.body).append(cross);
   let crossR = 0, crossV = 0, hitT = 0, hitCol = '#fff', killT = 0;
   cross.innerHTML = '<i></i><i></i>'; // the kill X's two strokes
+  // A health circle over each player's head (and over their name when it shows), so you can see who's hurt
+  function hpDot(e) {
+    if (!e.hpDot) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      e.hpDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), sizeAttenuation: false, transparent: true, depthWrite: false }));
+      e.hpDot.scale.set(0.03, 0.03, 1); e.hpDot.center.set(0.5, -0.8); e.hpDot.renderOrder = 11; e.hpDot.userData.c = c; e.hpDot.userData.k = -1;
+    }
+    const d = e.hpDot, show = live() && !on() && e.mesh && e.alive;
+    if (e.mesh && d.parent !== e.mesh) e.mesh.add(d);
+    d.visible = !!show; if (!show) return;
+    d.position.y = e.tag ? e.tag.position.y : (e.rig ? e.rig.model.headY : 1.7) + 0.5;
+    d.center.y = e.tagA > 0.05 ? -0.8 : 0.5; // above the name while it shows
+    const h = Math.ceil(e.health / K() - 1e-6);
+    if (h !== d.userData.k) { d.userData.k = h; const x = d.userData.c.getContext('2d'); x.clearRect(0, 0, 64, 64); x.beginPath(); x.arc(32, 32, 28, 0, Math.PI * 2); x.fillStyle = hpColour(h); x.fill(); d.material.map.needsUpdate = true; }
+  }
   function hitFeedback(head, kill) { if (kill) killT = 0.5; else { hitT = 0.12; hitCol = head ? '#e51c1c' : '#ffcc00'; } }
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
@@ -606,10 +668,10 @@
   function shotsTime(g, n) { if (n <= 1) return 0; const reloads = Math.floor((n - 1) / g.clip); return (n - 1 - reloads) / g.rate + reloads * g.reload; }
   function killMath(g) {
     if (g.count > 1) {
-      const nb = Math.ceil(HP / g.body), nh = Math.ceil(HP / g.head);
+      const nb = Math.ceil(LIFE / g.body), nh = Math.ceil(LIFE / g.head);
       return `All ${g.count} pellets on the body do ${g.count * g.body}. One shot kills with ${nb} of them on the body (or ${nh} on the head)${nb > g.count ? `, so it takes ${Math.ceil(nb / g.count)} shots (${shotsTime(g, Math.ceil(nb / g.count)).toFixed(2)} s)` : ''}.`;
     }
-    const nb = Math.ceil(HP / g.body), nh = Math.ceil(HP / g.head), t = n => (n === 1 ? 'instant' : shotsTime(g, n).toFixed(2) + ' s');
+    const nb = Math.ceil(LIFE / g.body), nh = Math.ceil(LIFE / g.head), t = n => (n === 1 ? 'instant' : shotsTime(g, n).toFixed(2) + ' s');
     return `Body: ${plural(nb, 'shot')} to kill (${t(nb)}). Head: ${plural(nh, 'shot')} (${t(nh)}).`;
   }
   function blastMath() { const r = S.blast.ring, n = S.blast.max, h = Math.ceil(n / 2); return n === 1 ? `1 within ${fmt(r, 0.1)} m, nothing past that.` : `${n} within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: ${h} at ${fmt((n - h) * r, 0.1)} m, 1 at ${fmt((n - 1) * r, 0.1)} m, nothing past ${fmt(n * r, 0.1)} m.`; }
@@ -628,8 +690,8 @@
   // ---------------------------------------------------------------- the Tab panel
   // Projectile rows: [key, label, min, max, step, unit, help, only this gun]
   const GUN_ROWS = [
-    ['body', 'Body damage', 1, HP, 1, '', ''],
-    ['head', 'Head damage', 1, HP, 1, '', ''],
+    ['body', 'Body damage', 1, LIFE, 1, '', ''],
+    ['head', 'Head damage', 1, LIFE, 1, '', ''],
     ['spread', 'Spread', 0, 30, 0.5, '', 'How wide the shots land: N covers a circle N × 10 cm across at 10 m (twice that at 20 m). 0 goes exactly where you aim.'],
     ['grow', 'Spread growth (recoil)', 0, 20, 0.5, '', 'Extra spread you build up holding the trigger: all of it after 8 shots in a row. It settles back once you stop.'],
     ['rate', 'Rate of fire', 0.5, 20, 0.5, 'shots/s', ''],
@@ -643,7 +705,7 @@
   // Other rows: [path, label, min, max, step, unit, help]
   const OTHER = [
     ['Explosive (F batteries, all three ways)', [
-      ['blast.max', 'Centre damage', 1, HP, 1, '', 'What a blast does in its middle ring. Each ring out does one less.'],
+      ['blast.max', 'Centre damage', 1, LIFE, 1, '', 'What a blast does in its middle ring. Each ring out does one less.'],
       ['blast.ring', 'Ring width', 0.3, 3, 0.1, 'm', ''],
       ['throw.fuse', 'Grenade fuse', 0.5, 5, 0.25, 's', 'From pulling the pin. Hold the button to cook it.'],
       ['mine.arm', 'Mine arms after', 0, 5, 0.25, 's', ''],
@@ -654,8 +716,8 @@
       ['tube.slow', 'Carrying the F tube, you move at', 0.2, 1, 0.05, '×', 'Of your usual speed, whichever weapon is in your hands.'],
     ], 'blast'],
     ['Knife', [
-      ['knife.front', 'From the front', 1, HP, 1, '', ''],
-      ['knife.back', 'From behind', 1, HP, 1, '', ''],
+      ['knife.front', 'From the front', 1, LIFE, 1, '', ''],
+      ['knife.back', 'From behind', 1, LIFE, 1, '', ''],
       ['knife.reach', 'Reach', 1, 4, 0.1, 'm', ''],
     ]],
     ['Moving (each gun takes its share: Moving penalty)', [
@@ -678,6 +740,12 @@
     ['Crosshair', [
       ['cross.ease', 'Circle smoothing', 0.02, 0.5, 0.01, 's', 'How long the circle takes to follow the spread, easing in and out. The spread itself changes at once.'],
     ]],
+    ['In a game', [
+      ['game.startA', 'Spare A batteries you spawn with', 0, 4, 1, '', 'Besides the Pistol, loaded.'],
+      ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'Every weapon spot has its pack, and the level\'s ammo boxes are A or D packs (F where the grenades were).'],
+      ['game.rifle', 'Rifle rounds come back after', 5, 180, 5, 's', ''],
+      ['game.weapons', 'Weapons come back to their spot after', 5, 120, 5, 's', 'Weapons people drop lie there for 30 s.'],
+    ]],
     ['Dummies', [
       ['targets.strafe', 'Lane dummies strafe at', 0, 7, 0.5, 'm/s', 'Side to side, 1.5 m each way. 0 stands still; 4.2 is walking pace, 6.8 running.'],
       ['targets.heal', 'Your health comes back after', 0.5, 10, 0.5, 's', 'With no new hits, you go back to full health. Dummies keep their damage until they go down.'],
@@ -687,7 +755,8 @@
   const setP = (p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k], S)[last] = v; };
   function buildPanel() {
     const s = slot();
-    let html = `<h2>Weapon settings</h2><p class="sub">Changes take effect as you drag, and are saved in this browser. Damage is out of ${HP} health.</p>`;
+    let html = `<h2>Weapon settings</h2><p class="sub">Changes take effect as you drag, and are saved in this browser. Damage is out of ${LIFE} health.${on() ? '' : ' The game carries on while this is open. Everyone\'s shots use their own settings.'}</p>`;
+    if (!on()) html += `<div class="math">${[...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => `${e === P ? '<b>' : ''}${esc(e.name)}${e === P ? '</b>' : ''} ${e.kills}/${e.deaths}`).join(' · ')}</div>`;
     for (const sl of SLOTS) if (sl.kind === 'gun') {
       const g = gunOf(sl);
       html += `<details data-sec="${sl.id}"${sl === s ? ' open' : ''}><summary>${sl.name}<small>${AMMOS[sl.ammo]}</small></summary><div class="math" id="rm-${sl.id}">${killMath(g)}</div>`;
@@ -696,13 +765,14 @@
       html += `<label class="chk"><input type="checkbox" data-g="${sl.id}" data-k="auto"${g.auto ? ' checked' : ''}> Full auto (hold to keep firing)</label><button type="button" class="sm" data-reset="${sl.id}">Reset ${sl.name}</button></details>`;
     }
     for (const [title, rows, math] of OTHER) {
+      if (title === 'Dummies' && !on()) continue; // (the range's)
       const open = (math === 'blast' && !s.model) || (math === 'blast' && s.kind === 'tube') || (title === 'Knife' && s.kind === 'knife');
       html += `<details${open ? ' open' : ''}><summary>${title}</summary>${math === 'blast' ? `<div class="math" id="rm-blast">${blastMath()}</div><label class="chk"><input type="checkbox" data-p="blast.show"${S.blast.show ? ' checked' : ''}> Show the rings where a blast goes off</label>` : ''}${math === 'ammo' ? `<label class="chk"><input type="checkbox" data-p="ammo.infinite"${S.ammo.infinite ? ' checked' : ''}> Infinite ammo (to test a gun on its own)</label>` : ''}`;
       for (const [p, label, min, max, step, unit, help] of rows)
         html += `<div class="row"><label for="rp-${p}">${label}</label><output id="rq-${p}">${fmt(getP(p), step)} ${unit}</output><input type="range" id="rp-${p}" data-p="${p}" min="${min}" max="${max}" step="${step}" value="${getP(p)}">${help ? `<div class="help">${help}</div>` : ''}</div>`;
       html += '</details>';
     }
-    html += `<div class="btns"><button type="button" class="go" id="r-go">Back to shooting (Tab)</button><button type="button" id="r-items">Put the weapons back</button><button type="button" id="r-mines">Clear mines</button><button type="button" id="r-reset">Reset everything</button><button type="button" id="r-copy">Copy settings</button></div>
+    html += `<div class="btns"><button type="button" class="go" id="r-go">Back to shooting (Tab)</button>${on() ? '<button type="button" id="r-items">Put the weapons back</button>' : ''}<button type="button" id="r-mines">Clear mines</button><button type="button" id="r-reset">Reset everything</button><button type="button" id="r-copy">Copy settings</button></div>
       <p class="info">Copy settings puts every number on your clipboard, to paste to Claude or a friend.</p>`;
     panel.innerHTML = html;
     panel.querySelectorAll('input[data-g]').forEach(el => el.oninput = el.onchange = () => {
@@ -724,7 +794,7 @@
     });
     panel.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { S.guns[b.dataset.reset] = clone(DEFAULTS.guns[b.dataset.reset]); save(); buildPanel(); });
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
-    panel.querySelector('#r-items').onclick = e => { resetGround(); e.target.textContent = 'Weapons back'; };
+    if (on()) panel.querySelector('#r-items').onclick = e => { resetGround(); e.target.textContent = 'Weapons back'; };
     panel.querySelector('#r-mines').onclick = e => { clearMines(); e.target.textContent = 'Mines cleared'; };
     panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); if (pitRings) pitRings.scale.setScalar(blastR()); buildPanel(); };
     panel.querySelector('#r-copy').onclick = e => {
@@ -744,45 +814,63 @@
   const realReload = {}; for (const k in WEAPONS) realReload[k] = WEAPONS[k].reload;
   function teardown() {
     for (const t of dummies) scene.remove(t.g); dummies.length = 0;
-    clearMines(); clearShells(); for (const f of flashes) scene.remove(f.m); flashes.length = 0;
+    clearMines(); for (const f of flashes) scene.remove(f.m); flashes.length = 0;
     for (const it of items) scene.remove(it.mesh); items.length = 0; for (const pk of packs) scene.remove(pk.mesh); packs.length = 0;
     if (pitRings) { scene.remove(pitRings); pitRings = null; }
     for (const k in realReload) WEAPONS[k].reload = realReload[k]; // the reload animation's length goes back to the game's
     setPanel(false); built = false; history = []; lastKill = '';
   }
 
-  Object.defineProperty(RANGE, 'on', { get: on, configurable: true });
+  Object.defineProperty(RANGE, 'on', { get: live, configurable: true }); // the new weapons are in charge
+  Object.defineProperty(RANGE, 'range', { get: on, configurable: true }); // the Shooting Range itself
   Object.defineProperty(RANGE, 'panelOpen', { get: () => panelOpen, configurable: true });
   Object.assign(RANGE, {
     onLevel() {
-      if (!on()) { if (built) teardown(); return; }
+      if (!on()) {
+        if (built) teardown();
+        clearMines(); for (const it of items) scene.remove(it.mesh); items.length = 0; setPanel(false);
+        if (!live()) for (const k in realReload) WEAPONS[k].reload = realReload[k];
+        return;
+      }
       if (!built) {
         buildDummies();
         buildGround();
         pitRings = ringMesh(); pitRings.position.set(PIT.x, 0.045, PIT.z); pitRings.scale.setScalar(blastR()); pitRings.material.opacity = 0.55; scene.add(pitRings);
         built = true;
       }
-      dummies.forEach(resetDummy); clearMines(); clearShells(); resetGround(); myHp = HP; myDownT = 0;
+      dummies.forEach(resetDummy); clearMines(); resetGround(); myHp = LIFE; myDownT = 0;
     },
-    kit() { if (on()) kit(); },
+    kit() { if (live()) kit(); },
+    life: LIFE, give, addBats, packMesh, knifeDmg,
+    // What a box gives: the pack for a weapon spot's gun (rifle rounds by the rifle), and how long it takes to come back
+    ammoOf: model => { const sl = byId(BY_MODEL[model]); return sl ? sl.ammo : null; },
+    packWait: k => (k === 'R' ? S.game.rifle : S.game.packs),
+    weaponWait: () => S.game.weapons,
+    // A bot's gun under the new numbers (the game's own aim and timing, these damages, rates and clips)
+    botW(model) {
+      const w = WEAPONS[model], sl = byId(BY_MODEL[model]); if (!sl || sl.kind !== 'gun') return w;
+      const g = gunOf(sl);
+      return Object.assign({}, w, { auto: g.auto, burst: 0, rate: 1 / g.rate, mag: g.clip, reload: g.reload, pellets: g.count > 1 ? g.count : 0, dmg: g.body * K(), head: g.head * K(), botHead: 0, zones: false, oneShot: false, falloff: null, rangeSpread: 0, live: true });
+    },
     updateGun,
     next(dir) { if (!P.alive) return; const can = [0, 1, 2, 3, 4, 5].filter(canPick), i = can.indexOf(cur); pick(can[(i + dir + can.length) % can.length]); },
     key(code) {
-      if (!on()) return false;
+      if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
       if (n) { if (P.alive && +n[1] <= HANDS + 3) pick(+n[1] - 1); return true; }
       if (code === 'KeyQ') { if (P.alive) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
-      return code === 'KeyE' || code === 'KeyF' || code === 'KeyG'; // no knife or grenade hotkeys: they're weapons you switch to
+      return (on() && code === 'KeyE') || code === 'KeyF' || code === 'KeyG'; // no knife or grenade hotkeys: they're weapons you switch to
     },
-    tab() { if (!on() || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; },
+    tab() { if (!live() || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; },
     // The game's blasts (grenades and the tube's rockets) land here in the range
-    boom(pos) { blast(pos, P, 'throw'); }, // (only grenades: the F tube's shells are the range's own)
+    boom(pos, owner, src) { blast(pos, owner || P, src || 'throw'); }, // grenades and F tube shells (the game's), gas cans
     solid(p) { return onDummy(p); },
-    speedK() { return on() && held.some(h => h && h.kind === 'tube') ? S.tube.slow : 1; },
+    speedK() { return live() && held.some(h => h && h.kind === 'tube') ? S.tube.slow : 1; },
     update(dt) {
-      if (!on()) return;
+      if (!live()) return;
       const now = performance.now() / 1000;
+      if (!on()) { updateMines(dt); updateGround(dt, now * 1000); return; }
       for (const t of dummies) {
         if (t.flashT > 0 && (t.flashT -= dt) <= 0 && t.dead <= 0) tint(t);
         if (t.dead > 0) { if ((t.dead -= dt) <= 0) resetDummy(t); }
@@ -794,19 +882,20 @@
         const dx = P.pos.x - t.g.position.x, dz = P.pos.z - t.g.position.z, d = Math.hypot(dx, dz);
         if (d < 0.6 && d > 1e-4 && P.pos.y < t.g.position.y + 2) { P.pos.x = t.g.position.x + dx / d * 0.6; P.pos.z = t.g.position.z + dz / d * 0.6; }
       }
-      updateMines(dt); updateShells(dt); updateGround(dt, now * 1000);
-      if (myDownT > 0) { if ((myDownT -= dt) <= 0) myHp = HP; }
-      else if (myHp < HP && now - myLastT > S.targets.heal) myHp = HP;
+      updateMines(dt); updateGround(dt, now * 1000);
+      if (myDownT > 0) { if ((myDownT -= dt) <= 0) myHp = LIFE; }
+      else if (myHp < LIFE && now - myLastT > S.targets.heal) myHp = LIFE;
     },
     after(dt) {
-      const show = on() && (locked || panelOpen) && P.alive;
-      slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show ? 'block' : 'none';
-      document.body.classList.toggle('range-on', on());
+      const show = live() && (locked || panelOpen) && P.alive;
+      slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show && on() ? 'block' : 'none'; // the card is the range's
+      document.body.classList.toggle('range-on', live());
       cross.style.display = show ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none';
-      if (!on()) return;
-      hpEl.style.backgroundColor = hpColour(myHp);
+      for (const e of ents) if (e !== P && (e.hpDot || live())) hpDot(e);
+      if (!live()) return;
+      hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
       const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
-      scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); // (each level load sets the sky back)
+      if (on()) { scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); } // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;
       const half = g ? spreadNow(g) * 0.005 : 0, h = renderer.domElement.clientHeight || innerHeight;
@@ -834,7 +923,7 @@
         nadeVM.position.set(0.15, -0.17 + (cooking >= 0 ? 0.04 : 0), -0.4); nadeVM.rotation.set(s.kind === 'mine' ? 1.2 : 0.5, 0.4, -0.3);
       }
       // What the crosshair is on, for the card
-      if (show && (cardT -= dt) <= 0) {
+      if (show && on() && (cardT -= dt) <= 0) {
         cardT = 0.1; aimT = null;
         ray.set(camera.position, new V3(0, 0, -1).applyQuaternion(aimQ())); ray.far = 250;
         const hit = ray.intersectObjects([...W.meshes, ...dummyParts()], false)[0];
