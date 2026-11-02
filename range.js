@@ -19,10 +19,10 @@
     const f = (Math.min(HP, h) - 1) / (HP - 1) * (HEALTH.length - 1), i = Math.floor(f);
     return '#' + _hc.copy(HEALTH[i]).lerp(HEALTH[Math.min(i + 1, HEALTH.length - 1)], f - i).getHexString();
   }
-  // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of (sound: a different sound).
+  // The weapon in each slot (1-9). model: which gun the game draws and plays the sounds of (sound: different sounds, played together).
   const SLOTS = [
-    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', sound: 'gun', ammo: 'A battery' },
-    { id: 'carbine', name: 'Carbine', kind: 'gun', model: 'carbine', ammo: 'A battery' },
+    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', sound: ['gun', 'laser'], ammo: 'A battery' },
+    { id: 'carbine', name: 'Carbine', kind: 'gun', model: 'carbine', sound: ['gun', 'laser'], ammo: 'A battery' },
     { id: 'izu', name: 'Izu', kind: 'gun', model: 'uzi', ammo: 'B battery' },
     { id: 'battery', name: 'Battery Gun', kind: 'gun', model: 'shotgun', ammo: 'B battery' },
     { id: 'rifle', name: 'Master Rifle', kind: 'gun', model: 'rifle', ammo: 'Rifle rounds' },
@@ -305,7 +305,7 @@
     const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
     punch += w.kick * 0.6 * k; vmKick = 1; flashT = GUN_FX[s.model] ? GUN_FX[s.model].flash.life : 0.04;
     muzzleFx(s.model, start, new V3(0, 0, -1).applyQuaternion(q), true, P.id);
-    sfx(s.sound || w.sound, 1);
+    for (const k of [].concat(s.sound || w.sound)) sfx(k, 1);
   }
   function fireTube() {
     const q = aimQ(), cdir = new V3(0, 0, -1).applyQuaternion(q), start = vmMuzzleWorld();
@@ -469,7 +469,7 @@
     ['clip', 'Clip size', 1, 60, 1, 'shots', 'Shots per battery (or per load) before a reload.'],
     ['count', 'Pellets per shot', 1, 20, 1, '', 'Each pellet does the damage above.', 'battery'],
     ['reload', 'Reload time', 0.3, 6, 0.1, 's', ''],
-    ['moving', 'Moving penalty', 0, 1.5, 0.05, '×', 'How much of the walking, running and in-the-air spread (under Moving) this gun takes. 0: as steady on the move as standing still.'],
+    ['moving', 'Moving penalty', 0, 5, 0.05, '×', 'Multiplies the walking, running and in-the-air spread (under Moving) for this gun. 0: as steady on the move as standing still; above 1: worse than the usual penalty.'],
     ['aim', 'Aiming down sights multiplies spread by', 0.1, 1, 0.05, '×', '1: aiming doesn\'t tighten it.'],
   ];
   // Other rows: [path, label, min, max, step, unit, help]
