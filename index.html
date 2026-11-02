@@ -3606,7 +3606,10 @@ function botChooseWeapon(b, dist) {
 function giveWeapon(e, id, ammo) {
   // Under ?dev: you carry three weapons (the range's rules), and so does a guest as far as the host can tell
   if (RANGE.on && e.isPlayer) return RANGE.give(id, ammo);
-  if (RANGE.on && e.isRemote && (e.inv.includes(id) || e.inv.length >= 3)) return false;
+  if (RANGE.on && e.isRemote && (e.inv.includes(id) || e.inv.length >= 3)) { // tell them why (only the host knows)
+    const now = performance.now(); if (!e.inv.includes(id) && now - (e._fullT || 0) > 2000) { e._fullT = now; sendTo(e, { t: 'full' }); }
+    return false;
+  }
   const w = WEAPONS[id]; syncE(e);
   if (!e.inv.includes(id)) {
     const mag = ammo === undefined ? w.mag : Math.min(w.mag, ammo), res = ammo === undefined ? ammoStart(id) : Math.min(ammoCap(id), ammo - mag);
@@ -5626,7 +5629,8 @@ function onHostMsg(m) {
     case 'kill': sKill(); break;
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
-    case 'bat': RANGE.addBats(String(m.k)); break; // a battery pack (?dev)
+    case 'bat': RANGE.addBats(String(m.k)); break; // a battery pack
+    case 'full': note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); break; // a weapon you walked over
     case 'nade': P.nades = Math.min(maxNades(P), P.nades + 1); note('+1 grenade', 1); break;
     case 'heal': note('Health restored', 1); break;
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
