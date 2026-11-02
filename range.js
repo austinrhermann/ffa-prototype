@@ -1,5 +1,5 @@
 // The new weapon system, and the Shooting Range to dial it in. Under ?dev every game uses it (not Test Drive or the fort's waves):
-//   - Everyone has 20 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
+//   - Everyone has 40 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
 //     The game keeps its own health numbers (HP), so damage is scaled by HP / LIFE on the way in.
 //   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun D batteries, the Master Rifle its own rounds),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
@@ -11,7 +11,7 @@
 // The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const LIFE = 20;
+  const LIFE = 40; // was 20 until 2026-11-02 (and 7, then 10, before that)
   // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
   const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
   const _hc = new THREE.Color();
@@ -90,6 +90,7 @@
     return o;
   }
   const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
+  if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
   function save() { try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {} }
 
   const on = () => MODE === 'range'; // the Shooting Range itself
@@ -253,30 +254,53 @@
     let p;
     if (hit && hit.face && hit.face.normal.y > 0.5) p = hit.point.clone();
     else { const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), x = P.pos.x + fx * 1.2, z = P.pos.z + fz * 1.2, gy = groundAt(x, z, P.pos.y + 1); p = new V3(x, gy === null ? P.pos.y : gy, z); }
+    // The host runs every mine, so everyone sees them and they hurt everyone: a guest asks the host to set it
+    if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'mine', p: arr(p) }); }
+    else addMine(p, P);
+    note('Mine set: it arms in ' + S.mine.arm + ' s', 1.2);
+  }
+  let mineN = 0;
+  function mineMesh(p) {
     const g = new THREE.Group(); g.position.copy(p);
     if (NADE_MODEL) { const c = NADE_MODEL.clone(true); c.rotation.z = Math.PI / 2; c.position.y = 0.09; g.add(c); }
     else { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 14), toonMat({ color: 0x3d4a2a })); c.position.y = 0.03; g.add(c); }
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); light.position.y = 0.2; g.add(light);
-    scene.add(g); mines.push({ g, light, pos: p, state: 'arming', t: S.mine.arm, blink: 0 });
-    note('Mine set: it arms in ' + S.mine.arm + ' s', 1.2);
+    scene.add(g); return { g, light };
   }
+  // owner: who set it (the kill is theirs)
+  function addMine(p, owner) {
+    const id = ++mineN; mines.push(Object.assign(mineMesh(p), { pos: p, state: 'arming', t: S.mine.arm, blink: 0, owner, id }));
+    netFx({ t: 'mn', i: id, p: arr(p) });
+  }
+  // A guest's copy of the host's mine: it only blinks and beeps (rep); the host says when it arms, warns and goes off
+  const MINE_STATES = ['arming', 'armed', 'warn'];
+  function setMine(m, state, t) { m.state = state; m.t = t; if (!m.rep) netFx({ t: 'ms', i: m.id, s: MINE_STATES.indexOf(state) }); }
   function updateMines(dt) {
     for (let i = mines.length - 1; i >= 0; i--) {
       const m = mines[i]; m.t -= dt; m.blink += dt;
-      if (m.state === 'arming') { m.light.visible = m.blink % 0.5 < 0.1; if (m.t <= 0) { m.state = 'armed'; sBeep(1800); } continue; }
+      if (m.state === 'arming') { m.light.visible = m.blink % 0.5 < 0.1; if (m.t <= 0 && !m.rep) { setMine(m, 'armed', 0); sBeep(1800); } continue; }
       if (m.state === 'armed') {
         m.light.visible = m.blink % 1.2 < 0.12;
+        if (m.rep) continue;
         const close = e => Math.hypot(e.x - m.pos.x, e.z - m.pos.z) < S.mine.radius && Math.abs(e.y - m.pos.y) < 2;
-        if ((on() ? close(P.pos) : ents.some(e => e.alive && close(e.pos))) || dummies.some(t => t.dead <= 0 && close(t.g.position))) { m.state = 'warn'; m.t = S.mine.warn; }
+        if ((on() ? close(P.pos) : ents.some(e => e.alive && close(e.pos))) || dummies.some(t => t.dead <= 0 && close(t.g.position))) setMine(m, 'warn', S.mine.warn);
         continue;
       }
       // Warning: beeps faster and faster, then the blast
       m.light.visible = m.blink % 0.12 < 0.06; m.beep = (m.beep || 0) - dt;
       if (m.beep <= 0) { sBeep(2200); m.beep = Math.max(0.07, 0.25 * m.t / Math.max(0.2, S.mine.warn)); }
-      if (m.t <= 0) { scene.remove(m.g); mines.splice(i, 1); blast(m.pos.clone().setY(m.pos.y + 0.1), P, 'mine'); }
+      if (m.t <= 0 && !m.rep) { scene.remove(m.g); mines.splice(i, 1); netFx({ t: 'mx', i: m.id }); blast(m.pos.clone().setY(m.pos.y + 0.1), m.owner && (m.owner === P || ents.includes(m.owner)) ? m.owner : P, 'mine'); }
     }
   }
-  function clearMines() { for (const m of mines) scene.remove(m.g); mines.length = 0; }
+  function clearMines(tell) { for (const m of mines) scene.remove(m.g); mines.length = 0; if (tell && NET.role === 'host') netFx({ t: 'mc' }); }
+  // The host's word on its mines, on a guest
+  function mineFx(m) {
+    const i = mines.findIndex(x => x.rep && x.id === m.i);
+    if (m.t === 'mn' && i < 0 && Array.isArray(m.p)) mines.push(Object.assign(mineMesh(v3(m.p)), { pos: v3(m.p), state: 'arming', t: 99, blink: 0, rep: true, id: m.i }));
+    else if (m.t === 'ms' && i >= 0) { mines[i].state = MINE_STATES[m.s] || 'armed'; mines[i].t = mines[i].state === 'warn' ? S.mine.warn : 99; }
+    else if (m.t === 'mx' && i >= 0) { scene.remove(mines[i].g); mines.splice(i, 1); }
+    else if (m.t === 'mc') clearMines();
+  }
 
   // ---------------------------------------------------------------- blasts
   // Damage in rings round the blast: 10 at the centre, one less each ring out. Anyone with a clear line to it is hurt.
@@ -309,7 +333,7 @@
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
     }
     // Other mines in reach go off too
-    for (const m of mines) if (m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) { m.state = 'warn'; m.t = 0.15; }
+    for (const m of mines) if (!m.rep && m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) setMine(m, 'warn', 0.15);
     const pd = P.pos.distanceTo(pos); if (pd < 14) punch += 0.06 * (1 - pd / 14);
   }
 
@@ -795,7 +819,7 @@
     panel.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { S.guns[b.dataset.reset] = clone(DEFAULTS.guns[b.dataset.reset]); save(); buildPanel(); });
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
     if (on()) panel.querySelector('#r-items').onclick = e => { resetGround(); e.target.textContent = 'Weapons back'; };
-    panel.querySelector('#r-mines').onclick = e => { clearMines(); e.target.textContent = 'Mines cleared'; };
+    panel.querySelector('#r-mines').onclick = e => { clearMines(true); e.target.textContent = 'Mines cleared'; };
     panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); if (pitRings) pitRings.scale.setScalar(blastR()); buildPanel(); };
     panel.querySelector('#r-copy').onclick = e => {
       const txt = JSON.stringify(S, null, 1);
@@ -842,6 +866,8 @@
     },
     kit() { if (live()) kit(); },
     life: LIFE, give, addBats, packMesh, knifeDmg,
+    mine(p, owner) { if (live() && p.distanceTo(owner.pos) < 5) addMine(p, owner); }, // a guest set one (host)
+    fx: mineFx, // the host's mines, on a guest
     // What a box gives: the pack for a weapon spot's gun (rifle rounds by the rifle), and how long it takes to come back
     ammoOf: model => { const sl = byId(BY_MODEL[model]); return sl ? sl.ammo : null; },
     packWait: k => (k === 'R' ? S.game.rifle : S.game.packs),
