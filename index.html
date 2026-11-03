@@ -2846,7 +2846,7 @@ function animRig(r, dt, speed, crouch, pitch) {
   const lean = 0.3 * C;
   // Your own body in first person leans back whether you look up or down, so neither the chest nor the head gets into the view;
   // the arms make up the difference, so the gun still follows the aim exactly
-  const fp = r === P.rig ? bodyK : 0, a1 = (lean - r.pt * 0.4) * (1 - fp) + (lean - Math.abs(r.pt) * 0.5) * fp;
+  const fp = r === P.rig ? bodyK : 0, a1 = (lean - r.pt * 0.4) * (1 - fp) + (lean * 0.15 - Math.abs(r.pt) * 0.5) * fp; // crouched, barely any forward lean: it would swing the neck and shoulders into the lens
   poseUpper(r, a1, -r.pt - a1, r === P.rig ? fpvA2 * bodyK : 0);
   if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
