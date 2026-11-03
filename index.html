@@ -3004,12 +3004,12 @@ let fpvA2 = 0;
 let RELOAD_BEND = 1.3;
 const FPV_LONG = 0.55, FPV_OUT = new V3(0.13, -0.01, -0.2); // guns are held a little further out and to the right
 let fpvAimW = 1; // how much the gun is turned to point where the camera does (not while it hangs down for a reload)
-const _qd = new THREE.Quaternion(), _qb2 = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _cf = new V3(), _gz = new V3(), _fp = new V3();
+const _qd = new THREE.Quaternion(), _qb2 = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _cf = new V3(), _gz = new V3(), _fp = new V3(), _kr = new V3();
 const _fh = new V3(), RELOAD_AT = new V3(0.3, -0.5, -0.05), STAB_BACK = new V3(0.25, 0.02, -0.3), STAB_OUT = new V3(0.0, -0.12, -0.95), THROW_BACK = new V3(0.22, 0.04, -0.18), THROW_OUT = new V3(0.05, -0.05, -0.8);
 const sstep = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
 function fpvPose(r) {
   const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip) return;
-  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT); _fh.z = Math.max(_fh.z, -FPV_LONG); fpvA2 = 0; fpvAimW = 1; r.hideHeld = false; // long guns reach back past the lens, so the arm stays out of the view
+  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT); _fh.z = Math.max(_fh.z, -FPV_LONG); if (VMW[r.held]) _fh.z += vmKick * 0.05; fpvA2 = 0; // recoil: the same push back as the ADS viewmodel fpvAimW = 1; r.hideHeld = false; // long guns reach back past the lens, so the arm stays out of the view
   if (r.held === 'knife' && knifeT > 0) {
     const t = 1 - knifeT / 0.6, a = sstep(0, 0.3, t), b = sstep(0.3, 0.55, t), c = sstep(0.55, 1, t);
     _fh.lerp(STAB_BACK, a).lerp(STAB_OUT, b).lerp(hip, c); fpvA2 = -0.5 * a * (1 - b) + 0.1 * b * (1 - c);
@@ -3034,6 +3034,7 @@ function fpvFit(r) {
   _fb.setFromObject(gv).getCenter(_fc);
   if (VMW[r.held] && fpvAimW > 0.001) { // the whole arm turns about the grip so the barrel points where the camera does (hand and gun stay together)
     _gz.set(0, 0, -1).transformDirection(gv.matrixWorld); _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    _cf.applyAxisAngle(_kr.set(1, 0, 0).applyQuaternion(camera.quaternion), vmKick * 0.08); // and the same muzzle flip
     _qd.setFromUnitVectors(_gz, _cf); _qi.identity().slerp(_qd, fpvAimW * bodyK);
     const node = r.upper[0].b.parent; node.getWorldQuaternion(_qb2);
     _qd.copy(_qb2).invert().multiply(_qi).multiply(_qb2); // into the armature's frame
