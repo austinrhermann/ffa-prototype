@@ -2846,7 +2846,7 @@ function animRig(r, dt, speed, crouch, pitch) {
   // Your own body in first person leans back whether you look up or down, so neither the chest nor the head gets into the view;
   // the arms make up the difference, so the gun still follows the aim exactly
   const fp = r === P.rig ? bodyK : 0, a1 = (lean - r.pt * 0.4) * (1 - fp) + (lean - Math.abs(r.pt) * 0.5) * fp;
-  poseUpper(r, a1, -r.pt - a1);
+  poseUpper(r, a1, -r.pt - a1 + (r === P.rig ? fpvA2 * bodyK : 0));
   if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
@@ -2979,15 +2979,17 @@ function updateSelfView() {
   if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
   let want = RANGE.on ? RANGE.inHand() : curW;
-  if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
+  if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
+  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
   if (r.held !== want) { r.held = want; if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
-  if (r.gunVis) r.gunVis.visible = see;
+  if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
 }
 function updatePlayerRig(dt) {
   if (!P.rig) return;
   const r = P.rig;
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.y = P.yaw + Math.PI;
+  if (bodyK > 0.01) { fpvPose(r); } else fpvA2 = 0;
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
   if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) r.gunVis.matrix.copy(r.gunVis.userData.base);
 }
@@ -2995,8 +2997,29 @@ function updatePlayerRig(dt) {
 // holds every gun in the same place on screen, whatever the size of their arms
 const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
 const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42) };
+// Where the gun hand is in the view, and how far the arm tips about the shoulder (positive: the gun points down): the hip hold,
+// or the reload (gun and hand drop down beside the body), the knife stab and the grenade throw. All camera-space, like the old viewmodel
+let fpvA2 = 0;
+const FPV_LONG = 0.4;
+const _fh = new V3(), RELOAD_AT = new V3(0.3, -0.5, -0.05), STAB_BACK = new V3(0.25, 0.02, -0.3), STAB_OUT = new V3(0.0, -0.12, -0.95), THROW_BACK = new V3(0.22, 0.04, -0.18), THROW_OUT = new V3(0.05, -0.05, -0.8);
+const sstep = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+function fpvPose(r) {
+  const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip) return;
+  _fh.copy(hip); _fh.z = Math.max(_fh.z, -FPV_LONG); fpvA2 = 0; r.hideHeld = false; // long guns reach back past the lens, so the arm stays out of the view
+  if (r.held === 'knife' && knifeT > 0) {
+    const t = 1 - knifeT / 0.6, a = sstep(0, 0.3, t), b = sstep(0.3, 0.55, t), c = sstep(0.55, 1, t);
+    _fh.lerp(STAB_BACK, a).lerp(STAB_OUT, b).lerp(hip, c); fpvA2 = -0.5 * a * (1 - b) + 0.1 * b * (1 - c);
+  } else if (r.held === 'nade' && throwT > 0) {
+    const t = 1 - throwT / 0.4, a = sstep(0, 0.35, t), b = sstep(0.35, 0.65, t), c = sstep(0.65, 1, t);
+    _fh.lerp(THROW_BACK, a).lerp(THROW_OUT, b).lerp(hip, c); fpvA2 = -0.9 * a * (1 - b) + 0.3 * b * (1 - c);
+    r.hideHeld = t >= 0.5; // the grenade leaves the hand
+  } else if (P.reloading > 0 && VMW[r.held]) {
+    const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
+    _fh.lerp(RELOAD_AT, k); fpvA2 = 1.5 * k;
+  }
+}
 function fpvFit(r) {
-  const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip || !r.gunVis || !r.upper.length) return;
+  const hip = _fh; if (!r.gunVis || !r.upper.length || !VMW[r.held] && !HELD_HIP[r.held]) return;
   const gv = r.gunVis, base = gv.userData.base;
   r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
   if (base) { // the gun sits a little to the left of the hand (on screen), so the hand ends up on the right of the gun
@@ -3005,8 +3028,9 @@ function fpvFit(r) {
     gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
   }
   _fb.setFromObject(gv).getCenter(_fc);
-  _fd.copy(hip); const dist = _fd.length(); _fd.project(vmCam); _fd.z = 0.5;
-  _fd.unproject(camera).sub(camera.position).normalize().multiplyScalar(dist).add(camera.position).sub(_fc).multiplyScalar(bodyK);
+  // the old viewmodel camera had a narrower view, so widen its x and y to get the same spot on screen (a straight remap: the reload pose is behind the lens)
+  const K = Math.tan(camera.fov * Math.PI / 360) / Math.tan(vmCam.fov * Math.PI / 360);
+  _fd.set(hip.x * K, hip.y * K, hip.z).applyMatrix4(camera.matrixWorld).sub(_fc).multiplyScalar(bodyK);
   _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
   for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);
 }
