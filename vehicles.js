@@ -809,7 +809,7 @@
   let resetQ = false, selfOn = false, selfRig = null;
   function setSelf(on) { // your own body is normally only a shadow; in Test Drive it's drawn (third person, or riding in the open)
     if (!P.rig || (on === selfOn && P.rig === selfRig)) return; selfOn = on; selfRig = P.rig; // a new character's body starts out hidden
-    P.rig.root.traverse(o => { if (o.isMesh) { o.material.colorWrite = on; o.material.depthWrite = on; } });
+    for (const o of P.rig.body || []) { o.material.colorWrite = on; o.material.depthWrite = on; } // (only the body: the gun it holds shares its materials)
   }
   // Seat someone's body in a vehicle seat (crouched, which reads as sitting)
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };

@@ -33,8 +33,9 @@
     { id: 'mine', name: 'Mine', kind: 'mine', ammo: 'F' },
     { id: 'tube', name: 'F Tube', kind: 'tube', model: 'bazooka', ammo: 'F' },
   ];
-  // The knife is always yours, in hand 4; you carry three weapons at most. The grenade and the mine aren't weapons you pick up:
-  // an F battery IS one (hands 5 and 6, there whenever you carry an F battery). The F tube just launches it further.
+  // The knife is always yours, in hand 4 and on F; you carry three weapons at most. The grenade isn't a weapon you pick up:
+  // an F battery IS one (hand 5, there whenever you carry an F battery), and it's a mine if you hold right-click and click.
+  // The F tube just launches it further.
   const KNIFE = { id: 'knife', name: 'Knife', kind: 'knife', ammo: '' }, HANDS = 3;
   // Ammo is carried apart from the weapons. A reload takes one battery and fills the clip (what was left in the old one is
   // thrown away); the rifle takes a round; a grenade, a mine or an F tube shot takes one F battery.
@@ -111,10 +112,11 @@
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
-  const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw'), byId('mine')][i - HANDS]); // hands 0-5
+  const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw')][i - HANDS]); // hands 0-4
   const slot = () => handSlot(cur) || KNIFE;
   const has = t => S.ammo.infinite || bats[t] > 0;
-  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i <= HANDS + 2 && has('F')));
+  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i === HANDS + 1 && has('F')));
+  const mineMode = () => mouseRight || tAim; // the grenade, with right-click held: a mine
   const spend = t => { if (S.ammo.infinite) return true; if (bats[t] <= 0) return false; bats[t]--; return true; };
   const gunOf = s => S.guns[s.id];
   const blastR = () => S.blast.max * S.blast.ring; // how far a blast reaches
@@ -261,7 +263,7 @@
   const mines = [];
   function placeMine() {
     const q = aimQ(), dir = new V3(0, 0, -1).applyQuaternion(q);
-    ray.set(camera.position, dir); ray.far = 3.5;
+    ray.set(myEye, dir); ray.far = 3.5;
     const hit = ray.intersectObjects([...W.meshes, ...W.floors], false)[0];
     let p;
     if (hit && hit.face && hit.face.normal.y > 0.5) p = hit.point.clone();
@@ -361,6 +363,15 @@
   const ray = new THREE.Raycaster(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _q = new THREE.Quaternion();
   const aimQ = () => _q.setFromEuler(_e.set(P.pitch, P.yaw, 0, 'YXZ')); // where you're aiming (the camera's kick is just for show)
   const dummyParts = () => dummies.flatMap(t => t.parts);
+  // A shot leaves your eyes. In 3rd person the camera is behind your shoulder, so first find what the crosshair is on from
+  // there (starting level with you, not behind you), then shoot your eyes at that.
+  function shotLine(dir, targets) {
+    const c = camera.position; if (c.distanceToSquared(myEye) < 1e-4) return [myEye, dir];
+    const s = c.clone().addScaledVector(dir, Math.max(0, myEye.clone().sub(c).dot(dir)));
+    ray.set(s, dir); ray.far = 250; const h = ray.intersectObjects(targets, false)[0];
+    const p = h ? h.point : s.addScaledVector(dir, 250);
+    return [myEye, p.sub(myEye).normalize()];
+  }
   function spreadNow(g) {
     const m = S.move, hs = Math.hypot(P.vel.x, P.vel.z);
     // Aiming tightens the gun's own spread (aim) and the spread from moving (aimMove) separately
@@ -378,10 +389,10 @@
     }
     for (let i = 0; i < g.count; i++) {
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
-      const dir = new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q);
-      ray.set(camera.position, dir); ray.far = 250;
+      const [o, dir] = shotLine(new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q), targets);
+      ray.set(o, dir); ray.far = 250;
       const hit = ray.intersectObjects(targets, false)[0];
-      if (i < 4) tracer(start, hit ? hit.point : camera.position.clone().addScaledVector(dir, 250), w.tracer, w.trW, w.trLife, true);
+      if (i < 4) tracer(start, hit ? hit.point : o.clone().addScaledVector(dir, 250), w.tracer, w.trW, w.trLife, true);
       if (!hit) continue;
       const ud = hit.object.userData;
       if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += head ? g.head : g.body; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
@@ -405,7 +416,7 @@
   function fireTube() {
     const dir = new V3(0, 0, -1).applyQuaternion(aimQ()), start = vmMuzzleWorld();
     const v = dir.clone().multiplyScalar(S.tube.launch); v.y += 4.5; v.x += P.vel.x * 0.5; v.z += P.vel.z * 0.5; // as throwNow
-    throwNade(P, camera.position.clone().addScaledVector(dir, 0.6), v, 15, true);
+    throwNade(P, myEye.clone().addScaledVector(dir, 0.6), v, 15, true);
     punch += WEAPONS.bazooka.kick * 0.8; vmKick = 1; flashT = GUN_FX.bazooka.flash.life;
     muzzleFx('bazooka', start, dir, true, P.id); sfx('bazooka', 1); netFx({ t: 'sf', k: 'bazooka', p: arr(P.pos), r: 90, g: 1 });
   }
@@ -439,6 +450,11 @@
     const back = (best.g.position.z - P.pos.z) / Math.max(bd, 1e-3) > 0.5;
     hitFeedback(false, hitDummy(best, back ? S.knife.back : S.knife.front, false, back ? 'knife (from behind)' : 'knife', 1, 0, 'stab'));
   }
+  // F: a quick stab with whatever you're holding
+  function quickKnife() {
+    if (!P.alive || knifeCd > 0 || cooking >= 0 || P.reloading > 0 || monitorOpen || VEH.noGuns) return;
+    shotN++; knife();
+  }
   const knifeDmg = back => (back ? S.knife.back : S.knife.front) * K(); // in the game's health
   const clipOf = s => (s.kind === 'tube' ? 1 : s.kind === 'gun' ? gunOf(s).clip : 0);
   const reloadOf = s => (s.kind === 'tube' ? S.tube.reload : gunOf(s).reload);
@@ -452,7 +468,7 @@
   function throwNow() {
     const fuse = Math.max(0.05, S.throw.fuse - cooking); cooking = -1;
     const dir = new V3(0, 0, -1).applyQuaternion(aimQ()), v = dir.clone().multiplyScalar(25); v.y += 4.5; v.x += P.vel.x * 0.5; v.z += P.vel.z * 0.5;
-    throwNade(P, camera.position.clone().addScaledVector(dir, 0.4), v, fuse);
+    throwNade(P, myEye.clone().addScaledVector(dir, 0.4), v, fuse);
     throwT = 0.4; gun.cd = 0.6; shotN++;
   }
   // Replaces the game's updateGun in the range
@@ -461,7 +477,7 @@
     heat = Math.max(0, heat - dt * (mouseDown ? 0.6 : 2.5));
     if (cur > HANDS && !has('F') && cooking < 0 && throwT <= 0) pick(HANDS); // that was your last F battery
     const s = slot();
-    if (!s.model) { mouseRight = false; tAim = false; } // nothing to aim down
+    if (!s.model && s.kind !== 'throw') { mouseRight = false; tAim = false; } // nothing to aim down (the grenade's right-click makes a mine)
     if (!P.alive || monitorOpen || VEH.noGuns) return;
     if (P.reloading > 0) { P.reloading -= dt; if (P.reloading <= 0) { P.reloading = 0; if (spend(s.ammo)) P.ammo = clipOf(s); } return; }
     if (switchT > 0) { if (s.kind !== 'throw') clickQ = false; return; }
@@ -475,10 +491,10 @@
       return;
     }
     if (s.kind === 'knife') { if (clickQ && knifeCd <= 0) { clickQ = false; shotN++; knife(); } return; }
-    if (s.kind === 'mine') { if (clickQ && gun.cd <= 0) { clickQ = false; if (!spend('F')) { outOf('F'); return; } gun.cd = 0.5; throwT = 0.3; shotN++; placeMine(); } return; }
-    // Grenade: hold to cook (it beeps faster as the fuse runs down), let go to throw
-    clickQ = false;
-    if (cooking < 0) { if (mouseDown && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); gun.cd = 0.5; return; } cooking = 0; beepT = 0.5; sPin(); } return; }
+    // Grenade: hold to cook (it beeps faster as the fuse runs down), let go to throw. With right-click held, a click sets it as a mine.
+    const fresh = clickQ; clickQ = false;
+    if (cooking < 0 && mineMode()) { if (fresh && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); return; } gun.cd = 0.5; throwT = 0.3; shotN++; placeMine(); } return; }
+    if (cooking < 0) { if (fresh && mouseDown && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); gun.cd = 0.5; return; } cooking = 0; beepT = 0.5; sPin(); } return; }
     cooking += dt; beepT -= dt;
     if (beepT <= 0) { const rem = S.throw.fuse - cooking; beepT = rem > 1.5 ? 0.5 : rem > 0.75 ? 0.25 : 0.12; sBeep(1300 + (1 - rem / S.throw.fuse) * 1000); }
     if (cooking >= S.throw.fuse) { cooking = -1; gun.cd = 0.8; shotN++; blast(new V3(P.pos.x, P.pos.y + 1.2, P.pos.z), P, 'throw'); note('Held it too long', 1.5); return; }
@@ -486,7 +502,7 @@
   }
 
   // ---------------------------------------------------------------- picking a weapon
-  // i: a hand (0-2), HANDS for the knife, then the grenade and the mine
+  // i: a hand (0-2), HANDS for the knife, then the grenade
   function pick(i, instant) {
     if (!canPick(i)) return;
     if (i === cur && !instant) return;
@@ -749,7 +765,7 @@
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
   function drawSlots() {
-    const hands = [0, 1, 2, 3, 4, 5].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
+    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
     const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
     slotsEl.innerHTML = hands.join('') + `<div class="am">${am}</div>`;
   }
@@ -774,7 +790,7 @@
     if (s.kind === 'gun') { const g = gunOf(s); line = `<span class="k">Body</span> ${g.body} · <span class="k">Head</span> ${g.head} · <span class="k">Spread</span> ${fmt(spreadNow(g), 0.1)}${g.count > 1 ? ` · ${g.count} pellets` : ''} · <span class="k">Clip</span> ${g.clip}<br>${killMath(g)}`; }
     else if (s.kind === 'knife') line = `${S.knife.front} from the front, ${S.knife.back} from behind, ${fmt(S.knife.reach, 0.1)} m reach`;
     else if (s.kind === 'tube') line = `Lobs an F battery in an arc; it goes off where it lands. You move at ${fmt(S.tube.slow, 0.05)}× speed while you carry it. ${blastMath()}`;
-    else line = `${s.kind === 'throw' ? 'Hold to cook, let go to throw. ' : s.kind === 'mine' ? 'Click to set one at your feet. ' : ''}${blastMath()}`;
+    else line = `${s.kind === 'throw' ? 'Hold to cook, let go to throw. Hold right-click and click to set it as a mine. ' : ''}${blastMath()}`;
     const aim = aimT ? `<div class="k">On the crosshair: ${aimT.label}, ${aimT.d.toFixed(1)} m away</div>` : '';
     card.innerHTML = `<div class="w">${cur + 1} · ${s.name}${s.ammo ? ` <span class="k">(${AMMOS[s.ammo]}: ${S.ammo.infinite ? 'infinite' : bats[s.ammo]})</span>` : ''}</div>${line}${aim}${history.length ? `<div class="h">${history.map(h => `<div>${h}</div>`).join('')}</div>` : ''}<div class="k" style="margin-top:4px">Walk over a weapon to pick it up (3 at most) · Q: drop · Tab: weapon settings</div>`;
   }
@@ -949,14 +965,17 @@
       return Object.assign({}, w, { auto: g.auto, burst: 0, rate: 1 / g.rate, mag: g.clip, reload: g.reload, pellets: g.count > 1 ? g.count : 0, dmg: g.body * K(), head: g.head * K(), botHead: 0, zones: false, oneShot: false, falloff: null, rangeSpread: 0, live: true });
     },
     updateGun,
-    next(dir) { if (!P.alive) return; const can = [0, 1, 2, 3, 4, 5].filter(canPick), i = can.indexOf(cur); pick(can[(i + dir + can.length) % can.length]); },
+    inHand: () => slot().model || null, // the game's weapon id in your hands (none for the knife and the grenade)
+    zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
+    next(dir) { if (!P.alive) return; const can = [0, 1, 2, 3, 4].filter(canPick), i = can.indexOf(cur); pick(can[(i + dir + can.length) % can.length]); },
     key(code) {
       if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
-      if (n) { if (P.alive && +n[1] <= HANDS + 3) pick(+n[1] - 1); return true; }
+      if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
       if (code === 'KeyQ') { if (P.alive) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
-      return (on() && code === 'KeyE') || code === 'KeyF' || code === 'KeyG'; // no knife or grenade hotkeys: they're weapons you switch to
+      if (code === 'KeyF') { quickKnife(); return true; }
+      return (on() && code === 'KeyE') || code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
     },
     tab() { if (!live() || NET.role === 'guest' || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; }, // only the host tunes the weapons
     // The game's blasts (grenades and the tube's rockets) land here in the range
@@ -990,7 +1009,7 @@
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
-      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
+      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode(); if (k !== slotsKey) { slotsKey = k; drawSlots(); }
       if (on()) { scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); } // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;
@@ -1014,9 +1033,9 @@
         knifeVM.visible = switchT <= 0.15; knifeVM.rotation.order = 'YXZ';
         knifeVM.position.set(0.26, -0.22, -0.52); knifeVM.rotation.set(0.3, 0.45, 0); // blade up and in, its flat side toward you
       }
-      if (nadeVM && (s.kind === 'throw' || s.kind === 'mine') && P.alive && throwT <= 0.2) {
+      if (nadeVM && s.kind === 'throw' && P.alive && throwT <= 0.2) {
         nadeVM.visible = switchT <= 0.15 && gun.cd <= 0.25;
-        nadeVM.position.set(0.15, -0.17 + (cooking >= 0 ? 0.04 : 0), -0.4); nadeVM.rotation.set(s.kind === 'mine' ? 1.2 : 0.5, 0.4, -0.3);
+        nadeVM.position.set(0.15, -0.17 + (cooking >= 0 ? 0.04 : 0), -0.4); nadeVM.rotation.set(mineMode() && cooking < 0 ? 1.2 : 0.5, 0.4, -0.3);
       }
       // What the crosshair is on, for the card
       if (show && on() && (cardT -= dt) <= 0) {
