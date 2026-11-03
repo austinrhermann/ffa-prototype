@@ -384,12 +384,15 @@ const $ = id => document.getElementById(id);
 
 // ---------- Renderer / scenes ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
+// difference that's hard to see in a moving game
+const MAX_PR = 1.5;
+renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.autoClear = false;
 document.body.prepend(renderer.domElement);
-function setPixelRatio() { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); }
+function setPixelRatio() { renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR)); renderer.setSize(innerWidth, innerHeight); }
 const renderWorld = () => renderer.render(scene, camera);
 
 const scene = new THREE.Scene();
@@ -1597,7 +1600,7 @@ function buildWorld(L) {
   if (L.mesh) {
     const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
     col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
-    col.traverse(o => { if (o.isMesh && !o.userData.water && !o.userData.noShot && o.name !== (L.gate && L.gate.mesh)) W.meshes.push(o); });
+    col.traverse(o => { if (o.isMesh && !o.userData.water && !o.userData.noShot && o.name !== (L.gate && L.gate.mesh)) { o.userData.tgShot = true; W.meshes.push(o); } });
     for (const l of L.ladders || []) if (!l.drawn) levelGroup.add(makeLadder(l));
     if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
     if (L.towerDoor) { levelGroup.add(buildTowerDoor(L.towerDoor)); W.meshes.push(TDOOR.shot); }
@@ -1791,11 +1794,13 @@ function buildTG(root) {
   const liftMeshes = [];
   for (const sc of new Set([root, LEVEL_SCENES[LV.mesh]])) if (sc) sc.traverse(o => { if (o.userData.lift !== undefined) { o.position.y = o.userData.y0; o.updateMatrixWorld(); liftMeshes.push(o); } });
   root.updateMatrixWorld(true);
-  const T = [], B = [], NR = [], water = [], OUT = [], THRU = [], gate = [], toggles = {}, lifts = {};
+  const T = [], B = [], NR = [], water = [], OUT = [], THRU = [], SHOT = [], SIDE = [], MESH = [], meshes = [], gate = [], toggles = {}, lifts = {};
   const a = new V3(), b = new V3(), c = new V3(), e1 = new V3(), e2 = new V3(), n = new V3();
   root.traverse(m => {
     if (!m.isMesh) return;
-    const pos = m.geometry.attributes.position, ix = m.geometry.index, cnt = ix ? ix.count : pos.count;
+    const pos = m.geometry.attributes.position, ix = m.geometry.index, cnt = ix ? ix.count : pos.count, mi = meshes.push(m) - 1;
+    // what bullets test (castShot): the shapes the shot list has always had (buildWorld's W.meshes), and which of their faces count, as three.js would
+    const shot = m !== gm && !m.userData.noShot ? 1 : 0, side = m.material.side === THREE.DoubleSide ? 2 : m.material.side === THREE.BackSide ? 1 : 0;
     for (let i = 0; i < cnt; i += 3) {
       a.fromBufferAttribute(pos, ix ? ix.getX(i) : i).applyMatrix4(m.matrixWorld);
       b.fromBufferAttribute(pos, ix ? ix.getX(i + 1) : i + 1).applyMatrix4(m.matrixWorld);
@@ -1806,6 +1811,7 @@ function buildTG(root) {
       if (m.userData.toggle) (toggles[m.userData.toggle] = toggles[m.userData.toggle] || []).push(NR.length / 3);
       if (m.userData.lift !== undefined) (lifts[m.userData.lift] = lifts[m.userData.lift] || []).push(NR.length / 3);
       T.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z); NR.push(n.x, n.y, n.z); OUT.push(m.material.name === 'FX_Ground' ? 1 : 0); THRU.push(m.userData.thru ? 1 : 0);
+      SHOT.push(shot); SIDE.push(side); MESH.push(mi);
       B.push(Math.min(a.x, b.x, c.x), Math.min(a.y, b.y, c.y), Math.min(a.z, b.z, c.z), Math.max(a.x, b.x, c.x), Math.max(a.y, b.y, c.y), Math.max(a.z, b.z, c.z));
     }
   });
@@ -1814,7 +1820,7 @@ function buildTG(root) {
   if (LV.gate && LV.gate.doors) {
     const d = LV.gate.doors;
     for (let i = 0; i < 24; i++) {
-      leaf.push(NR.length / 3); T.push(1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6); NR.push(1, 0, 0); OUT.push(0); THRU.push(0);
+      leaf.push(NR.length / 3); T.push(1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6, 1e6); NR.push(1, 0, 0); OUT.push(0); THRU.push(0); SHOT.push(0); SIDE.push(2); MESH.push(-1);
       B.push(d.x0 - 2.5, d.y0 - 1, d.z - 3, d.x1 + 2.5, d.y1 + 1, d.z + 1);
     }
   }
@@ -1830,7 +1836,7 @@ function buildTG(root) {
   for (let k = 0; k < gw * gd; k++) start[k + 1] += start[k];
   const fillAt = start.slice(0, gw * gd), list = new Int32Array(start[gw * gd]);
   for (let t = 0; t < nt; t++) each(t, k => { list[fillAt[k]++] = t; });
-  const G = { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), THRU: new Uint8Array(THRU), water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
+  const G = { T: new Float32Array(T), B: new Float32Array(B), NR: new Float32Array(NR), OUT: new Uint8Array(OUT), THRU: new Uint8Array(THRU), SHOT: new Uint8Array(SHOT), SIDE: new Uint8Array(SIDE), MESH: new Int32Array(MESH), meshes, hitTri: -1, water: new Float32Array(water), nt, x0, z0, S, gw, gd, start, list, stamp: new Uint32Array(nt), sid: 0 };
   G.gate = { mesh: gm, tris: gate, T: gate.map(t => G.T.slice(t * 9, t * 9 + 9)), B: gate.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false, y: 0 };
   G.leaf = { tris: leaf, boxes: [] };
   G.toggles = {}; for (const [k, tris] of Object.entries(toggles)) G.toggles[k] = { tris, T: tris.map(t => G.T.slice(t * 9, t * 9 + 9)), B: tris.map(t => G.B.slice(t * 6, t * 6 + 6)), open: false };
@@ -2059,7 +2065,8 @@ function meshBlocked(x, y, z, h) {
 }
 function meshSolidPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, () => { hit = true; }); return hit; }
 // Nearest triangle hit along a ray (d normalised) within far, walking the columns it crosses
-function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru) { // seeThru: sight lines pass shed windows (walking and paths still don't)
+// shot: only what bullets hit (castShot), and the nearest triangle is left in TG.hitTri
+function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru, shot) { // seeThru: sight lines pass shed windows (walking and paths still don't)
   const G = TG, S = G.S, T = G.T;
   if (++G.sid > 4e9) { G.stamp.fill(0); G.sid = 1; }
   const id = G.sid;
@@ -2073,22 +2080,40 @@ function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru) { // seeThru: sight lines p
     if (c >= 0 && r >= 0 && c < G.gw && r < G.gd) {
       const k = r * G.gw + c;
       for (let j = G.start[k]; j < G.start[k + 1]; j++) {
-        const t = G.list[j]; if (G.stamp[t] === id) continue; G.stamp[t] = id; if (seeThru && G.THRU[t]) continue;
+        const t = G.list[j]; if (G.stamp[t] === id) continue; G.stamp[t] = id; if (seeThru && G.THRU[t]) continue; if (shot && !G.SHOT[t]) continue;
         const q = t * 9, e1x = T[q + 3] - T[q], e1y = T[q + 4] - T[q + 1], e1z = T[q + 5] - T[q + 2], e2x = T[q + 6] - T[q], e2y = T[q + 7] - T[q + 1], e2z = T[q + 8] - T[q + 2];
         const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz;
         if (Math.abs(det) < 1e-12) continue;
+        if (shot && G.SIDE[t] !== 2 && (det > 0) !== (G.SIDE[t] === 0)) continue; // a one-sided face, seen from behind
         const inv = 1 / det, sx = ox - T[q], sy = oy - T[q + 1], sz = oz - T[q + 2], u = (sx * px + sy * py + sz * pz) * inv;
         if (u < 0 || u > 1) continue;
         const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (dx * qx + dy * qy + dz * qz) * inv;
         if (v < 0 || u + v > 1) continue;
         const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
-        if (tt > 1e-4 && tt < best) best = tt;
+        if (tt > 1e-4 && tt < best) { best = tt; if (shot) G.hitTri = t; }
       }
     }
     if (tc < tr) { t0 = tc; tc += tdc; c += sc; } else { t0 = tr; tr += tdr; r += sr; }
     if (t0 > far) break;
   }
   return best;
+}
+// What a shot along ray hits first among targets (as ray.intersectObjects(targets)[0]): the level's own shapes through the triangle
+// grid, which is far quicker than three.js testing them a triangle at a time, and everything else (people, trucks, doors) with three.js
+const _shotRest = [], _shotN = new THREE.Matrix3();
+function castShot(ray, targets) {
+  if (!TG) return ray.intersectObjects(targets, false)[0];
+  let level = false; _shotRest.length = 0;
+  for (const o of targets) if (o.userData.tgShot) level = true; else _shotRest.push(o);
+  const hit = ray.intersectObjects(_shotRest, false)[0];
+  if (!level) return hit;
+  const o = ray.ray.origin, d = ray.ray.direction, far = hit ? hit.distance : ray.far;
+  TG.hitTri = -1; const t = tgRay(o.x, o.y, o.z, d.x, d.y, d.z, far, false, true);
+  if (TG.hitTri < 0 || t >= far) return hit;
+  const m = TG.meshes[TG.MESH[TG.hitTri]], k = TG.hitTri * 3;
+  // three.js gives the face's normal in the mesh's own frame
+  const normal = new V3(TG.NR[k], TG.NR[k + 1], TG.NR[k + 2]).applyMatrix3(_shotN.setFromMatrix4(m.matrixWorld).transpose()).normalize();
+  return { distance: t, point: o.clone().addScaledVector(d, t), object: m, face: { normal } };
 }
 function tgClear(a, b) { const d = b.clone().sub(a), l = d.length(); if (l < 1e-3) return true; d.divideScalar(l); return tgRay(a.x, a.y, a.z, d.x, d.y, d.z, l) >= l; }
 // Drop a listed position onto the floor below it
@@ -2287,9 +2312,16 @@ function prepScene(sc) {
     // Glowing parts (LEDs, the computer screen) keep their glow; the poster keeps its see-through edges
     o.material = toonMat({ map: m.map || null, color, side: m.side, skinning: !!o.isSkinnedMesh, emissive, emissiveMap: m.emissiveMap || null,
       transparent: m.transparent, alphaTest: m.alphaTest, depthWrite: m.depthWrite, aoMap: m.aoMap || null }); o.material.name = m.name;
-    o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; o.frustumCulled = !o.isSkinnedMesh; // characters take shadows only with the look
+    o.castShadow = true; o.receiveShadow = !o.isSkinnedMesh; // characters take shadows only with the look
   });
-  sc.updateMatrixWorld(true); return sc;
+  sc.updateMatrixWorld(true);
+  // Characters are culled by their bind-pose bounds (all three.js knows), so pad those by a metre for crouching, aiming and lying dead.
+  // (Their geometry is shared by every copy, so this is once per model.)
+  sc.traverse(o => {
+    if (!o.isSkinnedMesh || o.geometry.userData.padded) return;
+    const g = o.geometry; g.computeBoundingSphere(); g.boundingSphere.radius += 1 / o.matrixWorld.getMaxScaleOnAxis(); g.userData.padded = true;
+  });
+  return sc;
 }
 const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 // Model URLs stay the same across exports. Revalidate even entries cached under the old 24-hour policy.
@@ -2761,7 +2793,10 @@ function spawnCorpseAt(mi, pos, yaw) {
 const LIMP_POSE = { thighL: -0.5, kneeL: 0.9, thighR: 0.35, kneeR: 0.6 };
 function updateCorpses(dt, list = corpses) {
   for (const c of list) {
-    if (c.t >= 1.8) continue;
+    if (c.t >= 1.8) { // settled: from now on it's a still life, so its ~80 bones stop being recomputed every frame
+      if (!c.still) { c.still = true; c.w.updateMatrixWorld(true); c.w.traverse(o => { o.matrixAutoUpdate = false; }); }
+      continue;
+    }
     c.t += dt;
     const fall = Math.min(1, c.t / 0.5); c.w.rotation.x = -fall * fall * Math.PI / 2;
     const r = c.r; if (!r) continue;
@@ -2790,7 +2825,7 @@ function updateCorpses(dt, list = corpses) {
       }
       // One arm up by the head, the other down by the hip, so the two make a diagonal
       for (const [side, ang] of [['L', 0.7], ['R', 0.3]]) {
-        const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) continue;
+        const sh = rigBone(r, 'DEF-UpperArm_1' + side); if (!sh) continue;
         _qa.setFromAxisAngle(_Z, ang * Math.min(k, 1.1)); _p2.copy(sh.position);
         for (const a of r.armBones) if (a.top && a.b.name.endsWith(side)) { a.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); a.b.quaternion.premultiply(_qa); }
       }
@@ -2850,8 +2885,10 @@ function poseUpper(r, a1, a2) {
   }
 }
 // The free (left) arm of the library characters swings with the walk, opposite its own leg: the arm and hand bones turn about the shoulder
+// A rig's bone by name, looked up once (swayArm and the falling bodies want the shoulders every frame)
+function rigBone(r, n) { const c = r.boneCache || (r.boneCache = {}); return n in c ? c[n] : (c[n] = r.root.getObjectByName(n) || null); }
 function swayArm(r, ang, side = 'L') {
-  const sh = r.root.getObjectByName('DEF-UpperArm_1' + side); if (!sh) return;
+  const sh = rigBone(r, 'DEF-UpperArm_1' + side); if (!sh) return;
   _qa.setFromAxisAngle(_X, ang); _p2.copy(sh.position);
   for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith(side)) {
     u.b.position.sub(_p2).applyQuaternion(_qa).add(_p2); u.b.quaternion.premultiply(_qa);
@@ -3075,12 +3112,21 @@ function seenAt(b, t) {
 const fx = [];
 // own: the local player's shot. Short tracers then ride along with the camera, so recoil kicking the view up
 // doesn't leave them trailing below the gun; long ones (the rifle's beam) stay put in the world
+// Shots make effects by the hundred in a firefight: they share their shapes, and a material goes back in its pool when its effect
+// ends, for the next one, rather than each being made for the GPU and thrown away
+const FX_GEO = { tracer: new THREE.CylinderGeometry(1, 1, 1, 6, 1, true), impact: new THREE.SphereGeometry(0.05, 6, 6), boom: new THREE.SphereGeometry(1, 16, 12) };
+const FX_MAT = {
+  tracer: () => new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  impact: () => new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true }),
+  boom: () => new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, depthWrite: false }),
+}, fxPool = { tracer: [], impact: [], boom: [] };
+const fxMesh = kind => new THREE.Mesh(FX_GEO[kind], fxPool[kind].pop() || FX_MAT[kind]());
 function _tracer(a, b, color = 0xffe08a, w = 0.02, life = 0.12, own = false) {
   const d = b.clone().sub(a), len = d.length(); if (len < 0.01) return;
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(w, w, len, 6, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const m = fxMesh('tracer'); m.material.color.set(color); m.material.opacity = 0.9; m.scale.set(w, len, w);
   m.position.copy(a).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new V3(0, 1, 0), d.normalize());
   scene.add(m); if (own && life <= 0.2) camera.attach(m);
-  fx.push({ o: m, life, max: life });
+  fx.push({ o: m, life, max: life, pool: 'tracer' });
 }
 function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l }); }
 // Where a shot's mark goes: a door that swings takes it with it (on the door's own hinge), so it isn't left hanging in the doorway once the door opens or is shot open
@@ -3093,9 +3139,9 @@ function impactParent(obj, p) {
   return null;
 }
 function impact(p, obj) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true })), par = impactParent(obj, p);
+  const m = fxMesh('impact'), par = impactParent(obj, p);
   if (par) { par.updateWorldMatrix(true, false); m.position.copy(par.worldToLocal(p.clone())); par.add(m); } else { m.position.copy(p); scene.add(m); }
-  fx.push({ o: m, life: 4, max: 4 });
+  fx.push({ o: m, life: 4, max: 4, pool: 'impact' });
 }
 // Bullet holes: every player's shots leave a mark on what they hit until the round resets, so walls can be drawn on.
 // All holes live in one instanced mesh; once it is full the oldest ones are reused.
@@ -3119,6 +3165,9 @@ function _addHole(h) {
   const s = 0.85 + ((h[0] * 73.1 + h[2] * 19.7) % 1 + 1) % 1 * 0.3; _hs.set(s, s, 1);
   holeMesh.setMatrixAt(holeNext, _hm.compose(_hp, _hq, _hs));
   if (holes.length < HOLE_MAX) holes.push(h); else holes[holeNext] = h;
+  // send the GPU just the rows changed since it was last sent (three.js clears updateRange once it has), not all 8000
+  const r = holeMesh.instanceMatrix.updateRange, at = holeNext * 16;
+  if (r.count === -1) { r.offset = at; r.count = 16; } else { const lo = Math.min(r.offset, at), hi = Math.max(r.offset + r.count, at + 16); r.offset = lo; r.count = hi - lo; }
   holeNext = (holeNext + 1) % HOLE_MAX; holeMesh.count = holes.length; holeMesh.instanceMatrix.needsUpdate = true;
 }
 function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); }
@@ -3194,8 +3243,8 @@ function clearScorches() { scorches.length = 0; for (const o of scorchMeshes) { 
 function addScorch(p, r) { const s = [_r3(p.x), _r3(p.y + 0.15), _r3(p.z), r, Math.round(Math.random() * 628) / 100]; _addScorch(s); netFx({ t: 'sc', s }); }
 const validScorch = s => Array.isArray(s) && s.length === 5 && s.every(Number.isFinite) && s[3] > 0 && s[3] <= 4;
 function _boomFx(p, s = 4) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, depthWrite: false }));
-  m.position.copy(p); scene.add(m); fx.push({ o: m, life: 0.4, max: 0.4, grow: s });
+  const m = fxMesh('boom');
+  m.position.copy(p); scene.add(m); fx.push({ o: m, life: 0.4, max: 0.4, grow: s, pool: 'boom' });
   boomLight.position.copy(p); boomLight.intensity = 4;
   if (s >= 6) { // a big one (the bazooka): a fireball, a column of dark smoke, a brighter flash
     const tex = GUN_FX.shotgun.smoke.tex;
@@ -3251,11 +3300,13 @@ function fxTexture(spec, key) {
 }
 for (const [id, f] of Object.entries(GUN_FX)) { f.flash.tex = fxTexture(f.flash, id + 'flash'); f.smoke.tex = fxTexture(f.smoke, id + 'smoke'); }
 const puffs = [], PUFF_MAX = 300;
+const puffPool = { add: [], norm: [] };
 function _puff(tex, p, size, life, opts) {
-  const m = new THREE.SpriteMaterial({ map: tex, color: opts.color === undefined ? 0xffffff : opts.color, transparent: true, depthWrite: false, opacity: 0, rotation: Math.random() * Math.PI * 2, blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  const kind = opts.additive ? 'add' : 'norm', m = puffPool[kind].pop() || new THREE.SpriteMaterial({ transparent: true, depthWrite: false, blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  m.map = tex; m.color.set(opts.color === undefined ? 0xffffff : opts.color); m.opacity = 0; m.rotation = Math.random() * Math.PI * 2; m.userData.pool = kind;
   const o = new THREE.Sprite(m); o.position.copy(p); o.scale.setScalar(size); scene.add(o);
   puffs.push({ o, t: 0, life, size, grow: opts.grow || 0, vel: opts.vel || new V3(), rise: opts.rise || 0, peak: opts.opacity === undefined ? 1 : opts.opacity, spin: (Math.random() - 0.5) * (opts.spin || 0), flash: !!opts.flash });
-  while (puffs.length > PUFF_MAX) { const q = puffs.shift(); scene.remove(q.o); q.o.material.dispose(); }
+  while (puffs.length > PUFF_MAX) { const q = puffs.shift(); scene.remove(q.o); puffPool[q.o.material.userData.pool].push(q.o.material); }
 }
 // p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
 function _muzzleFx(id, p, d, own) {
@@ -3274,7 +3325,7 @@ function updatePuffs(dt) {
   for (let i = puffs.length - 1; i >= 0; i--) {
     const q = puffs[i]; q.t += dt;
     const k = q.t / q.life;
-    if (k >= 1) { scene.remove(q.o); q.o.material.dispose(); puffs.splice(i, 1); continue; }
+    if (k >= 1) { scene.remove(q.o); puffPool[q.o.material.userData.pool].push(q.o.material); puffs.splice(i, 1); continue; }
     if (q.flash) { q.o.material.opacity = 1 - k; q.o.scale.setScalar(q.size * (0.8 + 0.4 * k)); continue; }
     q.vel.multiplyScalar(Math.exp(-3 * dt)); q.vel.y += q.rise * dt;
     q.o.position.addScaledVector(q.vel, dt);
@@ -3290,7 +3341,7 @@ function updateFx(dt) {
     const k = Math.max(0, f.life / f.max);
     f.o.material.opacity = k * 0.9;
     if (f.grow) f.o.scale.setScalar(0.5 + (1 - k) * f.grow);
-    if (f.life <= 0) { f.o.parent.remove(f.o); f.o.geometry.dispose(); f.o.material.dispose(); fx.splice(i, 1); }
+    if (f.life <= 0) { f.o.parent.remove(f.o); if (f.pool) fxPool[f.pool].push(f.o.material); else { f.o.geometry.dispose(); f.o.material.dispose(); } fx.splice(i, 1); }
   }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt * 14);
 }
@@ -4037,14 +4088,14 @@ function fire() {
   // Some guns lose accuracy with range: extra spread grows with distance to whatever is under the crosshair
   if (w.rangeSpread) {
     shotRay.set(camera.position, new V3(0, 0, -1).applyQuaternion(camera.quaternion)); shotRay.far = 200;
-    const h0 = shotRay.intersectObjects(targets, false)[0];
+    const h0 = castShot(shotRay, targets);
     sp += w.rangeSpread * Math.min(1, (h0 ? h0.distance : 60) / 40) * (1 - 0.4 * adsK);
   }
   const dmgBy = new Map(), newHoles = []; let anyHead = false;
   for (let i = 0; i < pellets; i++) {
     const dir = new V3((Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp + gun.spray * 0.01, -1).normalize().applyQuaternion(camera.quaternion);
     shotRay.set(camera.position, dir); shotRay.far = 200;
-    const hit = shotRay.intersectObjects(targets, false)[0];
+    const hit = castShot(shotRay, targets);
     if (i < 4) tracer(start, hit ? hit.point : camera.position.clone().addScaledVector(dir, 200), w.tracer, w.trW, w.trLife, true);
     if (!hit) continue;
     const ud = hit.object.userData;
@@ -4076,7 +4127,7 @@ function fire() {
 function fireRocket(w, start, targets) {
   const cdir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
   shotRay.set(camera.position, cdir); shotRay.far = 200;
-  const hit = shotRay.intersectObjects(targets, false)[0];
+  const hit = castShot(shotRay, targets);
   const dir = hit && hit.point.distanceTo(start) > 1.5 ? hit.point.clone().sub(start).normalize() : cdir;
   launchRocket(P, start, dir, w);
   const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
@@ -4148,7 +4199,7 @@ const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {
   const dir = aim.clone().sub(start).normalize();
   botRay.set(start, dir); botRay.far = 200;
-  const hit = botRay.intersectObjects([...W.meshes, ...W.floors, ...truckBoxes()], false)[0];
+  const hit = castShot(botRay, [...W.meshes, ...W.floors, ...truckBoxes()]);
   if (!hit) return start.clone().addScaledVector(dir, 200);
   if (hit.object.userData.truck) return hit.point;
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
@@ -4361,26 +4412,37 @@ function fortNode(p, anyFloor) {
   if (best < 0 && anyFloor) for (let k = 0; k < FN.nodes.length; k++) { const n = FN.nodes[k], d = Math.hypot(n.x - p.x, n.y - p.y, n.z - p.z); if (d < bd) { bd = d; best = k; } }
   return best < 0 ? null : best;
 }
-// A* from one node toward another (the gate passage only counts while the gate is open)
+// A* from one node toward another (the gate passage only counts while the gate is open). Its bookkeeping lives in typed arrays
+// kept between searches (a search that can't reach its goal visits the whole map, 40,000+ nodes on the fort): an entry counts
+// only when its stamp is this search's
+const AS = { n: 0, id: 0, seen: null, done: null, g: null, came: null, hf: [], hk: [] };
 function fortPath(from, to) {
   const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
-  const open = gateOpen(), nodes = FN.nodes, g = new Map([[a, 0]]), came = new Map(), heap = [[0, a]], done = new Set(), goal = nodes[b], now = performance.now();
+  const open = gateOpen(), nodes = FN.nodes, goal = nodes[b], now = performance.now();
+  if (AS.n !== nodes.length) Object.assign(AS, { n: nodes.length, id: 0, seen: new Uint32Array(nodes.length), done: new Uint32Array(nodes.length), g: new Float64Array(nodes.length), came: new Int32Array(nodes.length) });
+  if (++AS.id > 4e9) { AS.seen.fill(0); AS.done.fill(0); AS.id = 1; }
+  const id = AS.id, { seen, done, g, came, hf, hk } = AS;
+  seen[a] = id; g[a] = 0; came[a] = -1; hf.length = hk.length = 0; hf.push(0); hk.push(a);
   const h = k => { const n = nodes[k]; return Math.hypot(n.x - goal.x, n.y - goal.y, n.z - goal.z); };
   let near = a, nearH = h(a); // if the goal can't be reached, settle for the closest place that can
-  const push = e => { heap.push(e); let i = heap.length - 1; while (i) { const q = (i - 1) >> 1; if (heap[q][0] <= e[0]) break; heap[i] = heap[q]; i = q; } heap[i] = e; };
-  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= heap.length) break; if (c + 1 < heap.length && heap[c + 1][0] < heap[c][0]) c++; if (heap[c][0] >= last[0]) break; heap[i] = heap[c]; i = c; } heap[i] = last; } return top; };
-  while (heap.length) {
-    const [, k] = pop(); if (done.has(k)) continue; done.add(k);
-    const hk = h(k); if (hk < nearH) { nearH = hk; near = k; }
+  const push = (f, k) => { hf.push(f); hk.push(k); let i = hf.length - 1; while (i) { const q = (i - 1) >> 1; if (hf[q] <= f) break; hf[i] = hf[q]; hk[i] = hk[q]; i = q; } hf[i] = f; hk[i] = k; };
+  const pop = () => {
+    const top = hk[0], lf = hf.pop(), lk = hk.pop();
+    if (hf.length) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= hf.length) break; if (c + 1 < hf.length && hf[c + 1] < hf[c]) c++; if (hf[c] >= lf) break; hf[i] = hf[c]; hk[i] = hk[c]; i = c; } hf[i] = lf; hk[i] = lk; }
+    return top;
+  };
+  while (hf.length) {
+    const k = pop(); if (done[k] === id) continue; done[k] = id;
+    const hk0 = h(k); if (hk0 < nearH) { nearH = hk0; near = k; }
     if (k === b) break;
     const n = nodes[k];
     for (const m of n.nb) {
-      if (done.has(m) || (!open && nodes[m].gate) || (nodes[m].blockT > now && m !== b) || (nodes[m].door !== undefined && SHEDS[nodes[m].door].locked)) continue; // (blockT: where a bot just got stuck)
-      const o = nodes[m], ng = g.get(k) + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z) * (1 + (o.pen || 0));
-      if (ng < (g.has(m) ? g.get(m) : Infinity)) { g.set(m, ng); came.set(m, k); push([ng + h(m), m]); }
+      if (done[m] === id || (!open && nodes[m].gate) || (nodes[m].blockT > now && m !== b) || (nodes[m].door !== undefined && SHEDS[nodes[m].door].locked)) continue; // (blockT: where a bot just got stuck)
+      const o = nodes[m], ng = g[k] + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z) * (1 + (o.pen || 0));
+      if (ng < (seen[m] === id ? g[m] : Infinity)) { seen[m] = id; g[m] = ng; came[m] = k; push(ng + h(m), m); }
     }
   }
-  const path = [near]; let c = near; while (came.has(c)) { c = came.get(c); path.push(c); }
+  const path = [near]; let c = near; while (came[c] >= 0 && seen[c] === id) { c = came[c]; path.push(c); }
   return path.reverse();
 }
 // The defender an attacker goes after: the closest one alive
@@ -4958,6 +5020,9 @@ function updateVM(dt) {
 
 // ---------- HUD ----------
 const hud = { hp: -1, ammo: '', nades: -1 };
+// Set a page element's text or style only when it changes: the HUD runs every frame, and each write makes the browser redo its styles
+const setText = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
+const setStyle = (id, k, v) => { const st = $(id).style; v = String(v); if (st[k] !== v) st[k] = v; };
 function updateHUD(dt) {
   // Health: a bar that shrinks toward the right edge, green when full fading through yellow to red at 0
   const hp = Math.max(0, Math.min(100, Math.ceil(P.health / maxHp(P) * 100)));
@@ -4981,13 +5046,13 @@ function updateHUD(dt) {
     $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
   } else {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-    $('top').textContent = MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`;
+    setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
     $('top').classList.remove('alert');
   }
-  hitT -= dt; $('hit').style.opacity = hitT > 0 ? 1 : 0;
-  noteT -= dt; if (noteT <= 0) $('note').textContent = '';
-  vig = Math.max(0, vig - dt * 1.1); $('vig').style.opacity = vig;
-  hurtT = Math.max(0, hurtT - dt * 3); $('hurt').style.opacity = hurtT;
+  hitT -= dt; setStyle('hit', 'opacity', hitT > 0 ? 1 : 0);
+  noteT -= dt; if (noteT <= 0) setText('note', '');
+  vig = Math.max(0, vig - dt * 1.1); setStyle('vig', 'opacity', vig);
+  hurtT = Math.max(0, hurtT - dt * 3); setStyle('hurt', 'opacity', hurtT);
   // Below a quarter health the world drains of colour and the edges close in, fully grey at 1% or when dead
   const pct = P.health / maxHp(P) * 100, lowTo = !P.alive ? 1 : pct >= 25 ? 0 : Math.min(1, (25 - pct) / 24);
   if (lowK !== lowTo) {
@@ -4997,7 +5062,7 @@ function updateHUD(dt) {
     $('low').style.opacity = lowK * 0.85;
   }
   const bd = $('board');
-  bd.style.display = boardOpen ? 'block' : 'none';
+  setStyle('board', 'display', boardOpen ? 'block' : 'none');
   if (boardOpen) {
     const rows = [...ents].filter(e => MODE !== 'defend' || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
       .map(e => `<tr class="${e.isPlayer ? 'me' : ''}"><td${e.team && teamsOn() ? ` style="color:${TEAMS[e.team].color}"` : ''}>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td></tr>`).join('');
@@ -6489,7 +6554,7 @@ requestAnimationFrame(loop);
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js?v=9"></script>
-<script src="range.js?v=14"></script>
+<script src="range.js?v=15"></script>
 <script src="transcript.js"></script>
 </body>
 </html>
