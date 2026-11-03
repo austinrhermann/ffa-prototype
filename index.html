@@ -556,7 +556,7 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
@@ -1069,7 +1069,7 @@ function toggleShed(i, e) { // host: E at a door
 }
 function lockDoor(sh, e) { // host: shut, unlocked, and the one locking it is inside, at the door
   if (sh.locked || sh.open || matchOver || !e.alive || !doorInside(e, sh) || nearShed(e) !== SHEDS.indexOf(sh)) return;
-  sh.locked = true; sh.lockHp = sh.lock.hp; sh.lockTeam = teamsOn() ? e.team : null; doorClunk(sh); waveNote(`${e.name} locked the bunker door`);
+  sh.locked = true; sh.lockHp = RANGE.doorHp('door', sh.lock.hp); sh.lockTeam = teamsOn() ? e.team : null; doorClunk(sh); waveNote(`${e.name} locked the bunker door`);
 }
 function damageBunker(amt) { // host
   const sh = lockableDoor(); if (!sh || !sh.locked || NET.role === 'guest' || matchOver) return;
@@ -1088,7 +1088,7 @@ function updateLockDoor(dt) {
     if (!P.alive || !keys.KeyE || nearShed(P) !== SHEDS.indexOf(sh) || !doorInside(P, sh) || sh.open || sh.locked || VEH.riding) H.on = false; // walked off, died, or it changed under them
     else if ((H.t += dt) >= sh.lock.hold) { H.on = false; if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'blk' }); } else lockDoor(sh, P); }
   }
-  const U = sh.lockUI, pct = sh.locked ? Math.max(1, Math.ceil(sh.lockHp / sh.lock.hp * 100)) : 0;
+  const U = sh.lockUI, pct = sh.locked ? Math.max(1, Math.ceil(sh.lockHp / RANGE.doorHp('door', sh.lock.hp) * 100)) : 0;
   U.bars.forEach(m => { m.visible = pct > 0; });
   if (!pct) U.shown = -1;
   else if (U.shown !== pct) {
@@ -2218,6 +2218,7 @@ document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { sel
 function switchLevel(id) {
   if (NET.role === 'host') broadcast({ t: 'level', id });
   loadLevel(id); applyLook(); // Fortress turns the look on
+  if (TG && LV && LV.gate) { GATE.hp = 100; setGate(true); } // the fort's main gate starts open
   if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
@@ -2719,7 +2720,7 @@ function measureCrouch(r) {
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
 const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 }, bazooka: { y: -0.16, z: 0.02 } };
-function setRigWeapon(rig, id) {
+function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife, a grenade) instead of the gun
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
   // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
@@ -2734,17 +2735,17 @@ function setRigWeapon(rig, id) {
   if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
     holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
-    rig.gunBone.add(holder); rig.gunVis = holder;
+    holder.userData.base = holder.matrix.clone(); rig.gunBone.add(holder); rig.gunVis = holder;
     return;
   }
   if (!m.gunDir) return;
-  const w = WEAPONS[id], holder = new THREE.Group(); holder.add(centeredClone(w.scene, w.yaw));
+  const w = WEAPONS[id] || {}, holder = new THREE.Group(); holder.add(obj || centeredClone(w.scene, w.yaw));
   // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
   // barrel along the aim direction. The baked-gun characters keep the old centred placement.
-  const gr = m.sway && GRIPS[id], at = m.gunHand.clone();
-  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
+  const gr = !obj && m.sway && GRIPS[id], at = m.gunHand.clone();
+  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else if (!obj) at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
   const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
-  holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T);
+  holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T); holder.userData.base = holder.matrix.clone();
   rig.gunBone.add(holder); rig.gunVis = holder;
 }
 const corpses = [];
@@ -2843,13 +2844,16 @@ function animRig(r, dt, speed, crouch, pitch) {
   r.root.position.y = Math.abs(c) * 0.035 * A - C * r.model.crouchDrop;
   // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
   const lean = 0.3 * C;
-  poseUpper(r, lean - r.pt * 0.4, -lean - r.pt * 0.6);
+  // Your own body in first person leans back whether you look up or down, so neither the chest nor the head gets into the view;
+  // the arms make up the difference, so the gun still follows the aim exactly
+  const fp = r === P.rig ? bodyK : 0, a1 = (lean - r.pt * 0.4) * (1 - fp) + (lean * 0.15 - Math.abs(r.pt) * 0.5) * fp; // crouched, barely any forward lean: it would swing the neck and shoulders into the lens
+  poseUpper(r, a1, -r.pt - a1, r === P.rig ? fpvA2 * bodyK : 0);
   if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
-function poseUpper(r, a1, a2) {
+function poseUpper(r, a1, a2, armExtra) { // armExtra: more turn for the arms alone (a reload drops the gun, the head stays put)
   if (!r.upper.length) return;
-  _qa.setFromAxisAngle(_X, a1); _qb.setFromAxisAngle(_X, a2 + r.raise); _qc.setFromAxisAngle(_X, a2);
+  _qa.setFromAxisAngle(_X, a1); _qb.setFromAxisAngle(_X, a2 + r.raise + (armExtra || 0)); _qc.setFromAxisAngle(_X, a2);
   _p2.copy(r.piv2).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
   for (const u of r.upper) {
     u.b.position.copy(u.pos).sub(r.piv1).applyQuaternion(_qa).add(r.piv1);
@@ -2947,6 +2951,10 @@ function updateHoverTags(dt) {
     if (e.tag) { e.tag.material.opacity = e.tagA; e.tag.visible = e.tagA > 0; }
   }
 }
+// First person draws your own body (hands on the gun) with the camera a little in front of the head; ?fpv=vm brings back the old floating viewmodel.
+// Aiming down sights still uses the viewmodel, which lines up with the crosshair
+const FPV_BODY = new URLSearchParams(location.search).get('fpv') !== 'vm', FPV_FWD = 0.25;
+let bodyK = 0;
 let playerModelIdx = -1;
 function setPlayerModel(i) {
   if (P.rig) scene.remove(P.rig.wrap);
@@ -2955,21 +2963,93 @@ function setPlayerModel(i) {
   P.rig.body = []; P.rig.root.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.colorWrite = false; o.material.depthWrite = false; P.rig.body.push(o); } });
   scene.add(P.rig.wrap);
 }
+// The knife and the grenade in your hand (they point down -z like the guns, and sit with their middle in the palm)
+function heldObject(kind) {
+  const g = new THREE.Group();
+  if (kind === 'knife') {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.12), toonMat({ color: 0x222222 })), bl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.2), toonMat({ color: 0xc9ced4 }));
+    bl.position.z = -0.16; h.castShadow = bl.castShadow = true; g.add(h, bl); g.position.z = -0.06; g.rotation.set(0.6, 0, -0.5); const o = new THREE.Group(); o.add(g); return o;
+  }
+  if (!NADE_MODEL) return null;
+  const c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g;
+}
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
 function updateSelfView() {
   const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
-  const see = tpK > 0.15 && P.alive;
+  const see = (tpK > 0.15 || bodyK > 0.5) && P.alive;
+  if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
-  const want = RANGE.on ? RANGE.inHand() : curW;
-  if (r.held !== want) { r.held = want; if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
-  if (r.gunVis) r.gunVis.visible = see;
+  let want = RANGE.on ? RANGE.inHand() : curW;
+  if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
+  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
+  if (r.held !== want) { r.held = want; if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
+  if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
 }
 function updatePlayerRig(dt) {
   if (!P.rig) return;
   const r = P.rig;
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.y = P.yaw + Math.PI;
+  if (bodyK > 0.01) { fpvPose(r); } else fpvA2 = 0;
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
+  if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) r.gunVis.matrix.copy(r.gunVis.userData.base);
+}
+// First person: the gun hand moves (arm and all) to where the floating viewmodel gun used to be, so every character
+// holds every gun in the same place on screen, whatever the size of their arms
+const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
+const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42) };
+// Where the gun hand is in the view, and how far the arm tips about the shoulder (positive: the gun points down): the hip hold,
+// or the reload (gun and hand drop down beside the body), the knife stab and the grenade throw. All camera-space, like the old viewmodel
+let fpvA2 = 0;
+let RELOAD_BEND = 1.3;
+const FPV_LONG = 0.55, FPV_OUT = new V3(0.13, -0.01, -0.2); // guns are held a little further out and to the right
+let fpvAimW = 1; // how much the gun is turned to point where the camera does (not while it hangs down for a reload)
+const _qd = new THREE.Quaternion(), _qb2 = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _cf = new V3(), _gz = new V3(), _fp = new V3(), _kr = new V3();
+const _fh = new V3(), RELOAD_AT = new V3(0.3, -0.5, -0.05), STAB_BACK = new V3(0.25, 0.02, -0.3), STAB_OUT = new V3(0.0, -0.12, -0.95), THROW_BACK = new V3(0.22, 0.04, -0.18), THROW_OUT = new V3(0.05, -0.05, -0.8);
+const sstep = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+function fpvPose(r) {
+  const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip) return;
+  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT);
+  const bob = (P.onGround ? Math.min(1, Math.hypot(P.vel.x, P.vel.z) / 6.5) : 0) * (1 - 0.8 * adsK); // walking bob, the same sway as the old viewmodel
+  _fh.x += Math.sin(bobT) * 0.01 * bob; _fh.y += Math.abs(Math.cos(bobT)) * 0.012 * bob; _fh.z = Math.max(_fh.z, -FPV_LONG); if (VMW[r.held]) _fh.z += vmKick * 0.05; fpvA2 = 0; fpvAimW = 1; r.hideHeld = false; // recoil: the same push back as the ADS viewmodel; long guns reach back past the lens, so the arm stays out of the view
+  if (r.held === 'knife' && knifeT > 0) {
+    const t = 1 - knifeT / 0.6, a = sstep(0, 0.3, t), b = sstep(0.3, 0.55, t), c = sstep(0.55, 1, t);
+    _fh.lerp(STAB_BACK, a).lerp(STAB_OUT, b).lerp(hip, c); fpvA2 = -0.5 * a * (1 - b) + 0.1 * b * (1 - c);
+  } else if (r.held === 'nade' && throwT > 0) {
+    const t = 1 - throwT / 0.4, a = sstep(0, 0.35, t), b = sstep(0.35, 0.65, t), c = sstep(0.65, 1, t);
+    _fh.lerp(THROW_BACK, a).lerp(THROW_OUT, b).lerp(hip, c); fpvA2 = -0.9 * a * (1 - b) + 0.3 * b * (1 - c);
+    r.hideHeld = t >= 0.5; // the grenade leaves the hand
+  } else if (P.reloading > 0 && VMW[r.held]) {
+    const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
+    _fh.lerp(RELOAD_AT, k); fpvA2 = RELOAD_BEND * k; fpvAimW = 1 - k;
+  }
+}
+function fpvFit(r) {
+  const hip = _fh; if (!r.gunVis || !r.upper.length || !VMW[r.held] && !HELD_HIP[r.held]) return;
+  const gv = r.gunVis, base = gv.userData.base;
+  r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
+  if (base) { // the gun sits a little to the left of the hand (on screen), so the hand ends up on the right of the gun
+    _fd.set(-FPV_HAND_X * bodyK, 0, 0).applyQuaternion(camera.quaternion);
+    _fm.setFromMatrix4(r.gunBone.matrixWorld).invert(); _fd.applyMatrix3(_fm);
+    gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
+  }
+  _fb.setFromObject(gv).getCenter(_fc);
+  if (VMW[r.held] && fpvAimW > 0.001) { // the whole arm turns about the grip so the barrel points where the camera does (hand and gun stay together)
+    _gz.set(0, 0, -1).transformDirection(gv.matrixWorld); _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    _cf.applyAxisAngle(_kr.set(1, 0, 0).applyQuaternion(camera.quaternion), vmKick * 0.08); // and the same muzzle flip
+    _qd.setFromUnitVectors(_gz, _cf); _qi.identity().slerp(_qd, fpvAimW * bodyK);
+    const node = r.upper[0].b.parent; node.getWorldQuaternion(_qb2);
+    _qd.copy(_qb2).invert().multiply(_qi).multiply(_qb2); // into the armature's frame
+    _fp.copy(_fc); node.worldToLocal(_fp);
+    for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) { u.b.position.sub(_fp).applyQuaternion(_qd).add(_fp); u.b.quaternion.premultiply(_qd); }
+    r.wrap.updateMatrixWorld(true); _fb.setFromObject(gv).getCenter(_fc);
+  }
+  // the old viewmodel camera had a narrower view, so widen its x and y to get the same spot on screen (a straight remap: the reload pose is behind the lens)
+  const K = Math.tan(camera.fov * Math.PI / 360) / Math.tan(vmCam.fov * Math.PI / 360);
+  _fd.set(hip.x * K, hip.y * K, hip.z).applyMatrix4(camera.matrixWorld).sub(_fc).multiplyScalar(bodyK);
+  _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
+  for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);
+  r.wrap.updateMatrixWorld(true); // the muzzle (tracer, flash, smoke) reads the finished pose
 }
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
@@ -3275,11 +3355,11 @@ function _puff(tex, p, size, life, opts) {
 // p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
 function _muzzleFx(id, p, d, own) {
   const f = GUN_FX[id]; if (!f) return;
-  if (!own) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
+  if (!own || bodyK > 0.5) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
   const sm = f.smoke;
   for (let i = 0; i < sm.count; i++) {
     const k = sm.count > 1 ? i / (sm.count - 1) : 0;
-    const at = p.clone().addScaledVector(d, (own ? 0.35 : 0.05) + k * 0.25);
+    const at = p.clone().addScaledVector(d, (own && bodyK <= 0.5 ? 0.35 : 0.05) + k * 0.25);
     const vel = d.clone().multiplyScalar(sm.speed * (0.4 + Math.random() * 0.6)).add(new V3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4));
     _puff(sm.tex, at, sm.size * (0.8 + Math.random() * 0.4), sm.life * (0.75 + Math.random() * 0.5), { color: sm.color, additive: sm.additive, grow: sm.grow, vel, rise: sm.rise, opacity: sm.opacity * (own ? 0.7 : 1), spin: 1.2 });
   }
@@ -3393,7 +3473,9 @@ const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
 const GATE = { hp: 100 };
 // Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match
 function setGate(open) {
-  if (!TG || !TG.gate || TG.gate.open === open) return;
+  if (!TG || !TG.gate) return;
+  FN.gateWant = open; // (the bot map builds in the background with the gate forced open: it puts it back the way it was last asked for)
+  if (TG.gate.open === open) return;
   setGateSolid(open); placeLeaves(open ? 1.5 : null); // the doors swing into the courtyard and stand there
 }
 // The front gate: two heavy doors hinged at the sides of the passage that swing into the courtyard (blown wide when broken)
@@ -3475,7 +3557,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (window.TRANSCRIPT) TRANSCRIPT.event('start');
-  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(RANGE.on); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
+  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
 // w is the winner
@@ -3677,6 +3759,7 @@ function updateAmmo(dt, now) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
     a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
+      if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // nor ammo
       if (a.kind) { // a battery pack: you take what you can carry; a guest is sent it; a bot refills the old way
         if (!e.alive || Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
         if (e.isPlayer) { if (!RANGE.addBats(a.kind)) continue; }
@@ -3723,6 +3806,7 @@ function updatePickups(dt, now) {
     if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
     pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
+      if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // no picking up weapons from a seat
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
       if (Math.hypot(e.pos.x - pk.pos.x, e.pos.z - pk.pos.z) < 1.1 && Math.abs(e.pos.y - pk.pos.y) < 1.3 && giveWeapon(e, pk.id, pk.ammo)) {
         if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); }
@@ -3905,7 +3989,9 @@ const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
-  if (tpK > 0.5 && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
+  const mw = P.rig && VMW[P.rig.held];
+  if (bodyK > 0.5 && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
+  if ((tpK > 0.5 || bodyK > 0.5) && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
   const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
@@ -4134,7 +4220,7 @@ function* fortNavSteps() {
   FN.nodes = []; FN.cells = null; FN.comp = null;
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
   const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
-  const wasOpen = TG.gate && TG.gate.open; if (TG.gate) setGateSolid(true); // map the gate passage as open
+  const wasOpen = TG.gate && TG.gate.open; FN.gateWant = wasOpen; if (TG.gate) setGateSolid(true); // map the gate passage as open
   // and every shed and cellar door: bots open a shut one when their path goes through it (walkFine). Only the walking shape is
   // taken out for the mapping, then put back as it was
   const doors = levelSheds().map(sh => ({ sh, i: SHEDS.indexOf(sh), g: TG.toggles && TG.toggles[sh.tog] })).filter(d => d.g);
@@ -4196,7 +4282,7 @@ function* fortNavSteps() {
       if (along > 0.25 && along < 1.1 && side < 0.4 && Math.abs(o.y - g) < STEP) { o.nb.push(k); FN.nodes[k].nb.push(m); }
     }
   }
-  if (TG.gate) setGateSolid(wasOpen);
+  if (TG.gate) setGateSolid(!!FN.gateWant);
   for (const d of doors) {
     if (!d.g.open) tgSolid(d.g, true);
     const [bx0, bx1, by0, by1, bz0, bz1] = d.box; // the nodes in and either side of the doorway know which door they go through
@@ -4544,7 +4630,7 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Shooting Range (range.js fills this in) ----------
@@ -4670,12 +4756,14 @@ function playHints(dt) {
   if (!RANGE.on && w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
   if (curLevel === 'fortress' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
 }
+const _fpvDir = new V3();
 function updateCamera(dt) {
   punch *= Math.exp(-10 * dt);
   const ads = (mouseRight || tAim) && P.alive && P.reloading <= 0 && knifeT <= 0 && throwT <= 0;
   adsK += ((ads ? 1 : 0) - adsK) * Math.min(1, dt * 12);
-  zoomK = RANGE.on && !RANGE.zooms() ? 0 : adsK; // in the new weapon system only the Carbine and the Rifle zoom
-  camera.fov = 75 - (75 - WP().fov) * zoomK; vmCam.fov = 60 - 10 * zoomK;
+  zoomK = adsK; // every gun brings its sights up to the eye...
+  const fovK = RANGE.on && !RANGE.zooms() ? 0 : adsK; // ...but in the new weapon system only the Carbine and the Rifle zoom the view
+  camera.fov = 75 - (75 - WP().fov) * fovK; vmCam.fov = 60 - 10 * fovK;
   camera.updateProjectionMatrix(); vmCam.updateProjectionMatrix();
   P.eyeCur += ((P.h < STAND_H ? 1.05 : 1.6) - P.eyeCur) * Math.min(1, dt * 12);
   if (P.alive) {
@@ -4688,6 +4776,14 @@ function updateCamera(dt) {
   const sx = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0, sy = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0;
   camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   myEye.copy(camera.position);
+  bodyK += ((FPV_BODY && P.alive && adsK < 0.3 && !VEH.riding && MODE !== 'drive' && !tpOn() ? 1 : 0) - bodyK) * Math.min(1, dt * 12);
+  if (bodyK > 0.001) { // the camera sits ahead of the head, which then only casts its shadow
+    _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+    const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
+    camera.position.addScaledVector(_fpvDir, f);
+    const m = P.rig && P.rig.model; // the short characters (Master, Apprentice) see from their own height
+    if (m && m.crouchDrop !== undefined) camera.position.y += Math.min(0, m.headY - 0.12 - m.crouchDrop * P.rig.cr - (camera.position.y - P.pos.y)) * bodyK;
+  }
   tpK += ((tpOn() && !(mouseRight || tAim) ? 1 : 0) - tpK) * Math.min(1, dt * 10);
   if (tpK > 0.001) {
     camera.updateMatrixWorld();
@@ -4773,8 +4869,9 @@ function updateVM(dt) {
   knifeT -= dt; throwT -= dt; updateNadeVM();
   const kp = knifeT > 0 ? 1 - knifeT / 0.6 : 0;
   const ks = Math.max(0, Math.min(1, (kp - 0.2) / 0.6));
-  vm.visible = P.alive;
-  knifeVM.visible = P.alive && kp > 0.15 && kp < 0.85;
+  const inVeh = !!VEH.riding; // hands are on the wheel or the bench: no gun on screen
+  vm.visible = P.alive && !inVeh;
+  knifeVM.visible = P.alive && !inVeh && kp > 0.15 && kp < 0.85;
   if (knifeVM.visible) {
     // Blade points away from the player and sweeps right to left in a forward arc
     const e = ks * ks * (3 - 2 * ks), phi = 0.95 - 1.9 * e, R = 0.4 + Math.sin(ks * Math.PI) * 0.14;
@@ -5157,12 +5254,15 @@ function showLook() {
   for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) { $(id).value = LOOK[k]; $('o' + id).textContent = fmt(LOOK[k]); }
 }
 for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) $(id).oninput = e => {
+  if (NET.role === 'guest') { showLook(); note('The host sets the look for everyone', 2); return; }
   const v = e.target.type === 'color' ? e.target.value : +e.target.value; LOOK[k] = v; $('o' + id).textContent = fmt(v);
   applyLook(); try { localStorage.setItem('fortressLook3', JSON.stringify(LOOK)); } catch (err) {}
+  lookSend();
 };
 $('looklink').onclick = () => { showLook(); $('overlay').classList.add('looking'); };
 $('lkback').onclick = () => $('overlay').classList.remove('looking');
-$('lkreset').onclick = () => { LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); };
+let lookT = 0; const lookSend = () => { if (NET.role === 'host' && remotes.length) { clearTimeout(lookT); lookT = setTimeout(() => netFx({ t: 'look', l: LOOK }), 120); } };
+$('lkreset').onclick = () => { if (NET.role === 'guest') { note('The host sets the look for everyone', 2); return; } LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); lookSend(); };
 $('lkcopy').onclick = () => { const t = JSON.stringify(LOOK); navigator.clipboard.writeText(t).then(() => note('Look settings copied', 1.5)).catch(() => prompt('Look settings', t)); };
 $('next').onclick = () => {
   initAudio();
@@ -5380,7 +5480,7 @@ const GATE_LOCK = 30;
 const gateSiegeOn = () => teamsOn() && !!(LV && LV.gate && LV.gate.hp) && !gateOpen() && GATE.hp > 0 && !matchOver;
 function damageGate(amt) {
   if (!gateSiegeOn()) return;
-  GATE.hp = Math.max(0, GATE.hp - amt / LV.gate.hp * 100);
+  GATE.hp = Math.max(0, GATE.hp - amt / RANGE.doorHp('gate', LV.gate.hp) * 100);
   if (GATE.hp <= 0) { setGate(true); gateLock = GATE_LOCK; const d = LV.gate.doors; _boomFx(new V3((d.x0 + d.x1) / 2, d.y0 + 1.2, d.z), 1.2); waveNote('The gate has been broken open! It can be shut again in 30 seconds'); }
 }
 const nearGateDoor = e => { const d = LV && LV.gate && LV.gate.doors; return !!d && e.alive && Math.abs(e.pos.x - (d.x0 + d.x1) / 2) < 2.4 && Math.abs(e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5; };
@@ -5526,6 +5626,13 @@ function broadcast(m, except) { for (const r of remotes) if (r.conn !== except &
 function sendTo(r, m) { if (r && r.conn && r.conn.open) r.conn.send(m); }
 function netFx(m) { if (NET.role === 'host') { if (remotes.length) broadcast(m); } else if (NET.conn && NET.conn.open) NET.conn.send({ t: 'fx', m }); }
 function netSendHit(t, amt, w, head) { if (NET.conn && NET.conn.open && t.id) NET.conn.send({ t: 'hit', id: t.id, amt, w, head }); }
+// The host's look (sky, haze, sun, shading) is everyone's: a guest wears it for this game without saving it
+function useLook(o) {
+  if (!o || typeof o !== 'object') return;
+  const L = { ...LOOK_DEFAULT };
+  for (const k in L) { const v = o[k]; if (typeof v === typeof L[k] && (typeof v === 'number' ? Number.isFinite(v) : /^#[0-9a-f]{6}$/i.test(v))) L[k] = v; }
+  LOOK = L; applyLook();
+}
 function applyFx(m) {
   switch (m.t) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
@@ -5534,6 +5641,7 @@ function applyFx(m) {
     case 'sd': syncShedDoor(levelSheds()[m.k], !!m.o); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
+    case 'look': if (NET.role === 'guest') useLook(m.l); break; // the host's sky and shading
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
@@ -5587,7 +5695,7 @@ function onGuestMsg(conn, m) {
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       setRemoteModel(r, m.model);
-      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), look: LOOK, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
       // after a long game, and a message that big closes the connection, so the guest never got in
       for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
@@ -5624,7 +5732,7 @@ function onGuestMsg(conn, m) {
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
-    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
+    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(250, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
@@ -5682,7 +5790,7 @@ function snapshot() {
     vh: VEH.netSnapshot(),
     td: LV && LV.towerDoor ? ['open', 'closed', 'broken'].indexOf(TDOOR.state) : null,
     dr: levelSheds().map(sh => (sh.open ? 1 : 0)), // the shed and cellar doors
-    bk: (() => { const sh = lockableDoor(); return sh && sh.locked ? Math.max(1, Math.ceil(sh.lockHp / sh.lock.hp * 100)) : 0; })(), // the bunker door's lock: its health in percent, 0 when unlocked
+    bk: (() => { const sh = lockableDoor(); return sh && sh.locked ? Math.max(1, Math.ceil(sh.lockHp / RANGE.doorHp('door', sh.lock.hp) * 100)) : 0; })(), // the bunker door's lock: its health in percent, 0 when unlocked
   };
 }
 
@@ -5714,6 +5822,7 @@ function onHostMsg(m) {
       NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
+      if (m.look) useLook(m.look); // and sky
       NET.wantLevel = m.level; NET.holeQ = []; // the holes that come after the welcome ('hl') wait here until the level is in
       whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
         if (NET.wantLevel !== m.level) return;
@@ -5780,7 +5889,7 @@ function applySnapshot(s) {
   VEH.applyNet(s.vh);
   if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
   if (Array.isArray(s.dr)) levelSheds().forEach((sh, k) => syncShedDoor(sh, !!s.dr[k]));
-  { const sh = typeof s.bk === 'number' ? lockableDoor() : null; if (sh) { const was = sh.locked; sh.locked = s.bk > 0; sh.lockHp = s.bk / 100 * sh.lock.hp; if (sh.locked && !was) doorClunk(sh); } }
+  { const sh = typeof s.bk === 'number' ? lockableDoor() : null; if (sh) { const was = sh.locked; sh.locked = s.bk > 0; sh.lockHp = s.bk / 100 * RANGE.doorHp('door', sh.lock.hp); if (sh.locked && !was) doorClunk(sh); } }
   const keys = new Set();
   for (const [key, wid, p, a] of s.pk) {
     keys.add(key);
@@ -6062,7 +6171,7 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (tpK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (tpK < 0.5 && bodyK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page

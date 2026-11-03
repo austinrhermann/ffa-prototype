@@ -109,6 +109,11 @@
       const p = at('Seat_' + k), side = k < 2 ? 0 : Math.sign(p.x);
       m.seats.push({ p, eye: p.clone().add(new V3(-side * 0.15, 0.8, k < 2 ? -0.02 : 0)), yaw: side * -Math.PI / 2 });
     }
+    // The bench seat nearest the cab on each side is wedged against the container's front wall: nobody can see from it, so it's never offered
+    for (const sd of [-1, 1]) {
+      const side = m.seats.filter((q, k) => k > 1 && Math.sign(q.p.x) === sd);
+      if (side.length) side.reduce((a, b) => Math.abs(a.p.z - m.seats[0].p.z) < Math.abs(b.p.z - m.seats[0].p.z) ? a : b).blocked = true;
+    }
     MODELS[key] = m;
     Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, track: m.track, wheelR: m.wheelR });
   }
@@ -125,7 +130,7 @@
       piv.position.set(x, r, z); g.add(piv); piv.add(spin); w.scale.setScalar(r / m.wheelR); spin.add(w);
       wheels.push({ piv, spin });
     }
-    return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw })) };
+    return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw, blocked: s.blocked })) };
   }
   // The body's length, and where its middle is (ahead of the point halfway between the axles)
   const lenOf = v => v.model ? v.model.len : v.p.wheelbase + (v.kind === 'bike' ? 0.6 : 0.9);
@@ -512,7 +517,7 @@
     if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
   }
-  const freeRear = v => { for (let k = 2; k < v.seats.length; k++) if (!v.occ[k]) return k; return -1; };
+  const freeRear = v => { for (let k = 2; k < v.seats.length; k++) if (!v.occ[k] && !v.seats[k].blocked) return k; return -1; };
   // What pressing E here would do: [text, action or null]
   function offer(v) {
     const n = v.name.toLowerCase();
@@ -825,6 +830,7 @@
   Object.defineProperty(VEH, 'noGuns', { get: () => driveMode() || !!cur || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat
   Object.assign(VEH, {
     list,
+    rides: id => list.some(v => v.owner === id || (v.occ && v.occ.includes(id))), // someone (a guest, by id) is in a seat
     onLevel() {
       if (LV && LV.vehicles) spawnLot(LV.vehicles === true ? LOT : LV.vehicles);
       else { clearAll(); setSelf(false); }
