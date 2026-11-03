@@ -2218,6 +2218,7 @@ document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { sel
 function switchLevel(id) {
   if (NET.role === 'host') broadcast({ t: 'level', id });
   loadLevel(id); applyLook(); // Fortress turns the look on
+  if (TG && LV && LV.gate) { GATE.hp = 100; setGate(true); } // the fort's main gate starts open
   if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
@@ -3469,7 +3470,9 @@ const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
 const GATE = { hp: 100 };
 // Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match
 function setGate(open) {
-  if (!TG || !TG.gate || TG.gate.open === open) return;
+  if (!TG || !TG.gate) return;
+  FN.gateWant = open; // (the bot map builds in the background with the gate forced open: it puts it back the way it was last asked for)
+  if (TG.gate.open === open) return;
   setGateSolid(open); placeLeaves(open ? 1.5 : null); // the doors swing into the courtyard and stand there
 }
 // The front gate: two heavy doors hinged at the sides of the passage that swing into the courtyard (blown wide when broken)
@@ -3551,7 +3554,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (window.TRANSCRIPT) TRANSCRIPT.event('start');
-  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(RANGE.on); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
+  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
 // w is the winner
@@ -4214,7 +4217,7 @@ function* fortNavSteps() {
   FN.nodes = []; FN.cells = null; FN.comp = null;
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
   const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
-  const wasOpen = TG.gate && TG.gate.open; if (TG.gate) setGateSolid(true); // map the gate passage as open
+  const wasOpen = TG.gate && TG.gate.open; FN.gateWant = wasOpen; if (TG.gate) setGateSolid(true); // map the gate passage as open
   // and every shed and cellar door: bots open a shut one when their path goes through it (walkFine). Only the walking shape is
   // taken out for the mapping, then put back as it was
   const doors = levelSheds().map(sh => ({ sh, i: SHEDS.indexOf(sh), g: TG.toggles && TG.toggles[sh.tog] })).filter(d => d.g);
@@ -4276,7 +4279,7 @@ function* fortNavSteps() {
       if (along > 0.25 && along < 1.1 && side < 0.4 && Math.abs(o.y - g) < STEP) { o.nb.push(k); FN.nodes[k].nb.push(m); }
     }
   }
-  if (TG.gate) setGateSolid(wasOpen);
+  if (TG.gate) setGateSolid(!!FN.gateWant);
   for (const d of doors) {
     if (!d.g.open) tgSolid(d.g, true);
     const [bx0, bx1, by0, by1, bz0, bz1] = d.box; // the nodes in and either side of the doorway know which door they go through

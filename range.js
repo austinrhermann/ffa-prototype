@@ -64,7 +64,7 @@
     targets: { strafe: 0.5, heal: 3 },       // strafe: lane dummies pace side to side at this speed (m/s); heal: your damage wears off after this long
     cross: { ease: 0.2, opacity: 45 },       // ease: how long the crosshair circle takes to catch up with the spread (s); opacity: 0-100 (yours alone: the host's value isn't sent on)
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
-    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: true },
+    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: false },
     // In a game: you spawn with the Pistol loaded and startA spare A batteries; packs come back after packs seconds (rifle
     // rounds after rifle), weapons on their spots after weapons seconds
     game: { startA: 1, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
