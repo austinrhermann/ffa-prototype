@@ -3009,7 +3009,9 @@ const _fh = new V3(), RELOAD_AT = new V3(0.3, -0.5, -0.05), STAB_BACK = new V3(0
 const sstep = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
 function fpvPose(r) {
   const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip) return;
-  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT); _fh.z = Math.max(_fh.z, -FPV_LONG); if (VMW[r.held]) _fh.z += vmKick * 0.05; fpvA2 = 0; fpvAimW = 1; r.hideHeld = false; // recoil: the same push back as the ADS viewmodel; long guns reach back past the lens, so the arm stays out of the view
+  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT);
+  const bob = (P.onGround ? Math.min(1, Math.hypot(P.vel.x, P.vel.z) / 6.5) : 0) * (1 - 0.8 * adsK); // walking bob, the same sway as the old viewmodel
+  _fh.x += Math.sin(bobT) * 0.01 * bob; _fh.y += Math.abs(Math.cos(bobT)) * 0.012 * bob; _fh.z = Math.max(_fh.z, -FPV_LONG); if (VMW[r.held]) _fh.z += vmKick * 0.05; fpvA2 = 0; fpvAimW = 1; r.hideHeld = false; // recoil: the same push back as the ADS viewmodel; long guns reach back past the lens, so the arm stays out of the view
   if (r.held === 'knife' && knifeT > 0) {
     const t = 1 - knifeT / 0.6, a = sstep(0, 0.3, t), b = sstep(0.3, 0.55, t), c = sstep(0.55, 1, t);
     _fh.lerp(STAB_BACK, a).lerp(STAB_OUT, b).lerp(hip, c); fpvA2 = -0.5 * a * (1 - b) + 0.1 * b * (1 - c);
