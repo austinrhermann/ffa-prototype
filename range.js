@@ -110,7 +110,7 @@
   }
 
   const on = () => MODE === 'range'; // the Shooting Range itself
-  const live = () => MODE !== 'drive' && MODE !== 'defend'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
+  const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
   const K = () => maxHp(P) / LIFE; // our damage in the game's health (1: under ?dev everyone has LIFE)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
@@ -345,9 +345,8 @@
         damage(e, d * K(), owner, 'frag', false);
         if (owner === P && e !== P) hitFeedback(false, kill);
       }
-      // gas cans and trucks, as the game's blasts did
+      // gas cans, as the game's blasts did
       for (const g of GASCANS) if (g.alive && g.pos.distanceTo(o) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
-      for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, ringDmg(d) * K() * TRUCK.blastK); }
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
       if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too
         if (gateSiegeOn()) { const dr = LV.gate.doors, dd = Math.max(0, new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5), dm = ringDmg(dd); if (dm > 0) damageGate(dm * K() * DOOR_BLAST_K); }
@@ -397,7 +396,6 @@
     if (!on()) {
       for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
       for (const gc of GASCANS) if (gc.alive) targets.push(gc.px);
-      for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
     }
     // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
     if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
@@ -414,7 +412,6 @@
       if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += head ? g.head : g.body; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
       else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += head ? g.head : g.body; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gas) shootGas(ud.gas, P);
-      else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
       else if (ud.gate) { gateDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bdoor) { bdoorDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }

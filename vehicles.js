@@ -1,6 +1,5 @@
 // Vehicles: cars, trucks and motorcycles you can drive, ride in and tune (Tab), with multiplayer. Test Drive builds its
-// stadium here and parks a lot of them in the infield; the fort sends the pirates' trucks
-// (driven by an NPC until they've parked and unloaded, then anyone's to take).
+// stadium here and parks a lot of them in the infield; the fort parks some of its own.
 // Loaded after the main game script, so it uses the game's globals (scene, camera, P, keys, TG, groundAt, toonMat, NET, ...).
 // The game calls into VEH (declared in index.html) from its loop, input, camera and networking.
 //
@@ -61,7 +60,7 @@
     hauler: { kind: 'car', name: 'Hauler', color: 0xd9d4c7, p: { power: 6, top: 130, brake: 8, steer: 28, mass: 3200, wheelbase: 3.8, track: 2.1, wheelR: 0.45, maxLat: 1.3, spring: 1.4, travel: 1.2 } },
     roadster2: { kind: 'car', name: 'Roadster', color: 0xe3c02c, p: { top: 190 } },
     sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } }, // James's tuning
-    // The pirates' truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
+    // The truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
     // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
     truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
     dirt: { kind: 'bike', name: 'Dirt bike', color: 0x3a6fd0, p: { power: 11, top: 140, wheelR: 0.36, spring: 1.5, travel: 1.3, grip: 8, maxLat: 1.7, mass: 150, wheelbase: 1.5 } },
@@ -232,7 +231,7 @@
     v.model = v.shell = v.wreckMesh = null;
     Object.assign(v, v.kind === 'bike' ? buildBike(v) : v.layout === 'truck' ? buildTruck(v) : buildCar(v));
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
-    if (v.hit) v.g.add(v.hit); // the game's shootable box (fort trucks)
+    if (v.hit) v.g.add(v.hit); // a shootable box, if the game gave it one
     if (v.dead) darken(v);
     scene.add(v.g); pose(v, 0);
   }
@@ -259,7 +258,7 @@
   }
   function clearAll() { for (const v of list) scene.remove(v.g); list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
   function spawnLot(lot) { clearAll(); for (const [key, x, z, yaw] of lot) make(key, x, z, yaw); }
-  // Take vehicles out (the fort's trucks at a restart): anyone in them gets out first; the rest keep their order
+  // Take vehicles out: anyone in them gets out first; the rest keep their order
   function removeVehicles(vs) {
     for (const v of vs) { if (v === cur) leave(true); if (v === ride) unride(true); scene.remove(v.g); }
     for (let k = list.length - 1; k >= 0; k--) if (vs.includes(list[k])) list.splice(k, 1);
@@ -864,7 +863,7 @@
     setModel,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
     lenOf,
-    // Boxes round the body ({ c: centre, h: half sizes }, in the vehicle's frame): the fort's trucks are cover
+    // Boxes round the body ({ c: centre, h: half sizes }, in the vehicle's frame)
     boxesOf: v => v.model ? v.model.boxes : [{ c: new V3(0, 1.1, 0), h: new V3((v.p.track + 0.1) / 2, 1, (v.p.wheelbase + 1) / 2) }],
     mouse(dx, dy) {
       if (!cur && !ride) return false;
@@ -937,7 +936,7 @@
     myState: () => (cur && simulated(cur) ? stateOf(cur) : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
-      // Match the host's vehicles (the fort's trucks come and go): rebuild from the first one that differs
+      // Match the host's vehicles: rebuild from the first one that differs
       let k = 0; while (k < list.length && k < vh.length && Array.isArray(vh[k]) && list[k].key === vh[k][0]) k++;
       if (k < list.length) removeVehicles(list.slice(k));
       for (let j = k; j < vh.length; j++) { const s = vh[j]; if (Array.isArray(s) && PRESETS[s[0]]) make(s[0], +s[2] || 0, +s[4] || 0, +s[5] || 0); else break; }

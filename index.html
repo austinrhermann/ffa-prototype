@@ -104,7 +104,7 @@ body:not(.dev) .devonly{display:none!important}
 
 #maincard.drive .nodrive,#maincard.range .norange{display:none!important}
 #maincard.range .arena-only,#maincard:not(.range) .range-only{display:none!important}
-#maincard:not(.fort) .fort-only,#maincard.fort .arena-only,#maincard.drive .arena-only:not(.drive-show),#maincard:not(.drive) .drive-only{display:none!important}
+#maincard.drive .arena-only:not(.drive-show),#maincard:not(.drive) .drive-only{display:none!important}
 .card button{background:#000;color:#fff;border:0;border-radius:4px;padding:15px 18px;font:600 17px/1.15 system-ui,sans-serif;letter-spacing:.03em;cursor:pointer}
 .card button:hover{background:#1f1f1f}
 .card button:focus-visible{outline:2px solid #fff;outline-offset:2px}
@@ -242,19 +242,16 @@ body.touch .card small.tc{display:block}
   <small id="tload">Loading…</small>
 </div>
 <div id="overlay"><div class="menu"><div class="card" id="maincard" data-scr="main">
-  <h1 id="mtitle">Defend the Fort</h1>
+  <h1 id="mtitle">Fortress Free-For-All</h1>
   <div class="scr scr-main">
   <p class="drive-only" id="driveintro">A little stadium oval with walls, ramps and banked turns. Walk up to a car or a motorcycle in the infield parking lot and press E to drive. In a vehicle, Tab opens its tuning: acceleration, brakes, steering, weight, size, suspension. Invite friends to race and crash into each other.</p>
   <p class="range-only" id="rangeintro">Every weapon lies on the ground behind you with its ammo: walk over one to pick it up (3 at most, plus the knife; Q drops one). Dummies stand down the lanes at 5, 10, 20, 30 and 45 m, and a blast pit to the left. A dummy has 40 health, shown as a circle over its head from blue (full) to red (1 left): it turns green when you've done lethal damage, then resets. Tab opens the weapon settings.</p>
-  <p class="fort-only" id="fortintro">Defend your fort from greedy pirates who want to crack you like an egg and scrap your home for parts.</p>
-  <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level. In the fort, if the tower has room you're the Master or the Apprentice; otherwise you join the pirates.</p>
+  <p class="guestonly" id="guestinfo">You're joining a friend's game. The host picks the level.</p>
   <p class="guestonly" id="netstat">Pick a name, then join.</p>
   <div class="levels hostonly arena-only" id="levels"><button type="button" data-lv="complex" class="on">Complex</button><button type="button" data-lv="facility">Facility</button><button type="button" data-lv="bunker">Bunker</button><button type="button" data-lv="creek">Creek</button><button type="button" data-lv="fortress">Fort</button><button type="button" data-lv="minimal">Minimal</button><button type="button" data-lv="tunnel">Minimal + tunnel</button><button type="button" data-lv="sewer">Sewer</button></div>
   <div class="mbtns">
     <button type="button" id="play" class="wide" disabled>Loading characters…</button>
     <button type="button" id="restart" class="hostonly wide" style="display:none">Restart game</button>
-    <button type="button" id="invapp" class="hostonly fort-only">Invite an apprentice</button>
-    <button type="button" id="invpir" class="hostonly fort-only">Invite pirates</button>
     <button type="button" id="copyinv" class="hostonly arena-only drive-show wide">Copy invite link</button>
     <button type="button" data-go="howto">How to play</button>
     <button type="button" data-go="settings">Settings</button>
@@ -262,7 +259,7 @@ body.touch .card small.tc{display:block}
     <button type="button" id="totitle" class="hostonly wide">‹ Back</button>
   </div>
   <input id="invlink" type="hidden" value="Starting multiplayer…">
-  <small id="roster2" class="hostonly fort-only"></small><small id="roster" class="hostonly arena-only drive-show"></small>
+  <small id="roster" class="hostonly arena-only drive-show"></small>
   <small class="kb">Needs a mouse and keyboard.</small>
   <small class="tc">Best in landscape.</small>
   </div>
@@ -279,7 +276,7 @@ body.touch .card small.tc{display:block}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt>Q</dt><dd>Drop the weapon in your hands (you carry three, plus the knife)</dd>
-      <dt>E</dt><dd>Use whatever is in front of you (the computer, a vehicle; as a pirate, take over another)</dd>
+      <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
       <dt>N</dt><dd>Turn your camera on or off</dd>
       <dt>Enter</dt><dd>Chat with everyone in the game</dd>
@@ -320,13 +317,11 @@ body.touch .card small.tc{display:block}
   </div>
   <div class="scr scr-settings">
   <div class="panel">
-  <div class="setrow hostonly" id="setrole"><span>Your role with a friend</span><div class="seg" id="roles"><button type="button" data-role="master" class="on">Master</button><button type="button" data-role="apprentice">Apprentice</button></div><small>Alone you are always the Master. The second player takes the other role; anyone after that attacks.</small></div>
   <div class="setrow hostonly" id="setdiff"><span id="ldiff">Bot difficulty</span><div class="seg" data-for="sdiff"></div><input type="range" id="sdiff" min="1" max="5" value="3" hidden><output id="odiff" hidden>Normal</output></div>
   <div class="setrow hostonly" id="setbots"><span id="lbots">Bots</span><div class="step" data-for="sbots"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obots">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbots" min="0" max="100" value="0" hidden></div>
   <div class="setrow hostonly" id="setbotsM"><span>Midas bots</span><div class="step" data-for="sbotsM"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsM">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsM" min="0" max="50" value="0" hidden></div>
   <div class="setrow hostonly" id="setbotsR"><span>Rebel bots</span><div class="step" data-for="sbotsR"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="obotsR">0</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="sbotsR" min="0" max="50" value="0" hidden></div>
   <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="100" step="5" value="20" hidden></div>
-  <div class="setrow hostonly" id="setwaves" style="display:none"><span>Waves to survive</span><div class="step" data-for="swaves"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="owaves">6</output><button type="button" data-d="1" aria-label="More">+</button></div><input type="range" id="swaves" min="3" max="15" value="6" hidden></div>
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb nodrive"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
   <div class="setrow hostonly nodrive"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
@@ -562,7 +557,7 @@ let SNOW = null, curLevel = null;
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
 const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
-const EDGE = new Uint8Array(N), LEVEL_SCENES = {}, ATK_SPAWNS = [], ASSAULT = [];
+const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
 // Helpers that shift a level's local coordinates into the grid
@@ -714,7 +709,7 @@ function levelFortress() {
     // health pool (hp); Midas bots shoot it from the road (siege: [x, z] spots) until it gives way. Once open, E at the door
     // (or the computer in the tower room) shuts it again, and a shut gate is whole again. (hp was 1000: twice as tough now)
     gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 800, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
-    core: { mesh: 'Important Computer', at: [5.29, 44.96, 1.4], hp: 260 },
+    core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the map and the gate switch)
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-66, -10, 76, 124], cell: 0.5, top: 52, bottom: 18 }, // (the whole island now, new ground and all)
@@ -1716,15 +1711,13 @@ function loadLevel(id) {
   navJob = null; // a walking map still being built belongs to the old level (and its TG)
   const L = buildGrid(id);
   buildWorld(L);
-  SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
+  SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
   FN.nodes = []; FN.cells = null; FN.comp = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
     L.spawns.forEach((p, i) => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else { SPAWNS.push(s); for (const t in SPAWN_SETS) if (L.teamSpawns && L.teamSpawns[t].includes(i)) SPAWN_SETS[t].push(s); } });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
-    (L.atk || []).forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
-    if (L.gate) findAssault(); else { ASSAULT.length = 0; DROPS.length = 0; }
     if (navDefer) deferFortNav(); else buildFortNav();
     return;
   }
@@ -2143,22 +2136,6 @@ function buildTerrainNav() {
     }
   }
 }
-// Cells the attackers can reach from their spawns; the ones closest to the front gate are where they head
-function findAssault() {
-  ASSAULT.length = 0;
-  const seen = new Uint8Array(N), q = [];
-  for (const s of ATK_SPAWNS) { const i = cellOf(s); if (walk0(i) && !seen[i]) { seen[i] = 1; q.push(i); } }
-  for (let h = 0; h < q.length; h++) {
-    const i = q[h], c = i % GW, r = (i / GW) | 0;
-    for (let k = 0; k < 8; k++) if (EDGE[i] >> k & 1) { const j = idx(c + NB[k][0], r + NB[k][1]); if (!seen[j]) { seen[j] = 1; q.push(j); } }
-  }
-  const [mx, mz] = LV.gate.at;
-  const d = i => Math.hypot(cx(i % GW) - mx, cz((i / GW) | 0) - mz);
-  ASSAULT.push(...q.sort((a, b) => d(a) - d(b)).slice(0, 10));
-  // Where trucks drop their soldiers: reachable ground in a band out from the gate
-  DROPS.length = 0; if (LV.trucks) DROPS.push(...q.filter(i => d(i) > LV.trucks.drop[0] && d(i) < LV.trucks.drop[1] && cz((i / GW) | 0) > mz + 8)); // in front of the gate
-}
-const DROPS = [];
 
 // ---------- Pathfinding (A* over both floors) ----------
 const NB = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
@@ -2230,7 +2207,6 @@ let PROX_VOICE = false;
 $('sprox').onchange = e => { PROX_VOICE = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
-$('swaves').oninput = e => { $('owaves').textContent = e.target.value; updateGoal(); };
 // The fort is the game. ?dev (this page load only) also brings back the Arena, Test Drive and the Look panel.
 // A guest takes the host's (welcome), so everyone in a game plays the same weapons and health
 let DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams(location.search).get('dev') !== '0';
@@ -2240,24 +2216,21 @@ let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? n
 document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
 document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); refreshPreview(); if (READY && NET.role === 'host') whenLevel(selLevel, () => {}); });
 function switchLevel(id) {
-  clearTrucks();
   if (NET.role === 'host') broadcast({ t: 'level', id });
   loadLevel(id); applyLook(); // Fortress turns the look on
-  if (NET.role === 'host') for (const r of remotes) { const mi = MODE === 'defend' ? ROLES[r.role].model : r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
+  if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
-  const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, def = mode === 'defend', drive = mode === 'drive', range = mode === 'range', noBots = drive || range;
-  $('goal').textContent = def ? `Survive ${WAVE_SIZES.length} waves of pirates (${WAVE_SIZES.join(', then ')}), who ride in by truck. The Master (rifle with 20 shots, pistol, 4 grenades, double health) holds the walls; lean out over the parapet to shoot the ones at the gate. The Apprentice (pistol) works the computer in the tower room: a map of the attackers and the gate switch. The Computer fires the cannon on the wall over the gate at anything far out. The gate only breaks once. Dead pirates drop their carbines, and there's a shotgun in the courtyard. Once inside, the pirates hunt you down. If any defender dies, the fort is lost.` : (LEVEL_DEFS[selLevel]().teams ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
-  $('mtitle').textContent = def ? 'Defend the Fort' : drive ? 'Test Drive' : range ? 'Shooting Range' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
-  $('maincard').classList.toggle('fort', def); $('maincard').classList.toggle('drive', drive); $('maincard').classList.toggle('range', range);
+  const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, drive = mode === 'drive', range = mode === 'range', noBots = drive || range;
+  $('goal').textContent = (LEVEL_DEFS[selLevel]().teams ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
+  $('mtitle').textContent = drive ? 'Test Drive' : range ? 'Shooting Range' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
+  $('maincard').classList.toggle('drive', drive); $('maincard').classList.toggle('range', range);
   if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
   if (range) $('goal').textContent = 'No bots and nothing to win: this is where the weapons get balanced before they go into the other games.';
   for (const id of ['setbots', 'setdiff']) $(id).style.display = noBots ? 'none' : '';
-  $('setlimit').style.display = def || noBots ? 'none' : ''; $('setwaves').style.display = 'none'; // Fortress has a fixed number of waves
-  // Fortress: roles instead of a character pick, fixed waves instead of a bot count, and the Look panel
-  for (const [id, show] of [['setrole', def], ['setbots', !def && !noBots && !LEVEL_DEFS[selLevel]().teams], ['setbotsM', !def && !noBots && !!LEVEL_DEFS[selLevel]().teams], ['setbotsR', !def && !noBots && !!LEVEL_DEFS[selLevel]().teams], ['setchar', !def], ['looklink', !!LEVEL_DEFS[selLevel]().look], ['setteam', !!(NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {}).teams && !noBots]]) $(id).style.display = show ? '' : 'none';
-  $('ldiff').textContent = def ? 'Difficulty' : 'Bot difficulty'; $('chartitle').textContent = def ? 'You' : 'Your character';
-  $('lbots').textContent = def ? 'Attackers at once' : 'Bots';
+  $('setlimit').style.display = noBots ? 'none' : '';
+  // Team levels set each side's bots; the Look panel where the level has the look
+  for (const [id, show] of [['setbots', !noBots && !LEVEL_DEFS[selLevel]().teams], ['setbotsM', !noBots && !!LEVEL_DEFS[selLevel]().teams], ['setbotsR', !noBots && !!LEVEL_DEFS[selLevel]().teams], ['looklink', !!LEVEL_DEFS[selLevel]().look], ['setteam', !!(NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {}).teams && !noBots]]) $(id).style.display = show ? '' : 'none';
 }
 
 // ---------- Entities ----------
@@ -2641,7 +2614,7 @@ function loadModels() {
     }
     for (const m of MODELS) if (m.poses) computeModelGuns(m);
   });
-  // The fort's trucks: the asset library's Cargo Truck (vehicles.js draws it); without it they're built from boxes
+  // The Cargo Truck (vehicles.js draws the truck with it); without it it's built from boxes
   const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
   return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids, extras]);
 }
@@ -3001,7 +2974,7 @@ function updatePlayerRig(dt) {
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
 const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
-const teamsOn = () => !!(LV && LV.teams) && MODE !== 'defend' && MODE !== 'drive';
+const teamsOn = () => !!(LV && LV.teams) && MODE !== 'drive';
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
 const teamKills = t => ents.reduce((n, e) => n + (e.team === t ? e.kills : 0), 0);
 let myTeam = 'midas';
@@ -3019,7 +2992,6 @@ const BOT_STYLES = {
 const BOT_STYLE_IDS = Object.keys(BOT_STYLES);
 const P = makeEntity('You', true);
 P.team = myTeam;
-P.role = 'master';
 P.eyeCur = 1.6; P.viewY = 0;
 const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], ['Echo', 0x9b59b6], ['Havoc', 0x2ecc71],
   ['Jinx', 0xe67e22], ['Talon', 0x1abc9c], ['Ghost', 0xbdc3c7], ['Blaze', 0xe84393], ['Atlas', 0x5d7a99],
@@ -3046,7 +3018,6 @@ function buildBots(plan) {
 }
 
 function pickSpawn(e) {
-  if (MODE === 'defend' && isAtk(e)) return attackerSpawn();
   const pool = teamsOn() && e.team && SPAWN_SETS[e.team].length ? SPAWN_SETS[e.team] : SPAWNS;
   let best = pool[0], bd = -1;
   for (const s of pool) {
@@ -3057,21 +3028,20 @@ function pickSpawn(e) {
   }
   return best;
 }
-function respawn(e, at, atYaw) { // at/atYaw: a set spot (taking over a soldier); ignored when called from forEach
-  const s = at && at.isVector3 ? at : pickSpawn(e), k = kitOf(e);
-  if (!(at && at.isVector3)) atYaw = undefined;
+function respawn(e) {
+  const s = pickSpawn(e);
   e.pos.copy(s); e.vel.set(0, 0, 0);
   e.health = maxHp(e); e.alive = true; e.h = STAND_H;
-  e.ammo = MAG; e.reserve = START_RES; e.nades = k ? k.nades : 2; e.reloading = 0;
-  // Players look toward the middle of the map; fort defenders look out over the hills the attackers come from
-  const look = atYaw !== undefined ? atYaw : MODE === 'defend' && !isAtk(e) ? Math.PI : Math.atan2(s.x, s.z);
+  e.ammo = MAG; e.reserve = START_RES; e.nades = 2; e.reloading = 0;
+  // Players look toward the middle of the map
+  const look = Math.atan2(s.x, s.z);
   if (e.isRemote) {
     e.yaw = e.yawV = look + Math.PI; e.target.copy(s); e.mesh.visible = true; e.spawnSeq++;
-    const inv = k ? k.inv : ['pistol'];
+    const inv = ['pistol'];
     e.inv = inv.slice(); e.ammoBy = {}; for (const id of inv) e.ammoBy[id] = { mag: WEAPONS[id].mag, res: ammoStart(id) };
     e.wpn = inv[0]; setRigWeapon(e.rig, e.wpn);
-    sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq, k: e.role });
-  } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit(); }
+    sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq });
+  } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
   else {
     e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e);
     // this life's way into the fort (only bots that go in by one take a turn: in a team game the Rebels hold their own ground)
@@ -3084,19 +3054,11 @@ const wrap = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) 
 const turn = (a, b, max) => { const d = wrap(b - a); return a + Math.max(-max, Math.min(max, d)); };
 const fwdOf = e => e.isPlayer ? new V3(-Math.sin(e.yaw), 0, -Math.cos(e.yaw)) : new V3(Math.sin(e.yaw), 0, Math.cos(e.yaw));
 const losRay = new THREE.Raycaster();
-function losPts(o, t, skip) {
+function losPts(o, t) {
   const d = t.clone().sub(o); const dist = d.length(); if (dist < 1e-3) return true; d.divideScalar(dist);
-  if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist, true) >= dist && !truckInWay(o, d, dist, skip);
+  if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist, true) >= dist;
   losRay.set(o, d); losRay.far = dist;
   return losRay.intersectObjects(W.meshes, false).length === 0;
-}
-// Trucks (and wrecks) are cover: their boxes stop eyes, bullets and blasts. A ray starting inside one (you, riding in the
-// back) gets out: the boxes only face outward.
-const truckRay = new THREE.Raycaster();
-function truckBoxes(skip) { const out = []; for (const tr of trucks) if (tr !== skip) out.push(...tr.hits); return out; }
-function truckInWay(o, d, dist, skip) {
-  if (!trucks.length) return false;
-  truckRay.set(o, d); truckRay.far = dist; return truckRay.intersectObjects(truckBoxes(skip), false).length > 0;
 }
 const eyePos = e => new V3(e.pos.x, e.pos.y + (e.isPlayer ? e.h - 0.2 : 1.6), e.pos.z);
 const midPos = e => new V3(e.pos.x, e.pos.y + e.h * 0.7, e.pos.z);
@@ -3420,76 +3382,17 @@ function updateChatbox() {
 
 // ---------- Combat ----------
 let matchOver = false;
-// ---------- Fortress defend: players hold the fort, bots attack in waves ----------
-// Attackers at the front gate wear it down (hp). When it breaks it drops into the ground and they head up the tower
-// to shoot the computer (core); lose the computer and the fort falls. Survive every wave to win.
-let WAVES = 3;
-const WAVE = { n: 0, phase: 'prep', t: 0, queue: 0, hp: 100, left: 0, core: 100 };
-// Roles: the Master and the Apprentice hold the tower with the Computer (always an NPC). Alone you are the Master;
-// with a friend the host's pick holds and the friend takes the other role; anyone after that attacks as a Midas soldier.
-const ROLES = {
-  master:     { name: 'Master',        model: 5, hp: 160, inv: ['rifle', 'pistol'],   nades: 4 },
-  apprentice: { name: 'Apprentice',    model: 4, hp: 80, inv: ['pistol'],            nades: 0 },
-  atk:        { name: 'Pirate',        model: 0, hp: 80, inv: ['carbine', 'pistol'], nades: 0 },
-};
-const kitOf = e => (MODE === 'defend' && ROLES[e.role]) || null;
-const isAtk = e => !!(e.bot || e.role === 'atk');
-const HP = 120; // everyone's health outside the defend roles (was 100, then 150: people died too fast; 20% less since 2026-11-03)
-const maxHp = e => { const k = kitOf(e); return k ? k.hp : RANGE.on ? RANGE.life : HP; }; // in the new weapon system everyone has its LIFE (32)
-const maxNades = e => { const k = kitOf(e); return k ? k.nades : MAX_NADES; };
-let hostPick = 'master';
-// Host: returns the entities whose role changed so they can be re-equipped
-function assignRoles() {
-  const mate = remotes.find(r => r.role === 'master' || r.role === 'apprentice') || remotes.find(r => !r.role);
-  for (const r of remotes) if (r !== mate && !r.role) r.role = 'atk';
-  const mine = mate ? hostPick : 'master', theirs = mine === 'master' ? 'apprentice' : 'master', changed = [];
-  if (P.role !== mine) { P.role = mine; changed.push(P); }
-  if (mate && mate.role !== theirs) { mate.role = theirs; changed.push(mate); }
-  return changed;
-}
-function rekit(list) {
-  for (const e of list) {
-    if (e === P) { if (P.alive) applyPlayerKit(); else if (MODELS.length) setPlayerModel(ROLES[P.role].model); }
-    else if (e.isRemote) { setRemoteModel(e, ROLES[e.role].model); respawn(e); }
-  }
-  if (NET.role === 'host') refreshPreview();
-}
-// Your own loadout, health and look for your role (host or guest)
-function applyPlayerKit() {
-  const k = kitOf(P); if (!k) return;
-  if (MODELS.length && playerModelIdx !== k.model) setPlayerModel(k.model);
-  P.health = k.hp; P.nades = k.nades;
-  for (const id of k.inv) if (!P.ammoBy[id]) { P.inv.push(id); P.ammoBy[id] = { mag: WEAPONS[id].mag, res: ammoStart(id) }; }
-  P.inv = k.inv.filter(id => P.ammoBy[id]);
-  selectWeapon(k.inv[0], true);
-}
-document.querySelectorAll('#roles button').forEach(b => b.onclick = () => {
-  hostPick = b.dataset.role; document.querySelectorAll('#roles button').forEach(x => x.classList.toggle('on', x === b));
-  rekit(assignRoles());
-});
-const SIEGE_RATE = 0.4; // gate health lost per second per attacker at it (was 0.8: the gate is twice as tough now)
-const ATK_SPEED = 0.7; // attackers move at this fraction of normal bot speed
-const WAVE_SIZES = [4, 8, 12], waveSize = n => WAVE_SIZES[Math.min(n, WAVE_SIZES.length) - 1]; // attackers in each wave, all on the field at once
+const isAtk = e => !!e.bot; // the bots: they batter a locked tower door, and only players can lock it
+const HP = 120; // everyone's health (was 100, then 150: people died too fast; 20% less since 2026-11-03)
+const maxHp = e => RANGE.on ? RANGE.life : HP; // in the new weapon system everyone has its LIFE (32)
+const maxNades = e => MAX_NADES;
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
-// Outside the gate and close enough to be battering at it
-function atGate(e) { const [gx, gz] = LV.gate.at; return e.pos.z > gz - 1.5 && e.pos.y < 35 && Math.hypot(e.pos.x - gx, e.pos.z - gz) < 6.5; }
-function coreMesh() { const c = LV && LV.core && LEVEL_SCENES[LV.mesh]; return c ? c.getObjectByName(LV.core.mesh) : null; }
-let coreFlash = 0;
-function damageCore(amt) {
-  if (matchOver || WAVE.core <= 0) return;
-  WAVE.core = Math.max(0, WAVE.core - amt / LV.core.hp * 100); coreFlash = 0.12;
-  if (WAVE.core <= 0) {
-    const [x, y, z] = LV.core.at, p = new V3(x, y, z);
-    _boomFx(p, 3); sBoom(vol(p, 120)); netFx({ t: 'bm', p: arr(p), s: 3 });
-    endMatch(null, false);
-  }
-}
-// Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match.
-// It starts shut and only moves when the Apprentice works it from the computer (or when the attackers break it).
-function setGate(open, breach) {
+// The fort's gate: how whole it is while shut, a percentage (damageGate wears it down; shutting it again mends it)
+const GATE = { hp: 100 };
+// Gate: host decides; everyone drops it into the ground (or raises it back) and updates the collision to match
+function setGate(open) {
   if (!TG || !TG.gate || TG.gate.open === open) return;
-  setGateSolid(open); placeLeaves(open ? (WAVE.broken ? 1.95 : 1.5) : null); // the doors swing into the courtyard and stand there
-  if (NET.role === 'host' && breach) { waveNote('The gate is down! Get to the tower and protect the computer'); sTone([392, 311, 262], 0.2, 'sawtooth', 0.12); }
+  setGateSolid(open); placeLeaves(open ? 1.5 : null); // the doors swing into the courtyard and stand there
 }
 // The front gate: two heavy doors hinged at the sides of the passage that swing into the courtyard (blown wide when broken)
 let DOORS = null;
@@ -3523,12 +3426,12 @@ function updateGate(dt) {
   const want = g.open ? -LV.gate.drop : 0;
   if (g.y !== want) { g.y = want < g.y ? Math.max(want, g.y - dt * 4) : Math.min(want, g.y + dt * 4); g.mesh.position.y = g.mesh.userData.y0 + g.y; }
   if (DOORS) {
-    const to = !g.open ? 0 : WAVE.broken ? 1.95 : 1.5, k = WAVE.broken && g.open ? 6 : 1.4;
+    const to = g.open ? 1.5 : 0, k = 1.4;
     DOORS.a += Math.max(-k * dt, Math.min(k * dt, to - DOORS.a));
-    for (const l of DOORS.leaves) { l.hinge.rotation.y = l.side * DOORS.a; l.hinge.rotation.z = WAVE.broken ? l.side * 0.06 : 0; }
+    for (const l of DOORS.leaves) l.hinge.rotation.y = l.side * DOORS.a;
   }
   if (DOORS && DOORS.bars.length) { // shown while the gate is shut and still whole
-    const hp = Math.ceil(WAVE.hp), show = !g.open && !WAVE.broken && hp > 0; DOORS.bars.forEach(m => { m.visible = show; });
+    const hp = Math.ceil(GATE.hp), show = !g.open && hp > 0; DOORS.bars.forEach(m => { m.visible = show; });
     if (show && DOORS.shown !== hp) {
       DOORS.shown = hp; const c = DOORS.canvas, x = c.getContext('2d'); x.clearRect(0, 0, 256, 40);
       x.fillStyle = 'rgba(15,19,24,0.7)'; x.fillRect(0, 0, 256, 40);
@@ -3536,57 +3439,12 @@ function updateGate(dt) {
       DOORS.bars[0].material.map.needsUpdate = true;
     }
   }
-  const cm = coreMesh();
-  if (cm) { if (!cm.userData.mat) { cm.material = cm.material.clone(); cm.userData.mat = cm.material; } coreFlash = Math.max(0, coreFlash - dt); cm.material.emissive.setHex(coreFlash > 0 ? 0xff3010 : 0x000000); }
 }
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
-function startWave() {
-  WAVE.n++; WAVE.phase = 'fight'; WAVE.queue = waveSize(WAVE.n);
-  if (LV.trucks) sendTrucks(WAVE.queue);
-  bots.forEach(b => { b.respawnT = Math.random() * 3; });
-  for (const r of remotes) if (r.role === 'atk' && !r.alive) respawn(r); // attacking players come back with each wave
-  waveNote(`Wave ${WAVE.n} of ${WAVES}: trucks on the road${WAVE.broken ? ', and the gate is gone' : gateOpen() ? ', and the gate is open' : ''}`); sTone([330, 392, 330, 392], 0.16, 'square', 0.1);
-}
-function updateWaves(dt) {
-  if (MODE !== 'defend' || matchOver || WAVE.phase === 'won') return;
-  let alive = 0, siege = 0;
-  for (const b of bots) if (b.alive) { alive++; if (atGate(b)) siege++; }
-  for (const r of remotes) if (r.alive && r.role === 'atk' && atGate(r)) siege++;
-  WAVE.left = alive + WAVE.queue;
-  if (WAVE.phase === 'prep') {
-    const was = WAVE.t; WAVE.t -= dt;
-    if (WAVE.t <= 0) startWave(); return;
-  }
-  if (siege && !gateOpen()) { WAVE.hp = Math.max(0, WAVE.hp - siege * SIEGE_RATE * dt); if (WAVE.hp <= 0) { WAVE.broken = true; setGate(true, true); } }
-  if (!alive && WAVE.queue <= 0) {
-    if (WAVE.n >= WAVES) { // won: no results screen, just the island to explore in peace (Esc, then Play again)
-      WAVE.phase = 'won'; sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-      waveNote('The fort held! The island is yours: explore it in peace. Esc, then Play again, for another go'); return;
-    }
-    // The next wave sets off straight away (the trucks' drive in is the breather). The gate is patched up a little (once
-    // broken it stays down for good), the computer is repaired a little and every health box is restocked
-    WAVE.hp = WAVE.broken ? 0 : Math.min(100, WAVE.hp + 10); WAVE.core = Math.min(100, WAVE.core + 10);
-    HEALS.forEach(h => setHeal(h, true));
-    sTone([523, 659, 784], 0.12, 'square', 0.1);
-    startWave(); waveNote(`Wave ${WAVE.n - 1} beaten. Wave ${WAVE.n} of ${WAVES} is on the road`);
-  }
-}
-// Attackers come out of cover behind the hills, spread a little around each spawn point
-function attackerSpawn() {
-  for (let k = 0; k < 12; k++) {
-    const s = ATK_SPAWNS[Math.random() * ATK_SPAWNS.length | 0];
-    const x = s.x + (Math.random() - 0.5) * 5, z = s.z + (Math.random() - 0.5) * 5, g = groundAt(x, z, s.y + 2);
-    if (g === null || Math.abs(g - s.y) > 1.5 || !onLand(x, z, g + 0.1)) continue;
-    const p = new V3(x, g, z);
-    if (!ents.some(o => o.alive && o.pos.distanceTo(p) < 1.6)) return p;
-  }
-  return ATK_SPAWNS[Math.random() * ATK_SPAWNS.length | 0].clone();
-}
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
   if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
-  if (MODE === 'defend' && attacker !== t && isAtk(attacker) === isAtk(t) && weapon !== 'car') return; // no friendly fire (except under the wheels)
   t.health -= amt;
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -3601,8 +3459,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (attacker.isRemote && attacker !== t) sendTo(attacker, { t: 'kill' });
     if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
-    if (MODE !== 'defend' && attacker !== t && (teamsOn() && attacker.team ? teamKills(attacker.team) >= KILL_LIMIT : attacker.kills >= KILL_LIMIT)) endMatch(attacker);
-    if (MODE === 'defend' && !isAtk(t) && WAVE.phase !== 'won') { WAVE.fallen = t.name; endMatch(null, false); } // lose a defender, lose the fort (not after you've won)
+    if (attacker !== t && (teamsOn() && attacker.team ? teamKills(attacker.team) >= KILL_LIMIT : attacker.kills >= KILL_LIMIT)) endMatch(attacker);
   }
 }
 function resetMatch() {
@@ -3616,26 +3473,21 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (window.TRANSCRIPT) TRANSCRIPT.event('start');
-  if (MODE === 'defend') {
-    Object.assign(WAVE, { n: 0, phase: 'prep', t: 1, queue: 0, hp: 100, core: 100, broken: false }); if (CN) CN.cd = 0; clearTrucks(); VEH.onLevel(); setGate(false); resetTowerDoor(); // the gate starts shut, the tower door open
-    ents.forEach(e => { if (!e.bot) respawn(e); });
-    note('The first wave is on its way. Man the walls', 4);
-  } else { ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { WAVE.hp = 100; gateLock = 0; setGate(RANGE.on); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } } // the vehicles go back to the lot; the fort's gate starts shut and whole (open under ?dev)
+  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(RANGE.on); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast({ t: 'reset' });
 }
-// Free for all: w is the winner. Fortress defend: w is null and held says whether the fort survived
-function endMatch(w, held) {
+// w is the winner
+function endMatch(w) {
   matchOver = true;
   if (window.TRANSCRIPT) TRANSCRIPT.event('end');
-  const def = MODE === 'defend';
-  if (def && !held) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  const tm = !def && teamsOn() && w.team ? w.team : null;
-  const title = def ? (held ? 'Fort defended' : 'The fort has fallen') : tm ? `${TEAMS[tm].name} win` : w.isPlayer ? 'You win' : `${w.name} wins`;
-  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : def ? (held ? `You held off all ${WAVES} waves.` : `${WAVE.fallen === P.name ? 'You' : WAVE.fallen || 'A defender'} fell on wave ${Math.max(1, WAVE.n)} of ${WAVES}.`) : '';
-  const list = [...ents].filter(e => !def || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+  sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
+  const tm = teamsOn() && w.team ? w.team : null;
+  const title = tm ? `${TEAMS[tm].name} win` : w.isPlayer ? 'You win' : `${w.name} wins`;
+  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : '';
+  const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   showResults(title, sub, list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]), P.id);
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
-  $('setnext').style.display = def ? 'none' : ''; $('next').textContent = def ? 'Play again' : 'Next round';
+  $('setnext').style.display = ''; $('next').textContent = 'Next round';
   broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]) });
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
@@ -3686,7 +3538,6 @@ function boom(pos, owner, R, maxD, selfK = 1, src) { // selfK: share of the dama
   }
   if (gateSiegeOn()) { const dr = LV.gate.doors, dd = new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5; if (dd < R) damageGate(maxD * (1 - Math.max(0, dd) / R) * 0.6); } // blasts wear the gate down too
   for (const g of GASCANS) if (g.alive && g.pos.distanceTo(pos) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
-  for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, maxD * (1 - d / R) * TRUCK.blastK); }
   const pd = P.pos.distanceTo(pos);
   if (pd < 14) punch += 0.06 * (1 - pd / 14);
 }
@@ -3712,7 +3563,7 @@ function updateHeals(dt) {
   for (const h of HEALS) {
     if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
     for (const e of ents) {
-      if (!e.alive || e.health >= maxHp(e) || (MODE === 'defend' && isAtk(e))) continue;
+      if (!e.alive || e.health >= maxHp(e)) continue;
       if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
         e.health = maxHp(e); setHeal(h, false); h.t = 30;
         if (e.isRemote) sendTo(e, { t: 'heal' });
@@ -3776,7 +3627,6 @@ function rocketHits(r) {
     if (!e.alive || (e === r.owner && r.t < 0.3)) continue;
     if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 0.55 && p.y > e.pos.y - 0.1 && p.y < e.pos.y + e.h + 0.1) return true;
   }
-  for (const tr of trucks) if (tr.alive && Math.hypot(tr.pos.x - p.x, tr.pos.z - p.z) < 2 && p.y > tr.pos.y && p.y < tr.pos.y + 3) return true;
   return false;
 }
 function updateRockets(dt) {
@@ -3886,10 +3736,9 @@ function placeProps() {
   if (propGroup) scene.remove(propGroup);
   propGroup = new THREE.Group(); scene.add(propGroup);
   GASCANS.length = 0; pendingGas.length = 0; HEALS.length = 0;
-  // Mesh levels (Fortress): white health boxes with a red cross at the level's listed spots, and the Computer's cannon
-  CN = null; shells.forEach(sh => scene.remove(sh.mesh)); shells.length = 0; if (!(LV.gate && LV.gate.doors)) DOORS = null;
+  // Mesh levels (Fortress): white health boxes with a red cross at the level's listed spots
+  if (!(LV.gate && LV.gate.doors)) DOORS = null;
   if (TG) {
-    if (LV.cannon) CN = buildCannon(settle(LV.cannon));
     for (const spot of LV.heals || []) {
       const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
       const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
@@ -3993,9 +3842,7 @@ function nextWeapon(dir) {
 }
 function curOf(e) { return e.isPlayer ? curW : e.wpn; }
 function syncE(e) { const id = curOf(e); if (e.ammoBy && e.ammoBy[id]) { e.ammoBy[id].mag = e.ammo; e.ammoBy[id].res = e.reserve; } }
-// In the fort the Master's rifle carries 20 rounds (one in the chamber, 19 spare) and an ammo box gives it 10
-const fortRifle = id => MODE === 'defend' && id === 'rifle';
-const ammoCap = id => fortRifle(id) ? 19 : WEAPONS[id].maxRes, ammoGain = id => fortRifle(id) ? 10 : WEAPONS[id].mag, ammoStart = id => fortRifle(id) ? 19 : WEAPONS[id].startRes;
+const ammoCap = id => WEAPONS[id].maxRes, ammoGain = id => WEAPONS[id].mag, ammoStart = id => WEAPONS[id].startRes;
 function needsAmmo(e) { if (!e.inv) return false; syncE(e); return e.inv.some(id => e.ammoBy[id].res < ammoCap(id)); }
 function giveAmmoAll(e) {
   syncE(e);
@@ -4011,11 +3858,6 @@ function botInitWeapons(b) {
   b.ammo = WEAPONS.pistol.mag; b.reserve = WEAPONS.pistol.startRes;
   b.inv = ['pistol']; b.ammoBy = { pistol: { mag: b.ammo, res: b.reserve } }; b.wpn = 'pistol';
   botSelect(b, 'pistol');
-  if (MODE !== 'defend') return;
-  // Attackers all carry a Midas carbine with full reserves (no ammo runs)
-  giveWeapon(b, 'carbine');
-  for (const k of b.inv) b.ammoBy[k].res = WEAPONS[k].maxRes;
-  b.reserve = b.ammoBy[b.wpn].res;
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
@@ -4045,7 +3887,7 @@ function giveWeapon(e, id, ammo) {
   return true;
 }
 function dropWeapons(e) {
-  if (!e.inv || (MODE === 'defend' && !isAtk(e))) return; syncE(e); // in the fort only the attackers drop their guns
+  if (!e.inv) return; syncE(e);
   let k = 0;
   for (const id of e.inv) {
     if (id === 'pistol') continue;
@@ -4078,7 +3920,6 @@ function fire() {
   const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
   for (const g of GASCANS) if (g.alive) targets.push(g.px);
-  for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
   if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit); // a shut gate takes damage from anyone's bullets
   const bdh = lockedDoorHit(); if (bdh) targets.push(bdh); // and so does the bunker's door while it's locked
   const start = vmMuzzleWorld();
@@ -4107,7 +3948,6 @@ function fire() {
       if (w.zones && !head && !(hit.object === ud.ent.hit[1] && ud.ent.core && shotRay.intersectObject(ud.ent.core, false).length)) d = Math.ceil(maxHp(ud.ent) / 2);
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
     } else if (ud.gas) shootGas(ud.gas, P);
-    else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
     else if (ud.gate) { shootGate(w); impact(hit.point, hit.object); }
     else if (ud.bdoor) { shootBunker(doorShotAmt(w)); impact(hit.point, hit.object); }
     else { const h = holeFromHit(hit, dir); if (h) { newHoles.push(h); if (w.holes > 1) newHoles.push(...scatterHoles(h, w.holes - 1)); } else impact(hit.point, hit.object); }
@@ -4199,9 +4039,8 @@ const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {
   const dir = aim.clone().sub(start).normalize();
   botRay.set(start, dir); botRay.far = 200;
-  const hit = castShot(botRay, [...W.meshes, ...W.floors, ...truckBoxes()]);
+  const hit = castShot(botRay, [...W.meshes, ...W.floors]);
   if (!hit) return start.clone().addScaledVector(dir, 200);
-  if (hit.object.userData.truck) return hit.point;
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
@@ -4209,27 +4048,6 @@ function botMuzzle(b, w) {
   const m = b.rig.model, g = m.guns && m.guns[w.id];
   const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
   return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
-}
-// Attackers that made it to the tower room turn on the computer (a still target: most shots land)
-function botShootCore(b, dt) {
-  const ai = b.ai, [x, y, z] = LV.core.at, dx = x - b.pos.x, dz = z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
-  b.yaw = turn(b.yaw, want, D.turn * dt);
-  b.pitch += (Math.atan2(y - b.pos.y - 1.5, dist) - b.pitch) * Math.min(1, dt * 8);
-  ai.fireCd -= dt;
-  if (b.reloading > 0 || b.ammo <= 0 || ai.fireCd > 0 || Math.abs(wrap(want - b.yaw)) > 0.2) return;
-  const w = WEAPONS[b.wpn]; b.ammo--;
-  ai.fireCd = w.auto ? 0.15 : Math.max(w.rate, 0.3) + Math.random() * 0.3;
-  sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
-  let total = 0; const start = botMuzzle(b, w), marks = [];
-  muzzleFx(b.wpn, start, new V3(x, y, z).sub(start).normalize(), false, b.id);
-  for (let i = 0; i < (w.pellets || 1); i++) {
-    const hit = Math.random() < 0.6; let aim = new V3(x, y, z);
-    if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 0.9, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.9)), marks);
-    if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
-    if (hit) total += w.dmg;
-  }
-  addHoles(marks);
-  if (total) damageCore(total * BOT_DMG);
 }
 function botShoot(b, t, dist) {
   const seen = b.ammo > 0 && seenAt(b, t); if (!seen) return;
@@ -4259,10 +4077,9 @@ function botNade(b, t) {
   throwNade(b, o, new V3(dx / T * err, (tp.y - o.y + 0.5 * GRAV * T * T) / T, dz / T * err));
 }
 function findTarget(b) {
-  const def = MODE === 'defend';
-  let best = null, bd = def ? 80 : 55;
+  let best = null, bd = 55;
   for (const o of ents) {
-    if (o === b || !o.alive || (def && isAtk(o)) || sameTeam(b, o)) continue;
+    if (o === b || !o.alive || sameTeam(b, o)) continue;
     const d = b.pos.distanceTo(o.pos);
     if (d < bd && seenAt(b, o)) { bd = d; best = o; }
   }
@@ -4283,8 +4100,7 @@ function followPath(b, wish, dt, face) {
 }
 // ---------- A fine walking map of every floor (Fortress: courtyard, stairs, wall walk, corridors, tower; Creek: everywhere) ----------
 // Each spot on a fine grid gets a node for every floor a body fits on there; neighbouring nodes join when the step between
-// them is small and nothing blocks the way. Fortress attackers plan paths on it to the defender they're hunting; Creek's
-// free-for-all bots roam on it. Host only.
+// them is small and nothing blocks the way. The free-for-all bots plan their paths and roam on it. Host only.
 // Floor height that bridges the few-centimetre gaps between some steps in the set (a ray straight down a gap falls through)
 function bridgedFloor(x, z, top, offs) {
   let best = null;
@@ -4445,21 +4261,6 @@ function fortPath(from, to) {
   const path = [near]; let c = near; while (came[c] >= 0 && seen[c] === id) { c = came[c]; path.push(c); }
   return path.reverse();
 }
-// The defender an attacker goes after: the closest one alive
-function huntTarget(b) {
-  let best = null, bd = Infinity;
-  for (const e of ents) if (e.alive && !isAtk(e)) { const d = e.pos.distanceTo(b.pos); if (d < bd) { bd = d; best = e; } }
-  return best;
-}
-// Inside the fort: walk the planned path toward the hunted defender, replanning every second or so
-function huntMove(b, wish, dt, face) {
-  const ai = b.ai;
-  if ((ai.huntT = (ai.huntT || 0) - dt) <= 0 || !ai.hpath) {
-    ai.huntT = 0.8 + Math.random() * 0.6; const q = ai.target || huntTarget(b);
-    ai.hpath = q ? fortPath(b.pos, q.pos) : null; ai.hi = 0;
-  }
-  return walkFine(b, wish, dt, face);
-}
 // Free for all on a mesh level with a fine walking map (Creek): with nobody in sight, head for ammo when low, a weapon
 // lying about, where someone was last seen, one of the level's key spots, or anywhere at all
 // Ways into the fort (levels with fortRoutes): each bot that spawns takes the next one in this order, so over a game half the bots go
@@ -4560,21 +4361,6 @@ function walkFine(b, wish, dt, face) {
   wish.set(dx, 0, dz).normalize(); if (face) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt);
   return true;
 }
-// Attackers: to the gate while it's shut; once it's open, through it and after the defenders
-function botAdvance(b, wish, dt, face) {
-  const ai = b.ai;
-  if (gateOpen() && inFort(b.pos)) { ai.path = null; return huntMove(b, wish, dt, face); }
-  ai.hpath = null;
-  if (!ai.path) planAssault(b);
-  followPath(b, wish, dt, face);
-  return false;
-}
-// Attackers march on the fort: pick one of the spots outside it closest to the gate
-function planAssault(b) {
-  const ai = b.ai; if (!ASSAULT.length) return;
-  ai.path = findPath(cellOf(b.pos), ASSAULT[Math.random() * ASSAULT.length | 0]); ai.pi = 0;
-  if (ai.path && !ai.path.length) ai.path = null;
-}
 // Something low right in the bot's way (a curb, a crate, a ledge lip) with clear air just above it: a hop clears it.
 // A full wall is blocked at both bands, so this says no and leaves it to the sideways kick instead.
 function obstacleAhead(b, dirx, dirz) {
@@ -4619,11 +4405,10 @@ function markVehicles(dt) {
 }
 function updateBot(b, dt) {
   if (!b.alive) {
-    if (MODE !== 'defend') { b.respawnT -= dt; if (b.respawnT <= 0) respawn(b); }
-    else if (WAVE.phase === 'fight' && WAVE.queue > 0 && !matchOver && !LV.trucks) { b.respawnT -= dt; if (b.respawnT <= 0) { WAVE.queue--; respawn(b); } }
+    b.respawnT -= dt; if (b.respawnT <= 0) respawn(b);
     return;
   }
-  const ai = b.ai, def = MODE === 'defend', style = BOT_STYLES[ai.style];
+  const ai = b.ai, style = BOT_STYLES[ai.style];
   if (b.reloading > 0) { b.reloading -= dt; if (b.reloading <= 0) { const take = Math.min(BW(b.wpn).mag - b.ammo, b.reserve); b.ammo += take; b.reserve -= take; } }
   else if (b.ammo === 0 && b.reserve > 0) b.reloading = BW(b.wpn).reload + 0.3;
   const noAmmo = b.ammo === 0 && b.reserve === 0;
@@ -4633,7 +4418,7 @@ function updateBot(b, dt) {
     const t = findTarget(b);
     if (t !== ai.target) { ai.target = t; ai.react = D.react * style.reactMul * (0.7 + Math.random() * 0.6); ai.burst = 0; }
     botChooseWeapon(b, t ? b.pos.distanceTo(t.pos) : 12);
-    if (t) { ai.lastSeen = t.pos.clone(); ai.lastSeenT = 4; if (!def) ai.path = null; }
+    if (t) { ai.lastSeen = t.pos.clone(); ai.lastSeenT = 4; ai.path = null; }
   }
   if (ai.target && !ai.target.alive) ai.target = null;
   const fwd = new V3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new V3(Math.cos(b.yaw), 0, -Math.sin(b.yaw));
@@ -4653,20 +4438,17 @@ function updateBot(b, dt) {
       ai.strafeT -= dt;
       if (ai.strafeT <= 0) { ai.strafeT = 0.4 + Math.random() * 0.9; ai.strafeDir = Math.random() < 0.5 ? -1 : 1; }
       const holdGround = home && Math.hypot(b.pos.x - home.pos.x, b.pos.z - home.pos.z) < home.r * 0.9;
-      if (def && gateOpen() && inFort(b.pos)) { if (Math.hypot(dist, t.pos.y - b.pos.y) > 2.5) botAdvance(b, wish, dt, false); } // inside: rush them, shooting on the move
-      else if (def && (gateOpen() || (dist > 12 && !atGate(b)))) { // keep pushing up the hill while shooting
-        botAdvance(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.35);
-      } else if (!def && home && FN.cells && dist > 6) { // defending the base: hold the line once home, otherwise fall back to it
+      if (home && FN.cells && dist > 6) { // defending the base: hold the line once home, otherwise fall back to it
         if (holdGround) wish.addScaledVector(right, ai.strafeDir * (style.pref > 10 ? 0.3 : 0.55));
         else { roamHome(b, wish, dt, false, home); wish.addScaledVector(right, ai.strafeDir * 0.4); }
-      } else if (!def && FN.cells && dist > 6) { // free for all on a fine-mapped level: keep going where you were going, shooting
+      } else if (FN.cells && dist > 6) { // free for all on a fine-mapped level: keep going where you were going, shooting
         roamFine(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.4);
       } else {
         wish.addScaledVector(right, ai.strafeDir);
         if (dist > style.pref + 6) wish.addScaledVector(fwd, 0.8); else if (dist < style.pref - 3) wish.addScaledVector(fwd, -0.8);
       }
       // A cover-minded bot plants and crouches to shoot once it's in range, rather than always standing tall
-      if (ai.cover && dist > 5 && facing < 0.7 && b.onGround && !(def && gateOpen() && inFort(b.pos))) ai.crouchHold = 0.4;
+      if (ai.cover && dist > 5 && facing < 0.7 && b.onGround) ai.crouchHold = 0.4;
       speed = 3.5;
       ai.react -= dt; ai.fireCd -= dt;
       const bw = BW(b.wpn);
@@ -4676,18 +4458,17 @@ function updateBot(b, dt) {
         else if (bw.burst) { ai.burst = (ai.burst + 1) % bw.burst; ai.fireCd = ai.burst ? bw.burstGap : bw.rate * style.semiMul + Math.random() * 0.3; }
         else ai.fireCd = Math.max(bw.rate, 0.3) * style.semiMul + Math.random() * 0.35;
       }
-      if (!def && b.nades > 0 && ai.nadeCd <= 0) { // attackers don't throw grenades
+      if (b.nades > 0 && ai.nadeCd <= 0) {
         ai.nadeCd = 5 + Math.random() * 6;
         if (dist > 8 && dist < 26 && Math.random() < D.nade * 1.5 * style.nadeMul) botNade(b, t);
       }
     }
   } else {
-    if (def) botAdvance(b, wish, dt, true); // nobody in sight: march on the gate, or hunt the defenders inside
     b.pitch *= 1 - Math.min(1, dt * 4);
-    if (!def && gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
-    else if (!def && home && FN.cells) roamHome(b, wish, dt, true, home); // defending rebels patrol their own base, nowhere else
-    else if (!def && FN.cells) roamFine(b, wish, dt);
-    else if (!def && !ai.path) {
+    if (gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
+    else if (home && FN.cells) roamHome(b, wish, dt, true, home); // defending rebels patrol their own base, nowhere else
+    else if (FN.cells) roamFine(b, wish, dt);
+    else if (!ai.path) {
       let goal = null;
       if (b.reserve < BW(b.wpn).mag * 2) { const box = nearestBox(b); if (box) goal = box.cell; }
       if (goal === null && Math.random() < 0.6) { const pk = nearestPickup(b); if (pk) goal = cellOf(pk.pos); }
@@ -4696,7 +4477,7 @@ function updateBot(b, dt) {
       ai.path = findPath(cellOf(b.pos), goal); ai.pi = 0;
       if (!ai.path || !ai.path.length) { ai.path = null; ai.lastSeenT = 0; }
     }
-    if (!def && !FN.cells) followPath(b, wish, dt, true);
+    if (!FN.cells) followPath(b, wish, dt, true);
   }
   // Crouch holds briefly after the reason for it goes away (losing sight of a target, say) so a cover bot doesn't
   // pop up and down every frame; stands back up only when there's headroom to
@@ -4744,7 +4525,6 @@ function updateBot(b, dt) {
   if (ai.ghostT > 0) ai.ghostT -= dt;
   if (wish.lengthSq() > 0.01 && b.onGround) avoidBots(b, wish);
   if (wish.lengthSq() > 0) wish.normalize();
-  if (def) speed *= ATK_SPEED;
   if (b.h < STAND_H) speed *= 0.55;
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
@@ -4803,7 +4583,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!P.alive && MODE === 'defend' && P.role === 'atk' && NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'take' }); } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
+  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
@@ -5040,11 +4820,7 @@ function updateHUD(dt) {
     b.classList.toggle('rl', reloading);
   }
   if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
-  if (MODE === 'defend') {
-    const hp = Math.ceil(WAVE.hp), core = Math.ceil(WAVE.core), prep = WAVE.phase === 'prep' || WAVE.phase === 'won', down = gateOpen() && !prep && hp <= 0, ajar = gateOpen() && hp > 0, wv = WAVE.phase === 'prep' ? (WAVE.n ? `Wave ${WAVE.n + 1} of ${WAVES} in ${Math.ceil(WAVE.t)}s` : `First wave in ${Math.ceil(WAVE.t)}s`) : `Wave ${WAVE.n} of ${WAVES}   ·   Attackers left ${WAVE.left}`;
-    $('top').textContent = WAVE.phase === 'won' ? `The fort held   ·   The island is yours   ·   Esc, then Play again   ·   You ${P.kills}/${P.deaths}` : `${wv}   ·   ${hp <= 0 ? (down ? 'Gate down' : 'Gate destroyed') : ajar ? `Gate open (${hp}%)` : `Gate ${hp}%`}   ·   You ${P.kills}/${P.deaths}`;
-    $('top').classList.toggle('alert', !prep && (gateOpen() || hp <= 30 || core < 100));
-  } else {
+  {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
     setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
     $('top').classList.remove('alert');
@@ -5064,7 +4840,7 @@ function updateHUD(dt) {
   const bd = $('board');
   setStyle('board', 'display', boardOpen ? 'block' : 'none');
   if (boardOpen) {
-    const rows = [...ents].filter(e => MODE !== 'defend' || !e.bot).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
+    const rows = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
       .map(e => `<tr class="${e.isPlayer ? 'me' : ''}"><td${e.team && teamsOn() ? ` style="color:${TEAMS[e.team].color}"` : ''}>${esc(e.name)}</td><td>${e.kills}</td><td>${e.deaths}</td></tr>`).join('');
     bd.innerHTML = `<table><tr><th>Player</th><th>Kills</th><th>Deaths</th></tr>${rows}</table>`;
   }
@@ -5083,18 +4859,14 @@ function applySettings() {
   P.name = ($('pname').value.trim() || 'You').slice(0, 16);
   const lim = +$('sglimit').value;
   if (lim !== KILL_LIMIT) { KILL_LIMIT = lim; updateGoal(); }
-  if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam }); return; }
-  const waves = MODE === 'defend' ? WAVE_SIZES.length : +$('swaves').value;
-  if (selLevel !== curLevel && levelReady(selLevel)) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
-  else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
-  if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
+  if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
+  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); return; }
+  if (selLevel !== curLevel && levelReady(selLevel)) { switchLevel(selLevel); resetMatch(); }
+  if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   const plan = botPlan();
   if (plan.join() !== botSig) { buildBots(plan); resetMatch(); }
 }
-// Fortress defend always has attackers: the slider is how many are on the field at once
 function botPlan() {
-  if (MODE === 'defend') return Array(Math.max(...WAVE_SIZES)).fill(undefined);
   if (MODE === 'drive' || MODE === 'range') return [];
   if (LEVEL_DEFS[selLevel]().teams) return [...Array(+$('sbotsM').value).fill('midas'), ...Array(+$('sbotsR').value).fill('rebels')]; // each side set separately
   return Array(+$('sbots').value).fill(undefined);
@@ -5104,7 +4876,6 @@ function setPlaying(on) {
   locked = on;
   $('overlay').style.display = on || matchOver ? 'none' : 'flex'; $('overlay').classList.add('ingame'); $('totitle').style.display = 'none';
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
-  $('restart').textContent = MODE === 'defend' && WAVE.phase === 'won' ? 'Play again' : 'Restart game';
   if (!on) {
     closeChat(); setAway(false); setMonitor(false); showScreen('main');
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
@@ -5115,7 +4886,7 @@ function setPlaying(on) {
 $('play').onclick = () => {
   if (NET.role === 'host') try { localStorage.setItem('tse.last', JSON.stringify({ level: selLevel })); } catch (e) {}
   initAudio(); if (NET.role === 'guest' || remotes.length) getMic();
-  if (NET.role === 'guest') { P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); }
+  if (NET.role === 'guest') { P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); }
   if (!isTouch) { renderer.domElement.requestPointerLock(); return; }
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
@@ -5236,16 +5007,15 @@ function initPreview() {
 const TEAM_CHARS = { rebels: [5, 4], midas: [0, 1, 2, 3, 6] };
 function syncChars() {
   const sel = $('schar'), lv = NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {};
-  const ok = lv.teams && lv.mode !== 'defend' && TEAM_CHARS[myTeam] ? TEAM_CHARS[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
+  const ok = lv.teams && TEAM_CHARS[myTeam] ? TEAM_CHARS[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
   const want = ok.includes(+sel.value) ? +sel.value : ok[0];
   if (sel.options.length === ok.length && [...sel.options].every((o, k) => +o.value === ok[k])) { sel.value = want; return; }
   sel.length = 0; ok.forEach(i => sel.add(new Option(MODELS[i].label, i))); sel.value = want;
 }
-// The preview shows your role's character on Fortress, otherwise the character you picked
+// The preview shows the character you picked
 function refreshPreview() {
   if (MODELS.length) syncChars();
-  const def = (NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE) === 'defend';
-  setPreview(def ? ROLES[NET.role === 'host' ? hostPick : P.role === 'atk' || P.role === 'master' ? P.role : 'apprentice'].model : +$('schar').value);
+  setPreview(+$('schar').value);
 }
 function setPreview(i) {
   if (!prev) return;
@@ -5377,17 +5147,8 @@ document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
   if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
   document.querySelectorAll('#teams button').forEach(x => x.classList.toggle('on', x === b));
   refreshPreview(); // your side's characters
-  if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam });
+  if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
 });
-// Fort invites: the apprentice link is the plain invite; the pirate link sends friends to the attackers
-function copyInvite(btn, team) {
-  const v = $('invlink').value, label = btn.textContent;
-  if (!v.startsWith('http')) { btn.textContent = 'Starting multiplayer…'; setTimeout(() => btn.textContent = label, 1500); return; }
-  const link = team ? v + '&team=' + team : v;
-  navigator.clipboard.writeText(link).then(() => { btn.textContent = 'Link copied'; setTimeout(() => btn.textContent = label, 1500); }).catch(() => prompt('Invite link', link));
-}
-$('invapp').onclick = e => copyInvite(e.target, null);
-$('invpir').onclick = e => copyInvite(e.target, 'pirates');
 // Look panel: opens over the paused game with the scene showing through
 const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lklit: ['lit', v => v], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v], lktop: ['top', v => v] };
 function showLook() {
@@ -5529,216 +5290,7 @@ function stepSound(e, dt) {
 }
 function sDeath() { sTone([392, 294, 196], 0.12, 'triangle', 0.2); }
 
-// ---------- The Computer's cannon ----------
-// A heavy gun on a tripod on the wall walk over the gate. The Computer aims it at the closest attacker it can reach and fires a shell
-// that bursts like a grenade where it lands, then needs 10 s to recharge. It faces out over the hills (it can't turn round
-// into the fort) and can't tilt down far enough to hit the foot of the wall, so attackers at the gate are safe from it.
-const CANNON = { reload: 10, turn: 0.9, minPitch: -0.6, maxPitch: 0.4, maxYaw: 1.4, minRange: 25, speed: 55, range: 170, R: 5.7, dmg: 130, len: 1.7 }; // R: blast radius (half the area it used to cover)
-const CPU = { name: 'Computer', role: 'computer', id: 'cpu', kills: 0, deaths: 0 };
-let CN = null;
-const shells = [];
-const CN_METAL = toonMat({ color: 0x3b4148 }), CN_DARK = toonMat({ color: 0x23272b });
-const shellGeo = new THREE.SphereGeometry(0.16, 10, 8), shellMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
-function buildCannon(at) {
-  const g = new THREE.Group(), pivotY = 1.35; g.position.copy(at); propGroup.add(g);
-  const mesh = (geo, mat, parent) => { const o = new THREE.Mesh(geo, mat); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
-  for (let i = 0; i < 3; i++) { // tripod legs from the pivot down to the roof
-    const a = i * Math.PI * 2 / 3, foot = new V3(Math.sin(a) * 0.75, 0, Math.cos(a) * 0.75), top = new V3(0, pivotY, 0), mid = foot.clone().add(top).multiplyScalar(0.5);
-    const leg = mesh(new THREE.CylinderGeometry(0.035, 0.045, foot.distanceTo(top), 6), CN_DARK, g);
-    leg.position.copy(mid); leg.quaternion.setFromUnitVectors(new V3(0, 1, 0), top.clone().sub(foot).normalize());
-  }
-  const head = new THREE.Group(); head.position.y = pivotY; g.add(head);
-  mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.18, 12), CN_DARK, head);
-  const tilt = new THREE.Group(); head.add(tilt);
-  const barrel = mesh(new THREE.CylinderGeometry(0.11, 0.15, CANNON.len + 0.3, 14).rotateX(Math.PI / 2), CN_METAL, tilt); barrel.position.z = CANNON.len / 2 - 0.15;
-  mesh(new THREE.BoxGeometry(0.36, 0.32, 0.5), CN_METAL, tilt).position.z = -0.35;
-  const light = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x40ff80 })); light.position.set(0, 0.2, -0.35); tilt.add(light);
-  return { g, head, tilt, light, pivot: new V3(at.x, at.y + pivotY, at.z), yaw: 0, pitch: 0, cd: 0, target: null, scanT: 0 };
-}
-function cannonAim(p) { const d = p.clone().sub(CN.pivot); return [Math.atan2(d.x, d.z), Math.atan2(d.y, Math.hypot(d.x, d.z))]; }
-function cannonMuzzle(yaw = CN.yaw, pitch = CN.pitch) {
-  const c = Math.cos(pitch); return CN.pivot.clone().add(new V3(Math.sin(yaw) * c, Math.sin(pitch), Math.cos(yaw) * c).multiplyScalar(CANNON.len));
-}
-// The closest truck still carrying soldiers that the cannon can tilt to and see, else the closest attacker on foot. It
-// leaves anything within minRange (out from the wall) alone, so its blast never reaches the gate: up close, the defenders
-// have to lean out over the wall and shoot.
-function cannonTarget() {
-  const pick = list => {
-    let best = null, bd = CANNON.range;
-    for (const a of list) {
-      const m = a.m, d = m.distanceTo(CN.pivot);
-      if (d >= bd || Math.hypot(m.x - CN.pivot.x, m.z - CN.pivot.z) < CANNON.minRange) continue;
-      const [yaw, pitch] = cannonAim(m);
-      if (pitch < CANNON.minPitch || pitch > CANNON.maxPitch || Math.abs(wrap(yaw)) > CANNON.maxYaw || !losPts(cannonMuzzle(yaw, pitch), m, a.truck)) continue;
-      bd = d; best = a;
-    }
-    return best;
-  };
-  return pick(trucks.filter(t => t.alive && t.seats > 0).map(t => ({ truck: t, m: t.pos.clone().setY(t.pos.y + 1.2) })))
-    || pick(ents.filter(e => e.alive && isAtk(e)).map(e => ({ ent: e, m: midPos(e) })));
-}
-const aimPoint = a => a.truck ? a.truck.pos.clone().setY(a.truck.pos.y + 1.2) : midPos(a.ent);
-const aimAlive = a => !!a && (a.truck ? a.truck.alive : a.ent.alive);
-function updateCannon(dt) {
-  if (!CN || MODE !== 'defend') return;
-  CN.cd = Math.max(0, CN.cd - dt);
-  if ((CN.scanT -= dt) <= 0) { CN.scanT = 0.3; CN.target = cannonTarget(); }
-  const t = aimAlive(CN.target) ? CN.target : null; if (!t) return;
-  const [yaw, pitch] = cannonAim(aimPoint(t)), step = CANNON.turn * dt;
-  CN.yaw = turn(CN.yaw, yaw, step); CN.pitch += Math.max(-step, Math.min(step, pitch - CN.pitch));
-  if (CN.cd <= 0 && Math.abs(wrap(yaw - CN.yaw)) < 0.015 && Math.abs(pitch - CN.pitch) < 0.015) fireCannon(t);
-}
-function fireCannon(t) {
-  CN.cd = CANNON.reload;
-  const o = cannonMuzzle(), dir = aimPoint(t).sub(o), dist = dir.length(); dir.divideScalar(dist);
-  const end = o.clone().addScaledVector(dir, Math.min(dist, tgRay(o.x, o.y, o.z, dir.x, dir.y, dir.z, dist)));
-  spawnShell(o, end, true); netFx({ t: 'cs', a: arr(o), b: arr(end) });
-}
-function spawnShell(a, b, live) {
-  const m = new THREE.Mesh(shellGeo, shellMat); m.position.copy(a); scene.add(m);
-  const dir = b.clone().sub(a), left = dir.length(); dir.divideScalar(left || 1);
-  shells.push({ mesh: m, dir, left, end: b, live });
-  _boomFx(a, 0.7); sBoom(vol(a, 160) * 0.8);
-}
-function updateShells(dt) {
-  for (let i = shells.length - 1; i >= 0; i--) {
-    const sh = shells[i], step = Math.min(sh.left, CANNON.speed * dt);
-    sh.mesh.position.addScaledVector(sh.dir, step); sh.left -= step;
-    if (sh.left > 0) continue;
-    scene.remove(sh.mesh); shells.splice(i, 1);
-    if (sh.live && NET.role === 'host') boom(sh.end, CPU, CANNON.R, CANNON.dmg);
-  }
-}
-function updateCannonVis() {
-  if (!CN) return;
-  CN.head.rotation.y = CN.yaw; CN.tilt.rotation.x = -CN.pitch;
-  CN.light.material.color.setHex(CN.cd > 0 ? 0xff5030 : 0x40ff80);
-}
-
-// ---------- Trucks: the attackers ride in ----------
-// Each wave's soldiers ride up in trucks (TRUCK.seats each) from the far hills. A truck drives the terrain map to a drop-off
-// 20-30 m out from the gate, the soldiers jump out and go on foot, and the empty truck stays as cover. Trucks can be shot and
-// shelled; a destroyed truck burns, and anyone still in the back bails out hurt. The host drives them; guests draw them.
-const TRUCK = { seats: 4, hp: 400, cruise: 9, slow: 4.5, look: 7, bulletK: 0.35, rifleHit: 120, blastK: 1.5, bailHp: 35 };
-const trucks = [], truckQueue = []; // truckQueue: trucks still to come this wave
-// A truck is a vehicles.js vehicle (the Cargo Truck with James's jeep tuning, two seats in front and six in the back) wrapped
-// with what the fort needs: health, the soldiers aboard, the NPC's route, and boxes round the cab, container and chassis
-// for bullets to hit and to hide behind
-const HIT_BOX = new THREE.BoxGeometry(2, 2, 2), HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
-function wrapTruck(v, seats) {
-  const hit = new THREE.Group();
-  for (const b of VEH.boxesOf(v)) { const m = new THREE.Mesh(HIT_BOX, HIT_MAT); m.position.copy(b.c); m.scale.copy(b.h); hit.add(m); }
-  v.hit = hit; v.g.add(hit); hit.updateMatrixWorld(true);
-  const tr = { veh: v, hit, hits: hit.children, pos: v.pos, get yaw() { return v.yaw; }, get g() { return v.g; }, hp: TRUCK.hp, alive: !v.dead, seats, state: 'wait', wait: 0, route: null, pi: 0, smokeT: 0 };
-  for (const m of hit.children) m.userData.truck = tr;
-  return tr;
-}
-function newTruck(at, yaw, seats) {
-  const v = VEH.spawn('truck', at, yaw); v.npcBusy = true; v.npc = { thr: 0, steer: 0, hand: true };
-  const tr = wrapTruck(v, seats); trucks.push(tr); return tr;
-}
-function clearTrucks() { VEH.remove(trucks.map(t => t.veh)); trucks.length = 0; truckQueue.length = 0; }
-// Host: one truck per TRUCK.seats soldiers, leaving the far spawns a few seconds apart
-function roadRoute(k) {
-  const R = LV.trucks.road, [gx, gz] = LV.gate.at, pts = [];
-  for (let i = 0; i + 1 < R.length; i++) { // every 2 m along the road
-    const [x0, z0] = R[i], [x1, z1] = R[i + 1], m = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 2));
-    for (let j = 0; j < m; j++) pts.push(new V3(x0 + (x1 - x0) * j / m, 0, z0 + (z1 - z0) * j / m));
-  }
-  // Right up to the gate (inside the cannon's minimum range); later trucks stop behind the ones already there
-  let end = pts.findIndex(p => Math.hypot(p.x - gx, p.z - gz) < LV.trucks.near); if (end < 0) end = pts.length - 1;
-  pts.length = Math.max(2, end + 1);
-  for (const p of pts) p.y = groundAt(p.x, p.z, 120) || 0;
-  return pts;
-}
-// Each truck turns up at the start of the road when its turn comes and the way is clear (not all at once on one spot)
-function sendTrucks(n) {
-  for (let k = 0; n > 0; k++) {
-    const seats = Math.min(TRUCK.seats, n); n -= seats;
-    truckQueue.push({ seats, route: roadRoute(k), wait: 1 + k * 4 + Math.random() * 1.5 });
-  }
-}
-function launchTrucks(dt) {
-  for (let i = truckQueue.length - 1; i >= 0; i--) {
-    const q = truckQueue[i]; q.wait -= dt; if (q.wait > 0) continue;
-    const r0 = q.route[0]; if (VEH.list.some(v => Math.hypot(v.pos.x - r0.x, v.pos.z - r0.z) < 9)) continue; // the start of the road is taken
-    const tr = newTruck(r0.clone(), Math.atan2(q.route[1].x - r0.x, q.route[1].z - r0.z), q.seats);
-    tr.route = q.route; tr.pi = 1; tr.state = 'drive'; truckQueue.splice(i, 1);
-  }
-}
-// Host: the NPC drives each truck down the road (steering at a point a little ahead, easing off for bends and for a
-// truck parked in front), stops, and lets the soldiers out. Once it's empty it's left parked for anyone to take.
-function updateTrucks(dt) {
-  launchTrucks(dt);
-  for (const tr of trucks) {
-    const v = tr.veh;
-    if (!tr.alive || !v.npcBusy) continue;
-    if (tr.state === 'wait') { v.npc = { thr: 0, steer: 0, hand: true }; if ((tr.wait -= dt) <= 0) tr.state = 'drive'; continue; }
-    if (tr.state === 'drive') {
-      const end = tr.route[tr.route.length - 1];
-      while (tr.pi < tr.route.length - 1 && Math.hypot(tr.route[tr.pi].x - tr.pos.x, tr.route[tr.pi].z - tr.pos.z) < TRUCK.look) tr.pi++;
-      const c = tr.route[tr.pi], fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), toEnd = Math.hypot(end.x - tr.pos.x, end.z - tr.pos.z);
-      const blocked = trucks.some(o => o !== tr && o.state === 'park' && Math.hypot(o.pos.x - tr.pos.x, o.pos.z - tr.pos.z) < VEH.lenOf(v) + 4 && (o.pos.x - tr.pos.x) * fx + (o.pos.z - tr.pos.z) * fz > 0);
-      const passed = tr.pi === tr.route.length - 1 && (end.x - tr.pos.x) * fx + (end.z - tr.pos.z) * fz < 0; // the end is behind: close enough
-      if (toEnd < 4 || passed || blocked) { tr.state = 'stop'; continue; }
-      const err = wrap(Math.atan2(c.x - tr.pos.x, c.z - tr.pos.z) - v.yaw), want = Math.min(TRUCK.cruise, Math.abs(err) > 0.35 ? TRUCK.slow : TRUCK.cruise, 1.5 + toEnd * 0.4);
-      v.npc = { thr: v.speed < want - 0.5 ? 1 : v.speed > want + 1.5 ? -1 : 0, steer: Math.max(-1, Math.min(1, -err * 2.5)), hand: false };
-      continue;
-    }
-    if (tr.state === 'stop') { v.npc = { thr: v.speed > 0.5 ? -1 : 0, steer: 0, hand: true }; if (Math.abs(v.speed) < 0.4) tr.state = 'park'; continue; } // both brakes
-    if (tr.state === 'park') {
-      v.npc = { thr: 0, steer: 0, hand: true };
-      if (tr.seats > 0) unloadTruck(tr, false);
-      if (tr.seats <= 0) { v.npcBusy = false; v.npc = null; } // empty: anyone's to drive
-    }
-  }
-}
-// Soldiers out of the container's open back (free bot slots), either at the drop-off or bailing out of a wreck
-function unloadTruck(tr, hurt) {
-  const back = new V3(-Math.sin(tr.yaw), 0, -Math.cos(tr.yaw)), side = new V3(Math.cos(tr.yaw), 0, -Math.sin(tr.yaw)), rear = VEH.rearOf(tr.veh) + 0.8;
-  let k = 0;
-  for (const b of bots) {
-    if (tr.seats <= 0) break;
-    if (b.alive) continue;
-    const at = tr.pos.clone().addScaledVector(back, rear + (k >> 1) * 0.9).addScaledVector(side, (k & 1 ? 1 : -1) * 0.7); k++;
-    const p = settle([at.x, tr.pos.y + 1.5, at.z]);
-    respawn(b, p, 0); if (hurt) b.health = TRUCK.bailHp;
-    tr.seats--; WAVE.queue--;
-  }
-}
-// Damage: bullets barely scratch a truck (the Master's rifle does real damage), blasts and the cannon wreck it
-function shootTruck(tr, w) {
-  const amt = w.oneShot ? TRUCK.rifleHit : (w.dmg || 10) * TRUCK.bulletK * (w.pellets ? 0.3 : 1);
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'thit', i: trucks.indexOf(tr), amt: Math.round(amt) }); return; }
-  damageTruck(tr, amt);
-}
-function damageTruck(tr, amt) {
-  if (!tr.alive || NET.role === 'guest' || matchOver) return;
-  tr.hp -= amt;
-  if (tr.hp > 0) return;
-  tr.alive = false; tr.hp = 0; VEH.wreck(tr.veh);
-  const p = tr.pos.clone().setY(tr.pos.y + 1.2); _boomFx(p, 4); sBoom(vol(p, 120)); netFx({ t: 'bm', p: arr(p), s: 4 });
-  if (tr.seats > 0) { tr.state = 'park'; unloadTruck(tr, true); WAVE.queue -= tr.seats; tr.seats = 0; } // no room left for the rest: they're lost
-  waveNote('A truck is burning');
-}
-// Guests: the trucks are the host's vehicles in the same order; keep a wrapper for each (shots, the map, wrecks)
-function syncGuestTrucks() {
-  if (!LV || !LV.trucks) return;
-  const tv = VEH.list.filter(v => v.key === 'truck');
-  tv.forEach((v, i) => { if (!trucks[i] || trucks[i].veh !== v) trucks[i] = wrapTruck(v, 0); trucks[i].alive = !v.dead; });
-  trucks.length = tv.length;
-}
-// Everyone: keep wrecks smoking
-function updateTrucksVis(dt) {
-  for (const tr of trucks) {
-    if (!tr.alive && (tr.smokeT -= dt) <= 0) {
-      tr.smokeT = 0.35; const sm = GUN_FX.rifle && GUN_FX.rifle.smoke;
-      if (sm) _puff(sm.tex, tr.pos.clone().add(new V3((Math.random() - 0.5) * 1.5, 2.2, (Math.random() - 0.5) * 2)), 2.2, 3, { rise: 1.4, grow: 2.5, color: 0x3a3836, opacity: 0.6 });
-    }
-  }
-}
-
-// ---------- The tower door: open until a defender locks it; attackers pressed against it break it down ----------
+// ---------- The tower door: open until a player locks it; bots pressed against it break it down ----------
 const TDOOR = { state: 'open', hp: 0, a: -Math.PI / 2, hinge: null, panel: null, shot: null };
 function buildTowerDoor(d) {
   const g = new THREE.Group(), hinge = new THREE.Group(), w = d.x1 - d.x0, h = d.y1 - d.y0;
@@ -5758,7 +5310,7 @@ function setTowerDoor(state) {
   else if (AC && vol(p, 40) > 0.02) thump(AC.currentTime, 0.25, 0.8 * vol(p, 40), 140, 50); // a wooden thud
 }
 const nearTowerDoor = e => { const d = LV && LV.towerDoor; return !!d && e.alive && Math.hypot(e.pos.x - (d.x0 + d.x1) / 2, e.pos.z - d.z) < 1.8 && Math.abs(e.pos.y - d.y0) < 1.5; };
-// E at the door: a defender locks it shut or opens it again (the host decides)
+// E at the door: a player locks it shut or opens it again (the host decides)
 function useTowerDoor(e) {
   if (TDOOR.state === 'broken' || isAtk(e)) return false;
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'tdoor' }); return true; }
@@ -5766,7 +5318,7 @@ function useTowerDoor(e) {
   waveNote(TDOOR.state === 'closed' ? `${e.name === 'You' && e.isPlayer ? 'You' : e.name} locked the tower door` : `The tower door is open`);
   return true;
 }
-// Host: attackers on the corridor side of a locked door batter it
+// Host: bots on the corridor side of a locked door batter it
 function updateTowerDoor(dt) {
   const d = LV && LV.towerDoor; if (!d || NET.role === 'guest' || TDOOR.state !== 'closed' || matchOver) return;
   let n = 0; const cx = (d.x0 + d.x1) / 2;
@@ -5799,10 +5351,10 @@ function climbWindow(side) {
   if (side === 'out') hint('roofladder', 'The ladder beside the window goes up to the roof: walk into it to climb', 4);
 }
 
-// ---------- The Computer's monitor: a map with the attackers on it, and the gate switch ----------
+// ---------- The Computer's monitor: a map with everyone on it, and the gate switch ----------
 let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
 function nearComputer(e) {
-  if (!LV || !LV.core || !e.alive || (MODE === 'defend' && isAtk(e))) return false;
+  if (!LV || !LV.core || !e.alive) return false;
   const [x, y, z] = LV.core.at; return Math.hypot(e.pos.x - x, e.pos.z - z) < 2.2 && Math.abs(e.pos.y - y) < 2;
 }
 function setMonitor(on) {
@@ -5816,21 +5368,20 @@ function toggleGate() {
 // Host: someone at the computer flips the gate
 function switchGate(e) {
   if (!nearComputer(e) || matchOver) return;
-  if (WAVE.broken) { if (e === P) note('The gate is destroyed', 1.5); else sendTo(e, { t: 'wn', x: 'The gate is destroyed' }); return; }
   const open = !gateOpen();
   if (!open && gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return; }
-  if (!open && MODE !== 'defend') WAVE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
+  if (!open) GATE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
 }
-// Free for all: Midas bots shoot a shut gate (its hp is WAVE.hp, a percentage) until it gives way; shutting it again mends it
+// Midas bots shoot a shut gate (its hp is GATE.hp, a percentage) until it gives way; shutting it again mends it
 let gateLock = 0; // seconds until a gate that was shot open can be shut again
 const GATE_LOCK = 30;
-const gateSiegeOn = () => MODE !== 'defend' && teamsOn() && !!(LV && LV.gate && LV.gate.hp) && !gateOpen() && WAVE.hp > 0 && !matchOver;
+const gateSiegeOn = () => teamsOn() && !!(LV && LV.gate && LV.gate.hp) && !gateOpen() && GATE.hp > 0 && !matchOver;
 function damageGate(amt) {
   if (!gateSiegeOn()) return;
-  WAVE.hp = Math.max(0, WAVE.hp - amt / LV.gate.hp * 100);
-  if (WAVE.hp <= 0) { setGate(true); gateLock = GATE_LOCK; const d = LV.gate.doors; _boomFx(new V3((d.x0 + d.x1) / 2, d.y0 + 1.2, d.z), 1.2); waveNote('The gate has been broken open! It can be shut again in 30 seconds'); }
+  GATE.hp = Math.max(0, GATE.hp - amt / LV.gate.hp * 100);
+  if (GATE.hp <= 0) { setGate(true); gateLock = GATE_LOCK; const d = LV.gate.doors; _boomFx(new V3((d.x0 + d.x1) / 2, d.y0 + 1.2, d.z), 1.2); waveNote('The gate has been broken open! It can be shut again in 30 seconds'); }
 }
-const nearGateDoor = e => { const d = LV && LV.gate && LV.gate.doors; return !!d && MODE !== 'defend' && e.alive && Math.abs(e.pos.x - (d.x0 + d.x1) / 2) < 2.4 && Math.abs(e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5; };
+const nearGateDoor = e => { const d = LV && LV.gate && LV.gate.doors; return !!d && e.alive && Math.abs(e.pos.x - (d.x0 + d.x1) / 2) < 2.4 && Math.abs(e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5; };
 // E at the open gate: shut it (the host decides). Not with someone standing in the doorway.
 function useGateDoor(e) {
   if (!gateOpen()) return false;
@@ -5838,7 +5389,7 @@ function useGateDoor(e) {
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gdoor' }); return true; }
   const d = LV.gate.doors, cx = (d.x0 + d.x1) / 2;
   if (ents.some(o => o.alive && Math.abs(o.pos.x - cx) < (d.x1 - d.x0) / 2 && Math.abs(o.pos.z - d.z) < 0.9 && Math.abs(o.pos.y - d.y0) < 2)) { if (e === P) note('Something is in the way', 1.5); else sendTo(e, { t: 'wn', x: 'Something is in the way' }); return true; }
-  WAVE.hp = 100; setGate(false); waveNote(`${e.isPlayer ? 'You' : e.name} shut the gate`);
+  GATE.hp = 100; setGate(false); waveNote(`${e.isPlayer ? 'You' : e.name} shut the gate`);
   return true;
 }
 // Player bullets on the gate (guests tell the host)
@@ -5899,17 +5450,6 @@ function siegeGate(b, wish, dt) {
   if ((ai.huntT = (ai.huntT || 0) - dt) <= 0 || !ai.hpath) { ai.huntT = 1 + Math.random(); ai.hpath = fortPath(b.pos, ai.sg); ai.hi = 0; }
   if (!walkFine(b, wish, dt, true)) botShootGate(b, dt); // path ran out short of the spot (blocked off): shoot from where it is rather than stall
 }
-// Host: a dead attacking player takes over the soldier closest to the gate
-function takeOver(r) {
-  if (MODE !== 'defend' || r.role !== 'atk' || r.alive || matchOver) return;
-  let best = null, bd = Infinity; const [gx, gz] = LV.gate.at;
-  for (const b of bots) if (b.alive) { const d = Math.hypot(b.pos.x - gx, b.pos.z - gz); if (d < bd) { bd = d; best = b; } }
-  if (!best) { sendTo(r, { t: 'wn', x: 'No soldiers left to take over. You come back with the next wave' }); return; }
-  const hp = best.health, at = best.pos.clone(), yaw = best.yaw + Math.PI;
-  best.alive = false; best.mesh.visible = false; best.respawnT = 2; // its slot sends in the next soldier of the wave
-  respawn(r, at, yaw); r.health = Math.min(hp, maxHp(r));
-  sendTo(r, { t: 'wn', x: `You took over ${best.name}` });
-}
 function updateComputer() {
   const near = locked && !chatOpen && nearComputer(P);
   if (monitorOpen && !near) setMonitor(false);
@@ -5949,20 +5489,17 @@ function drawMap() {
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
   g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
-  const [gx, gz] = LV.gate.at, gateCol = WAVE.broken ? '#ff4b3a' : gateOpen() ? '#ffd23f' : '#9fd8ff';
+  const [gx, gz] = LV.gate.at, gateCol = gateOpen() ? '#ffd23f' : '#9fd8ff';
   g.fillStyle = gateCol; g.fillRect(X(gx) - 7, Z(gz) - 2, 14, 4);
   const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
-  for (const tr of trucks) { g.fillStyle = tr.alive ? '#ff9a3a' : '#6b5a4a'; g.save(); g.translate(X(tr.pos.x), Z(tr.pos.z)); g.rotate(tr.yaw); g.fillRect(-3, -5, 6, 10); g.restore(); }
   let n = 0;
   for (const e of ents) {
     if (!e.alive) continue;
-    const atk = MODE === 'defend' ? isAtk(e) : e !== P; if (atk) n++; // free for all: everyone else
+    const atk = e !== P; if (atk) n++; // everyone else
     g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
   }
-  const gate = WAVE.broken ? 'destroyed' : gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`;
-  const cannon = !CN ? '' : CN.cd > 0 ? `recharging ${Math.ceil(CN.cd)}s` : 'ready';
-  $('cpuinfo').textContent = MODE === 'defend' ? `Gate ${gate} · Cannon ${cannon} · Attackers in sight ${n}` : `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(WAVE.hp)}%)`} · Others on the map ${n}`;
+  $('cpuinfo').textContent = `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(GATE.hp)}%)`} · Others on the map ${n}`;
 }
 
 // ---------- Multiplayer: host-in-browser P2P (PeerJS / WebRTC) + voice chat ----------
@@ -5974,7 +5511,6 @@ const params = new URLSearchParams(location.search);
 const TEST = params.has('test');
 const NET = { role: params.get('join') ? 'guest' : 'host', hostId: params.get('join'), peer: null, conn: null, myId: 'h', joined: false, sendT: 0, nextRid: 1, spawnSeq: 0 };
 if (NET.role === 'guest') document.body.classList.add('guest');
-if (params.get('team') === 'pirates') $('guestinfo').textContent = "You're joining a friend's fort game as a pirate: ride in with the attackers and break in.";
 P.id = 'h';
 const remotes = [], replicas = new Map(), gNades = [];
 const ICE = { config: { iceServers: [
@@ -6004,7 +5540,6 @@ function applyFx(m) {
       _muzzleFx(m.k, p, v3(m.d).normalize(), false);
     } break;
     case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
-    case 'cs': spawnShell(v3(m.a), v3(m.b), false); break;
     case 'rk': if (NET.role === 'guest' && Array.isArray(m.o) && Array.isArray(m.d)) launchRocket(ents.find(o => o.id === m.i) || {}, v3(m.o), v3(m.d), WEAPONS.bazooka, true); break;
     default: if (NET.role === 'guest') RANGE.fx(m); // the host's mines (?dev)
   }
@@ -6012,7 +5547,6 @@ function applyFx(m) {
 function updateRoster() {
   const el = $('roster'); if (!el) return;
   el.textContent = remotes.length ? `In game: ${remotes.map(r => r.name).join(', ')}` : 'Send this link to friends. They join with their own name and character.';
-  $('roster2').textContent = remotes.length ? `In game: ${remotes.map(r => r.name + (MODE === 'defend' && ROLES[r.role] ? ' (' + ROLES[r.role].name + ')' : '')).join(', ')}` : '';
 }
 
 // ----- Host -----
@@ -6050,14 +5584,13 @@ function onGuestMsg(conn, m) {
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
-      if (m.team === 'pirates') r.role = 'atk'; // invited as a pirate
-      const changed = assignRoles(); setRemoteModel(r, MODE === 'defend' ? ROLES[r.role].model : m.model); rekit(changed.filter(x => x !== r));
+      setRemoteModel(r, m.model);
       sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       respawn(r); VEH.welcome(r);
-      note(MODE === 'defend' ? `${name} joined as the ${ROLES[r.role].name}` : `${name} joined`, 2); updateRoster(); getMic();
+      note(`${name} joined`, 2); updateRoster(); getMic();
     } else {
       r.name = name; if (TEAMS[m.tm] && m.tm !== r.team) { r.team = m.tm; if (r.alive) respawn(r); }
-      r.helloModel = m.model | 0; if (MODE !== 'defend' && (m.model | 0) !== r.modelIdx) setRemoteModel(r, m.model);
+      r.helloModel = m.model | 0; if ((m.model | 0) !== r.modelIdx) setRemoteModel(r, m.model);
       updateRoster();
     }
     return;
@@ -6094,8 +5627,6 @@ function onGuestMsg(conn, m) {
     case 'sdoor': { const i = nearShed(r); if (i >= 0) toggleShed(i, r); break; }
     case 'blk': { const sh = lockableDoor(); if (sh) lockDoor(sh, r); break; }
     case 'bhit': damageBunker(Math.min(250, Math.max(0, +m.amt || 0))); break;
-    case 'take': takeOver(r); break;
-    case 'thit': { const tr = trucks[m.i | 0]; if (tr && r.alive) damageTruck(tr, Math.min(200, Math.max(0, +m.amt || 0))); break; }
     default: VEH.onGuestMsg(r, m);
   }
 }
@@ -6104,7 +5635,6 @@ function removeRemote(conn) {
   const r = remotes[i]; remotes.splice(i, 1);
   scene.remove(r.mesh); const k = ents.indexOf(r); if (k >= 0) ents.splice(k, 1);
   note(`${r.name} left`, 2); updateRoster(); closeVoice(conn.peer); VEH.onLeave(r);
-  rekit(assignRoles());
 }
 // A closed tab doesn't always tear its connection down (the host may never hear a 'close'), so guests ping every couple of
 // seconds, and a guest the host hasn't heard from for NET_TIMEOUT is dropped like one that said goodbye
@@ -6119,7 +5649,7 @@ function dropSilentRemotes() {
 }
 function updateRemotes(dt) {
   for (const r of remotes) {
-    if (!r.alive) { if (MODE !== 'defend' || r.role !== 'atk') { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); } continue; } // attackers wait for the next wave (or take over a soldier)
+    if (!r.alive) { r.respawnT -= dt; if (r.respawnT <= 0) respawn(r); continue; }
     r.pos.lerp(r.target, Math.min(1, dt * 14));
     r.mesh.position.copy(r.pos); r.mesh.rotation.y = smoothYaw(r, dt);
     r.onGround = Math.abs(r.vel.y) < 1;
@@ -6130,14 +5660,12 @@ function updateRemotes(dt) {
 function snapshot() {
   return {
     t: 'sn', lim: KILL_LIMIT, over: matchOver, pv: PROX_VOICE,
-    gh: MODE !== 'defend' && LV && LV.gate ? Math.ceil(WAVE.hp) : null, gl: MODE !== 'defend' && LV && LV.gate ? Math.ceil(gateLock) : null,
-    gt: MODE !== 'defend' && LV && LV.gate ? (gateOpen() ? 1 : 0) : null, // the fort's gate in free for all (defend sends it with the waves)
-    wv: MODE === 'defend' ? [WAVE.n, WAVES, WAVE.left, Math.ceil(WAVE.hp), WAVE.phase === 'prep' ? +WAVE.t.toFixed(1) : WAVE.phase === 'won' ? -2 : -1, Math.ceil(WAVE.core), gateOpen() ? 1 : 0] : null,
-    cn: CN ? [+CN.yaw.toFixed(3), +CN.pitch.toFixed(3), +CN.cd.toFixed(1)] : null,
+    gh: LV && LV.gate ? Math.ceil(GATE.hp) : null, gl: LV && LV.gate ? Math.ceil(gateLock) : null,
+    gt: LV && LV.gate ? (gateOpen() ? 1 : 0) : null, // the fort's gate
     e: ents.map(e => ({
       i: e.id, n: e.name, m: e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model)),
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
-      hp: Math.ceil(e.health), k: e.kills, d: e.deaths, r: e.role || null, tm: e.team || null,
+      hp: Math.ceil(e.health), k: e.kills, d: e.deaths, tm: e.team || null,
       cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
       iv: (e.isPlayer ? P.inv : e.inv) || [], bt: e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0], // what they carry, to show on them
     })),
@@ -6161,7 +5689,7 @@ function startGuest() {
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
     conn.on('open', () => {
-      $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam });
+      $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
       NET.beat = setInterval(() => { if (conn.open) conn.send({ t: 'ping' }); }, 2000); // a timer, not the frame loop, so a backgrounded tab still counts as here
     });
     conn.on('data', onHostMsg);
@@ -6170,11 +5698,9 @@ function startGuest() {
   peer.on('call', answerCall);
   peer.on('error', e => { $('netstat').textContent = e.type === 'peer-unavailable' ? 'Host not found. Ask them for a fresh link.' : 'Connection problem (' + e.type + ')'; });
 }
-function guestSpawn(p, y, role) {
-  const was = P.role; if (ROLES[role]) P.role = role;
+function guestSpawn(p, y) {
   P.pos.copy(p); P.vel.set(0, 0, 0); P.health = maxHp(P); P.alive = true; P.h = STAND_H; P.yaw = y; P.pitch = 0; P.viewY = p.y + 1.6;
-  P.nades = 2; $('msg').textContent = ''; initPlayerWeapons(); applyPlayerKit();
-  if (kitOf(P) && P.role !== was) { note(`You are the ${ROLES[P.role].name}`, 3); setPreview(ROLES[P.role].model); $('netstat').textContent = `You are the ${ROLES[P.role].name}`; }
+  P.nades = 2; $('msg').textContent = ''; initPlayerWeapons();
 }
 function onHostMsg(m) {
   if (!m || typeof m !== 'object') return;
@@ -6194,11 +5720,10 @@ function onHostMsg(m) {
       break;
     case 'level': NET.wantLevel = m.id; whenLevel(m.id, () => { if (NET.wantLevel === m.id) switchLevel(m.id); }); break;
     case 'sn': applySnapshot(m); break;
-    case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y, m.k); break;
+    case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y); break;
     case 'died':
       P.alive = false; P.health = 0; sDeath();
       $('msg').textContent = m.self ? (m.w === 'fall' ? 'You fell out of the map' : 'You blew yourself up') : `Killed by ${m.by}`;
-      if (MODE === 'defend' && P.role === 'atk') $('msg').textContent += '. Press E to take over a soldier, or wait for the next wave';
       setMonitor(false);
       break;
     case 'hurt': hurtFx(Math.min(100, +m.a || 20)); break;
@@ -6220,18 +5745,9 @@ function onHostMsg(m) {
 }
 function applySnapshot(s) {
   KILL_LIMIT = s.lim; matchOver = s.over; PROX_VOICE = !!s.pv;
-  if (Array.isArray(s.wv)) {
-    const [n, total, left, hp, t, core, open] = s.wv, was = WAVE.core;
-    Object.assign(WAVE, { n: n | 0, left: left | 0, hp: +hp || 0, phase: t >= 0 ? 'prep' : t === -2 ? 'won' : 'fight', t: Math.max(0, +t || 0), core: core === undefined ? 100 : +core || 0 });
-    WAVE.broken = WAVE.hp <= 0; // the gate only breaks once, so a gate at 0% is gone for good
-    if (WAVE.core < was) coreFlash = 0.12;
-    setGate(!!open);
-    if ((total | 0) !== WAVES) { WAVES = total | 0; updateGoal(); }
-  }
   if (s.gt !== null && s.gt !== undefined) setGate(!!s.gt);
-  if (s.gh !== null && s.gh !== undefined) WAVE.hp = +s.gh;
+  if (s.gh !== null && s.gh !== undefined) GATE.hp = +s.gh;
   if (s.gl !== null && s.gl !== undefined) gateLock = +s.gl || 0;
-  if (s.cn && CN) { CN.yaw = +s.cn[0] || 0; CN.pitch = +s.cn[1] || 0; CN.cd = +s.cn[2] || 0; }
   const seen = new Set();
   for (const d of s.e) {
     if (d.i === NET.myId) { if (d.tm) P.team = d.tm; P.health = d.hp; P.kills = d.k; P.deaths = d.d; if (!d.a) P.alive = false; continue; }
@@ -6249,13 +5765,13 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, role: d.r || undefined, team: d.tm || undefined, camOn: !!d.cm });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
     r.gInv = Array.isArray(d.iv) ? d.iv.filter(k => WEAPONS[k]) : []; r.gBats = Array.isArray(d.bt) ? d.bt : null;
   }
   for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); if (VOICE.entityPeer[id]) closeVoice(VOICE.entityPeer[id]); }
-  VEH.applyNet(s.vh); syncGuestTrucks();
+  VEH.applyNet(s.vh);
   if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
   if (Array.isArray(s.dr)) levelSheds().forEach((sh, k) => syncShedDoor(sh, !!s.dr[k]));
   { const sh = typeof s.bk === 'number' ? lockableDoor() : null; if (sh) { const was = sh.locked; sh.locked = s.bk > 0; sh.lockHp = s.bk / 100 * sh.lock.hp; if (sh.locked && !was) doorClunk(sh); } }
@@ -6287,9 +5803,8 @@ function updateReplicas(dt, now) {
 }
 function showGuestResults(m) {
   matchOver = true;
-  const lost = m.ttl === 'The fort has fallen';
-  if (lost) sTone([392, 330, 262, 196], 0.18, 'triangle', 0.16); else sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  const title = m.ttl && MODE === 'defend' ? m.ttl : m.wid === NET.myId ? 'You win' : `${m.wn} wins`;
+  sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
+  const title = m.wid === NET.myId ? 'You win' : `${m.wn} wins`;
   showResults(title, String(m.sub || ''), (m.rows || []).map(r => [r[0], String(r[1]), r[2] | 0, r[3] | 0]), NET.myId);
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
@@ -6483,9 +5998,9 @@ loadModels().then(() => ensureLevel(selLevel)).then(() => {
   setPlayerModel(0);
   buildViewmodels();
   // The host switches to the chosen level (the fort unless a dev mode was picked) as soon as everything has loaded
-  if (NET.role === 'host') { WAVES = WAVE_SIZES.length; navDefer = true; switchLevel(selLevel); navDefer = false; resetMatch(); }
+  if (NET.role === 'host') { navDefer = true; switchLevel(selLevel); navDefer = false; resetMatch(); }
   else { buildPickups(); placeProps(); }
-  if (NET.role === 'host') { buildBots(botPlan()); if (MODE !== 'defend') bots.forEach(respawn); }
+  if (NET.role === 'host') { buildBots(botPlan()); bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = ''; READY = true;
   initPreview();
@@ -6507,10 +6022,7 @@ function loop(now) {
     RANGE.update(dt);
     bots.forEach(b => updateBot(b, dt));
     markVehicles(dt);
-    updateWaves(dt);
     updateTowerDoor(dt);
-    updateCannon(dt);
-    updateTrucks(dt);
     updateRemotes(dt);
     updateNades(dt);
     updateRockets(dt);
@@ -6532,9 +6044,6 @@ function loop(now) {
   updateLifts(dt);
   updateTowerDoorVis(dt);
   updateLockDoor(dt);
-  updateShells(dt);
-  updateCannonVis();
-  updateTrucksVis(dt);
   updateComputer();
   updateVM(dt);
   VEH.after(dt);
