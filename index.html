@@ -2719,7 +2719,7 @@ function measureCrouch(r) {
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
 const GRIPS = { pistol: { y: -0.035, z: 0.12 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 }, bazooka: { y: -0.16, z: 0.02 } };
-function setRigWeapon(rig, id) {
+function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife, a grenade) instead of the gun
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
   // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
@@ -2734,17 +2734,17 @@ function setRigWeapon(rig, id) {
   if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
     holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
-    rig.gunBone.add(holder); rig.gunVis = holder;
+    holder.userData.base = holder.matrix.clone(); rig.gunBone.add(holder); rig.gunVis = holder;
     return;
   }
   if (!m.gunDir) return;
-  const w = WEAPONS[id], holder = new THREE.Group(); holder.add(centeredClone(w.scene, w.yaw));
+  const w = WEAPONS[id] || {}, holder = new THREE.Group(); holder.add(obj || centeredClone(w.scene, w.yaw));
   // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
   // barrel along the aim direction. The baked-gun characters keep the old centred placement.
-  const gr = m.sway && GRIPS[id], at = m.gunHand.clone();
-  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
+  const gr = !obj && m.sway && GRIPS[id], at = m.gunHand.clone();
+  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else if (!obj) at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
   const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
-  holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T);
+  holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T); holder.userData.base = holder.matrix.clone();
   rig.gunBone.add(holder); rig.gunVis = holder;
 }
 const corpses = [];
@@ -2962,14 +2962,25 @@ function setPlayerModel(i) {
   P.rig.body = []; P.rig.root.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.colorWrite = false; o.material.depthWrite = false; P.rig.body.push(o); } });
   scene.add(P.rig.wrap);
 }
+// The knife and the grenade in your hand (they point down -z like the guns, and sit with their middle in the palm)
+function heldObject(kind) {
+  const g = new THREE.Group();
+  if (kind === 'knife') {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.12), toonMat({ color: 0x222222 })), bl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.2), toonMat({ color: 0xc9ced4 }));
+    bl.position.z = -0.16; h.castShadow = bl.castShadow = true; g.add(h, bl); g.position.z = -0.06; g.rotation.set(0.6, 0, -0.5); const o = new THREE.Group(); o.add(g); return o;
+  }
+  if (!NADE_MODEL) return null;
+  const c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g;
+}
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
 function updateSelfView() {
   const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
   const see = (tpK > 0.15 || bodyK > 0.5) && P.alive;
   if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
-  const want = RANGE.on ? RANGE.inHand() : curW;
-  if (r.held !== want) { r.held = want; if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
+  let want = RANGE.on ? RANGE.inHand() : curW;
+  if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
+  if (r.held !== want) { r.held = want; if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
   if (r.gunVis) r.gunVis.visible = see;
 }
 function updatePlayerRig(dt) {
@@ -2978,16 +2989,23 @@ function updatePlayerRig(dt) {
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.y = P.yaw + Math.PI;
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
-  if (bodyK > 0.01) fpvFit(r);
+  if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) r.gunVis.matrix.copy(r.gunVis.userData.base);
 }
 // First person: the gun hand moves (arm and all) to where the floating viewmodel gun used to be, so every character
 // holds every gun in the same place on screen, whatever the size of their arms
-const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3();
+const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
+const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42) };
 function fpvFit(r) {
-  const w = VMW[r.held]; if (!w || !r.gunVis || !r.upper.length) return;
+  const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip || !r.gunVis || !r.upper.length) return;
+  const gv = r.gunVis, base = gv.userData.base;
   r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
-  _fb.setFromObject(r.gunVis).getCenter(_fc);
-  _fd.copy(w.hip); const dist = _fd.length(); _fd.project(vmCam); _fd.z = 0.5;
+  if (base) { // the gun sits a little to the left of the hand (on screen), so the hand ends up on the right of the gun
+    _fd.set(-FPV_HAND_X * bodyK, 0, 0).applyQuaternion(camera.quaternion);
+    _fm.setFromMatrix4(r.gunBone.matrixWorld).invert(); _fd.applyMatrix3(_fm);
+    gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
+  }
+  _fb.setFromObject(gv).getCenter(_fc);
+  _fd.copy(hip); const dist = _fd.length(); _fd.project(vmCam); _fd.z = 0.5;
   _fd.unproject(camera).sub(camera.position).normalize().multiplyScalar(dist).add(camera.position).sub(_fc).multiplyScalar(bodyK);
   _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
   for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);

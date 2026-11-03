@@ -988,6 +988,7 @@
       return Object.assign({}, w, { auto: g.auto, burst: 0, rate: 1 / g.rate, mag: g.clip, reload: g.reload, pellets: g.count > 1 ? g.count : 0, dmg: g.body * K(), head: g.head * K(), botHead: 0, zones: false, oneShot: false, falloff: null, rangeSpread: 0, live: true });
     },
     updateGun,
+    handKind: () => slot().kind, // 'knife', 'throw' (the grenade), 'mine', 'gun', 'tube'
     inHand: () => slot().model || null, // the game's weapon id in your hands (none for the knife and the grenade)
     zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
     next(dir) { if (!P.alive) return; const can = [0, 1, 2, 3, 4].filter(canPick), i = can.indexOf(cur); pick(can[(i + dir + can.length) % can.length]); },
