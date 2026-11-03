@@ -3000,12 +3000,14 @@ const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.4
 // Where the gun hand is in the view, and how far the arm tips about the shoulder (positive: the gun points down): the hip hold,
 // or the reload (gun and hand drop down beside the body), the knife stab and the grenade throw. All camera-space, like the old viewmodel
 let fpvA2 = 0;
-const FPV_LONG = 0.4;
+const FPV_LONG = 0.45, FPV_OUT = new V3(0.07, -0.01, -0.12); // guns are held a little further out and to the right
+let fpvAimW = 1; // how much the gun is turned to point where the camera does (not while it hangs down for a reload)
+const _qd = new THREE.Quaternion(), _qb2 = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _cf = new V3(), _gz = new V3();
 const _fh = new V3(), RELOAD_AT = new V3(0.3, -0.5, -0.05), STAB_BACK = new V3(0.25, 0.02, -0.3), STAB_OUT = new V3(0.0, -0.12, -0.95), THROW_BACK = new V3(0.22, 0.04, -0.18), THROW_OUT = new V3(0.05, -0.05, -0.8);
 const sstep = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
 function fpvPose(r) {
   const hip = VMW[r.held] ? VMW[r.held].hip : HELD_HIP[r.held]; if (!hip) return;
-  _fh.copy(hip); _fh.z = Math.max(_fh.z, -FPV_LONG); fpvA2 = 0; r.hideHeld = false; // long guns reach back past the lens, so the arm stays out of the view
+  _fh.copy(hip); if (VMW[r.held]) _fh.add(FPV_OUT); _fh.z = Math.max(_fh.z, -FPV_LONG); fpvA2 = 0; fpvAimW = 1; r.hideHeld = false; // long guns reach back past the lens, so the arm stays out of the view
   if (r.held === 'knife' && knifeT > 0) {
     const t = 1 - knifeT / 0.6, a = sstep(0, 0.3, t), b = sstep(0.3, 0.55, t), c = sstep(0.55, 1, t);
     _fh.lerp(STAB_BACK, a).lerp(STAB_OUT, b).lerp(hip, c); fpvA2 = -0.5 * a * (1 - b) + 0.1 * b * (1 - c);
@@ -3015,7 +3017,7 @@ function fpvPose(r) {
     r.hideHeld = t >= 0.5; // the grenade leaves the hand
   } else if (P.reloading > 0 && VMW[r.held]) {
     const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
-    _fh.lerp(RELOAD_AT, k); fpvA2 = 1.5 * k;
+    _fh.lerp(RELOAD_AT, k); fpvA2 = 1.5 * k; fpvAimW = 1 - k;
   }
 }
 function fpvFit(r) {
@@ -3026,6 +3028,12 @@ function fpvFit(r) {
     _fd.set(-FPV_HAND_X * bodyK, 0, 0).applyQuaternion(camera.quaternion);
     _fm.setFromMatrix4(r.gunBone.matrixWorld).invert(); _fd.applyMatrix3(_fm);
     gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
+    if (VMW[r.held] && fpvAimW > 0.001) { // the wrist turns the gun so its barrel points where the camera does
+      _gz.set(0, 0, -1).transformDirection(gv.matrixWorld); _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      _qd.setFromUnitVectors(_gz, _cf); _qi.identity().slerp(_qd, fpvAimW * bodyK);
+      r.gunBone.getWorldQuaternion(_qb2); _qd.copy(_qb2).invert().multiply(_qi).multiply(_qb2); // into the wrist's own frame
+      gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(_fm4.makeRotationFromQuaternion(_qd)).multiply(base); gv.updateMatrixWorld(true);
+    }
   }
   _fb.setFromObject(gv).getCenter(_fc);
   // the old viewmodel camera had a narrower view, so widen its x and y to get the same spot on screen (a straight remap: the reload pose is behind the lens)
@@ -3033,6 +3041,7 @@ function fpvFit(r) {
   _fd.set(hip.x * K, hip.y * K, hip.z).applyMatrix4(camera.matrixWorld).sub(_fc).multiplyScalar(bodyK);
   _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
   for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);
+  r.wrap.updateMatrixWorld(true); // the muzzle (tracer, flash, smoke) reads the finished pose
 }
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
@@ -3342,7 +3351,7 @@ function _muzzleFx(id, p, d, own) {
   const sm = f.smoke;
   for (let i = 0; i < sm.count; i++) {
     const k = sm.count > 1 ? i / (sm.count - 1) : 0;
-    const at = p.clone().addScaledVector(d, (own ? 0.35 : 0.05) + k * 0.25);
+    const at = p.clone().addScaledVector(d, (own && bodyK <= 0.5 ? 0.35 : 0.05) + k * 0.25);
     const vel = d.clone().multiplyScalar(sm.speed * (0.4 + Math.random() * 0.6)).add(new V3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4));
     _puff(sm.tex, at, sm.size * (0.8 + Math.random() * 0.4), sm.life * (0.75 + Math.random() * 0.5), { color: sm.color, additive: sm.additive, grow: sm.grow, vel, rise: sm.rise, opacity: sm.opacity * (own ? 0.7 : 1), spin: 1.2 });
   }
@@ -3970,6 +3979,8 @@ const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
+  const mw = P.rig && VMW[P.rig.held];
+  if (bodyK > 0.5 && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
   if ((tpK > 0.5 || bodyK > 0.5) && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
