@@ -2843,7 +2843,10 @@ function animRig(r, dt, speed, crouch, pitch) {
   r.root.position.y = Math.abs(c) * 0.035 * A - C * r.model.crouchDrop;
   // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
   const lean = 0.3 * C;
-  poseUpper(r, lean - r.pt * (0.4 - 0.9 * (r === P.rig ? bodyK : 0)), -lean - r.pt * 0.6); // your own body leans back as you look down, so the camera stays clear of the chest
+  // Your own body in first person leans back whether you look up or down, so neither the chest nor the head gets into the view;
+  // the arms make up the difference, so the gun still follows the aim exactly
+  const fp = r === P.rig ? bodyK : 0, a1 = (lean - r.pt * 0.4) * (1 - fp) + (lean - Math.abs(r.pt) * 0.5) * fp;
+  poseUpper(r, a1, -r.pt - a1);
   if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
@@ -2975,6 +2978,19 @@ function updatePlayerRig(dt) {
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.y = P.yaw + Math.PI;
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
+  if (bodyK > 0.01) fpvFit(r);
+}
+// First person: the gun hand moves (arm and all) to where the floating viewmodel gun used to be, so every character
+// holds every gun in the same place on screen, whatever the size of their arms
+const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3();
+function fpvFit(r) {
+  const w = VMW[r.held]; if (!w || !r.gunVis || !r.upper.length) return;
+  r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
+  _fb.setFromObject(r.gunVis).getCenter(_fc);
+  _fd.copy(w.hip); const dist = _fd.length(); _fd.project(vmCam); _fd.z = 0.5;
+  _fd.unproject(camera).sub(camera.position).normalize().multiplyScalar(dist).add(camera.position).sub(_fc).multiplyScalar(bodyK);
+  _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
+  for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);
 }
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
@@ -4702,6 +4718,8 @@ function updateCamera(dt) {
     _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
     const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
     camera.position.addScaledVector(_fpvDir, f);
+    const m = P.rig && P.rig.model; // the short characters (Master, Apprentice) see from their own height
+    if (m && m.crouchDrop !== undefined) camera.position.y += Math.min(0, m.headY - 0.12 - m.crouchDrop * P.rig.cr - (camera.position.y - P.pos.y)) * bodyK;
   }
   tpK += ((tpOn() && !(mouseRight || tAim) ? 1 : 0) - tpK) * Math.min(1, dt * 10);
   if (tpK > 0.001) {
