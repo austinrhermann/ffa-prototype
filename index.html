@@ -556,7 +556,7 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
@@ -1069,7 +1069,7 @@ function toggleShed(i, e) { // host: E at a door
 }
 function lockDoor(sh, e) { // host: shut, unlocked, and the one locking it is inside, at the door
   if (sh.locked || sh.open || matchOver || !e.alive || !doorInside(e, sh) || nearShed(e) !== SHEDS.indexOf(sh)) return;
-  sh.locked = true; sh.lockHp = sh.lock.hp; sh.lockTeam = teamsOn() ? e.team : null; doorClunk(sh); waveNote(`${e.name} locked the bunker door`);
+  sh.locked = true; sh.lockHp = RANGE.doorHp('door', sh.lock.hp); sh.lockTeam = teamsOn() ? e.team : null; doorClunk(sh); waveNote(`${e.name} locked the bunker door`);
 }
 function damageBunker(amt) { // host
   const sh = lockableDoor(); if (!sh || !sh.locked || NET.role === 'guest' || matchOver) return;
@@ -1088,7 +1088,7 @@ function updateLockDoor(dt) {
     if (!P.alive || !keys.KeyE || nearShed(P) !== SHEDS.indexOf(sh) || !doorInside(P, sh) || sh.open || sh.locked || VEH.riding) H.on = false; // walked off, died, or it changed under them
     else if ((H.t += dt) >= sh.lock.hold) { H.on = false; if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'blk' }); } else lockDoor(sh, P); }
   }
-  const U = sh.lockUI, pct = sh.locked ? Math.max(1, Math.ceil(sh.lockHp / sh.lock.hp * 100)) : 0;
+  const U = sh.lockUI, pct = sh.locked ? Math.max(1, Math.ceil(sh.lockHp / RANGE.doorHp('door', sh.lock.hp) * 100)) : 0;
   U.bars.forEach(m => { m.visible = pct > 0; });
   if (!pct) U.shown = -1;
   else if (U.shown !== pct) {
@@ -3677,6 +3677,7 @@ function updateAmmo(dt, now) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
     a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
+      if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // nor ammo
       if (a.kind) { // a battery pack: you take what you can carry; a guest is sent it; a bot refills the old way
         if (!e.alive || Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
         if (e.isPlayer) { if (!RANGE.addBats(a.kind)) continue; }
@@ -3723,6 +3724,7 @@ function updatePickups(dt, now) {
     if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
     pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
+      if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // no picking up weapons from a seat
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
       if (Math.hypot(e.pos.x - pk.pos.x, e.pos.z - pk.pos.z) < 1.1 && Math.abs(e.pos.y - pk.pos.y) < 1.3 && giveWeapon(e, pk.id, pk.ammo)) {
         if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); }
@@ -4544,7 +4546,7 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Shooting Range (range.js fills this in) ----------
@@ -4674,8 +4676,9 @@ function updateCamera(dt) {
   punch *= Math.exp(-10 * dt);
   const ads = (mouseRight || tAim) && P.alive && P.reloading <= 0 && knifeT <= 0 && throwT <= 0;
   adsK += ((ads ? 1 : 0) - adsK) * Math.min(1, dt * 12);
-  zoomK = RANGE.on && !RANGE.zooms() ? 0 : adsK; // in the new weapon system only the Carbine and the Rifle zoom
-  camera.fov = 75 - (75 - WP().fov) * zoomK; vmCam.fov = 60 - 10 * zoomK;
+  zoomK = adsK; // every gun brings its sights up to the eye...
+  const fovK = RANGE.on && !RANGE.zooms() ? 0 : adsK; // ...but in the new weapon system only the Carbine and the Rifle zoom the view
+  camera.fov = 75 - (75 - WP().fov) * fovK; vmCam.fov = 60 - 10 * fovK;
   camera.updateProjectionMatrix(); vmCam.updateProjectionMatrix();
   P.eyeCur += ((P.h < STAND_H ? 1.05 : 1.6) - P.eyeCur) * Math.min(1, dt * 12);
   if (P.alive) {
@@ -4773,8 +4776,9 @@ function updateVM(dt) {
   knifeT -= dt; throwT -= dt; updateNadeVM();
   const kp = knifeT > 0 ? 1 - knifeT / 0.6 : 0;
   const ks = Math.max(0, Math.min(1, (kp - 0.2) / 0.6));
-  vm.visible = P.alive;
-  knifeVM.visible = P.alive && kp > 0.15 && kp < 0.85;
+  const inVeh = !!VEH.riding; // hands are on the wheel or the bench: no gun on screen
+  vm.visible = P.alive && !inVeh;
+  knifeVM.visible = P.alive && !inVeh && kp > 0.15 && kp < 0.85;
   if (knifeVM.visible) {
     // Blade points away from the player and sweeps right to left in a forward arc
     const e = ks * ks * (3 - 2 * ks), phi = 0.95 - 1.9 * e, R = 0.4 + Math.sin(ks * Math.PI) * 0.14;
@@ -5157,12 +5161,15 @@ function showLook() {
   for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) { $(id).value = LOOK[k]; $('o' + id).textContent = fmt(LOOK[k]); }
 }
 for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) $(id).oninput = e => {
+  if (NET.role === 'guest') { showLook(); note('The host sets the look for everyone', 2); return; }
   const v = e.target.type === 'color' ? e.target.value : +e.target.value; LOOK[k] = v; $('o' + id).textContent = fmt(v);
   applyLook(); try { localStorage.setItem('fortressLook3', JSON.stringify(LOOK)); } catch (err) {}
+  lookSend();
 };
 $('looklink').onclick = () => { showLook(); $('overlay').classList.add('looking'); };
 $('lkback').onclick = () => $('overlay').classList.remove('looking');
-$('lkreset').onclick = () => { LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); };
+let lookT = 0; const lookSend = () => { if (NET.role === 'host' && remotes.length) { clearTimeout(lookT); lookT = setTimeout(() => netFx({ t: 'look', l: LOOK }), 120); } };
+$('lkreset').onclick = () => { if (NET.role === 'guest') { note('The host sets the look for everyone', 2); return; } LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); lookSend(); };
 $('lkcopy').onclick = () => { const t = JSON.stringify(LOOK); navigator.clipboard.writeText(t).then(() => note('Look settings copied', 1.5)).catch(() => prompt('Look settings', t)); };
 $('next').onclick = () => {
   initAudio();
@@ -5380,7 +5387,7 @@ const GATE_LOCK = 30;
 const gateSiegeOn = () => teamsOn() && !!(LV && LV.gate && LV.gate.hp) && !gateOpen() && GATE.hp > 0 && !matchOver;
 function damageGate(amt) {
   if (!gateSiegeOn()) return;
-  GATE.hp = Math.max(0, GATE.hp - amt / LV.gate.hp * 100);
+  GATE.hp = Math.max(0, GATE.hp - amt / RANGE.doorHp('gate', LV.gate.hp) * 100);
   if (GATE.hp <= 0) { setGate(true); gateLock = GATE_LOCK; const d = LV.gate.doors; _boomFx(new V3((d.x0 + d.x1) / 2, d.y0 + 1.2, d.z), 1.2); waveNote('The gate has been broken open! It can be shut again in 30 seconds'); }
 }
 const nearGateDoor = e => { const d = LV && LV.gate && LV.gate.doors; return !!d && e.alive && Math.abs(e.pos.x - (d.x0 + d.x1) / 2) < 2.4 && Math.abs(e.pos.z - d.z) < 2.2 && Math.abs(e.pos.y - d.y0) < 1.5; };
@@ -5526,6 +5533,13 @@ function broadcast(m, except) { for (const r of remotes) if (r.conn !== except &
 function sendTo(r, m) { if (r && r.conn && r.conn.open) r.conn.send(m); }
 function netFx(m) { if (NET.role === 'host') { if (remotes.length) broadcast(m); } else if (NET.conn && NET.conn.open) NET.conn.send({ t: 'fx', m }); }
 function netSendHit(t, amt, w, head) { if (NET.conn && NET.conn.open && t.id) NET.conn.send({ t: 'hit', id: t.id, amt, w, head }); }
+// The host's look (sky, haze, sun, shading) is everyone's: a guest wears it for this game without saving it
+function useLook(o) {
+  if (!o || typeof o !== 'object') return;
+  const L = { ...LOOK_DEFAULT };
+  for (const k in L) { const v = o[k]; if (typeof v === typeof L[k] && (typeof v === 'number' ? Number.isFinite(v) : /^#[0-9a-f]{6}$/i.test(v))) L[k] = v; }
+  LOOK = L; applyLook();
+}
 function applyFx(m) {
   switch (m.t) {
     case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
@@ -5534,6 +5548,7 @@ function applyFx(m) {
     case 'sd': syncShedDoor(levelSheds()[m.k], !!m.o); break;
     case 'gr': sGrunt(m.id === NET.myId ? 1 : vol(v3(m.p), 85)); break;
     case 'fd': feed(m.k, m.v, m.i); break;
+    case 'look': if (NET.role === 'guest') useLook(m.l); break; // the host's sky and shading
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
@@ -5587,7 +5602,7 @@ function onGuestMsg(conn, m) {
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       setRemoteModel(r, m.model);
-      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), look: LOOK, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
       // after a long game, and a message that big closes the connection, so the guest never got in
       for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
@@ -5624,7 +5639,7 @@ function onGuestMsg(conn, m) {
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
-    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs') { applyFx(m.m); broadcast(m.m, conn); } break;
+    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(250, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
@@ -5682,7 +5697,7 @@ function snapshot() {
     vh: VEH.netSnapshot(),
     td: LV && LV.towerDoor ? ['open', 'closed', 'broken'].indexOf(TDOOR.state) : null,
     dr: levelSheds().map(sh => (sh.open ? 1 : 0)), // the shed and cellar doors
-    bk: (() => { const sh = lockableDoor(); return sh && sh.locked ? Math.max(1, Math.ceil(sh.lockHp / sh.lock.hp * 100)) : 0; })(), // the bunker door's lock: its health in percent, 0 when unlocked
+    bk: (() => { const sh = lockableDoor(); return sh && sh.locked ? Math.max(1, Math.ceil(sh.lockHp / RANGE.doorHp('door', sh.lock.hp) * 100)) : 0; })(), // the bunker door's lock: its health in percent, 0 when unlocked
   };
 }
 
@@ -5714,6 +5729,7 @@ function onHostMsg(m) {
       NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
+      if (m.look) useLook(m.look); // and sky
       NET.wantLevel = m.level; NET.holeQ = []; // the holes that come after the welcome ('hl') wait here until the level is in
       whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
         if (NET.wantLevel !== m.level) return;
@@ -5780,7 +5796,7 @@ function applySnapshot(s) {
   VEH.applyNet(s.vh);
   if (s.td !== null && s.td !== undefined && LV && LV.towerDoor) setTowerDoor(['open', 'closed', 'broken'][s.td] || 'open');
   if (Array.isArray(s.dr)) levelSheds().forEach((sh, k) => syncShedDoor(sh, !!s.dr[k]));
-  { const sh = typeof s.bk === 'number' ? lockableDoor() : null; if (sh) { const was = sh.locked; sh.locked = s.bk > 0; sh.lockHp = s.bk / 100 * sh.lock.hp; if (sh.locked && !was) doorClunk(sh); } }
+  { const sh = typeof s.bk === 'number' ? lockableDoor() : null; if (sh) { const was = sh.locked; sh.locked = s.bk > 0; sh.lockHp = s.bk / 100 * RANGE.doorHp('door', sh.lock.hp); if (sh.locked && !was) doorClunk(sh); } }
   const keys = new Set();
   for (const [key, wid, p, a] of s.pk) {
     keys.add(key);

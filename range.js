@@ -12,7 +12,7 @@
 // The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const LIFE = 32; // was 40 until 2026-11-03: 20% less (before that 20 until 2026-11-02, and 7, then 10)
+  const LIFE0 = 29; let LIFE = LIFE0; // everyone's health: the host's setting (game.life), 32 by default. Was 40 until 2026-11-03: 20% less (before that 20 until 2026-11-02, and 7, then 10)
   // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
   const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
   const _hc = new THREE.Color();
@@ -49,50 +49,64 @@
   // Pistol and Carbine are the same gun but for the barrel: the Pistol shoots well on the move, the Carbine when you stand and aim.
   const DEFAULTS = {
     guns: {
-      pistol:  { body: 2,  head: 4,  spread: 6,  grow: 0,  rate: 5,   clip: 10, count: 1,  reload: 1,   aim: 0.5,  moving: 0.1,  aimMove: 0.5, auto: false },
-      carbine: { body: 2,  head: 4,  spread: 4,  grow: 0,  rate: 5,   clip: 10, count: 1,  reload: 2,   aim: 0.15, moving: 3,    aimMove: 1,   auto: false },
-      izu:     { body: 1,  head: 2,  spread: 6,  grow: 20, rate: 12,  clip: 20, count: 1,  reload: 2,   aim: 1,    moving: 0.6,  aimMove: 1,   auto: true },
-      battery: { body: 1,  head: 2,  spread: 23, grow: 0,  rate: 0.5, clip: 1,  count: 20, reload: 2,   aim: 1,    moving: 0.3,  aimMove: 1,   auto: false },
-      rifle:   { body: 10, head: 20, spread: 2,  grow: 0,  rate: 2,   clip: 1,  count: 1,  reload: 1,   aim: 0.1,  moving: 4.05, aimMove: 1,   auto: false },
+      pistol:  { body: 3,  head: 6,  spread: 6,  grow: 0,  rate: 5,   clip: 10, count: 1,  reload: 1,   aim: 0.5,  moving: 0.1,  aimMove: 0.5, auto: false, fall: 0,   fallMin: 0.25 },
+      carbine: { body: 6,  head: 7,  spread: 4,  grow: 0,  rate: 5,   clip: 18, count: 1,  reload: 2,   aim: 0.15, moving: 3,    aimMove: 1,   auto: false, fall: 140, fallMin: 0.55 },
+      izu:     { body: 6,  head: 5,  spread: 6,  grow: 20, rate: 12,  clip: 20, count: 1,  reload: 2,   aim: 1,    moving: 5,    aimMove: 1,   auto: true,  fall: 0,   fallMin: 0.4 },
+      battery: { body: 5,  head: 6,  spread: 30, grow: 20, rate: 3,   clip: 1,  count: 20, reload: 1.7, aim: 1,    moving: 0.3,  aimMove: 1,   auto: false, fall: 60,  fallMin: 0.1 },
+      rifle:   { body: 12, head: 18, spread: 2,  grow: 0,  rate: 2,   clip: 1,  count: 1,  reload: 1,   aim: 0.1,  moving: 4.05, aimMove: 1,   auto: false, fall: 0,   fallMin: 0.25 },
     },
-    blast: { max: 20, ring: 0.3, show: true }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
+    blast: { max: 25, ring: 0.5, show: false }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
-    tube: { launch: 40, reload: 4.5, slow: 0.5 }, // launch: how hard it lobs the shell (the grenade throw is 25); slow: your speed while you carry it
-    knife: { front: 4, back: LIFE, reach: 2 },
+    tube: { launch: 40, reload: 1.6, slow: 1 }, // launch: how hard it lobs the shell (the grenade throw is 25); slow: your speed while you carry it
+    knife: { front: 4, back: 29, reach: 2 },
     move: { walk: 5, run: 20.5, jump: 12, crouch: 0.5 }, // spread added walking, running, in the air; crouching multiplies it
     targets: { strafe: 0.5, heal: 3 },       // strafe: lane dummies pace side to side at this speed (m/s); heal: your damage wears off after this long
-    cross: { ease: 0.2 },                    // how long the crosshair circle takes to catch up with the spread (s), easing in and out
+    cross: { ease: 0.2, opacity: 45 },       // ease: how long the crosshair circle takes to catch up with the spread (s); opacity: 0-100 (yours alone: the host's value isn't sent on)
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
-    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: false },
+    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: true },
     // In a game: you spawn with the Pistol loaded and startA spare A batteries; packs come back after packs seconds (rifle
     // rounds after rifle), weapons on their spots after weapons seconds
-    game: { startA: 1, packs: 30, rifle: 60, weapons: 25 },
+    game: { startA: 1, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
   };
+  const MAXLIFE = 200;
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
-  const SAVE = 'tse.range.v3';
+  const SAVE = 'tse.range.v4', SAVE_X = 'tse.range.cross';
   const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
-  if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
+  try { merge(S.cross, JSON.parse(localStorage.getItem(SAVE_X) || 'null')); } catch (e) {} // (a guest's own crosshair, kept apart from the host's numbers)
+  if (S.knife.back === 20) S.knife.back = LIFE0; // a knife from behind saved at the old full health still kills
   // damage saved when health was bigger can't be more than the health now (more than all of it kills just the same; the sliders stop at LIFE)
+  LIFE = Math.max(4, Math.min(MAXLIFE, S.game.life));
   for (const g of Object.values(S.guns)) for (const f of ['body', 'head']) if (g[f] > LIFE) g[f] = LIFE;
   S.knife.front = Math.min(S.knife.front, LIFE); S.knife.back = Math.min(S.knife.back, LIFE); S.blast.max = Math.min(S.blast.max, LIFE);
   // Saved in this browser; the host also sends them to everyone in the game (a moment after the last change)
   let sendT = 0;
   function save() {
-    try { localStorage.setItem(SAVE, JSON.stringify(S)); } catch (e) {}
+    try { if (NET.role !== 'guest') localStorage.setItem(SAVE, JSON.stringify(S)); localStorage.setItem(SAVE_X, JSON.stringify(S.cross)); } catch (e) {}
     if (NET.role === 'host' && remotes.length) { clearTimeout(sendT); sendT = setTimeout(() => netFx({ t: 'wset', s: S }), 120); }
   }
   // A guest plays by the host's settings (in memory only: their own saved ones are back next time they play alone)
   function useSettings(o) {
     if (!o || typeof o !== 'object') return;
+    const mine = S.cross; // the crosshair is yours
     for (const k in DEFAULTS) S[k] = merge(clone(DEFAULTS[k]), o[k]);
+    S.cross = mine; setLife(S.game.life);
     drawRings(); if (pitRings) pitRings.scale.setScalar(blastR());
   }
 
+  // Everyone's health: changing it keeps each one's share of it
+  function setLife(n) {
+    n = Math.max(4, Math.min(MAXLIFE, Math.round(+n) || LIFE0)); const was = LIFE; S.game.life = n; if (n === was) return;
+    LIFE = n; const f = n / was;
+    for (const e of ents) if (e.health > 0) e.health = Math.min(n, e.health * f);
+    myHp = Math.min(n, myHp * f);
+    for (const g of Object.values(S.guns)) for (const k of ['body', 'head']) g[k] = Math.min(g[k], n);
+  }
+  const fallK = (g, d) => (g.fall > 0 ? 1 - (1 - g.fallMin) * Math.min(1, d / g.fall) : 1); // damage left at distance d
   const on = () => MODE === 'range'; // the Shooting Range itself
   const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
-  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
+  const K = () => (live() ? 1 : maxHp(P) / LIFE); // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
@@ -390,11 +404,12 @@
       if (i < 4) tracer(start, hit ? hit.point : o.clone().addScaledVector(dir, 250), w.tracer, w.trW, w.trLife, true);
       if (!hit) continue;
       const ud = hit.object.userData;
-      if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += head ? g.head : g.body; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
-      else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += head ? g.head : g.body; a.head = a.head || head; byE.set(ud.ent, a); }
+      const fk = fallK(g, hit.distance);
+      if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += (head ? g.head : g.body) * fk; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
+      else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += (head ? g.head : g.body) * fk; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gas) shootGas(ud.gas, P);
-      else if (ud.gate) { gateDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
-      else if (ud.bdoor) { bdoorDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
+      else if (ud.gate) { gateDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
+      else if (ud.bdoor) { bdoorDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
@@ -629,7 +644,7 @@
       if (!on()) continue;
       it.mesh.rotation.y += dt * 1.5; it.mesh.position.set(it.pos.x, it.pos.y + 0.45 + Math.sin(now / 350) * 0.06, it.pos.z);
       if (!near(it.pos, 1.1)) { it.armed = true; continue; } // one you dropped waits until you've stepped off it
-      if (!it.armed || !P.alive) continue;
+      if (!it.armed || !P.alive || VEH.riding) continue;
       if (take(it)) { scene.remove(it.mesh); items.splice(i, 1); }
       else if (fullT <= 0) { fullT = 2; note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); }
     }
@@ -643,7 +658,7 @@
       if (!pk.active) { if ((pk.wait -= dt) <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
       pk.mesh.rotation.y += dt; pk.mesh.position.y = pk.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
       const a = S.ammo[pk.t], room = a.max - bats[pk.t];
-      if (!P.alive || room <= 0 || !near(pk.pos, 1)) continue;
+      if (!P.alive || VEH.riding || room <= 0 || !near(pk.pos, 1)) continue;
       const n = Math.min(a.pack, room); bats[pk.t] += n;
       pk.active = false; pk.wait = S.ammo.respawn; pk.mesh.visible = false;
       note(`+${n} ${n === 1 ? AMMO[pk.t] : AMMOS[pk.t]}`, 1);
@@ -795,10 +810,12 @@
   // ---------------------------------------------------------------- the Tab panel
   // Projectile rows: [key, label, min, max, step, unit, help, only this gun]
   const GUN_ROWS = [
-    ['body', 'Body damage', 1, LIFE, 1, '', ''],
-    ['head', 'Head damage', 1, LIFE, 1, '', ''],
+    ['body', 'Body damage', 1, 'life', 1, '', ''],
+    ['head', 'Head damage', 1, 'life', 1, '', ''],
     ['spread', 'Spread', 0, 30, 0.5, '', 'How wide the shots land: N covers a circle N × 10 cm across at 10 m (twice that at 20 m). 0 goes exactly where you aim.'],
     ['grow', 'Spread growth (recoil)', 0, 20, 0.5, '', 'Extra spread you build up holding the trigger: all of it after 8 shots in a row. It settles back once you stop.'],
+    ['fall', 'Damage falls off over', 0, 200, 5, 'm', 'Distance at which the damage has dropped to the amount below. 0: full damage at any range (the Master Rifle), a Battery Gun might use 30.'],
+    ['fallMin', 'Damage left at that range', 0, 1, 0.05, '×', 'Of the body and head damage above. It falls off in a straight line from point blank; past that range it stays here.'],
     ['rate', 'Rate of fire', 0.5, 20, 0.5, 'shots/s', ''],
     ['clip', 'Clip size', 1, 60, 1, 'shots', 'Shots per battery (or per load) before a reload.'],
     ['count', 'Pellets per shot', 1, 20, 1, '', 'Each pellet does the damage above.', 'battery'],
@@ -810,7 +827,7 @@
   // Other rows: [path, label, min, max, step, unit, help]
   const OTHER = [
     ['Explosive (F batteries, all three ways)', [
-      ['blast.max', 'Centre damage', 1, LIFE, 1, '', 'What a blast does in its middle ring. Each ring out does one less.'],
+      ['blast.max', 'Centre damage', 1, 'life', 1, '', 'What a blast does in its middle ring. Each ring out does one less.'],
       ['blast.ring', 'Ring width', 0.3, 3, 0.1, 'm', ''],
       ['throw.fuse', 'Grenade fuse', 0.5, 5, 0.25, 's', 'From pulling the pin. Hold the button to cook it.'],
       ['mine.arm', 'Mine arms after', 0, 5, 0.25, 's', ''],
@@ -821,8 +838,8 @@
       ['tube.slow', 'Carrying the F tube, you move at', 0.2, 1, 0.05, '×', 'Of your usual speed, whichever weapon is in your hands.'],
     ], 'blast'],
     ['Knife', [
-      ['knife.front', 'From the front', 1, LIFE, 1, '', ''],
-      ['knife.back', 'From behind', 1, LIFE, 1, '', ''],
+      ['knife.front', 'From the front', 1, 'life', 1, '', ''],
+      ['knife.back', 'From behind', 1, 'life', 1, '', ''],
       ['knife.reach', 'Reach', 1, 4, 0.1, 'm', ''],
     ]],
     ['Moving (each gun takes its share: Moving penalty)', [
@@ -843,9 +860,13 @@
       ['ammo.respawn', 'Packs come back after', 1, 60, 1, 's', 'And a weapon nobody has, held or lying around, comes back to its spot.'],
     ], 'ammo'],
     ['Crosshair', [
+      ['cross.opacity', 'Opacity', 0, 100, 5, '%', 'How solid the crosshair is: 0 hides it. Yours alone.'],
       ['cross.ease', 'Circle smoothing', 0.02, 0.5, 0.01, 's', 'How long the circle takes to follow the spread, easing in and out. The spread itself changes at once.'],
     ]],
     ['In a game', [
+      ['game.life', 'Everyone\'s health', 4, MAXLIFE, 1, '', 'The same for everyone, you, the bots and anyone who joins (the host\'s number). Damage above is out of this.'],
+      ['game.gateHp', 'Fort gate health', 50, 5000, 50, '', 'How much the gate takes to break (a gun\'s body damage counts five times, a blast ten). Takes effect the next time it\'s shut.'],
+      ['game.doorHp', 'Bunker door health', 20, 2000, 20, '', 'The same for the locked bunker door, from the next time it\'s locked.'],
       ['game.startA', 'Spare A batteries you spawn with', 0, 4, 1, '', 'Besides the Pistol, loaded.'],
       ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'Every weapon spot has its pack, and the level\'s ammo boxes are A or D packs (F where the grenades were).'],
       ['game.rifle', 'Rifle rounds come back after', 5, 180, 5, 's', ''],
@@ -860,21 +881,21 @@
   const setP = (p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k], S)[last] = v; };
   function buildPanel() {
     const s = slot();
-    let html = `<h2>Weapon settings</h2><p class="sub">Changes take effect as you drag, and are saved in this browser. Damage is out of ${LIFE} health.${on() ? '' : ' The game carries on while this is open. Everyone\'s shots use their own settings.'}</p>`;
+    let html = `<h2>Weapon settings</h2><p class="sub">${NET.role === 'guest' ? 'The host\'s settings apply to everyone in this game; only the crosshair is yours to change.' : 'Changes take effect as you drag, and are saved in this browser' + (NET.role === 'host' && remotes.length ? '; everyone in the game plays by them' : '') + '.'} Damage is out of ${LIFE} health.${on() ? '' : ' The game carries on while this is open.'}</p>`;
     if (!on()) html += `<div class="math">${[...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => `${e === P ? '<b>' : ''}${esc(e.name)}${e === P ? '</b>' : ''} ${e.kills}/${e.deaths}`).join(' · ')}</div>`;
     for (const sl of SLOTS) if (sl.kind === 'gun') {
       const g = gunOf(sl);
       html += `<details data-sec="${sl.id}"${sl === s ? ' open' : ''}><summary>${sl.name}<small>${AMMOS[sl.ammo]}</small></summary><div class="math" id="rm-${sl.id}">${killMath(g)}</div>`;
-      for (const [k, label, min, max, step, unit, help, only] of GUN_ROWS) if (!only || only === sl.id)
-        html += `<div class="row"><label for="rg-${sl.id}-${k}">${label}</label><output id="ro-${sl.id}-${k}">${fmt(g[k], step)} ${unit}</output><input type="range" id="rg-${sl.id}-${k}" data-g="${sl.id}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${g[k]}">${help ? `<div class="help">${help}</div>` : ''}</div>`;
+      for (const [k, label, min, max0, step, unit, help, only] of GUN_ROWS) if (!only || only === sl.id) { const max = max0 === 'life' ? LIFE : max0;
+        html += `<div class="row"><label for="rg-${sl.id}-${k}">${label}</label><output id="ro-${sl.id}-${k}">${fmt(g[k], step)} ${unit}</output><input type="range" id="rg-${sl.id}-${k}" data-g="${sl.id}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${g[k]}">${help ? `<div class="help">${help}</div>` : ''}</div>`; }
       html += `<label class="chk"><input type="checkbox" data-g="${sl.id}" data-k="auto"${g.auto ? ' checked' : ''}> Full auto (hold to keep firing)</label><button type="button" class="sm" data-reset="${sl.id}">Reset ${sl.name}</button></details>`;
     }
     for (const [title, rows, math] of OTHER) {
       if (title === 'Dummies' && !on()) continue; // (the range's)
       const open = (math === 'blast' && !s.model) || (math === 'blast' && s.kind === 'tube') || (title === 'Knife' && s.kind === 'knife');
       html += `<details${open ? ' open' : ''}><summary>${title}</summary>${math === 'blast' ? `<div class="math" id="rm-blast">${blastMath()}</div><label class="chk"><input type="checkbox" data-p="blast.show"${S.blast.show ? ' checked' : ''}> Show the rings where a blast goes off</label>` : ''}${math === 'ammo' ? `<label class="chk"><input type="checkbox" data-p="ammo.infinite"${S.ammo.infinite ? ' checked' : ''}> Infinite ammo (to test a gun on its own)</label>` : ''}`;
-      for (const [p, label, min, max, step, unit, help] of rows)
-        html += `<div class="row"><label for="rp-${p}">${label}</label><output id="rq-${p}">${fmt(getP(p), step)} ${unit}</output><input type="range" id="rp-${p}" data-p="${p}" min="${min}" max="${max}" step="${step}" value="${getP(p)}">${help ? `<div class="help">${help}</div>` : ''}</div>`;
+      for (const [p, label, min, max0, step, unit, help] of rows) { const max = max0 === 'life' ? LIFE : max0;
+        html += `<div class="row"><label for="rp-${p}">${label}</label><output id="rq-${p}">${fmt(getP(p), step)} ${unit}</output><input type="range" id="rp-${p}" data-p="${p}" min="${min}" max="${max}" step="${step}" value="${getP(p)}">${help ? `<div class="help">${help}</div>` : ''}</div>`; }
       html += '</details>';
     }
     html += `<div class="btns"><button type="button" class="go" id="r-go">Back to shooting (Tab)</button>${on() ? '<button type="button" id="r-items">Put the weapons back</button>' : ''}<button type="button" id="r-mines">Clear mines</button><button type="button" id="r-reset">Reset everything</button><button type="button" id="r-copy">Copy settings</button></div>
@@ -893,11 +914,15 @@
       const p = el.dataset.p;
       if (el.type === 'checkbox') setP(p, el.checked);
       else { setP(p, +el.value); const row = OTHER.flatMap(o => o[1]).find(r => r[0] === p); panel.querySelector(`#rq-${CSS.escape(p)}`).textContent = `${fmt(getP(p), row[4])} ${row[5]}`; }
+      if (p === 'game.life') { setLife(S.game.life); buildPanel(); panel.querySelector('[data-p="game.life"]').focus(); }
       const bm = panel.querySelector('#rm-blast'); if (bm) bm.textContent = blastMath();
       if ((p === 'blast.ring' || p === 'blast.max') && pitRings) { drawRings(); pitRings.scale.setScalar(blastR()); }
       save();
     });
     panel.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { S.guns[b.dataset.reset] = clone(DEFAULTS.guns[b.dataset.reset]); save(); buildPanel(); });
+    if (NET.role === 'guest') { // the host's numbers: everything but your own crosshair is read-only
+      panel.querySelectorAll('input,button.sm,#r-reset').forEach(el => { if (!(el.dataset.p || '').startsWith('cross.')) el.disabled = true; });
+    }
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
     if (on()) panel.querySelector('#r-items').onclick = e => { resetGround(); e.target.textContent = 'Weapons back'; };
     panel.querySelector('#r-mines').onclick = e => { clearMines(true); e.target.textContent = 'Mines cleared'; };
@@ -927,7 +952,8 @@
   }
 
   Object.defineProperty(RANGE, 'on', { get: live, configurable: true }); // the new weapons are in charge
-  Object.defineProperty(RANGE, 'range', { get: on, configurable: true }); // the Shooting Range itself
+  Object.defineProperty(RANGE, 'range', { get: on, configurable: true });
+  Object.defineProperty(RANGE, 'life', { get: () => LIFE, configurable: true }); // the Shooting Range itself
   Object.defineProperty(RANGE, 'panelOpen', { get: () => panelOpen, configurable: true });
   Object.assign(RANGE, {
     onLevel() {
@@ -946,7 +972,7 @@
       dummies.forEach(resetDummy); clearMines(); resetGround(); myHp = LIFE; myDownT = 0;
     },
     kit() { if (live()) kit(); },
-    life: LIFE, give, addBats, packMesh, knifeDmg,
+    doorHp: (kind, base) => (live() ? (kind === 'gate' ? S.game.gateHp : S.game.doorHp) : base), give, addBats, packMesh, knifeDmg,
     mine(p, owner) { if (live() && p.distanceTo(owner.pos) < 5) addMine(p, owner); }, // a guest set one (host)
     fx(m) { if (m.t === 'wset') useSettings(m.s); else mineFx(m); }, // the host's settings and mines, on a guest
     cfg: () => S,
@@ -1023,6 +1049,7 @@
       if (killT > 0) css = dsp + ';width:0;height:0;background:none;border:0'; // the X stands in for the circle
       else if (crossR < 2.5) css = `${dsp};width:5px;height:5px;background:${col};border:0`;
       else { const d = (2 * crossR).toFixed(1) + 'px'; css = `${dsp};width:${d};height:${d};background:none;border:1.5px solid ${col}`; }
+      css += `;opacity:${S.cross.opacity / 100}`;
       if (css !== crossCss) { crossCss = css; cross.style.cssText = css; } // (only when it changes: a style write every frame makes the page redo its layout)
       for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.t -= dt; f.m.material.opacity = Math.min(0.9, f.t / 1.2); if (f.t <= 0) { scene.remove(f.m); f.m.material.dispose(); flashes.splice(i, 1); } }
       const s = slot();
