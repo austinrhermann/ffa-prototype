@@ -4,7 +4,7 @@ Browser free-for-all shooter built with three.js. Characters, weapons and props 
 
 ## Title page
 
-The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image). Everything starts loading as soon as the page opens. **Defend the Fort** is the game; it's the only choice on the title page.
+The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image). Loading starts as soon as the page opens: the characters, the guns and the level you start on before **Play**, then the other levels behind the menu (a level picked before it's in shows **Loading level…** on Play). The **Fortress Free-For-All** is the game.
 
 The other modes are for the host and for development. Add `?dev` to the address and the title page shows them too (it applies to that page load only):
 
@@ -15,9 +15,9 @@ The other modes are for the host and for development. Add `?dev` to the address 
 
 Every menu (start, join, pause and round results) looks like the title page: big white heading, solid black buttons, over the title picture (or over the game while paused). It fits on one screen, and on a phone it stacks and scrolls.
 
-- The fort's start screen: **Play**, **Invite an apprentice** (the normal invite), **Invite pirates** (`&team=pirates`, joins as an attacker), **How to play**, **Settings** and **‹ Back**, with your name, character and the chat beside them.
+- The fort's start screen: **Play**, **Copy invite link**, **How to play**, **Settings** and **‹ Back**, with your name, character and the chat beside them.
 - **How to play** has the rules and the controls.
-- **Settings** is all buttons: your role with a friend (Master or Apprentice), difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim, god mode and proximity voice chat. Sensitivity and the aim setting are remembered in your browser.
+- **Settings** is all buttons: bots on each side, difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim, god mode and proximity voice chat. Sensitivity and the aim setting are remembered in your browser.
 - The pause screen (Esc) has **Resume**, **Restart game**, the same **How to play** and **Settings**, and **Main menu**.
 - **Play again** on the title page starts the last game you hosted.
 
@@ -136,23 +136,18 @@ The Fortress level (`?level=fortress`, the default) has grown (Austin's drawing)
 
 The new ground is built by `tools/build_fortress_ext.py` (the command is at the top of the script): it adds a second ground mesh to the Fortress set, painted in the old ground's own palette (the dominant colours of its map: olive, dark olive, dark green, taupe, and the pale grey-pink of the road), and writes `models/Fortress_ext.glb` (picture, with its texture, and the roads) and `models/Fortress_ext_col.glb` (collision); the game adds them to the Fortress set when it loads. `tools/fortress_ext_terrain.py` has the shape: `DESIGN` is traced from the drawing (coast, divider, roads, clearings), and the new ground lies over the old, higher where it fills the old coast's banks and 0.6 m under it elsewhere, so the two meet without a seam. The hill over the bunker (`FORT_BUNKER.mound`) is made by `regradeGround` too, raising the old ground, with a level apron in front of the door (`mound.apron`): the door is cut into a cross slope that was a metre higher on its right than its left. The bunker, its tunnel and its door are built when the level loads (`FORT_BUNKER`, `buildBunker`, sharing `tunnelKit` and `buildCellar` with `buildTunnel`), and the Fortress's definition (`levelFortress`) has the spawns, pickups and the bots' ways in.
 
-## Fortress defend
+## The fort
 
-The **Fortress** level (open it directly with `?level=fortress`) is James's tower defense: a hilltop fort on an island that the players hold against three waves of Midas soldiers (4, then 8, then 12). Each wave sets off as soon as the last one is beaten; the trucks' drive in is the only breather. If any defender dies, the fort is lost. Beat all three waves and nobody shoots at you any more: the island is yours to explore, and Esc shows **Play again**. Settings has the difficulty and your role; the pause screen has Restart game.
+The **Fortress** level (`?level=fortress`, the default) is James's hilltop fort on an island, played as a team free-for-all (Midas against the Rebels). (It started as a tower defense, Defend the Fort, with waves of pirates riding in by truck, a Master, an Apprentice and the Computer's cannon; that mode was taken out on 2026-11-03.)
 
-- **The Master**: Master rifle (20 shots in the fort; an ammo box adds 10), laser pistol, 4 grenades, double health (160). Plays alone if nobody else joins.
-- **The Apprentice**: laser pistol only. Works the computer in the tower room (press **E** next to it): a map with every attacker on it, and **Space** opens or closes the gate. The gate starts shut and never moves by itself.
-- **The Computer**: always an NPC. Fires the cannon on the wall over the gate by itself (a grenade-sized blast, then 10 s to recharge), trucks first. It only engages targets more than 25 m out from the wall, so it never reaches the gate: up close, the defenders have to do the work.
-- Alone you're the Master. With a friend, the host picks Master or Apprentice and the friend gets the other. Everyone after the second joins the attackers as a Midas soldier (carbine and pistol); a dead attacker can press **E** to take over the NPC soldier closest to the gate.
-- **Trucks**: the attackers ride in, 4 to a truck, along the road from behind the hill (out of sight from the fort for the first half of the drive). The trucks are the asset library's Cargo Truck with its container back (`models/Cargo_Truck.glb`, see below), driven as real vehicles (James's jeep tuning, from `vehicles.js`) by an NPC: it follows the road, drives right up to the gate, inside the cannon's minimum range (later trucks queue behind the ones already parked, including earlier waves'), and the soldiers pile out of the container's open back. Once a truck is empty it's anyone's: walk up to the left side to **drive**, the right side to **ride along**, or the back to **climb into the container** (six seats on two benches). Passengers can shoot from their seats; the driver can't. Trucks can be shot (bullets barely scratch them; the Master's rifle does real damage), grenaded and shelled. A destroyed truck turns into the burnt wreck, anyone in it bails out, and soldiers still in the back jump out hurt.
-- **Trucks are cover**, parked or wrecked: boxes round the cab, the container and the chassis stop bullets (yours and the bots'), the bots' line of sight and grenade blasts. Hide behind one and the pirates can't see or shoot you; they hide behind them too. Soldiers walk round trucks, not through them. Riding inside one hides you, and you can still shoot out of it.
-- There are no other vehicles in the fort (the courtyard motorcycle is gone; Test Drive still has it).
-- **Leaning out**: press up against the parapet on the wall walk (or the tower room's front window) and look down, and your head goes out over the edge so you can shoot the attackers at the gate. Once you're out you can look left, right and up without pulling back in; step back from the wall to come in.
-- **Tower door**: the doorway from the back corridor into the tower's lower stair room has a door, open at the start. A defender presses **E** beside it to close and lock it (E again opens it). Attackers pressed against it break it down in about 20 attacker-seconds (two soldiers: 10 s); once broken it stays broken.
-- **The roof**: in the computer room, walk up to the back window and press **E** to climb out onto a small balcony. A ladder beside the window goes up to the roof (a good rifle spot and a last stand). E at the window climbs back in. Bots don't follow you up.
-- An invisible fence runs along the rim of the valley between the fort and the hill so soldiers stay on the road side. The cannon's blast radius is 5.7 m (it used to be 8).
-- Attackers batter the gate (two doors at the courtyard end of the passage, swinging inward; it only breaks once). Once it's open they come in and hunt the defenders anywhere in the fort, on a walking map of every floor the host builds when the level loads (it leaves out anywhere a body wouldn't fit at head or waist height, such as along the side of a staircase).
-- White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room (attackers can't use them; they restock after each wave). Attackers move at 70% speed, carry Midas carbines and don't throw grenades. They shoot whenever they can see any of you, on the way up as well as inside: a head over the parapet or someone leaning out is a smaller target, but not a safe one. Dead pirates drop their carbines for the defenders to pick up, and there's a shotgun in the courtyard.
+- **The Computer** in the tower room: press **E** next to it for a map with everyone on it; **Space** opens or closes the gate.
+- **Gate**: two doors at the courtyard end of the passage, swinging inward. While it's shut it has a health bar; Midas bots and everyone's shots wear it down until it gives way, and once it's been broken open it can't be shut again for 30 s. E at the open gate (or the computer) shuts it, whole again.
+- **Leaning out**: press up against the parapet on the wall walk (or the tower room's front window) and look down, and your head goes out over the edge. Once you're out you can look left, right and up without pulling back in; step back from the wall to come in.
+- **Tower door**: the doorway from the back corridor into the tower's lower stair room has a door, open at the start. A player presses **E** beside it to close and lock it (E again opens it). Bots pressed against it break it down in about 20 bot-seconds (two bots: 10 s); once broken it stays broken.
+- **The roof**: in the computer room, walk up to the back window and press **E** to climb out onto a small balcony. A ladder beside the window goes up to the roof. E at the window climbs back in. Bots don't follow you up.
+- An invisible fence runs along the rim of the valley between the fort and the hill so bots stay on the road side.
+- The bots find their way on a walking map of every floor the host builds when the level loads (it leaves out anywhere a body wouldn't fit at head or waist height, such as along the side of a staircase).
+- White health boxes in the courtyard, on the wall walk, in the back corridor and in the tower room.
 - **Look**: the fort is lit the way the Blender renders are, by their compositor's own rules (`tools/build_fortress.py` reads them out of the set):
   - **Where the sun reaches is baked.** Every surface of the set carries the render's lit-or-shadow mask (Cycles, from the render's sun lamp, with its threshold), so the fort's shadows are the render's: dark interiors, no light leaking through walls, no flickering edges. Real-time shadows are only for what moves (characters, trucks, doors), and what moves is lit by a grid of where the sun reaches (`models/Fortress_v5_sun.png`), so a soldier walking into the tower goes dark with it, and so does your gun.
   - **The renders' colours**: lit surfaces at the renders' exposure, shadowed ones much darker (a touch lighter than the renders', so attackers in shadow stay visible), a blue haze that grows with distance from 20 m to 550 m, and the renders' sky gradient, deep blue overhead.
@@ -185,7 +180,7 @@ The file holds the body, the wreck, a left and a right wheel, the steering wheel
 ## Multiplayer
 
 - Open the site: you're the **host**. The start screen shows an invite link (`?join=<id>`) to send to friends.
-- The host's browser runs the match: level, bots, difficulty and score limit (or the waves on Fortress), plus all scoring, waves, pickups, grenades and gas cans.
+- The host's browser runs the match: level, bots, difficulty and score limit, plus all scoring, pickups, grenades and gas cans.
 - **Guests** opening the link only pick a name and character, then join.
 - Networking is peer-to-peer WebRTC via [PeerJS](https://peerjs.com). The free public PeerJS server is used only to introduce players; game traffic goes directly between browsers, with a public TURN relay as a fallback for strict networks.
 - If the host closes the tab, the match ends for everyone.
@@ -231,7 +226,7 @@ These are drawn in code for now. To use your own art, add PNGs to an `fx/` folde
 
 Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike; called the Uzi in game). It's the SMG: 16 shots a second for less damage per hit than the Midas Carbine, so it wins up close, but it sprays (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (full damage to 10 m, half from 30 m; `falloff` in `WEAPONS.uzi`, bots too). 32-round magazine, quicker reload. Its sound, `sounds/uzi.wav`, is original, made in code and levelled to match the carbine. The numbers are a first draft in `WEAPONS.uzi`.
 
-It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link; the older `?give=cobray` also works): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
+It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
 
 ## Headshots and the Master rifle
 

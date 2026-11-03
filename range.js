@@ -72,26 +72,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
   const SAVE = 'tse.range.v3';
-  // Older saves: damage stays as it was tuned with 7 health (v1); the brief 10-health version (v2) scaled it up by 10/7, so
-  // that comes back down. A knife from behind that killed then still kills.
-  function oldSave() {
-    const read = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
-    let o = read('tse.range.v2'), was = 10;
-    if (o) {
-      const k = v => Math.max(1, Math.round(v * 7 / 10));
-      for (const g of Object.values(o.guns || {})) for (const f of ['body', 'head']) if (typeof g[f] === 'number') g[f] = k(g[f]);
-      if (o.knife && typeof o.knife.front === 'number') o.knife.front = k(o.knife.front);
-      if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.round(o.blast.ring * 100 / 7) / 10;
-    } else { o = read('tse.range.v1'); was = 7; }
-    if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? LIFE : o.knife.back;
-    return o;
-  }
-  // Aiming used to be one setting for every gun (move.aim); a save from then gives it to the guns that aim.
-  function aimPerGun(o) {
-    if (o && o.move && typeof o.move.aim === 'number') for (const id of ['pistol', 'carbine', 'rifle']) { const g = o.guns && o.guns[id]; if (g && g.aim === undefined) g.aim = o.move.aim; }
-    return o;
-  }
-  const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
+  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
   if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
   // damage saved when health was bigger can't be more than the health now (more than all of it kills just the same; the sliders stop at LIFE)
   for (const g of Object.values(S.guns)) for (const f of ['body', 'head']) if (g[f] > LIFE) g[f] = LIFE;
@@ -110,8 +91,8 @@
   }
 
   const on = () => MODE === 'range'; // the Shooting Range itself
-  const live = () => MODE !== 'drive' && MODE !== 'defend'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
-  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1: under ?dev everyone has LIFE)
+  const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
+  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
@@ -268,7 +249,7 @@
   function placeMine() {
     const q = aimQ(), dir = new V3(0, 0, -1).applyQuaternion(q);
     ray.set(myEye, dir); ray.far = 3.5;
-    const hit = ray.intersectObjects([...W.meshes, ...W.floors], false)[0];
+    const hit = castShot(ray, [...W.meshes, ...W.floors]);
     let p;
     if (hit && hit.face && hit.face.normal.y > 0.5) p = hit.point.clone();
     else { const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), x = P.pos.x + fx * 1.2, z = P.pos.z + fz * 1.2, gy = groundAt(x, z, P.pos.y + 1); p = new V3(x, gy === null ? P.pos.y : gy, z); }
@@ -345,9 +326,8 @@
         damage(e, d * K(), owner, 'frag', false);
         if (owner === P && e !== P) hitFeedback(false, kill);
       }
-      // gas cans and trucks, as the game's blasts did
+      // gas cans, as the game's blasts did
       for (const g of GASCANS) if (g.alive && g.pos.distanceTo(o) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
-      for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, ringDmg(d) * K() * TRUCK.blastK); }
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
       if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too
         if (gateSiegeOn()) { const dr = LV.gate.doors, dd = Math.max(0, new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5), dm = ringDmg(dd); if (dm > 0) damageGate(dm * K() * DOOR_BLAST_K); }
@@ -380,7 +360,7 @@
   function shotLine(dir, targets) {
     const c = camera.position; if (c.distanceToSquared(myEye) < 1e-4) return [myEye, dir];
     const s = c.clone().addScaledVector(dir, Math.max(0, myEye.clone().sub(c).dot(dir)));
-    ray.set(s, dir); ray.far = 250; const h = ray.intersectObjects(targets, false)[0];
+    ray.set(s, dir); ray.far = 250; const h = castShot(ray, targets);
     const p = h ? h.point : s.addScaledVector(dir, 250);
     return [myEye, p.sub(myEye).normalize()];
   }
@@ -397,7 +377,6 @@
     if (!on()) {
       for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
       for (const gc of GASCANS) if (gc.alive) targets.push(gc.px);
-      for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
     }
     // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
     if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
@@ -407,14 +386,13 @@
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
       const [o, dir] = shotLine(new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q), targets);
       ray.set(o, dir); ray.far = 250;
-      const hit = ray.intersectObjects(targets, false)[0];
+      const hit = castShot(ray, targets);
       if (i < 4) tracer(start, hit ? hit.point : o.clone().addScaledVector(dir, 250), w.tracer, w.trW, w.trLife, true);
       if (!hit) continue;
       const ud = hit.object.userData;
       if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += head ? g.head : g.body; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
       else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += head ? g.head : g.body; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gas) shootGas(ud.gas, P);
-      else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
       else if (ud.gate) { gateDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bdoor) { bdoorDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
@@ -712,7 +690,7 @@
   const cross = document.createElement('div'); cross.id = 'rcross';
   const hpEl = document.createElement('div'); hpEl.id = 'rhp';
   document.body.append(slotsEl, card, panel, hpEl); ($('hud') || document.body).append(cross);
-  let crossR = 0, crossV = 0, hitT = 0, hitCol = '#fff', killT = 0;
+  let crossR = 0, crossV = 0, hitT = 0, hitCol = '#fff', killT = 0, crossCss = '';
   cross.innerHTML = '<i></i><i></i>'; // the kill X's two strokes
   // A health circle over each player's head (and over their name when it shows), so you can see who's hurt
   function hpDot(e) {
@@ -1041,9 +1019,11 @@
       hitT -= dt; killT -= dt;
       const col = hitT > 0 ? hitCol : '#fff', dsp = 'display:' + cross.style.display;
       cross.classList.toggle('kill', killT > 0);
-      if (killT > 0) cross.style.cssText = dsp + ';width:0;height:0;background:none;border:0'; // the X stands in for the circle
-      else if (crossR < 2.5) cross.style.cssText = `${dsp};width:5px;height:5px;background:${col};border:0`;
-      else { const d = (2 * crossR).toFixed(1) + 'px'; cross.style.cssText = `${dsp};width:${d};height:${d};background:none;border:1.5px solid ${col}`; }
+      let css;
+      if (killT > 0) css = dsp + ';width:0;height:0;background:none;border:0'; // the X stands in for the circle
+      else if (crossR < 2.5) css = `${dsp};width:5px;height:5px;background:${col};border:0`;
+      else { const d = (2 * crossR).toFixed(1) + 'px'; css = `${dsp};width:${d};height:${d};background:none;border:1.5px solid ${col}`; }
+      if (css !== crossCss) { crossCss = css; cross.style.cssText = css; } // (only when it changes: a style write every frame makes the page redo its layout)
       for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.t -= dt; f.m.material.opacity = Math.min(0.9, f.t / 1.2); if (f.t <= 0) { scene.remove(f.m); f.m.material.dispose(); flashes.splice(i, 1); } }
       const s = slot();
       // What's in your hands: a gun is the game's own viewmodel; the knife, the grenade and the mine are drawn here
@@ -1060,7 +1040,7 @@
       if (show && on() && (cardT -= dt) <= 0) {
         cardT = 0.1; aimT = null;
         ray.set(camera.position, new V3(0, 0, -1).applyQuaternion(aimQ())); ray.far = 250;
-        const hit = ray.intersectObjects([...W.meshes, ...dummyParts()], false)[0];
+        const hit = castShot(ray, [...W.meshes, ...dummyParts()]);
         if (hit && hit.object.userData.rangeT) aimT = { label: hit.object.userData.rangeT.label, d: hit.distance };
         drawCard();
       }
