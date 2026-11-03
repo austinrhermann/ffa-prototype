@@ -72,26 +72,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
   const SAVE = 'tse.range.v3';
-  // Older saves: damage stays as it was tuned with 7 health (v1); the brief 10-health version (v2) scaled it up by 10/7, so
-  // that comes back down. A knife from behind that killed then still kills.
-  function oldSave() {
-    const read = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
-    let o = read('tse.range.v2'), was = 10;
-    if (o) {
-      const k = v => Math.max(1, Math.round(v * 7 / 10));
-      for (const g of Object.values(o.guns || {})) for (const f of ['body', 'head']) if (typeof g[f] === 'number') g[f] = k(g[f]);
-      if (o.knife && typeof o.knife.front === 'number') o.knife.front = k(o.knife.front);
-      if (o.blast && typeof o.blast.ring === 'number') o.blast.ring = Math.round(o.blast.ring * 100 / 7) / 10;
-    } else { o = read('tse.range.v1'); was = 7; }
-    if (o && o.knife && typeof o.knife.back === 'number') o.knife.back = o.knife.back >= was ? LIFE : o.knife.back;
-    return o;
-  }
-  // Aiming used to be one setting for every gun (move.aim); a save from then gives it to the guns that aim.
-  function aimPerGun(o) {
-    if (o && o.move && typeof o.move.aim === 'number') for (const id of ['pistol', 'carbine', 'rifle']) { const g = o.guns && o.guns[id]; if (g && g.aim === undefined) g.aim = o.move.aim; }
-    return o;
-  }
-  const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
+  const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
   if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
   // damage saved when health was bigger can't be more than the health now (more than all of it kills just the same; the sliders stop at LIFE)
   for (const g of Object.values(S.guns)) for (const f of ['body', 'head']) if (g[f] > LIFE) g[f] = LIFE;
@@ -111,7 +92,7 @@
 
   const on = () => MODE === 'range'; // the Shooting Range itself
   const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
-  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1: under ?dev everyone has LIFE)
+  const K = () => maxHp(P) / LIFE; // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);

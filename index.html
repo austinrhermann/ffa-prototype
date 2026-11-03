@@ -887,7 +887,7 @@ function levelDrive() {
   };
 }
 // Shooting Range (range.js builds the yard, the dummies and the weapon settings): one player, every weapon on the ground with its ammo.
-// It's where the simpler weapon system (7 health, damage 1-7, one shared explosive) gets dialled in.
+// It's where the simpler weapon system (32 health each, the damage and the batteries in range.js) gets dialled in.
 function levelRange() {
   return {
     mesh: 'RangeYard', collide: 'RangeYard_col', mode: 'range',
@@ -3822,9 +3822,9 @@ function initPlayerWeapons() {
   P.ammo = WEAPONS.pistol.mag; P.reserve = WEAPONS.pistol.startRes;
   P.ammoBy = { pistol: { mag: P.ammo, res: P.reserve } };
   selectWeapon('pistol', true);
-  // Testing aid: ?give=<gun> (e.g. ?give=uzi) adds that gun to your loadout every time you spawn. ?give=cobray (its first name) still works
-  const give = ({ cobray: 'uzi' })[params.get('give')] || params.get('give'); if (give && give !== 'pistol' && WEAPONS[give]) giveWeapon(P, give);
   RANGE.kit(); // the range hands you everything
+  // Testing aid: ?give=<gun> (e.g. ?give=uzi) adds that gun to your loadout every time you spawn (after the kit, which would clear it)
+  const give = params.get('give'); if (give && give !== 'pistol' && WEAPONS[give]) giveWeapon(P, give);
 }
 function syncAmmo() { if (P.ammoBy && P.ammoBy[curW]) { P.ammoBy[curW].mag = P.ammo; P.ammoBy[curW].res = P.reserve; } }
 function selectWeapon(id, instant) {
@@ -4035,7 +4035,7 @@ function updateCook(dt) {
 
 // Bots
 const BOT_DMG = 0.55;
-const BW = id => (RANGE.on ? RANGE.botW(id) : WEAPONS[id]); // a bot's gun: under ?dev, the new weapon numbers
+const BW = id => (RANGE.on ? RANGE.botW(id) : WEAPONS[id]); // a bot's gun: the new weapon numbers wherever the new weapons are on
 // A missed bot bullet flies on past the aim point: the hole goes where it lands, and the tracer ends there
 const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {

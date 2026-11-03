@@ -226,7 +226,7 @@ These are drawn in code for now. To use your own art, add PNGs to an `fx/` folde
 
 Mike's machine pistol (`models/Cobray_M11.glb`, modelled on a Cobray M11 in the style of James's guns and painted by Mike; called the Uzi in game). It's the SMG: 16 shots a second for less damage per hit than the Midas Carbine, so it wins up close, but it sprays (0.20 hip spread at 40 m and beyond) and its bullets weaken with distance (full damage to 10 m, half from 30 m; `falloff` in `WEAPONS.uzi`, bots too). 32-round magazine, quicker reload. Its sound, `sounds/uzi.wav`, is original, made in code and levelled to match the carbine. The numbers are a first draft in `WEAPONS.uzi`.
 
-It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link; the older `?give=cobray` also works): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
+It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to the address (or `&give=uzi` after an invite link): you spawn with it every life. It works for any gun, e.g. `?give=rifle`. A dropped Uzi can be picked up by others in that game.
 
 ## Headshots and the Master rifle
 
