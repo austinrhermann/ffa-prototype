@@ -2843,7 +2843,7 @@ function animRig(r, dt, speed, crouch, pitch) {
   r.root.position.y = Math.abs(c) * 0.035 * A - C * r.model.crouchDrop;
   // Lean forward when crouched; arms and head counter the lean so the gun follows the aim
   const lean = 0.3 * C;
-  poseUpper(r, lean - r.pt * 0.4, -lean - r.pt * 0.6);
+  poseUpper(r, lean - r.pt * (0.4 - 0.9 * (r === P.rig ? bodyK : 0)), -lean - r.pt * 0.6); // your own body leans back as you look down, so the camera stays clear of the chest
   if (r.model.sway) swayArm(r, s * 0.5 * A * (1 - C));
 }
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion(), _X = new V3(1, 0, 0), _Z = new V3(0, 0, 1), _p2 = new V3();
@@ -2947,6 +2947,10 @@ function updateHoverTags(dt) {
     if (e.tag) { e.tag.material.opacity = e.tagA; e.tag.visible = e.tagA > 0; }
   }
 }
+// First person draws your own body (hands on the gun) with the camera a little in front of the head; ?fpv=vm brings back the old floating viewmodel.
+// Aiming down sights still uses the viewmodel, which lines up with the crosshair
+const FPV_BODY = new URLSearchParams(location.search).get('fpv') !== 'vm', FPV_FWD = 0.25;
+let bodyK = 0;
 let playerModelIdx = -1;
 function setPlayerModel(i) {
   if (P.rig) scene.remove(P.rig.wrap);
@@ -2958,7 +2962,8 @@ function setPlayerModel(i) {
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
 function updateSelfView() {
   const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
-  const see = tpK > 0.15 && P.alive;
+  const see = (tpK > 0.15 || bodyK > 0.5) && P.alive;
+  if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
   const want = RANGE.on ? RANGE.inHand() : curW;
   if (r.held !== want) { r.held = want; if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
@@ -3275,7 +3280,7 @@ function _puff(tex, p, size, life, opts) {
 // p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
 function _muzzleFx(id, p, d, own) {
   const f = GUN_FX[id]; if (!f) return;
-  if (!own) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
+  if (!own || bodyK > 0.5) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
   const sm = f.smoke;
   for (let i = 0; i < sm.count; i++) {
     const k = sm.count > 1 ? i / (sm.count - 1) : 0;
@@ -3907,7 +3912,7 @@ const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
-  if (tpK > 0.5 && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
+  if ((tpK > 0.5 || bodyK > 0.5) && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
   const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
@@ -4672,6 +4677,7 @@ function playHints(dt) {
   if (!RANGE.on && w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
   if (curLevel === 'fortress' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
 }
+const _fpvDir = new V3();
 function updateCamera(dt) {
   punch *= Math.exp(-10 * dt);
   const ads = (mouseRight || tAim) && P.alive && P.reloading <= 0 && knifeT <= 0 && throwT <= 0;
@@ -4691,6 +4697,12 @@ function updateCamera(dt) {
   const sx = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0, sy = shake > 1e-4 ? (Math.random() - 0.5) * shake : 0;
   camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   myEye.copy(camera.position);
+  bodyK += ((FPV_BODY && P.alive && adsK < 0.3 && !VEH.riding && MODE !== 'drive' && !tpOn() ? 1 : 0) - bodyK) * Math.min(1, dt * 12);
+  if (bodyK > 0.001) { // the camera sits ahead of the head, which then only casts its shadow
+    _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+    const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
+    camera.position.addScaledVector(_fpvDir, f);
+  }
   tpK += ((tpOn() && !(mouseRight || tAim) ? 1 : 0) - tpK) * Math.min(1, dt * 10);
   if (tpK > 0.001) {
     camera.updateMatrixWorld();
@@ -6078,7 +6090,7 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (tpK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (tpK < 0.5 && bodyK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
