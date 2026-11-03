@@ -61,9 +61,9 @@
     hauler: { kind: 'car', name: 'Hauler', color: 0xd9d4c7, p: { power: 6, top: 130, brake: 8, steer: 28, mass: 3200, wheelbase: 3.8, track: 2.1, wheelR: 0.45, maxLat: 1.3, spring: 1.4, travel: 1.2 } },
     roadster2: { kind: 'car', name: 'Roadster', color: 0xe3c02c, p: { top: 190 } },
     sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } }, // James's tuning
-    // The pirates' truck (James's jeep tuning): two seats in front, six on benches in the back. Drawn from the Cargo Truck
+    // The pirates' truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
     // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
-    truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { top: 190, maxLat: 3.1, wheelbase: 3.55, track: 2.2, wheelR: 0.5, spring: 3.1 } },
+    truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
     dirt: { kind: 'bike', name: 'Dirt bike', color: 0x3a6fd0, p: { power: 11, top: 140, wheelR: 0.36, spring: 1.5, travel: 1.3, grip: 8, maxLat: 1.7, mass: 150, wheelbase: 1.5 } },
   };
   // The parking lot in the infield: [preset, x, z, yaw]; the cars face the gap in the inner wall onto the front straight
@@ -243,7 +243,9 @@
   }
 
   const list = [];
-  let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = 0, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
+  // The chase camera starts a little above and behind (CAM_PITCH, Austin's angle: 2026-11-03) and stays wherever the mouse leaves it
+  const CAM_PITCH = 0.25;
+  let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = CAM_PITCH, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
   const driveMode = () => MODE === 'drive'; // Test Drive: no guns, third person on foot
   const camPos = new V3(), camLook = new V3();
   const me = () => (NET.role === 'guest' ? NET.myId : P.id);
@@ -525,7 +527,7 @@
   }
   function use(v) { const [text, act] = offer(v); if (act) act(); else note(text, 1.5); }
   function rideAlong(v, k) {
-    ride = v; rideSeat = k; v.occ[k] = me(); view = driveMode() ? 'chase' : 'seat'; camYaw = camPitch = 0; lookIdle = 9; // in the fort you ride in your seat, ready to shoot
+    ride = v; rideSeat = k; v.occ[k] = me(); view = driveMode() ? 'chase' : 'seat'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; lookIdle = 9; // in the fort you ride in your seat, ready to shoot
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vride', i: v.i, s: k });
     note(`${k > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}. V changes view, E gets out`, 3);
@@ -553,7 +555,7 @@
   }
   function enter(v) {
     if (v.owner && v.owner !== me()) { note(`Someone is already in the ${v.name.toLowerCase()}`, 1.5); return; }
-    v.owner = me(); v.net = null; v.npc = null; cur = v; view = 'chase'; camYaw = camPitch = 0; lookIdle = 9; lapReset();
+    v.owner = me(); v.net = null; v.npc = null; cur = v; view = 'chase'; camYaw = 0; camPitch = CAM_PITCH; lookIdle = 9; lapReset();
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
     soundStart(v);
@@ -874,7 +876,7 @@
         if (cur) { leave(false); return true; } if (ride) { unride(false); return true; }
         const v = P.alive ? nearest() : null; if (v) { use(v); return true; } return driveMode();
       }
-      if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; return true; }
+      if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
@@ -893,7 +895,7 @@
         return;
       }
       const v = cur || ride, k0 = cur ? 0 : rideSeat; axes(v);
-      lookIdle += dt; if (cur && lookIdle > 1.2) { const k = Math.min(1, dt * 2.5); camYaw -= camYaw * k; camPitch -= camPitch * k; } // the driver's view settles back; a passenger looks where they like
+      lookIdle += dt; // (the view stays where you leave it: it no longer settles back behind the vehicle)
       camera.fov = 72 + Math.min(14, Math.abs(v.speed || 0) * 0.25); camera.updateProjectionMatrix();
       if (view === 'seat') { // the driver's eyes: open chassis, nothing in the way
         v.body.updateMatrixWorld(true);

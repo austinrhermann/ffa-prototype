@@ -1,5 +1,5 @@
 // The weapon system, and the Shooting Range to dial it in. Every game uses it (not Test Drive or the fort's waves, which keep the old one):
-//   - Everyone has 40 health, shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
+//   - Everyone has 32 health (was 40 until 2026-11-03), shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
 //     The game keeps its own health numbers (HP), so damage is scaled by HP / LIFE on the way in.
 //   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun D batteries, the Master Rifle its own rounds),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
@@ -12,7 +12,7 @@
 // The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const LIFE = 40; // was 20 until 2026-11-02 (and 7, then 10, before that)
+  const LIFE = 32; // was 40 until 2026-11-03: 20% less (before that 20 until 2026-11-02, and 7, then 10)
   // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
   const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
   const _hc = new THREE.Color();
@@ -93,6 +93,9 @@
   }
   const S = (() => { try { return merge(clone(DEFAULTS), aimPerGun(JSON.parse(localStorage.getItem(SAVE) || 'null') || oldSave())); } catch (e) { return clone(DEFAULTS); } })();
   if (S.knife.back === 20) S.knife.back = LIFE; // a knife from behind saved at the old full health still kills
+  // damage saved when health was bigger can't be more than the health now (more than all of it kills just the same; the sliders stop at LIFE)
+  for (const g of Object.values(S.guns)) for (const f of ['body', 'head']) if (g[f] > LIFE) g[f] = LIFE;
+  S.knife.front = Math.min(S.knife.front, LIFE); S.knife.back = Math.min(S.knife.back, LIFE); S.blast.max = Math.min(S.blast.max, LIFE);
   // Saved in this browser; the host also sends them to everyone in the game (a moment after the last change)
   let sendT = 0;
   function save() {
@@ -119,6 +122,7 @@
   const mineMode = () => mouseRight || tAim; // the grenade, with right-click held: a mine
   const spend = t => { if (S.ammo.infinite) return true; if (bats[t] <= 0) return false; bats[t]--; return true; };
   const gunOf = s => S.guns[s.id];
+  const DOOR_K = 5, DOOR_BLAST_K = 10; // what a shut gate or the locked bunker door takes: damage in the game's health times these (gate hp 800, the door 240)
   const blastR = () => S.blast.max * S.blast.ring; // how far a blast reaches
   const ringDmg = d => d >= blastR() ? 0 : S.blast.max - Math.floor(d / S.blast.ring);
 
@@ -345,6 +349,14 @@
       for (const g of GASCANS) if (g.alive && g.pos.distanceTo(o) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
       for (const tr of trucks) { const d = Math.max(0, tr.pos.distanceTo(o) - 1.5); if (tr.alive && d < R) damageTruck(tr, ringDmg(d) * K() * TRUCK.blastK); }
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
+      if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too
+        if (gateSiegeOn()) { const dr = LV.gate.doors, dd = Math.max(0, new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5), dm = ringDmg(dd); if (dm > 0) damageGate(dm * K() * DOOR_BLAST_K); }
+        const bs = lockableDoor();
+        if (bs && bs.locked) {
+          const mid = new V3(bs.p.x, bs.y + 1.05, bs.p.z), dd = Math.max(0, mid.distanceTo(o) - 0.8), dm = ringDmg(dd);
+          if (dm > 0 && (losPts(o, mid.clone().setX(mid.x - 0.3)) || losPts(o, mid.clone().setX(mid.x + 0.3)))) damageBunker(dm * K() * DOOR_BLAST_K);
+        }
+      }
     }
     // Other mines in reach go off too
     for (const m of mines) if (!m.rep && m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) setMine(m, 'warn', 0.15);
@@ -387,6 +399,10 @@
       for (const gc of GASCANS) if (gc.alive) targets.push(gc.px);
       for (const tr of trucks) if (tr.veh !== VEH.riding) targets.push(...tr.hits);
     }
+    // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
+    if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
+    const bdh = lockedDoorHit(); if (bdh) targets.push(bdh);
+    let gateDmg = 0, bdoorDmg = 0;
     for (let i = 0; i < g.count; i++) {
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
       const [o, dir] = shotLine(new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q), targets);
@@ -399,9 +415,12 @@
       else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += head ? g.head : g.body; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gas) shootGas(ud.gas, P);
       else if (ud.truck) { shootTruck(ud.truck, w); impact(hit.point); }
-      else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point); }
+      else if (ud.gate) { gateDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
+      else if (ud.bdoor) { bdoorDmg += g.body * K() * DOOR_K; impact(hit.point, hit.object); }
+      else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
+    if (gateDmg) shootGateAmt(gateDmg); if (bdoorDmg) shootBunker(bdoorDmg);
     let kill = false; for (const [t, a] of byT) kill = hitDummy(t, a.d, a.nh > 0, s.name, a.n, a.nh) || kill;
     for (const [e, a] of byE) { kill = e.health - a.d * K() <= 0 || kill; damage(e, a.d * K(), P, 'gun', a.head); }
     if (byT.size || byE.size) hitFeedback([...byT.values()].some(a => a.nh > 0) || [...byE.values()].some(a => a.head), kill);
@@ -700,13 +719,13 @@
     if (!e.hpDot) {
       const c = document.createElement('canvas'); c.width = c.height = 64;
       e.hpDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), sizeAttenuation: false, transparent: true, depthWrite: false }));
-      e.hpDot.scale.set(0.03, 0.03, 1); e.hpDot.center.set(0.5, -0.8); e.hpDot.renderOrder = 11; e.hpDot.userData.c = c; e.hpDot.userData.k = -1;
+      e.hpDot.scale.set(0.024, 0.024, 1); e.hpDot.center.set(0.5, -0.8); e.hpDot.renderOrder = 11; e.hpDot.userData.c = c; e.hpDot.userData.k = -1; // (the circle fills 56 of the 64 pixels: about the height of the name's letters)
     }
-    const d = e.hpDot, show = live() && !on() && e.mesh && e.alive;
+    const d = e.hpDot, shown = live() && !on() && e.mesh && e.alive && e.tagA > 0.01;   // only while the name shows: after the crosshair has rested on them a moment
     if (e.mesh && d.parent !== e.mesh) e.mesh.add(d);
-    d.visible = !!show; if (!show) return;
-    d.position.y = e.tag ? e.tag.position.y : (e.rig ? e.rig.model.headY : 1.7) + 0.5;
-    d.center.y = e.tagA > 0.05 ? -0.8 : 0.5; // above the name while it shows
+    d.visible = !!shown; if (!shown) return;
+    d.material.opacity = Math.min(1, e.tagA / TAG_MAX * 0.9); // and it fades in and out with the name
+    d.position.y = e.tag ? e.tag.position.y : (e.rig ? e.rig.model.headY : 1.7) + 0.5; // (above the name)
     const h = Math.ceil(e.health / K() - 1e-6);
     if (h !== d.userData.k) { d.userData.k = h; const x = d.userData.c.getContext('2d'); x.clearRect(0, 0, 64, 64); x.beginPath(); x.arc(32, 32, 28, 0, Math.PI * 2); x.fillStyle = hpColour(h); x.fill(); d.material.map.needsUpdate = true; }
   }
