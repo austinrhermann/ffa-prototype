@@ -3134,6 +3134,8 @@ function _addHole(h) {
 }
 function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); }
 const _r3 = v => Math.round(v * 1000) / 1000;
+const HOLE_CHUNK = 300; // holes per 'hl' message to a guest who just joined
+const addSentHole = h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }; // one from the host, checked
 // World-space hole from a raycast hit, facing back toward the shooter
 function holeFromHit(hit, dir) {
   if (!hit.face || hit.object.userData.noHole || hit.object.userData.toggle !== undefined) return null; // (a door swings: a hole would hang in the air in the doorway)
@@ -5585,7 +5587,10 @@ function onGuestMsg(conn, m) {
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       setRemoteModel(r, m.model);
-      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), level: curLevel, lim: KILL_LIMIT, over: matchOver, holes, scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
+      // after a long game, and a message that big closes the connection, so the guest never got in
+      for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
       respawn(r); VEH.welcome(r);
       note(`${name} joined`, 2); updateRoster(); getMic();
     } else {
@@ -5709,16 +5714,17 @@ function onHostMsg(m) {
       NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
-      NET.wantLevel = m.level;
+      NET.wantLevel = m.level; NET.holeQ = []; // the holes that come after the welcome ('hl') wait here until the level is in
       whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
         if (NET.wantLevel !== m.level) return;
         if (m.level !== curLevel) switchLevel(m.level);
         clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
-        (Array.isArray(m.holes) ? m.holes : []).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); });
+        [...(Array.isArray(m.holes) ? m.holes : []), ...(NET.holeQ || [])].forEach(addSentHole); NET.holeQ = null;
       });
       (m.peers || []).forEach(p => callPeer(p[0], p[1])); updateMicHud();
       break;
     case 'level': NET.wantLevel = m.id; whenLevel(m.id, () => { if (NET.wantLevel === m.id) switchLevel(m.id); }); break;
+    case 'hl': if (Array.isArray(m.h)) m.h.slice(0, HOLE_CHUNK).forEach(h => { if (NET.holeQ) NET.holeQ.push(h); else addSentHole(h); }); break; // the holes so far, after the welcome
     case 'sn': applySnapshot(m); break;
     case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y); break;
     case 'died':
