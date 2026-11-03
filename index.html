@@ -1125,10 +1125,14 @@ function updateSheds(dt) {
 // given as half-spaces [nx, ny, nz, d] (inside: n.p <= d, world space). uv, normals and any other attributes are
 // interpolated along the cut, so what's left keeps its texture and shading. Meshes get a new (non-indexed) geometry, so
 // a set cloned from another (sharing geometry) can be cut without touching the original.
-function cutConvex(root, planes, yRange) {
+// cutConvexAll(root, regions) makes several cuts, one after another, the same as cutConvex for each in turn, but takes each
+// triangle through all of them at once, so a big mesh (the fort's ground) is copied once rather than once per cut.
+function cutConvex(root, planes) { cutConvexAll(root, [planes]); }
+function cutConvexAll(root, regions) {
   root.updateMatrixWorld(true);
   const meshes = []; root.traverse(o => { if (o.isMesh && !o.userData.noCut) meshes.push(o); });
-  const w = new V3(), lerp = (A, B, t) => ({ d: A.d.map((x, i) => x + (B.d[i] - x) * t), a: A.a.map((arr, j) => arr.map((x, c) => x + (B.a[j][c] - x) * t)) });
+  const w = new V3(), bb = new THREE.Box3(), corner = new V3();
+  const lerp = (A, B, t) => ({ d: A.d.map((x, i) => x + (B.d[i] - x) * t), a: A.a.map((arr, j) => arr.map((x, c) => x + (B.a[j][c] - x) * t)) });
   const clip = (poly, k, keepOut) => { // keep the side of plane k that's outside (keepOut) or inside the region
     const res = [], f = v => keepOut ? v.d[k] : -v.d[k];
     for (let i = 0; i < poly.length; i++) {
@@ -1139,36 +1143,56 @@ function cutConvex(root, planes, yRange) {
     return res.length >= 3 ? res : [];
   };
   for (const m of meshes) {
-    { // does the region touch this mesh at all? (checked on the mesh as it is, so the big ones aren't copied for nothing)
-      const g0 = m.geometry, p0 = g0.attributes.position; if (!p0) continue;
-      const ix0 = g0.index, n0 = p0.count, K0 = planes.length, D0 = new Float32Array(n0 * K0); let any = false;
-      for (let i = 0; i < n0; i++) { w.fromBufferAttribute(p0, i).applyMatrix4(m.matrixWorld); for (let k = 0; k < K0; k++) D0[i * K0 + k] = planes[k][0] * w.x + planes[k][1] * w.y + planes[k][2] * w.z - planes[k][3]; }
-      for (let t = 0, tn = ix0 ? ix0.count : n0; t < tn && !any; t += 3) {
-        const a = ix0 ? ix0.getX(t) : t, b = ix0 ? ix0.getX(t + 1) : t + 1, c = ix0 ? ix0.getX(t + 2) : t + 2; let away = false;
-        for (let k = 0; k < K0 && !away; k++) if (D0[a * K0 + k] >= 0 && D0[b * K0 + k] >= 0 && D0[c * K0 + k] >= 0) away = true;
-        if (!away) any = true;
+    const g0 = m.geometry; if (!g0.attributes.position) continue;
+    // The cuts that can reach this mesh: its bounding box wholly outside one of a cut's planes and none of it can be inside
+    bb.copy(g0.boundingBox || (g0.computeBoundingBox(), g0.boundingBox)).applyMatrix4(m.matrixWorld);
+    const live = regions.filter(planes => !planes.some(P => { for (let c = 0; c < 8; c++) { corner.set(c & 1 ? bb.max.x : bb.min.x, c & 2 ? bb.max.y : bb.min.y, c & 4 ? bb.max.z : bb.min.z); if (P[0] * corner.x + P[1] * corner.y + P[2] * corner.z - P[3] < 0) return false; } return true; }));
+    if (!live.length) continue;
+    const src = g0.index ? g0.toNonIndexed() : g0, pos = src.attributes.position, n = pos.count, M = m.matrixWorld;
+    // Which triangles a cut reaches (not all three corners outside one of its planes), straight off the corners' world positions
+    const Wp = new Float64Array(n * 3);
+    for (let i = 0; i < n; i++) { w.fromBufferAttribute(pos, i).applyMatrix4(M); Wp[i * 3] = w.x; Wp[i * 3 + 1] = w.y; Wp[i * 3 + 2] = w.z; }
+    const first = new Int16Array(n / 3).fill(-1); let any = false; // the first cut that reaches each triangle
+    for (let t = 0; t < n; t += 3) for (let r = 0; r < live.length; r++) {
+      let away = false;
+      for (const P of live[r]) {
+        let k = t * 3, out = true;
+        for (let c = 0; c < 3 && out; c++, k += 3) out = Math.fround(P[0] * Wp[k] + P[1] * Wp[k + 1] + P[2] * Wp[k + 2] - P[3]) >= 0;
+        if (out) { away = true; break; }
       }
-      if (!any) continue;
+      if (!away) { first[t / 3] = r; any = true; break; }
     }
-    const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, pos = src.attributes.position; if (!pos) continue;
-    const names = Object.keys(src.attributes), n = pos.count, D = new Float32Array(n * planes.length), Y = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      w.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); Y[i] = w.y;
-      planes.forEach((p, k) => { D[i * planes.length + k] = p[0] * w.x + p[1] * w.y + p[2] * w.z - p[3]; });
-    }
+    if (!any) continue;
+    const names = Object.keys(src.attributes), attrs = names.map(k => src.attributes[k]), pj = names.indexOf('position');
     const out = names.map(() => []); let touched = false;
-    const vert = i => ({ d: Array.from(D.subarray(i * planes.length, (i + 1) * planes.length)), a: names.map(k => { const A = src.attributes[k]; return [A.getX(i), A.getY(i), A.getZ(i), A.getW(i)].slice(0, A.itemSize); }) });
-    const emit = poly => { for (let k = 1; k + 1 < poly.length; k++) for (const v of [poly[0], poly[k], poly[k + 1]]) names.forEach((nm, j) => out[j].push(...v.a[j])); };
+    const dist = (v, P) => { const p = v.a[pj]; w.set(p[0], p[1], p[2]).applyMatrix4(M); return Math.fround(P[0] * w.x + P[1] * w.y + P[2] * w.z - P[3]); };
+    const put = v => { for (let j = 0; j < names.length; j++) { const o = out[j], a = v.a[j]; for (let c = 0; c < a.length; c++) o.push(a[c]); } };
+    const get = (A, i) => { const v = [A.getX(i)]; if (A.itemSize > 1) v.push(A.getY(i)); if (A.itemSize > 2) v.push(A.getZ(i)); if (A.itemSize > 3) v.push(A.getW(i)); return v; };
+    // a triangle through cuts r.. in turn; what's left after the last goes out
+    const run = (tri, r) => {
+      for (; r < live.length; r++) {
+        const planes = live[r], rem0 = tri.map(v => ({ a: v.a, d: planes.map(P => dist(v, P)) }));
+        let away = false; // all three corners outside the same plane: untouched
+        for (let k = 0; k < planes.length && !away; k++) if (rem0[0].d[k] >= 0 && rem0[1].d[k] >= 0 && rem0[2].d[k] >= 0) away = true;
+        if (away) continue;
+        touched = true; let rem = rem0;
+        // the pieces outside each plane in turn go on to the next cut, stored as 32-bit floats (as a cut's geometry is before the next one reads it)
+        const f32 = v => ({ a: v.a.map(arr => arr.map(Math.fround)) });
+        for (let k = 0; k < planes.length && rem.length; k++) {
+          const keep = clip(rem, k, true); rem = clip(rem, k, false);
+          for (let q = 1; q + 1 < keep.length; q++) run([keep[0], keep[q], keep[q + 1]].map(f32), r + 1);
+        }
+        return;
+      }
+      for (const v of tri) put(v);
+    };
     for (let t = 0; t < n; t += 3) {
-      let away = false; // all three corners outside the same plane: untouched
-      for (let k = 0; k < planes.length && !away; k++) if (D[t * planes.length + k] >= 0 && D[(t + 1) * planes.length + k] >= 0 && D[(t + 2) * planes.length + k] >= 0) away = true;
-      if (away) { emit([vert(t), vert(t + 1), vert(t + 2)]); continue; }
-      touched = true; let rem = [vert(t), vert(t + 1), vert(t + 2)];
-      for (let k = 0; k < planes.length && rem.length; k++) { emit(clip(rem, k, true)); rem = clip(rem, k, false); }
+      if (first[t / 3] < 0) { for (let j = 0; j < names.length; j++) { const A = attrs[j], o = out[j]; for (let i = t; i < t + 3; i++) { o.push(A.getX(i)); if (A.itemSize > 1) o.push(A.getY(i)); if (A.itemSize > 2) o.push(A.getZ(i)); if (A.itemSize > 3) o.push(A.getW(i)); } } continue; }
+      run([t, t + 1, t + 2].map(i => ({ a: attrs.map(A => get(A, i)) })), first[t / 3]);
     }
     if (!touched) continue;
     const ng = new THREE.BufferGeometry();
-    names.forEach((k, j) => ng.setAttribute(k, new THREE.Float32BufferAttribute(out[j], src.attributes[k].itemSize)));
+    names.forEach((k, j) => ng.setAttribute(k, new THREE.Float32BufferAttribute(out[j], attrs[j].itemSize)));
     m.geometry = ng;
   }
 }
@@ -1255,7 +1279,7 @@ function buildTunnel(T, col, draw, cm) {
   const shed = SHEDS.filter(x => x.scene === draw).sort((a, b) => Math.hypot(a.p.x - T.from[0], a.p.z - T.from[1]) - Math.hypot(b.p.x - T.from[0], b.p.z - T.from[1]))[0];
   const hw = T.w / 2, sh = T.shaft, top = shed ? shed.y : T.shaftTop;
   const cuts = [...T.cuts.map(boxPlanes), obbPlanes(T.from, u, sh, sh, floorAt(0) + T.h - 0.2, top + 0.03), obbPlanes(at(len - 2.4, 0), u, 2.4, hw, T.to[2] + 0.05, T.to[2] + T.h)];
-  for (const P of cuts) { cutConvex(col, P); cutConvex(draw, P); }
+  cutConvexAll(col, cuts); cutConvexAll(draw, cuts);
   // 2. What's built: the picture and (unless decorative) the collision
   const K = tunnelKit(draw, col, cm), { M, g, cg, prism, box } = K;
   // a piece in tunnel space: from s0 to s1 along it, l0 to l1 across, heights given at each end [bottom, top] relative to the floor
@@ -1341,7 +1365,7 @@ function buildBunker(B, C, col, draw, cm) {
   });
   for (let i = 0; i < last; i++) { const c = runs[i + 1].a, f = floorAt(runs[i + 1].s0); cuts.push(boxPlanes([c[0] - hw, c[0] + hw, f + 0.05, f + th - 0.02, c[1] - hw, c[1] + hw])); }
   const lm = pt(runs[last], runs[last].len - 2.4, 0, 0); cuts.push(obbPlanes([lm[0], lm[2]], runs[last].u, 2.4, hw, C.cellarFloor + 0.05, C.cellarFloor + th)); // the tunnel's mouth at the cellar
-  for (const P of cuts) { cutConvex(col, P); cutConvex(draw, P); }
+  cutConvexAll(col, cuts); cutConvexAll(draw, cuts);
   // 2. The tunnel, run by run along its profile
   const bps = [...new Set(B.profile.map(p => p[0]))];
   runs.forEach((r, i) => {
@@ -1684,7 +1708,9 @@ function buildWorld(L) {
     }
   }
 }
+let navDefer = false, navJob = null; // start-up only: see deferFortNav
 function loadLevel(id) {
+  navJob = null; // a walking map still being built belongs to the old level (and its TG)
   const L = buildGrid(id);
   buildWorld(L);
   SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0; ATK_SPAWNS.length = 0;
@@ -1696,7 +1722,7 @@ function loadLevel(id) {
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
     (L.atk || []).forEach(([x, z]) => { const p = settle([x, 120, z]); ATK_SPAWNS.push(cellPos(cellOf(p))); });
     if (L.gate) findAssault(); else { ASSAULT.length = 0; DROPS.length = 0; }
-    buildFortNav();
+    if (navDefer) deferFortNav(); else buildFortNav();
     return;
   }
   L.spawns.forEach(([c, r, l]) => SPAWNS.push(cellPos(node(c, r, l))));
@@ -2187,7 +2213,7 @@ document.body.classList.toggle('dev', DEV);
 let READY = false; // everything loaded: from then on the menu can switch levels
 let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
 document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
-document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); refreshPreview(); });
+document.querySelectorAll('#levels button').forEach(b => b.onclick = () => { selLevel = b.dataset.lv; document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x === b)); updateGoal(); refreshPreview(); if (READY && NET.role === 'host') whenLevel(selLevel, () => {}); });
 function switchLevel(id) {
   clearTrucks();
   if (NET.role === 'host') broadcast({ t: 'level', id });
@@ -2569,9 +2595,35 @@ function loadModels() {
     };
     img.onerror = () => { console.warn('No sun grid ' + d.file); res(); }; img.src = 'models/' + d.file + '.png';
   })));
-  // Level set: the drawn version (textured) and the collision version (never drawn). Water bounds the island but isn't solid.
-  const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water');
-  const sets = Promise.all([['Fortress_v5', 'Fortress_v5_col'], ['Creek', 'Creek_col'], ['Minimal', 'Minimal_col'], ['Sewer', 'Sewer_col']].map(([d, c]) => Promise.all([parseGLB(d), parseGLB(c), ...(d === 'Fortress_v5' ? [parseGLB('Fortress_ext'), parseGLB('Fortress_ext_col')] : [])]).then(([sc, col, ext, extCol]) => {
+  // Only the level you start on loads before Play; the others load when picked (or behind the menu, see loadOtherSets)
+  const sets = ensureLevel(selLevel);
+  // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
+  const guns = Promise.all([soldiers, weps]).then(() => {
+    if (params.has('posefixture')) {
+      const m = MODELS[0], w = WEAPONS.pistol, gr = GRIPS.pistol, at = m.gunHand.clone();
+      at.addScaledVector(m.gunDir, gr.z).y -= gr.y;
+      const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
+      const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
+      // Convert the procedural centred gun into a native-frame socket, fixed relative to the wrist.
+      m.sockets.pistol = m.gunBoneInv.clone().multiply(T).multiply(child.matrix);
+    }
+    for (const m of MODELS) if (m.poses) computeModelGuns(m);
+  });
+  // The fort's trucks: the asset library's Cargo Truck (vehicles.js draws it); without it they're built from boxes
+  const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
+  return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids, extras]);
+}
+// Level sets: the drawn version (textured) and the collision version (never drawn), fetched the first time a level needs them.
+// Water bounds the island but isn't solid.
+const SET_FILES = { Fortress_v5: ['Fortress_v5_col', 'Fortress_ext', 'Fortress_ext_col'], Creek: ['Creek_col'], Minimal: ['Minimal_col'], Sewer: ['Sewer_col'] };
+const setLoads = {};
+const levelSet = id => { const m = LEVEL_DEFS[id] && LEVEL_DEFS[id]().mesh; return m === 'MinimalTunnel' ? 'Minimal' : SET_FILES[m] ? m : null; };
+const levelReady = id => { const d = levelSet(id); return !d || !!LEVEL_SCENES[d]; };
+const ensureLevel = id => { const d = levelSet(id); return d ? loadSet(d) : Promise.resolve(); };
+function loadSet(d) {
+  if (setLoads[d]) return setLoads[d];
+  const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water'), [c] = SET_FILES[d];
+  return setLoads[d] = Promise.all([d, ...SET_FILES[d]].map(parseGLB)).then(([sc, col, ext, extCol]) => {
     if (ext) { // the new ground south of the old island (tools/build_fortress_ext.py) and its roads, drawn and collided with like the rest of the set
       ext.traverse(o => { if (o.isMesh && o.name === 'Road_ext') { o.castShadow = false; o.material.polygonOffset = true; o.material.polygonOffsetFactor = o.material.polygonOffsetUnits = -2; } });
       sc.add(ext); col.add(extCol);
@@ -2588,22 +2640,20 @@ function loadModels() {
     if (d === 'Minimal') { LEVEL_SCENES.MinimalTunnel = sc.clone(true); LEVEL_SCENES.MinimalTunnel_col = col.clone(true); } // Minimal + tunnel cuts its own copy
     if (d === levelSewer().mesh) arenaStyle(sc, o => o.material.name === 'Sewer_Water'); // (the sewer's water stays water)
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
-  })));
-  // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
-  const guns = Promise.all([soldiers, weps]).then(() => {
-    if (params.has('posefixture')) {
-      const m = MODELS[0], w = WEAPONS.pistol, gr = GRIPS.pistol, at = m.gunHand.clone();
-      at.addScaledVector(m.gunDir, gr.z).y -= gr.y;
-      const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
-      const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
-      // Convert the procedural centred gun into a native-frame socket, fixed relative to the wrist.
-      m.sockets.pistol = m.gunBoneInv.clone().multiply(T).multiply(child.matrix);
-    }
-    for (const m of MODELS) if (m.poses) computeModelGuns(m);
-  });
-  // The fort's trucks: the asset library's Cargo Truck (vehicles.js draws it); without it they're built from boxes
-  const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
-  return Promise.all([soldiers, weps, props, sets, guns, truck, sunGrids, extras]);
+  }).catch(e => { delete setLoads[d]; throw e; });
+}
+// Once the game is up, the other levels you can pick load one after another behind the menu (all of them under ?dev)
+function loadOtherSets() {
+  const ids = Object.keys(LEVEL_DEFS).filter(id => DEV || id === 'fortress' || id === 'minimal');
+  ids.reduce((p, id) => p.then(() => ensureLevel(id)).catch(e => console.warn(e)), Promise.resolve());
+}
+// Run fn once level id has loaded; while it loads, Play waits with "Loading level…"
+let levelWaits = 0, playWas = '';
+function whenLevel(id, fn) {
+  if (levelReady(id)) return fn();
+  const play = $('play'); if (!levelWaits++) { playWas = play.textContent; play.disabled = true; play.textContent = 'Loading level…'; }
+  const done = () => { if (!--levelWaits) { play.disabled = false; play.textContent = playWas; } };
+  ensureLevel(id).then(() => { done(); fn(); }).catch(e => { console.error(e); done(); note('That level failed to load', 3); });
 }
 function makeRig(mi) {
   const model = MODELS[mi], root = THREE.SkeletonUtils.clone(model.scene), wrap = new THREE.Group();
@@ -4194,13 +4244,24 @@ const GAP2 = [[0, 0], [0.06, 0.06]], GAP5 = [[0, 0], [0.06, 0], [-0.06, 0], [0, 
 // Room for a body: clear at head height and at the waist (a wall too tall to step over stops you there, like the side
 // of a staircase)
 const fitsAt = (x, y, z) => !meshBlocked(x, y, z, STAND_H) && !meshBlocked(x, y, z, 1.4);
-// A slope too steep to stand on (but not a wall) within r of the feet: it pushes a walking body back, so a path along it stalls
-const steepNear = (x, g, z, r) => {
-  let hit = false; const c = new V3(x, g + R, z);
-  sphereTris(c, r, (t, q) => { const ny = Math.abs(TG.NR[t * 3 + 1]); if (ny >= 0.15 && ny < FLOOR_NY && q.y <= c.y) hit = true; });
-  return hit;
+// Extra path cost for a slope too steep to stand on (but not a wall) near the feet: it pushes a walking body back, so a path along it
+// stalls. 8 right beside one, 1.5 within a metre or so, else 0
+const _steep = new V3();
+const steepPen = (x, g, z) => {
+  let near = Infinity; const c = _steep.set(x, g + R, z);
+  sphereTris(c, R + 0.9, (t, q, d) => { const ny = Math.abs(TG.NR[t * 3 + 1]); if (ny >= 0.15 && ny < FLOOR_NY && q.y <= c.y && d < near) near = d; });
+  return near < R + 0.12 ? 8 : near < R + 0.9 ? 1.5 : 0;
 };
-function buildFortNav() {
+// Built in one go when a level loads mid-game. At start-up it's built a slice at a time behind the menu instead (deferFortNav), so Play
+// doesn't wait the second or so the fort takes; the loop finishes it at once if anyone starts moving first
+function buildFortNav() { navJob = null; for (const _ of fortNavSteps()); }
+function deferFortNav() {
+  const job = navJob = fortNavSteps();
+  const step = () => { if (navJob !== job) return; const t = performance.now(); while (performance.now() - t < 12) if (job.next().done) { navJob = null; return; } setTimeout(step, 0); };
+  step();
+}
+function finishFortNav() { const job = navJob; navJob = null; if (job) for (const _ of job); }
+function* fortNavSteps() {
   FN.nodes = []; FN.cells = null; FN.comp = null;
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
   const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
@@ -4215,18 +4276,18 @@ function buildFortNav() {
     if (!d.g.open) tgSolid(d.g, false);
   }
   const cells = new Array(nx * nz), N8 = [[1, 0], [0, 1], [1, 1], [1, -1]];
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+  for (let j = 0; j < nz; j++, yield) for (let i = 0; i < nx; i++) {
     const x = x0 + i * S, z = z0 + j * S, list = [];
     for (let top = A.top, k = 0; k < 12; k++) {
       const g = bridgedFloor(x, z, top, GAP2); if (g === null || g < A.bottom) break;
       // pen: extra path cost for ground beside a steep bank (the inside of a road bend cut into a hill: A* cuts the corner onto it and the bot walks into the slope)
-      if (g > waterAt(x, z) + 0.3 && fitsAt(x, g + 0.05, z)) list.push(FN.nodes.push({ x, y: g, z, nb: [], pen: steepNear(x, g, z, R + 0.12) ? 8 : steepNear(x, g, z, R + 0.9) ? 1.5 : 0 }) - 1);
+      if (g > waterAt(x, z) + 0.3 && fitsAt(x, g + 0.05, z)) list.push(FN.nodes.push({ x, y: g, z, nb: [], pen: steepPen(x, g, z) }) - 1);
       top = g - 0.5;
     }
     cells[j * nx + i] = list;
   }
   const v = new V3();
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) for (const a of cells[j * nx + i]) for (const [di, dj] of N8) {
+  for (let j = 0; j < nz; j++, yield) for (let i = 0; i < nx; i++) for (const a of cells[j * nx + i]) for (const [di, dj] of N8) {
     const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
     for (const b of cells[jj * nx + ii]) {
       const na = FN.nodes[a], nb = FN.nodes[b]; if (Math.abs(na.y - nb.y) > STEP) continue;
@@ -4960,7 +5021,7 @@ function applySettings() {
   if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, team: params.get('team'), tm: myTeam }); return; }
   const waves = MODE === 'defend' ? WAVE_SIZES.length : +$('swaves').value;
-  if (selLevel !== curLevel) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
+  if (selLevel !== curLevel && levelReady(selLevel)) { WAVES = waves; switchLevel(selLevel); resetMatch(); }
   else if (MODE === 'defend' && waves !== WAVES) { WAVES = waves; resetMatch(); }
   if (MODE !== 'defend' && +$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   const plan = botPlan();
@@ -5198,7 +5259,7 @@ function chooseMode(kind) {
   updateGoal(); refreshPreview(); $('title').style.display = 'none';
   showScreen('main');
   // Get the chosen level ready behind the menu (the fort builds its walking map, a few seconds)
-  if (READY && NET.role === 'host' && selLevel !== curLevel) { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); }
+  if (READY && NET.role === 'host' && selLevel !== curLevel) whenLevel(selLevel, () => { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); })
 }
 // Play again: the last game you hosted, one click from the title page (remembered in this browser)
 const LEVEL_NAMES = { complex: 'Complex', facility: 'Facility', bunker: 'Bunker', creek: 'Creek', fortress: 'Fortress Free-For-All', minimal: 'Minimal', tunnel: 'Minimal + tunnel', sewer: 'Sewer', drive: 'Test Drive', range: 'Shooting Range' };
@@ -6057,12 +6118,16 @@ function onHostMsg(m) {
       NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
-      if (m.level !== curLevel) switchLevel(m.level);
-      clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
-      (Array.isArray(m.holes) ? m.holes : []).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); });
+      NET.wantLevel = m.level;
+      whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
+        if (NET.wantLevel !== m.level) return;
+        if (m.level !== curLevel) switchLevel(m.level);
+        clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
+        (Array.isArray(m.holes) ? m.holes : []).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); });
+      });
       (m.peers || []).forEach(p => callPeer(p[0], p[1])); updateMicHud();
       break;
-    case 'level': switchLevel(m.id); break;
+    case 'level': NET.wantLevel = m.id; whenLevel(m.id, () => { if (NET.wantLevel === m.id) switchLevel(m.id); }); break;
     case 'sn': applySnapshot(m); break;
     case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y, m.k); break;
     case 'died':
@@ -6345,7 +6410,7 @@ $('copyinv').onclick = () => { const v = $('invlink').value; if (v.startsWith('h
 
 // ---------- Loop ----------
 respawn(P);
-loadModels().then(() => {
+loadModels().then(() => ensureLevel(selLevel)).then(() => {
   const sel = $('schar'); MODELS.forEach((m, i) => sel.add(new Option(m.label, i)));
   // The Master's rifle wears the laser pistol's finish
   let pm = null; WEAPONS.pistol.scene.traverse(o => { if (!pm && o.isMesh) pm = o.material; });
@@ -6353,17 +6418,19 @@ loadModels().then(() => {
   setPlayerModel(0);
   buildViewmodels();
   // The host switches to the chosen level (the fort unless a dev mode was picked) as soon as everything has loaded
-  if (NET.role === 'host') { WAVES = WAVE_SIZES.length; switchLevel(selLevel); resetMatch(); }
+  if (NET.role === 'host') { WAVES = WAVE_SIZES.length; navDefer = true; switchLevel(selLevel); navDefer = false; resetMatch(); }
   else { buildPickups(); placeProps(); }
   if (NET.role === 'host') { buildBots(botPlan()); if (MODE !== 'defend') bots.forEach(respawn); }
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = ''; READY = true;
   initPreview();
+  loadOtherSets();
 }).catch(e => { console.error(e); $('play').textContent = 'Characters failed to load'; });
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
+  if (navJob && (locked || away || remotes.length)) finishFortNav(); // the gate and doors are held open while it maps them
   if (NET.role === 'guest') {
     if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); RANGE.update(dt); updateCook(dt); }
     updateRockets(dt); updateSheds(dt);
