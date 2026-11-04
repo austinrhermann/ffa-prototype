@@ -212,7 +212,7 @@ Each gun has its own muzzle flash and smoke, seen on your own gun and on other p
 | Laser Pistol | Red energy ring with thin spikes | Glowing red sparks |
 | Midas Carbine | Four-pointed star | Small light puffs |
 | Master Rifle | Big flash with long side jets | Large white plume that lingers |
-| Double Barrel | Ragged fireball | Thick dark-grey cloud |
+| Battery Gun | Ragged fireball | Thick dark-grey cloud |
 | Uzi | Small four-pointed star | One small light puff |
 | Bazooka | Huge orange fireball | Big grey cloud out the back, and a trail behind the rocket |
 
