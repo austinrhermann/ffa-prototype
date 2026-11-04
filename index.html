@@ -2094,7 +2094,13 @@ function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru, shot) { // seeThru: sight l
 // What a shot along ray hits first among targets (as ray.intersectObjects(targets)[0]): the level's own shapes through the triangle
 // grid, which is far quicker than three.js testing them a triangle at a time, and everything else (people, trucks, doors) with three.js
 const _shotRest = [], _shotN = new THREE.Matrix3();
+// A truck's body stops shots too (vehicles.js knows its shape: open windows, an open back)
+const ARMOR_HIT = new THREE.Object3D(); ARMOR_HIT.userData.noHole = true;
 function castShot(ray, targets) {
+  const hit = castShotLevel(ray, targets), a = VEH.armorRay(ray.ray.origin, ray.ray.direction, hit ? hit.distance : ray.far);
+  return a ? { distance: a.t, point: ray.ray.origin.clone().addScaledVector(ray.ray.direction, a.t), object: ARMOR_HIT, face: { normal: a.n } } : hit;
+}
+function castShotLevel(ray, targets) {
   if (!TG) return ray.intersectObjects(targets, false)[0];
   let level = false; _shotRest.length = 0;
   for (const o of targets) if (o.userData.tgShot) level = true; else _shotRest.push(o);
@@ -3124,6 +3130,7 @@ const fwdOf = e => e.isPlayer ? new V3(-Math.sin(e.yaw), 0, -Math.cos(e.yaw)) : 
 const losRay = new THREE.Raycaster();
 function losPts(o, t) {
   const d = t.clone().sub(o); const dist = d.length(); if (dist < 1e-3) return true; d.divideScalar(dist);
+  if (VEH.armorRay(o, d, dist)) return false; // nobody sees through a truck (but out of its windows, yes)
   if (TG) return tgRay(o.x, o.y, o.z, d.x, d.y, d.z, dist, true) >= dist;
   losRay.set(o, d); losRay.far = dist;
   return losRay.intersectObjects(W.meshes, false).length === 0;
@@ -3133,7 +3140,9 @@ const midPos = e => new V3(e.pos.x, e.pos.y + e.h * 0.7, e.pos.z);
 const los = (a, b) => losPts(eyePos(a), midPos(b));
 // Where a bot can see someone: the body, else just the head (over a parapet, or the local player leaning out); null if hidden
 function seenAt(b, t) {
-  const o = eyePos(b), m = midPos(t); if (losPts(o, m)) return { p: m, part: false };
+  const o = eyePos(b);
+  if (VEH.inArmour(t.id)) { const h = new V3(t.pos.x, t.pos.y + 1.45, t.pos.z); return losPts(o, h) ? { p: h, part: true } : null; } // sitting in a truck: just a head, at a window or the open back
+  const m = midPos(t); if (losPts(o, m)) return { p: m, part: false };
   const h = t.isPlayer && leanK > 0.3 ? camera.position.clone() : new V3(t.pos.x, t.pos.y + t.h - 0.15, t.pos.z);
   return losPts(o, h) ? { p: h, part: true } : null;
 }
@@ -4618,7 +4627,7 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, armorRay() { return null; }, inArmour() { return false; }, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
 
 // ---------- Shooting Range (range.js fills this in) ----------

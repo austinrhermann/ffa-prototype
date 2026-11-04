@@ -107,7 +107,7 @@
       wheelbase: fl.position.z - rr.position.z, track: fl.position.x - rr.position.x, wheelR: fl.scale.x };
     for (let k = 0; get('Seat_' + k); k++) { // the cab's two seats face forward; the benches face in
       const p = at('Seat_' + k), side = k < 2 ? 0 : Math.sign(p.x);
-      m.seats.push({ p, eye: p.clone().add(new V3(-side * 0.15, 0.8, k < 2 ? -0.02 : 0)), yaw: side * -Math.PI / 2 });
+      m.seats.push({ p, eye: p.clone().add(new V3(-side * 0.15, k < 2 ? 1.05 : 0.8, k < 2 ? -0.02 : 0)), yaw: side * -Math.PI / 2 }); // the cab's eyes sit high, to see the road over the hood
     }
     // The bench seat nearest the cab on each side is wedged against the container's front wall: nobody can see from it, so it's never offered
     for (const sd of [-1, 1]) {
@@ -173,8 +173,8 @@
     const wheels = [];
     for (const [x, z] of [[T / 2, L / 2], [-T / 2, L / 2], [T / 2, -L / 2], [-T / 2, -L / 2]]) wheels.push(wheel(g, r, Math.max(0.16, r * 0.62), x, r, z));
     return { g, body, wheels, steerN: 2, steerWheel: sw, seats: [
-      { p: new V3(sx, floor + 0.17, seatZ), eye: new V3(sx, floor + 0.98, seatZ - 0.02), yaw: 0 },
-      { p: new V3(-sx, floor + 0.17, seatZ), eye: new V3(-sx, floor + 0.98, seatZ - 0.02), yaw: 0 }] };
+      { p: new V3(sx, floor + 0.17, seatZ), eye: new V3(sx, floor + 1.2, seatZ - 0.02), yaw: 0 },
+      { p: new V3(-sx, floor + 0.17, seatZ), eye: new V3(-sx, floor + 1.2, seatZ - 0.02), yaw: 0 }] };
   }
   // The truck: an open chassis with the two front seats and steering wheel well forward, and a bed behind with low sides, a
   // tailgate and a bench down each side (three seats a side, facing in). A roll bar behind the front seats.
@@ -215,8 +215,8 @@
     const wheels = [];
     for (const [x, z] of [[T / 2, L / 2], [-T / 2, L / 2], [T / 2, -L / 2], [-T / 2, -L / 2]]) wheels.push(wheel(g, r, Math.max(0.2, r * 0.6), x, r, z));
     return { g, body, wheels, steerN: 2, steerWheel: sw, seats: [
-      { p: new V3(sx, floor + 0.2, seatZ), eye: new V3(sx, floor + 1.0, seatZ - 0.02), yaw: 0 },
-      { p: new V3(-sx, floor + 0.2, seatZ), eye: new V3(-sx, floor + 1.0, seatZ - 0.02), yaw: 0 }, ...rear] };
+      { p: new V3(sx, floor + 0.2, seatZ), eye: new V3(sx, floor + 1.22, seatZ - 0.02), yaw: 0 },
+      { p: new V3(-sx, floor + 0.2, seatZ), eye: new V3(-sx, floor + 1.22, seatZ - 0.02), yaw: 0 }, ...rear] };
   }
   function buildBike(v) {
     const p = v.p, g = new THREE.Group(), body = new THREE.Group(), paint = mat(v.color), L = p.wheelbase, r = p.wheelR;
@@ -244,6 +244,49 @@
   function darken(v) {
     if (v.wreckMesh) { v.shell.visible = false; v.wreckMesh.visible = true; v.steerWheel.parent.visible = false; v.wheels.forEach(w => { w.piv.visible = false; }); }
     (v.wreckMesh || v.g).traverse(o => { if (o.isMesh && o.material.color && !o.userData.dark) { o.material = o.material.clone(); o.material.color.multiplyScalar(v.wreckMesh ? 0.55 : 0.25); o.userData.dark = true; } });
+  }
+
+  // ---------------------------------------------------------------- armour: the parts of a body bullets and eyes can't get through
+  // The Cargo Truck as solid boxes in its own frame, [x0, x1, y0, y1, z0, z1] (x to the driver's side, y up, z forward). The cab
+  // is solid below the window line, with a roof and pillars round the windshield and the two door windows, which are open. The
+  // container is closed but for its open back. Underneath, the chassis down to just above the ground.
+  const TRUCK_ARMOR = [ // (the windows measured off the model: sills at 2.42, tops at 2.78)
+    [-0.95, 0.95, 0.75, 2.42, 0.74, 2.25], [-0.95, 0.95, 0.75, 2.2, 2.25, 2.95], // cab doors and dash; the hood
+    [-0.95, 0.95, 2.78, 2.95, 0.74, 2.25], // cab roof
+    [0.87, 0.95, 2.42, 2.78, 0.74, 1.37], [-0.95, -0.87, 2.42, 2.78, 0.74, 1.37], // door pillars behind the windows
+    [0.87, 0.95, 2.42, 2.78, 2.05, 2.25], [-0.95, -0.87, 2.42, 2.78, 2.05, 2.25], // and in front of them
+    [0.85, 0.95, 2.42, 2.78, 2.05, 2.25], [-0.95, -0.85, 2.42, 2.78, 2.05, 2.25], // either side of the windshield
+    [1.08, 1.17, 1.47, 3.72, -3.31, 0.87], [-1.17, -1.08, 1.47, 3.72, -3.31, 0.87], // container sides
+    [-1.17, 1.17, 3.64, 3.72, -3.31, 0.87], [-1.17, 1.17, 1.47, 3.72, 0.79, 0.87], // its roof and front wall
+    [-1.14, 1.14, 0.6, 1.6, -3.17, 2.64], // the chassis and the container's floor
+  ];
+  const _ai = new THREE.Matrix4(), _ao = new V3(), _ad = new V3(), _an = new V3();
+  // First armour along a ray within far: { t, n (the face's normal, world), v }, or null. A box the ray starts inside doesn't
+  // count, so whoever sits in a seat shoots (and sees) out through the windows, and the open back.
+  function armorRay(o, d, far) {
+    let best = null;
+    for (const v of list) {
+      if (!v.model || v.layout !== 'truck') continue;
+      const cx = v.pos.x - o.x, cy = v.pos.y + 2 - o.y, cz = v.pos.z - o.z, along = cx * d.x + cy * d.y + cz * d.z; // skip it unless the ray passes within 4.5 m of its middle
+      if (along < -4.5 || along > far + 4.5 || cx * cx + cy * cy + cz * cz - along * along > 20.25) continue;
+      if (!v.armM) continue; _ai.copy(v.armInv);
+      _ao.copy(o).applyMatrix4(_ai); _ad.copy(d).transformDirection(_ai);
+      for (const b of TRUCK_ARMOR) {
+        let t0 = -Infinity, t1 = Infinity, ax = -1, inside = true;
+        for (let a = 0; a < 3; a++) {
+          const oa = a === 0 ? _ao.x : a === 1 ? _ao.y : _ao.z, da = a === 0 ? _ad.x : a === 1 ? _ad.y : _ad.z, lo = b[a * 2], hi = b[a * 2 + 1];
+          if (oa < lo || oa > hi) inside = false;
+          if (Math.abs(da) < 1e-9) { if (oa < lo || oa > hi) { t0 = Infinity; break; } continue; }
+          let ta = (lo - oa) / da, tb = (hi - oa) / da; if (ta > tb) { const q = ta; ta = tb; tb = q; }
+          if (ta > t0) { t0 = ta; ax = a; } if (tb < t1) t1 = tb;
+        }
+        if (inside || t0 > t1 || t0 < 0 || t0 >= far || (best && t0 >= best.t)) continue;
+        const da = ax === 0 ? _ad.x : ax === 1 ? _ad.y : _ad.z;
+        _an.set(0, 0, 0).setComponent(ax, da > 0 ? -1 : 1).transformDirection(v.armM);
+        best = { t: t0, n: _an.clone(), v };
+      }
+    }
+    return best;
   }
 
   const list = [];
@@ -455,6 +498,12 @@
   }
 
   // ---------------------------------------------------------------- drawing
+  // The body's world matrix (and its inverse) for this frame, worked out straight away rather than at the next render: shots
+  // and sight lines test against it
+  function bodyMatrix(v) {
+    v.armM = v.armM || new THREE.Matrix4(); v.armInv = v.armInv || new THREE.Matrix4();
+    v.g.updateMatrix(); v.body.updateMatrix(); v.armM.multiplyMatrices(v.g.matrix, v.body.matrix); v.armInv.copy(v.armM).invert();
+  }
   function pose(v, dt) {
     v.g.position.copy(v.pos); v.g.rotation.set(-v.pitch, v.yaw, v.roll, 'YXZ');
     const s = v.susp; v.body.position.y = s.h; v.body.rotation.set(-s.p, 0, s.r);
@@ -517,7 +566,8 @@
     if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
   }
-  const freeRear = v => { for (let k = 2; k < v.seats.length; k++) if (!v.occ[k] && !v.seats[k].blocked) return k; return -1; };
+  // The back fills from the tailgate in: the first one aboard sits at the open end, where they can see out and shoot
+const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) if (!v.occ[k] && !v.seats[k].blocked && (best < 0 || v.seats[k].p.z < v.seats[best].p.z)) best = k; return best; };
   // What pressing E here would do: [text, action or null]
   function offer(v) {
     const n = v.name.toLowerCase();
@@ -814,8 +864,8 @@
   const idle = { thr: 0, steer: 0, hand: false, reset: false }, parked = { thr: 0, steer: 0, hand: true, reset: false }; // nobody aboard: the handbrake's on
   let resetQ = false, selfOn = false, selfRig = null;
   function setSelf(on) { // your own body is normally only a shadow; in Test Drive it's drawn (third person, or riding in the open)
-    if (!P.rig || (on === selfOn && P.rig === selfRig)) return; selfOn = on; selfRig = P.rig; // a new character's body starts out hidden
-    for (const o of P.rig.body || []) { o.material.colorWrite = on; o.material.depthWrite = on; } // (only the body: the gun it holds shares its materials)
+    if (!P.rig) return; selfOn = on; selfRig = P.rig; // set every frame: the game's first-person body view (on foot) switches the same materials
+    for (const o of P.rig.body || []) if (o.material.colorWrite !== on) { o.material.colorWrite = on; o.material.depthWrite = on; } // (only the body: the gun it holds shares its materials)
   }
   // Seat someone's body in a vehicle seat (crouched, which reads as sitting)
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
@@ -824,10 +874,16 @@
     wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw, v.roll, 'YXZ'); wrap.visible = true;
     animRig(rig, dt, 0, true, 0.2);
   }
+  // In a seat you aim where the camera looks, from your eyes (the game's shots take your yaw and pitch, and start at myEye)
+  const _cd = new V3();
+  function aimFromCamera(v, k) {
+    camera.getWorldDirection(_cd); P.yaw = Math.atan2(-_cd.x, -_cd.z); P.pitch = Math.asin(Math.max(-1, Math.min(1, _cd.y)));
+    if (v.armM) myEye.copy(v.seats[k].eye).applyMatrix4(v.armM);
+  }
   Object.defineProperty(VEH, 'cur', { get: () => cur, configurable: true });
   Object.defineProperty(VEH, 'tuneOpen', { get: () => tuneOpen, configurable: true });
   Object.defineProperty(VEH, 'riding', { get: () => cur || ride, configurable: true }); // you're in a vehicle, any seat
-  Object.defineProperty(VEH, 'noGuns', { get: () => driveMode() || !!cur || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat
+  Object.defineProperty(VEH, 'noGuns', { get: () => driveMode() || (!!cur && cur.kind !== 'bike') || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat, and a bike's rider from the saddle
   Object.assign(VEH, {
     list,
     rides: id => list.some(v => v.owner === id || (v.occ && v.occ.includes(id))), // someone (a guest, by id) is in a seat
@@ -850,7 +906,7 @@
       resetQ = false;
       bumpVehicles();
       for (const v of list) if (simulated(v) && v.owner && !v.dead && !matchOver) runOver(v);
-      for (const v of list) { suspension(v, dt); pose(v, dt); }
+      for (const v of list) { suspension(v, dt); pose(v, dt); bodyMatrix(v); }
       // Dying in a vehicle leaves it where it is (you come back at a spawn point, on foot)
       if (!P.alive) { if (cur) leave(true); if (ride) unride(true); }
       if (cur && cur.dead) { leave(true); note('Bail out! It\'s wrecked', 2); }
@@ -866,6 +922,8 @@
       soundTick();
     },
     block: blockBody,
+    armorRay,
+    inArmour: id => list.some(v => v.model && v.layout === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
     lenOf,
@@ -903,11 +961,11 @@
       lookIdle += dt; // (the view stays where you leave it: it no longer settles back behind the vehicle)
       camera.fov = 72 + Math.min(14, Math.abs(v.speed || 0) * 0.25); camera.updateProjectionMatrix();
       if (view === 'seat') { // the driver's eyes: open chassis, nothing in the way
-        v.body.updateMatrixWorld(true);
-        camera.position.copy(v.seats[k0].eye).applyMatrix4(v.body.matrixWorld);
+        if (!v.armM) bodyMatrix(v);
+        camera.position.copy(v.seats[k0].eye).applyMatrix4(v.armM); // (the same eyes you shoot from)
         const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-v.pitch - v.susp.p, v.yaw, v.roll + v.susp.r, 'YXZ'));
         camera.quaternion.copy(q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(camPitch, Math.PI + camYaw + v.seats[k0].yaw, 0, 'YXZ')));
-        camera.updateMatrixWorld(); return;
+        camera.updateMatrixWorld(); aimFromCamera(v, k0); return;
       }
       const dist = 3.6 + v.p.wheelbase * 1.1, h = 1.5 + v.p.wheelbase * 0.25, target = new V3(v.pos.x, v.pos.y + 0.9, v.pos.z);
       const y = v.yaw + camYaw, c = Math.cos(camPitch), want = target.clone().add(new V3(-Math.sin(y) * dist * c, h + Math.sin(camPitch) * dist, -Math.cos(y) * dist * c));
@@ -917,6 +975,7 @@
       if (![camPos.x, camPos.y, camPos.z, camLook.x].every(Number.isFinite)) { camPos.copy(want); camLook.copy(target); }
       camPos.lerp(want, 1 - Math.exp(-9 * dt)); camLook.lerp(target.addScaledVector(_f, 3), 1 - Math.exp(-14 * dt));
       camera.position.copy(camPos); camera.up.set(0, 1, 0); camera.lookAt(camLook); camera.updateMatrixWorld();
+      aimFromCamera(v, k0);
     },
     after(dt) {
       hudTick();
@@ -926,7 +985,7 @@
       if (noGun) { vm.visible = false; knifeVM.visible = false; }
       if (driveMode()) for (const e of ents) if (e.rig && e.rig.gunVis) e.rig.gunVis.visible = false; // nobody carries a gun in Test Drive
       // Your body: in Test Drive drawn on foot (third person); in a vehicle drawn in the chase view, hidden in your seat's view
-      setSelf(driveMode() ? !(cur || ride) || view === 'chase' : !!(cur || ride) && view === 'chase');
+      if (driveMode()) setSelf(!(cur || ride) || view === 'chase'); else if (cur || ride) setSelf(view === 'chase'); // (on foot the game's own body view decides)
       if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt, 0);
       if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, rideSeat);
       // Everyone else sits in their seats
