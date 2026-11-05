@@ -1027,9 +1027,9 @@
     },
     after(dt) {
       const show = live() && (locked || panelOpen) && P.alive;
-      slotsEl.style.display = show ? 'flex' : 'none'; card.style.display = show && on() ? 'block' : 'none'; // the card is the range's
+      slotsEl.style.display = show && !VEH.noGuns ? 'flex' : 'none'; // (no weapon slots while you drive) card.style.display = show && on() ? 'block' : 'none'; // the card is the range's
       document.body.classList.toggle('range-on', live());
-      cross.style.display = show ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none';
+      cross.style.display = show && !VEH.noGuns ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none'; // no crosshair while you can't shoot (driving)
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
