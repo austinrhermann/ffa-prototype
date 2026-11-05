@@ -40,7 +40,7 @@
   const HELP = {
     steerFall: 'The steering lock fades as you go faster; this is the speed where you get half of it. Max it for full lock at any speed (grip still limits the turn).',
     steerRate: 'How quickly the wheels turn when you press A or D. Higher is twitchier.',
-    downforce: 'Extra grip that grows with speed, like a race car\'s wings (0 is none): this many g more at 100 km/h, four times as much at 200.',
+    downforce: 'Extra grip that grows with speed, like a race car\'s wings (0 is none): this many g more at 62 mph, four times as much at 124.',
     slide: 'How much the tyres still hold sideways on the handbrake. Low lets the back swing out into a drift.',
     maxLat: 'This is what limits turning once you\'re moving: past a walking pace the car turns only as hard as its grip allows, however far you steer. Raise it to turn harder at speed. 1.5 is a road car, 3 a race car, 6 and up a cartoon. (The banked turns add a little.)',
     grip: 'How quickly a sideways slide straightens out. Low is drifty, high snaps straight.',
@@ -97,6 +97,7 @@
   // model's wheelbase, track and wheel size.
   const MODELS = {};
   function setModel(key, sc) {
+    if (PRESETS[key].kind === 'bike') return setBikeModel(key, sc);
     const get = n => sc.getObjectByName(n), at = n => get(n).position.clone();
     const boxes = ['Box_Cab', 'Box_Back', 'Box_Under'].map(get).map(o => ({ c: o.position.clone(), h: o.scale.clone() }));
     let z0 = Infinity, z1 = -Infinity;
@@ -116,6 +117,32 @@
     }
     MODELS[key] = m;
     Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, track: m.track, wheelR: m.wheelR });
+  }
+  // A motorcycle model (tools/build_motorcycle.py): the body, the steering parts under Steer (at the front axle, its y up the
+  // steering axis), the two wheels and where the rider sits. Its wheels go on the preset's axles like the truck's.
+  function setBikeModel(key, sc) {
+    const get = n => sc.getObjectByName(n), at = n => get(n).position.clone(), wf = get('Wheel_Front'), wb = get('Wheel_Back');
+    const m = { bike: true, body: get('Body'), steer: get('Steer'), wheelF: get('Wheel_F'), wheelB: get('Wheel_B'),
+      seats: [0, 1].map(k => ({ p: at('Seat_' + k), peg: at('Peg_' + k) })), // the rider on the front of the saddle, a passenger behind
+      wheelbase: wf.position.z - wb.position.z, wheelR: wf.scale.x };
+    MODELS[key] = m;
+    Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, wheelR: m.wheelR });
+  }
+  function buildBikeModel(v, m) {
+    const p = v.p, L = p.wheelbase, r = p.wheelR, k = r / m.wheelR, g = new THREE.Group(), body = new THREE.Group();
+    g.add(body); body.add(m.body.clone());
+    // The fork and bars turn on the steering axis with the body (on the suspension); the front wheel turns on the same axis at the axle
+    const head = new THREE.Group(); head.position.copy(m.steer.position); head.quaternion.copy(m.steer.quaternion); body.add(head);
+    const fork = new THREE.Group(); head.add(fork);
+    for (const c of m.steer.children) fork.add(c.clone());
+    const tilt = new THREE.Group(); tilt.position.set(0, r, L / 2); tilt.quaternion.copy(m.steer.quaternion); g.add(tilt);
+    const piv = new THREE.Group(), spin = new THREE.Group(), wf = m.wheelF.clone(); tilt.add(piv); piv.add(spin); spin.add(wf);
+    spin.quaternion.identity(); wf.position.set(0, 0, 0); wf.quaternion.copy(m.steer.quaternion).invert(); wf.scale.setScalar(k);
+    const rp = new THREE.Group(), rs = new THREE.Group(), wb = m.wheelB.clone(); rp.position.set(0, r, -L / 2); g.add(rp); rp.add(rs); rs.add(wb);
+    wb.position.set(0, 0, 0); wb.scale.setScalar(k);
+    // Seats: p is just under the saddle's top (where a seated body's middle goes, like the cars'); peg is the left footpeg
+    const seats = m.seats.map((s, k) => ({ p: s.p.clone().add(new V3(0, -0.03, 0)), eye: s.p.clone().add(new V3(0, k ? 0.72 : 0.68, k ? 0 : 0.1)), yaw: 0, peg: s.peg.clone(), saddle: s.p.clone() }));
+    return { g, body, wheels: [{ piv, spin }, { piv: rp, spin: rs }], steerN: 1, fork, grips: ['Grip_L', 'Grip_R'].map(n => fork.getObjectByName(n)), seats };
   }
   // A vehicle drawn from its model: the body on the suspension, the wheels on the axles, the steering wheel turning on its
   // column. The wreck waits hidden until it's needed (darken).
@@ -219,6 +246,7 @@
       { p: new V3(-sx, floor + 0.2, seatZ), eye: new V3(-sx, floor + 1.22, seatZ - 0.02), yaw: 0 }, ...rear] };
   }
   function buildBike(v) {
+    if (MODELS[v.key] && MODELS[v.key].bike) return buildBikeModel(v, MODELS[v.key]);
     const p = v.p, g = new THREE.Group(), body = new THREE.Group(), paint = mat(v.color), L = p.wheelbase, r = p.wheelR;
     g.add(body);
     const fork = new THREE.Group(); fork.position.set(0, r, L / 2); g.add(fork);
@@ -312,18 +340,66 @@
     for (let k = list.length - 1; k >= 0; k--) if (vs.includes(list[k])) list.splice(k, 1);
     list.forEach((v, k) => { v.i = k; });
   }
-  function place(v, x = v.home[0], z = v.home[1], yaw = v.home[2]) {
-    const g = groundAt(x, z, 50) || 0;
+  function place(v, x = v.home[0], z = v.home[1], yaw = v.home[2], y) {
+    const g = y !== undefined ? y : groundAt(x, z, 50) || 0;
     v.pos.set(x, g, z); v.vel.set(0, 0, 0); v.yaw = yaw; v.pitch = v.roll = v.lean = v.vy = v.pitchRate = v.steer = 0; v.onGround = true; v.speed = v.slip = 0;
     pose(v, 0);
   }
 
+  // R (or stuck in the scenery): the nearest flat, open, dry spot, searched in rings out from where the vehicle is, at about its
+  // height or a little above. Flat: the ground under all four corners within a hand's width; open: nothing above the wheels
+  // along the body (walls, ceilings, the hill itself) and no other vehicle; not under the hill, not in the sea.
+  function clearAt(v, x, g, z, yaw) {
+    const len = lenOf(v), mid = midOf(v), r = v.kind === 'bike' ? 0.4 : v.model ? v.model.half : Math.min(v.p.track / 2 + 0.1, 1.05), fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const n = Math.max(2, Math.ceil(len / (2 * r)) + 1), c = new V3();
+    for (let i = 0; i < n; i++) {
+      const sd = mid - len / 2 + r + (len - 2 * r) * i / (n - 1);
+      for (const h of [0.6, 1.5]) {
+        let hit = false; c.set(x + fx * sd, g + h, z + fz * sd);
+        sphereTris(c, r, (t, q) => { if (q.y > g + 0.35) hit = true; });
+        if (hit) return false;
+      }
+    }
+    return !list.some(o => o !== v && Math.hypot(o.pos.x - x, o.pos.z - z) < lenOf(o) / 2 + len / 2 + 0.5);
+  }
+  const openSky = (x, z, g) => { let open = true; tgEach(x, z, x, z, t => { const y = triYAt(TG.T, t * 9, x, z); if (y !== null && y > g + 0.35) open = false; }); return open; };
+  function flatSpot(v, x0 = v.pos.x, z0 = v.pos.z, y0 = v.pos.y) {
+    const L = v.p.wheelbase / 2 + 0.2, W = (v.kind === 'bike' ? 0.3 : v.p.track) / 2 + 0.1, top = Math.max(y0, v.lastGround ? v.lastGround[1] : -Infinity) + 6;
+    for (let r = 0; r <= 40; r += 1) {
+      const n = r ? Math.ceil(2 * Math.PI * r / 1.2) : 1;
+      for (let i = 0; i < n; i++) {
+        const a = v.yaw + 2 * Math.PI * i / n, x = x0 + Math.sin(a) * r, z = z0 + Math.cos(a) * r, g = groundAt(x, z, top);
+        if (g === null || g < waterAt(x, z) + 0.3 || !openSky(x, z, g)) continue; // (nothing overhead: not under a floor, the hill or a tree)
+        for (const yaw of [v.yaw, v.yaw + Math.PI / 2, v.yaw + Math.PI, v.yaw - Math.PI / 2]) {
+          const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = -fz, rz = fx;
+          const flat = [[1, 1], [1, -1], [-1, 1], [-1, -1]].every(([a1, b1]) => { const h = groundAt(x + fx * L * a1 + rx * W * b1, z + fz * L * a1 + rz * W * b1, g + 0.5); return h !== null && Math.abs(h - g) < 0.2; });
+          if (flat && clearAt(v, x, g, z, yaw)) return [x, z, yaw, g];
+        }
+      }
+    }
+    return null;
+  }
+  // Back where it was parked at the start (or the nearest clear spot to it, if something's parked there now)
+  function respawn(v) {
+    const [x, z, yaw] = v.home, g = groundAt(x, z, 50);
+    if (g !== null && clearAt(v, x, g, z, yaw)) return place(v);
+    const s = flatSpot(v, x, z, g === null ? 50 : g); if (s) place(v, ...s); else place(v);
+  }
+  function unstick(v) { const s = flatSpot(v); if (s) place(v, ...s); else respawn(v); }
+
   // ---------------------------------------------------------------- driving
   const fwdOfYaw = y => [Math.sin(y), Math.cos(y)];
   // The surface under a wheel: any slope counts (people can't walk up steep hillsides, but a wheel still sits on one)
-  function hAt(x, z, top, fallback) {
-    let best = null, above = null; const G = TG;
-    tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y === null) return; if (y <= top) { if (best === null || y > best) best = y; } else if (y <= top + 2.5 && (above === null || y < above)) above = y; });
+  // The island's ground (its hillsides and rock), as opposed to buildings: the outdoor ground material, or the fort's terrain meshes
+  function terrain() {
+    const G = TG; if (G.vterr) return G.vterr;
+    const k = new Uint8Array(G.NR.length / 3);
+    for (let t = 0; t < k.length; t++) { const m = G.meshes[G.MESH[t]]; k[t] = G.OUT[t] || (m && /^(Terrain|Fort_Rock)/.test(m.name)) ? 1 : 0; }
+    return (G.vterr = k);
+  }
+  function hAt(x, z, top, fallback, reach = 0) { // reach: how much higher the island's ground (only) may be, for steep hillsides
+    let best = null, above = null; const G = TG, TR = terrain();
+    tgEach(x, z, x, z, t => { const y = triYAt(G.T, t * 9, x, z); if (y === null) return; if (y <= top + (TR[t] ? reach : 0)) { if (best === null || y > best) best = y; } else if (y <= top + 2.5 && (above === null || y < above)) above = y; });
     // A surface just above the wheel (a steep bank, or we've dipped into the ground) beats one far below it: Minimal has a sheet
     // down at the sea floor under everything, and picking that dropped trucks straight through the hillsides
     if (above !== null && (best === null || best < top - 2.5)) return above;
@@ -351,9 +427,11 @@
     vf = v.vel.x * fx + v.vel.z * fz; let vr = v.vel.x * rx + v.vel.z * rz;
     const touching = v.onGround || v.pos.y - (v.gcPrev === undefined ? -1e3 : v.gcPrev) < 0.3; // a hop over a bump still has the tyres on the ground
     if (touching) {
-      if (inp.thr > 0 && !inp.hand) vf += (vf < -0.5 ? p.brake : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt; // the handbrake cuts the engine
+      const up = Math.sin(v.pitch) > 0; // (rolling back down a hill on the gas, the engine pulls as well as the brakes)
+      if (inp.thr > 0 && !inp.hand) vf += (vf < -0.5 ? Math.max(p.brake, up ? p.power : 0) : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt; // the handbrake cuts the engine
       else if (inp.thr < 0) vf -= (vf > 0.5 ? p.brake : p.power * 0.5 * Math.max(0, 1 + vf / rev)) * -inp.thr * dt;
-      vf -= G * Math.sin(v.pitch) * dt; // rolling up and down slopes and ramps (before the brakes, so a handbrake holds on a hill)
+      const sl = G * Math.sin(v.pitch); // rolling up and down slopes and ramps (before the brakes, so a handbrake holds on a hill)
+      vf -= (sl > 0 && inp.thr > 0 ? Math.min(sl, p.power * 0.75) : sl) * dt; // (on the gas, a climb never takes more than 3/4 of the engine: every vehicle gets up every hill)
       const res = (0.5 + (inp.hand ? p.hand : 0)) * dt; vf -= Math.sign(vf) * Math.min(Math.abs(vf), res);
       vr *= Math.exp(-(inp.hand ? p.slide : p.grip) * dt);
     }
@@ -363,10 +441,11 @@
     v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0); v.speed = vf; // locked wheels squeal too
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
     const L = p.wheelbase / 2, W = (v.kind === 'bike' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5, fb = v.pos.y - 3; // wheels climb ramps, banking and hills, never up a wall
-    const hf = Math.max(hAt(v.pos.x + fx * L + rx * W, v.pos.z + fz * L + rz * W, top2, fb), hAt(v.pos.x + fx * L - rx * W, v.pos.z + fz * L - rz * W, top2, fb));
-    const hb = Math.max(hAt(v.pos.x - fx * L + rx * W, v.pos.z - fz * L + rz * W, top2, fb), hAt(v.pos.x - fx * L - rx * W, v.pos.z - fz * L - rz * W, top2, fb));
-    const hr = Math.max(hAt(v.pos.x + rx * W + fx * L, v.pos.z + rz * W + fz * L, top2, fb), hAt(v.pos.x + rx * W - fx * L, v.pos.z + rz * W - fz * L, top2, fb));
-    const hl = Math.max(hAt(v.pos.x - rx * W + fx * L, v.pos.z - rz * W + fz * L, top2, fb), hAt(v.pos.x - rx * W - fx * L, v.pos.z - rz * W - fz * L, top2, fb));
+    const rh = Math.max(L, W) * 2.2; // up the island's hillsides the wheels find ground as steep as ~65° (steeper is a cliff: hitWalls)
+    const hf = Math.max(hAt(v.pos.x + fx * L + rx * W, v.pos.z + fz * L + rz * W, top2, fb, rh), hAt(v.pos.x + fx * L - rx * W, v.pos.z + fz * L - rz * W, top2, fb, rh));
+    const hb = Math.max(hAt(v.pos.x - fx * L + rx * W, v.pos.z - fz * L + rz * W, top2, fb, rh), hAt(v.pos.x - fx * L - rx * W, v.pos.z - fz * L - rz * W, top2, fb, rh));
+    const hr = Math.max(hAt(v.pos.x + rx * W + fx * L, v.pos.z + rz * W + fz * L, top2, fb, rh), hAt(v.pos.x + rx * W - fx * L, v.pos.z + rz * W - fz * L, top2, fb, rh));
+    const hl = Math.max(hAt(v.pos.x - rx * W + fx * L, v.pos.z - rz * W + fz * L, top2, fb, rh), hAt(v.pos.x - rx * W - fx * L, v.pos.z - rz * W - fz * L, top2, fb, rh));
     const gc = Math.max((hf + hb) / 2, Math.min(hf, hb) + 0.02), pT = Math.atan2(hf - hb, 2 * L), rT = v.kind === 'bike' ? 0 : Math.atan2(hl - hr, 2 * W);
     if (v.onGround) {
       if (gc < v.pos.y - 0.6 || (v.vy > 3 && gc < v.pos.y + v.vy * dt - 0.12)) { v.onGround = false; v.pitchRate = Math.max(-1.5, Math.min(1.5, v.pitchRate)); } // off a ramp's lip, or a real drop (not every bump)
@@ -392,7 +471,7 @@
       v.lean += (Math.max(-0.85, Math.min(0.85, want)) - v.lean) * Math.min(1, dt * 6);
       v.roll = v.lean;
     }
-    if (inp.reset) { place(v, v.pos.x, v.pos.z, v.yaw); }
+    if (inp.reset) unstick(v); // R: onto the nearest flat, open ground
   }
   // Suspension: the body (not the wheels) dives, squats, rolls and bounces on springs. It's for the feel and the look;
   // the grip doesn't depend on it. Runs for every vehicle, driven by how its speed and heading change.
@@ -428,7 +507,7 @@
     return out;
   }
   function hitWalls(v) {
-    let worst = 0; const bounce = 1 + v.p.bounce, edge = TRK.R + TRK.W / 2;
+    let worst = 0; const bounce = 1 + v.p.bounce, edge = TRK.R + TRK.W / 2, TR = terrain();
     for (const [x, y, z, r] of spheres(v)) {
       if (driveMode() && Math.abs(x) < TRK.door + 1.5 && z < edge + 1 && z + r > edge) { // the walkway to the stands is for people only
         const push = z + r - edge; v.pos.z -= push; if (v.vel.z > 0) { worst = Math.max(worst, v.vel.z); v.vel.z *= -v.p.bounce; }
@@ -436,7 +515,7 @@
       _c.set(x, y, z);
       sphereTris(_c, r, (t, q, dist) => {
         if (TG.leaf && TG.leaf.tris.length && t >= TG.leaf.tris[0]) return; // the gate doors stop people, not cars (they squeeze through)
-        if (Math.abs(TG.NR[t * 3 + 1]) >= FLOOR_NY) return; // floors are the suspension's business
+        const ny = Math.abs(TG.NR[t * 3 + 1]); if (ny >= FLOOR_NY || (TR[t] && ny >= 0.3)) return; // floors, and the island's hillsides short of a cliff, are the suspension's business
         if (q.y < v.pos.y + 0.45) return; // nor anything below the axles (a ramp's lip as you leave it)
         let nx = _c.x - q.x, nz = _c.z - q.z, l = Math.hypot(nx, nz); if (l < 1e-5) { nx = TG.NR[t * 3]; nz = TG.NR[t * 3 + 2]; l = Math.hypot(nx, nz) || 1; }
         nx /= l; nz /= l; const push = r - dist;
@@ -562,6 +641,7 @@
   // Where you're standing picks the seat: the left side is the driver's, the right side rides along, the back climbs in
   function zoneOf(v) {
     if (v.seats.length < 2) return 'driver';
+    if (v.kind === 'bike') { axes(v); const lz = (P.pos.x - v.pos.x) * _f.x + (P.pos.z - v.pos.z) * _f.z; return (v.owner && v.owner !== me()) || lz < -0.5 ? 'passenger' : 'driver'; } // a bike: the back seat from behind, or once someone's riding it
     axes(v); const dx = P.pos.x - v.pos.x, dz = P.pos.z - v.pos.z, lz = dx * _f.x + dz * _f.z, lx = dx * _r.x + dz * _r.z;
     if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
@@ -575,7 +655,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     if (v.npcBusy) return [`Wait for the ${n} to park`, null];
     const z = zoneOf(v);
     if (z === 'rear') { const k = freeRear(v); return k > 0 ? [`E  Climb in the back of the ${n}`, () => rideAlong(v, k)] : [`The back of the ${n} is full`, null]; }
-    if (z === 'passenger') return !v.occ[1] ? [`E  Ride along in the ${n}`, () => rideAlong(v, 1)] : [`The passenger seat is taken`, null];
+    if (z === 'passenger') return !v.occ[1] ? [`E  ${v.kind === 'bike' ? 'Ride on the back of' : 'Ride along in'} the ${n}`, () => rideAlong(v, 1)] : [`The passenger seat is taken`, null];
     if (v.owner && v.owner !== me()) return v.seats.length > 1 ? [`Someone is driving: go round to the other side to ride along`, null] : [`Someone is riding the ${n}`, null];
     return [`E  ${v.kind === 'bike' ? 'Ride' : 'Drive'} the ${n}`, () => enter(v)];
   }
@@ -780,7 +860,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     for (const [k, label, min, max, step, unit, kinds, section] of TUNE) {
       if (kinds !== 'all' && kinds !== v.kind) continue;
       if (section !== sec) { html += `<h3>${section}</h3>`; sec = section; }
-      html += `<div class="row"><label for="vt-${k}">${label}</label><output id="vo-${k}">${fmt(v.p[k], step)} ${unit}</output>
+      html += `<div class="row"><label for="vt-${k}">${label}</label><output id="vo-${k}">${shown(v.p[k], step, unit)}</output>
         <input type="range" id="vt-${k}" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v.p[k]}">${HELP[k] ? `<div class="help">${HELP[k]}</div>` : ''}</div>`;
       if (k === 'downforce') html += `<div class="help" id="vturn" style="color:#cfd6dd"></div>`;
     }
@@ -790,7 +870,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     panel.innerHTML = html; turnInfo();
     panel.querySelectorAll('input[type=range]').forEach(el => el.oninput = () => {
       const k = el.dataset.k, row = TUNE.find(t => t[0] === k); cur.p[k] = +el.value;
-      panel.querySelector('#vo-' + k).textContent = `${fmt(cur.p[k], row[4])} ${row[5]}`;
+      panel.querySelector('#vo-' + k).textContent = shown(cur.p[k], row[4], row[5]);
       if (['steer', 'wheelbase', 'maxLat', 'downforce', 'top'].includes(k)) turnInfo();
       paramsChanged(cur, ['wheelbase', 'track', 'wheelR'].includes(k));
     });
@@ -801,11 +881,13 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
   function prompt2(txt) { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'width:100%;height:90px;margin-top:8px'; panel.append(ta); ta.select(); }
   // What the steering and grip add up to: the tightest turn, and the speed where grip (not the steering) becomes the limit
+  // Speeds are tuned in km/h (the stored numbers, and Copy settings, stay so) but shown in miles per hour
+  const MPH = 0.621371, shown = (val, step, unit) => unit === 'km/h' ? `${Math.round(val * MPH)} mph` : `${fmt(val, step)} ${unit}`;
   function turnInfo() {
     const el = panel.querySelector('#vturn'); if (!el || !cur) return;
     const p = cur.p, tan = Math.tan(p.steer * Math.PI / 180), full = Math.sqrt(p.maxLat * 9.8 * p.wheelbase / tan) * 3.6;
     const turn = R => Math.sqrt((p.maxLat * 9.8) * R) * 3.6;
-    el.textContent = `Tightest turn: ${(p.wheelbase / tan).toFixed(1)} m radius. Full lock works up to about ${Math.round(full)} km/h; faster than that, grip decides how hard you turn. These turns can be taken flat out at about ${Math.round(Math.min(p.top, turn(45)))} km/h${p.downforce ? ' (more with downforce)' : ''}.`;
+    el.textContent = `Tightest turn: ${(p.wheelbase / tan).toFixed(1)} m radius. Full lock works up to about ${Math.round(full * MPH)} mph; faster than that, grip decides how hard you turn. These turns can be taken flat out at about ${Math.round(Math.min(p.top, turn(45)) * MPH)} mph${p.downforce ? ' (more with downforce)' : ''}.`;
   }
   function paramsChanged(v, shape) {
     if (shape) { clearTimeout(v.rebuildT); v.rebuildT = setTimeout(() => rebuild(v), 120); }
@@ -822,13 +904,13 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   function hudTick() {
     const on = list.length > 0 && (locked || tuneOpen);
     if (cur && on) {
-      const v = cur, kmh = Math.round(Math.abs(v.speed) * 3.6), t = LAP.on ? ((performance.now() - LAP.start) / 1000).toFixed(1) : '–';
+      const v = cur, mph = Math.round(Math.abs(v.speed) * 2.23694), t = LAP.on ? ((performance.now() - LAP.start) / 1000).toFixed(1) : '–';
       const lapLine = driveMode() ? `<br>Lap ${t} s · last ${LAP.last ? LAP.last.toFixed(2) : '–'} · best ${LAP.best ? LAP.best.toFixed(2) : '–'}` : '';
-      hud.innerHTML = `<b>${kmh} km/h</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${lapLine}<br><small>Tab tune · R back on your wheels · V view · E out</small>`;
+      hud.innerHTML = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${lapLine}<br><small>Tab tune · R back on your wheels · V view · E out</small>`;
       hud.style.display = 'block';
     } else if (ride && on) {
-      const v = ride, kmh = Math.round(Math.abs(v.speed) * 3.6), d = ents.find(e => e.id === v.owner && e !== P);
-      hud.innerHTML = `<b>${kmh} km/h</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}<br><small>V view · E out</small>`;
+      const v = ride, mph = Math.round(Math.abs(v.speed) * 2.23694), d = ents.find(e => e.id === v.owner && e !== P);
+      hud.innerHTML = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}<br><small>V view · E out</small>`;
       hud.style.display = 'block';
     } else hud.style.display = 'none';
     const nv = on && !cur && !ride && P.alive ? nearest() : null;
@@ -869,10 +951,137 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
   // Seat someone's body in a vehicle seat (crouched, which reads as sitting)
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
-  function seat(rig, wrap, v, dt, k) {
+  function seat(rig, wrap, v, dt, k, who) {
+    rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
+    if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatBike(rig, wrap, v, dt, k, who);
     const p = seatWorld(v, k);
     wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw, v.roll, 'YXZ'); wrap.visible = true;
     animRig(rig, dt, 0, true, 0.2);
+  }
+  // Astride a bike: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
+  // shots still go from the eyes), a passenger behind turns at the waist toward where they aim, gun up
+  const _bq = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bq3 = new THREE.Quaternion(), _bm = new THREE.Matrix4(), _bm2 = new THREE.Matrix4();
+  const _b1 = new V3(), _b2 = new V3(), _b3 = new V3(), _b4 = new V3(), _b5 = new V3(), _UP = new V3(0, 1, 0);
+  const _unturn = new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), -RIG_TURN);
+  const bikeQ = (v, q) => q.setFromEuler(new THREE.Euler(-v.pitch, v.yaw, v.roll, 'YXZ'));
+  const hipsOf = (rig, out) => out.copy(rigBone(rig, 'DEF-Thigh_1L').getWorldPosition(_b4)).add(rigBone(rig, 'DEF-Thigh_1R').getWorldPosition(_b5)).multiplyScalar(0.5);
+  function seatBike(rig, wrap, v, dt, k, who) {
+    const s = v.seats[k], rider = k === 0, pass = !rider && who && who.alive !== false;
+    v.body.updateMatrixWorld(true); bikeQ(v, _bq);
+    wrap.quaternion.copy(_bq).multiply(_unturn); wrap.position.copy(s.saddle).applyMatrix4(v.body.matrixWorld); wrap.visible = true; // (the rig is drawn turned 10° right: square it up)
+    animRig(rig, dt, 0, true, pass ? who.pitch || 0 : 0.15);
+    // Legs: the hinge angles that put the ankles over the pegs, worked out once per character and seat
+    const legs = rig.model.bikeLegs || (rig.model.bikeLegs = {}), lk = v.key + k;
+    if (!legs[lk]) { wrap.updateMatrixWorld(true); legs[lk] = solveLegs(rig, v, s); }
+    wrap.updateMatrixWorld(true);
+    for (const side of ['L', 'R']) legPose(rig, side, legs[lk][side], _bq);
+    // A passenger turns at the waist (everything above the hips, about the spine's base) toward the aim
+    if (pass && rig.upper.length) {
+      const yaw = Math.max(-2.6, Math.min(2.6, wrapA(who.yaw + Math.PI - v.yaw)));
+      wrap.updateMatrixWorld(true);
+      const up = _b1.copy(_UP).applyQuaternion(_bq).applyQuaternion(rig.upper[0].b.parent.getWorldQuaternion(_bq2).invert());
+      _bq3.setFromAxisAngle(up, yaw);
+      for (const u of rig.upper) { u.b.position.sub(rig.piv1).applyQuaternion(_bq3).add(rig.piv1); u.b.quaternion.premultiply(_bq3); }
+    }
+    // Hips onto the saddle
+    wrap.updateMatrixWorld(true);
+    const want = _b2.copy(s.saddle).add(_b3.set(0, 0.1, 0)).applyMatrix4(v.body.matrixWorld);
+    wrap.position.add(want.sub(hipsOf(rig, _b3))); wrap.updateMatrixWorld(true);
+    if (rider && v.grips && v.grips[0]) { // lean in over the tank until the grips are in reach, then hands on them
+      armsBack(rig); rig.root.updateMatrixWorld(true);
+      const lean = rig.model.bikeLean || (rig.model.bikeLean = {});
+      if (lean[lk] === undefined) lean[lk] = leanToReach(rig, v, _bq);
+      else bendUpper(rig, lean[lk], _bq);
+      for (const [side, gi] of [['L', 0], ['R', 1]]) reach(rig, side, v.grips[gi], _bq);
+      if (rig.gunVis) { rig.gunVis.visible = false; rig.bikeHid = true; }
+    }
+  }
+  // Everything above the hips bends forward about the spine's base (the bike's side-to-side axis)
+  function bendUpper(rig, ang, q) {
+    if (!ang) return;
+    const ax = _b1.set(1, 0, 0).applyQuaternion(q).applyQuaternion(rig.upper[0].b.parent.getWorldQuaternion(_bq2).invert());
+    _bq3.setFromAxisAngle(ax, ang);
+    for (const u of rig.upper) { u.b.position.sub(rig.piv1).applyQuaternion(_bq3).add(rig.piv1); u.b.quaternion.premultiply(_bq3); }
+    rig.wrap.updateMatrixWorld(true); rig.root.updateMatrixWorld(true);
+  }
+  function leanToReach(rig, v, q) {
+    const arm = s => { const S = rigBone(rig, 'DEF-UpperArm_1' + s).getWorldPosition(new V3()), E = rigBone(rig, 'DEF-Forearm_1' + s).getWorldPosition(new V3()), W = rigBone(rig, 'DEF-Wrist' + s).getWorldPosition(new V3());
+      return [S, S.distanceTo(E) + E.distanceTo(W)]; };
+    let total = 0;
+    for (let i = 0; i < 3; i++) { // (at most ~9° on top of the sitting lean: the rider sits up, arms reaching out to the bars)
+      const far = Math.max(...[['L', 0], ['R', 1]].map(([s, gi]) => { const [S, len] = arm(s); return S.distanceTo(v.grips[gi].getWorldPosition(_b2)) / len; }));
+      if (far < 1.05) break; // (the wrist sits a little short of the grip: the hand makes up the rest)
+      bendUpper(rig, 0.05, q); total += 0.05;
+    }
+    return total;
+  }
+  const wrapA = a => ((a % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+  // A leg: thigh and knee bent on their hinges, then the whole leg swung out at the hip (about the bike's length) to clear the tank
+  function legPose(rig, side, [a, b, out], q) {
+    const th = rig.bones['thigh' + side]; setBone(th, a); setBone(rig.bones['knee' + side], b);
+    th.b.updateWorldMatrix(false, true);
+    turnWorld(th.b, _bq3.setFromAxisAngle(_b5.set(0, 0, 1).applyQuaternion(q), side === 'L' ? out : -out));
+  }
+  // Thigh, knee and splay (a grid, then a finer one) that put each ankle just above and behind its peg, in the bike's frame
+  function solveLegs(rig, v, s) {
+    const q = bikeQ(v, new THREE.Quaternion()), inv = q.clone().invert(), hip = hipsOf(rig, new V3()), res = {};
+    for (const [side, sx] of [['L', 1], ['R', -1]]) {
+      const tgt = new V3(sx * (s.peg.x - 0.02), s.peg.y + 0.08, s.peg.z - 0.09).sub(new V3(0, s.saddle.y + 0.1, s.saddle.z)); // the ankle, from the hips
+      const foot = rigBone(rig, 'DEF-Foot' + side), d = new V3();
+      const err = p => { legPose(rig, side, p, q); d.copy(foot.getWorldPosition(_b1)).sub(hip).applyQuaternion(inv); return (d.x - tgt.x) ** 2 + (d.y - tgt.y) ** 2 + (d.z - tgt.z) ** 2; };
+      let best = [-1.2, 1.2, 0.1], be = Infinity;
+      for (const [r, n] of [[[[-2.4, 0], [0, 2.6], [0, 0.6]], [16, 16, 6]], [null, [10, 10, 6]]]) {
+        const c = best, rg = r || [[c[0] - 0.15, c[0] + 0.15], [c[1] - 0.15, c[1] + 0.15], [c[2] - 0.1, c[2] + 0.1]];
+        for (let i = 0; i <= n[0]; i++) for (let j = 0; j <= n[1]; j++) for (let l = 0; l <= n[2]; l++) {
+          const p = [0, 1, 2].map((m, x) => rg[m][0] + (rg[m][1] - rg[m][0]) * [i, j, l][x] / n[m]), e = err(p);
+          if (e < be) { be = e; best = p; }
+        }
+      }
+      res[side] = best;
+    }
+    return res;
+  }
+  // Two-bone reach: the upper arm and forearm turn so the wrist lands at the grip, the elbow out and down; the hand comes
+  // along, and the fingers (loose bones in this rig) follow the wrist
+  // The reach bends the forearms and wrists, which nothing else poses: keep how they were, and put them back before each pose
+  // (or the bends pile up frame on frame) and once off the bike (or the arms stay bent for holding a gun)
+  const IK_BONES = ['DEF-Forearm_1L', 'DEF-WristL', 'DEF-Forearm_1R', 'DEF-WristR'];
+  function armsBack(rig) {
+    if (!rig.ikRest) return;
+    for (const [b, q] of rig.ikRest) b.quaternion.copy(q);
+    rig.ikBent = false;
+  }
+  function reach(rig, side, grip, q) {
+    const sh = rigBone(rig, 'DEF-UpperArm_1' + side), fa = rigBone(rig, 'DEF-Forearm_1' + side), wr = rigBone(rig, 'DEF-Wrist' + side);
+    if (!sh || !fa || !wr) return;
+    if (!rig.ikRest) rig.ikRest = IK_BONES.map(n => rigBone(rig, n)).filter(Boolean).map(b => [b, b.quaternion.clone()]);
+    rig.ikBent = true;
+    const S = sh.getWorldPosition(new V3()), E = fa.getWorldPosition(new V3()), W = wr.getWorldPosition(new V3()), a = S.distanceTo(E), b = E.distanceTo(W);
+    const sx = side === 'L' ? 1 : -1, right = new V3(sx, 0, 0).applyQuaternion(q), up = new V3(0, 1, 0).applyQuaternion(q), fwd = new V3(0, 0, 1).applyQuaternion(q);
+    const T = grip.getWorldPosition(new V3()).addScaledVector(fwd, -0.12).addScaledVector(right, -0.07).addScaledVector(up, 0.05); // the wrist, just behind and above the grip (the hand closes over it)
+    const n = T.clone().sub(S), dist = Math.max(Math.abs(a - b) + 0.01, Math.min(a + b - 0.005, n.length())); n.normalize();
+    const pole = right.clone().multiplyScalar(0.7).addScaledVector(up, -0.6).addScaledVector(fwd, -0.3); pole.addScaledVector(n, -pole.dot(n)).normalize();
+    const ca = (a * a + dist * dist - b * b) / (2 * a * dist), E2 = S.clone().addScaledVector(n, a * ca).addScaledVector(pole, a * Math.sqrt(Math.max(0, 1 - ca * ca)));
+    const before = wr.matrixWorld.clone(), wq0 = wr.getWorldQuaternion(new THREE.Quaternion());
+    const F0 = rigBone(rig, 'DEF-Finger_Middle1' + side).getWorldPosition(new V3()).sub(W), T0 = rigBone(rig, 'DEF-Finger_Thumb1' + side).getWorldPosition(new V3()).sub(W);
+    turnWorld(sh, _bq2.setFromUnitVectors(E.clone().sub(S).normalize(), E2.clone().sub(S).normalize()));
+    const E3 = fa.getWorldPosition(new V3()), W3 = wr.getWorldPosition(new V3()), T2 = S.clone().addScaledVector(n, dist);
+    turnWorld(fa, _bq2.setFromUnitVectors(W3.sub(E3).normalize(), T2.sub(E3).normalize()));
+    // The hand over the grip: knuckles forward and a little down, thumb in toward the tank
+    const dq = wr.getWorldQuaternion(new THREE.Quaternion()).multiply(wq0.invert());
+    const frame = (f, t) => { f = f.clone().normalize(); t = t.clone().addScaledVector(f, -t.dot(f)).normalize(); return new THREE.Matrix4().makeBasis(f, t, f.clone().cross(t)); };
+    const now = frame(F0.applyQuaternion(dq), T0.applyQuaternion(dq));
+    const want = frame(fwd.clone().multiplyScalar(0.75).addScaledVector(up, -0.55), right.clone().multiplyScalar(-0.8).addScaledVector(fwd, 0.4).addScaledVector(up, -0.3));
+    turnWorld(wr, new THREE.Quaternion().setFromRotationMatrix(want.multiply(now.transpose())));
+    _bm.copy(wr.matrixWorld).multiply(_bm2.copy(before).invert()); // how the wrist moved
+    for (const f of sh.parent.children) if (f.isBone && f.name.startsWith('DEF-Finger_') && f.name.endsWith(side)) {
+      const m = _bm2.copy(f.parent.matrixWorld).invert().multiply(_bm).multiply(f.matrixWorld);
+      m.decompose(f.position, f.quaternion, _b1); f.updateWorldMatrix(false, true);
+    }
+  }
+  function turnWorld(bone, dq) { // turn a bone (and so its children) by dq in world space
+    const w = bone.getWorldQuaternion(new THREE.Quaternion()), pw = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+    bone.quaternion.copy(pw.invert().multiply(dq.clone().multiply(w))); bone.updateWorldMatrix(false, true);
   }
   // In a seat you aim where the camera looks, from your eyes (the game's shots take your yaw and pitch, and start at myEye)
   const _cd = new V3();
@@ -883,7 +1092,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   Object.defineProperty(VEH, 'cur', { get: () => cur, configurable: true });
   Object.defineProperty(VEH, 'tuneOpen', { get: () => tuneOpen, configurable: true });
   Object.defineProperty(VEH, 'riding', { get: () => cur || ride, configurable: true }); // you're in a vehicle, any seat
-  Object.defineProperty(VEH, 'noGuns', { get: () => driveMode() || (!!cur && cur.kind !== 'bike') || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat, and a bike's rider from the saddle
+  Object.defineProperty(VEH, 'noGuns', { get: () => driveMode() || !!cur || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat; drivers (a bike's rider too: hands on the bars) don't, and get no crosshair
   Object.assign(VEH, {
     list,
     rides: id => list.some(v => v.owner === id || (v.occ && v.occ.includes(id))), // someone (a guest, by id) is in a seat
@@ -899,7 +1108,10 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       if (!list.length) return;
       for (const v of list) {
         if (![v.pos.x, v.pos.y, v.pos.z, v.vel.x, v.vel.z, v.yaw, v.pitch, v.roll].every(Number.isFinite)) place(v);
-        if (simulated(v) && v.pos.y < KILL_Y) { console.warn('Vehicle fell out of the world; last on the ground at [x, y, z]:', v.lastGround, v.name); if (v.safe) place(v, v.safe.x, v.safe.z, v.safe.yaw); else place(v); } // fell out of the world
+        if (simulated(v)) { // fell out of the world, or sank in the sea: back where it was parked
+          v.wet = v.pos.y < waterAt(v.pos.x, v.pos.z) - 0.6 ? (v.wet || 0) + dt : 0;
+          if (v.pos.y < KILL_Y || v.wet > 2) { console.warn('Vehicle fell out of the world; last on the ground at [x, y, z]:', v.lastGround, v.name); v.wet = 0; respawn(v); }
+        }
         if (simulated(v)) { drive(v, dt, v.dead ? parked : v === cur && locked ? Object.assign(input(), { reset: resetQ }) : v.npc || (v === cur ? idle : parked)); hitWalls(v); }
         else follow(v, dt);
       }
@@ -986,12 +1198,17 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       if (driveMode()) for (const e of ents) if (e.rig && e.rig.gunVis) e.rig.gunVis.visible = false; // nobody carries a gun in Test Drive
       // Your body: in Test Drive drawn on foot (third person); in a vehicle drawn in the chase view, hidden in your seat's view
       if (driveMode()) setSelf(!(cur || ride) || view === 'chase'); else if (cur || ride) setSelf(view === 'chase'); // (on foot the game's own body view decides)
-      if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt, 0);
-      if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, rideSeat);
+      for (const e of ents) if (e.rig) { // off the bike, the gun comes back and the arms straighten (a rider's are posed again below)
+        if (e.rig.bikeHid) { e.rig.bikeHid = false; if (e.rig.gunVis && !driveMode()) e.rig.gunVis.visible = true; }
+        if (e.rig.ikBent) armsBack(e.rig);
+      }
+      if ((cur || ride) && P.rig && P.rig.gear) P.rig.gear.visible = view === 'chase'; // the guns you carry show on your body in the chase view (not in your seat's view)
+      if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt, 0, P);
+      if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, rideSeat, P);
       // Everyone else sits in their seats
       for (const v of list) v.occ.forEach((id, k) => {
         const who = k === 0 ? v.owner : id; if (!who || who === me()) return;
-        const e = ents.find(x => x.id === who && x !== P); if (e && e.rig && e.mesh) seat(e.rig, e.mesh, v, dt, k);
+        const e = ents.find(x => x.id === who && x !== P); if (e && e.rig && e.mesh) seat(e.rig, e.mesh, v, dt, k, e);
       });
     },
     exit: () => (cur ? leave(true) : unride(true)),
