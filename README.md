@@ -6,7 +6,23 @@ Browser free-for-all shooter built with three.js. Characters, weapons and props 
 
 The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image). Loading starts as soon as the page opens: the characters, the guns and the level you start on before **Play**, then the other levels behind the menu (a level picked before it's in shows **Loading level…** on Play). The **Fortress Free-For-All** is the game.
 
-The other modes are for the host and for development. Add `?dev` to the address and the title page shows them too (it applies to that page load only):
+### The new start flow (`?dev` only for now)
+
+With `?dev` the game opens on the new, streamlined start instead. It replaces the mode buttons; Test Drive and the Shooting Range aren't in it (`?dev&level=drive` and `?dev&level=range` still open them).
+
+- **Title page.** The splash (`splash.png`, cropped from `Images/splashscreen.png`) and a loading bar on black. Once the level is in, the black fades to a slow orbit of the fort (±10°; `TITLE_CAMS` sets the camera per level), and **host a new game** appears.
+- **Host Options** (the host only, yellow card):
+  - **Level**: every arena map, the Fort first.
+  - **Game Type**: Team battle (Midas against the Rebels) or Free for all.
+  - **Bots**: No, or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle), and they leave or come back as people join and leave.
+  - **Copy invite link.**
+- **Your character** (everyone, white card): your name (remembered in your browser) and the 8 characters, 4 a side. Midas has the four soldiers; the Rebels have the Master, two Apprentices and the Officer.
+  - A character someone else picked shows their name in a black bar and can't be taken, unless every character is taken.
+  - Invited friends connect as soon as the page opens, so they see the picks live and the host's level behind the card.
+  - **Go!** leaves the menu. It stays off until you have typed a name and picked a character.
+- In the game, the pause screen is the old one, with the character grid beside it.
+
+Without `?dev`, the title page and the old modes are as before:
 
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
 - **Test Drive**: a little stadium oval with cars and motorcycles to drive, tune and crash, with friends (see below). It's where the vehicle mechanics get worked out before they go into the other games.

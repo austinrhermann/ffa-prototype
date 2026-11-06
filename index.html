@@ -73,7 +73,7 @@ body.touch .camtile{width:84px;height:63px}
 .tbtns button{background:#000;color:#fff;border:0;border-radius:4px;padding:17px 30px;font:600 19px/1 system-ui,sans-serif;letter-spacing:.03em;cursor:pointer}
 .tbtns button:hover{background:#1f1f1f}
 #tload{color:#fff;opacity:.8;text-shadow:0 1px 6px #000;min-height:1em}
-body.guest #title{display:none}
+body.guest:not(.newmenu) #title{display:none}
 #goagain{display:block;margin:0 auto;background:none;border:0;color:#fff;font:600 16px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px;cursor:pointer;text-shadow:0 1px 6px #000;padding:6px}
 body:not(.dev) #levels button:not([data-lv=fortress]):not([data-lv=minimal]),body:not(.dev) #totitle{display:none}
 body:not(.dev) #levels{grid-template-columns:repeat(2,1fr)}
@@ -83,6 +83,7 @@ body:not(.dev) .devonly{display:none!important}
 /* Menus (start, join, pause, results): the title page's look, bold white type and solid black buttons, over the title
    picture before the game starts and over the paused game after. margin:auto centres them and still scrolls from the top. */
 #overlay{position:fixed;inset:0;display:flex;overflow:auto;background:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.6)),#000 url(title.jpg) center/cover no-repeat}
+body.newmenu #overlay{background:linear-gradient(rgba(0,0,0,.05),rgba(0,0,0,.3))}
 #overlay.ingame{background:rgba(0,0,0,.5)}
 .menu{margin:auto;display:flex;gap:28px;align-items:flex-start;justify-content:center;flex-wrap:wrap;padding:28px 16px;box-sizing:border-box;max-width:100%}
 .card{color:#fff;font-family:system-ui,-apple-system,sans-serif;box-sizing:border-box}
@@ -151,6 +152,7 @@ body.guest .hostonly{display:none!important}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
+#hostcard,#curtain,#splash,.tslot,#cpick,.clabel,.cfoot{display:none}
 #chatbox{display:none;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
 #chatbox>label{font-size:13px;opacity:.85}
 #chatbox.on{display:flex}
@@ -195,6 +197,80 @@ body.touch #bullets i{height:14px}
 .card .tc,body.touch .card .kb{display:none}
 body.touch .card .tc{display:grid}
 body.touch .card small.tc{display:block}
+/* ---------- ?dev: the new start flow (body.newmenu) ----------
+   Title page: the splash over a live view of the level, which fades in from black once it has loaded (the curtain) */
+body.newmenu #title{gap:clamp(20px,5vh,48px);background:none}
+body.newmenu #title h1,body.newmenu .tbtns,body.newmenu #goagain,body.newmenu #tload{display:none}
+body.newmenu #curtain{display:block;position:fixed;inset:0;z-index:29;background:#000;pointer-events:none;transition:opacity 1.8s ease}
+body.newmenu #curtain.off{opacity:0}
+body.newmenu #splash{display:block;width:min(80vw,880px,calc(52vh * 2.405));height:auto;user-select:none;-webkit-user-drag:none;filter:drop-shadow(0 4px 24px rgba(0,0,0,.35))}
+body.newmenu .tslot{display:grid;place-items:center;min-height:68px}
+.tslot>*{grid-area:1/1}
+#tbar{width:min(300px,60vw);height:4px;border-radius:2px;background:rgba(216,226,196,.2);overflow:hidden;transition:opacity .5s}
+#tbar i{display:block;width:0;height:100%;background:#d8e2c4;transition:width .35s ease}
+#tbar.done{opacity:0}
+#hostgo{background:#d4ae3c;color:#111;border:0;border-radius:999px;padding:19px 60px;font:500 clamp(19px,2.1vw,26px)/1 system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.25);opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .7s,transform .7s,visibility .7s}
+#hostgo.on{opacity:1;visibility:visible;transform:none}
+#hostgo:hover{background:#e2bc4a}
+#hostgo:focus-visible{outline:2px solid #fff;outline-offset:3px}
+body.guest #hostgo{display:none}
+body.titleon #overlay{visibility:hidden}
+body.pregame #hud,body.pregame #touch{visibility:hidden}
+/* Host Options (host only, before the game): a yellow card beside the character card */
+body.newmenu #hostcard{width:300px;background:#d4ae3c;color:#111;padding:30px 30px 26px;border-radius:3px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+body.newmenu.pregame:not(.guest) #hostcard{display:block}
+body.newmenu.pregame #maincard{display:none}
+body.newmenu.pregame .menu{width:min(100%,980px);align-items:stretch}
+#overlay.sub #hostcard{display:none!important}
+#hostcard h2{margin:0 0 22px;font:400 24px/1.2 system-ui,sans-serif;letter-spacing:0;text-transform:none}
+#hostcard .hopt{margin-bottom:20px}
+#hostcard h3{margin:0 0 8px;font:400 19px/1.2 system-ui,sans-serif}
+#hostcard h3::before{content:'>'}
+.hseg{display:flex;flex-wrap:wrap;gap:6px}
+#hostcard .hseg button{padding:8px 13px;background:rgba(0,0,0,.08);color:#111;border-radius:999px;font:500 14px/1 system-ui,sans-serif}
+#hostcard .hseg button:hover{background:rgba(0,0,0,.16)}
+#hostcard .hseg button.on{background:#111;color:#fff}
+#hostcard small{margin-top:8px;font-size:12.5px;opacity:.8;text-shadow:none}
+#hostcard #hinvite{width:100%;margin-top:6px;padding:12px;background:#111;color:#fff;border-radius:999px;font:500 15px/1 system-ui,sans-serif}
+#hostcard #hinvite:hover{background:#333}
+body.newmenu #setbots,body.newmenu #setbotsM,body.newmenu #setbotsR,body.newmenu #setdiff{display:none!important}
+/* Your character: a white card with your name and every character in two groups, one per side. A character someone else
+   has picked carries their name and can't be picked (unless every one is taken) */
+body.newmenu #charcard{width:min(600px,100%);background:#f7f7f7;color:#111;padding:30px 36px 28px;border-radius:3px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+body.newmenu #charcard p,body.newmenu #charcard small{text-shadow:none}
+body.newmenu #charcard h2,body.newmenu #setteam,body.newmenu #setchar,body.newmenu #cprev{display:none!important}
+body.newmenu #charcard .crow{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+body.newmenu #charcard .crow label,body.newmenu #charcard .clabel{display:block;font:400 22px/1.2 system-ui,sans-serif;color:#111;margin:0;opacity:1}
+body.newmenu #charcard .crow label::after{content:':'}
+body.newmenu #charcard .clabel{margin-bottom:12px}
+body.newmenu #charcard input#pname{flex:1;width:auto;min-width:0;padding:8px 10px;margin:0;background:#fff;color:#111;border:0;border-bottom:2px solid #111;border-radius:0;font:400 20px system-ui,sans-serif}
+body.newmenu #charcard input#pname:focus{outline:none;border-bottom-color:#d4ae3c}
+body.newmenu #cpick{display:flex;gap:34px;flex-wrap:wrap}
+.cteam h3{margin:0 0 8px;font:700 13px/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#111}
+.cteam h3 i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+.ctiles{display:grid;grid-template-columns:repeat(2,94px);gap:12px}
+#charcard .ctile{position:relative;width:94px;height:108px;padding:0;background:#dadada;border:0;border-radius:0;overflow:hidden;cursor:pointer;color:#111}
+#charcard .ctile:hover{background:#cfcfcf}
+.ctile img{display:block;width:100%;height:100%;object-fit:cover}
+.ctile .ctag{position:absolute;left:0;right:0;bottom:0;padding:6px 5px;background:#000;color:#fff;font:600 12px/1 system-ui,sans-serif;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctile .ctag:empty{display:none}
+#charcard .ctile.taken{cursor:not-allowed}
+.ctile.taken img{filter:grayscale(1);opacity:.5}
+#charcard .ctile.mine{outline:3px solid #d4ae3c;outline-offset:2px}
+#charcard .ctile:focus-visible{outline:2px solid #111;outline-offset:2px}
+body.newmenu .cfoot{display:flex;align-items:center;gap:16px;margin-top:24px}
+#charcard #joingo{background:#111;color:#fff;border-radius:999px;padding:15px 50px;font:500 20px/1 system-ui,sans-serif}
+#charcard #joingo:hover{background:#333}
+#charcard #joingo:disabled{background:#aaa;cursor:default}
+body.newmenu #charcard #netstat{margin:0;font:600 14px system-ui,sans-serif;color:#555}
+body:not(.pregame) #joingo{display:none}
+body.guest.pregame #maincard{display:none}
+body.newmenu.pregame #chatbox{display:none!important}
+body.newmenu.pregame #overlay.sub #maincard{display:block}
+#charcard .clink{background:none;color:#111;padding:6px 2px;font:500 15px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px}
+#charcard .clink:hover{background:none;color:#555}
+body:not(.newmenu) #howgo,body:not(.pregame) #howgo{display:none}
+@media (max-width:420px){.ctiles{grid-template-columns:repeat(2,76px)}#charcard .ctile{width:76px;height:88px}body.newmenu #charcard{padding:22px 18px}}
 </style>
 </head>
 <body>
@@ -235,13 +311,26 @@ body.touch .card small.tc{display:block}
   <div class="tt" id="tchat" data-act="chat">Chat</div>
   <div class="tt" id="tcam" data-act="cam">Cam</div>
 </div>
+<div id="curtain"></div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
   <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Fortress Free-For-All</button><button type="button" id="godrive">Test Drive</button><button type="button" id="gorange">Shooting Range</button></div>
   <button type="button" id="goagain" hidden></button>
   <small id="tload">Loading…</small>
+  <img id="splash" src="splash.png" alt="The Space Explorers Interactive" width="1592" height="662">
+  <div class="tslot">
+    <div id="tbar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+    <button type="button" id="hostgo" tabindex="-1">host a new game</button>
+  </div>
 </div>
-<div id="overlay"><div class="menu"><div class="card" id="maincard" data-scr="main">
+<div id="overlay"><div class="menu"><div class="card" id="hostcard">
+  <h2>Host Options</h2>
+  <div class="hopt"><h3>Level</h3><div class="hseg" id="hlevels"></div></div>
+  <div class="hopt"><h3>Game Type</h3><div class="hseg" id="hgame"><button type="button" data-v="teams">Team battle</button><button type="button" data-v="ffa">Free for all</button></div></div>
+  <div class="hopt"><h3>Bots</h3><div class="hseg" id="hbots"><button type="button" data-v="0">No</button><button type="button" data-v="2">Easy</button><button type="button" data-v="3">Medium</button><button type="button" data-v="4">Hard</button></div><small id="hbotnote"></small></div>
+  <button type="button" id="hinvite">Copy invite link</button>
+</div>
+<div class="card" id="maincard" data-scr="main">
   <h1 id="mtitle">Fortress Free-For-All</h1>
   <div class="scr scr-main">
   <p class="drive-only" id="driveintro">A little stadium oval with walls, ramps and banked turns. Walk up to a car or a motorcycle in the infield parking lot and press E to drive. In a vehicle, Tab opens its tuning: acceleration, brakes, steering, weight, size, suspension. Invite friends to race and crash into each other.</p>
@@ -351,10 +440,13 @@ body.touch .card small.tc{display:block}
 </div>
 <div class="card panel" id="charcard">
   <h2 id="chartitle">Your character</h2>
-  <label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false">
+  <div class="crow"><label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false"></div>
+  <div class="clabel">Choose your player:</div>
+  <div id="cpick"></div>
   <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="rebels">Rebels</button></div></div>
   <div id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
+  <div class="cfoot"><button type="button" id="joingo" disabled>Go!</button><button type="button" id="howgo" class="clink" data-go="howto">How to play</button></div>
 </div>
 </div></div>
 <div id="results"><div class="card">
@@ -374,6 +466,15 @@ body.touch .card small.tc{display:block}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
+// Title page loading bar: counts the files the game fetches (finished once the body has been read)
+const LOADP = { n: 0, d: 0 };
+{
+  const f = window.fetch.bind(window);
+  window.fetch = (...a) => {
+    LOADP.n++; let done = false; const fin = () => { if (!done) { done = true; LOADP.d++; } };
+    return f(...a).then(r => { for (const k of ['arrayBuffer', 'json', 'text', 'blob']) { const g = r[k].bind(r); r[k] = () => g().finally(fin); } setTimeout(fin, 30000); return r; }, e => { fin(); throw e; });
+  };
+}
 const V3 = THREE.Vector3;
 const R = 0.4, STAND_H = 1.8, CROUCH_H = 1.2, GRAV = 22, JUMP = 8.6, STEP = 0.6;
 let KILL_LIMIT = 20;
@@ -2222,6 +2323,9 @@ $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 // A guest takes the host's (welcome), so everyone in a game plays the same weapons and health
 let DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams(location.search).get('dev') !== '0';
 document.body.classList.toggle('dev', DEV);
+// The new start flow (title page over the live level, Host Options, the character grid) is ?dev only for now
+const NEWMENU = DEV;
+if (NEWMENU) document.body.classList.add('newmenu', 'pregame', 'titleon');
 let READY = false; // everything loaded: from then on the menu can switch levels
 let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
 document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
@@ -2234,15 +2338,15 @@ function switchLevel(id) {
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, drive = mode === 'drive', range = mode === 'range', noBots = drive || range;
-  $('goal').textContent = (LEVEL_DEFS[selLevel]().teams ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
-  $('mtitle').textContent = drive ? 'Test Drive' : range ? 'Shooting Range' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
+  $('goal').textContent = ((NEWMENU ? GAME_TEAMS : LEVEL_DEFS[selLevel]().teams) ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
+  $('mtitle').textContent = drive ? 'Test Drive' : range ? 'Shooting Range' : NEWMENU ? LEVEL_NAMES[selLevel] || 'Battle in the Arena' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
   $('maincard').classList.toggle('drive', drive); $('maincard').classList.toggle('range', range);
   if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
   if (range) $('goal').textContent = 'No bots and nothing to win: this is where the weapons get balanced before they go into the other games.';
   for (const id of ['setbots', 'setdiff']) $(id).style.display = noBots ? 'none' : '';
   $('setlimit').style.display = noBots ? 'none' : '';
   // Team levels set each side's bots; the Look panel where the level has the look
-  for (const [id, show] of [['setbots', !noBots && !LEVEL_DEFS[selLevel]().teams], ['setbotsM', !noBots && !!LEVEL_DEFS[selLevel]().teams], ['setbotsR', !noBots && !!LEVEL_DEFS[selLevel]().teams], ['looklink', !!LEVEL_DEFS[selLevel]().look], ['setteam', !!(NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {}).teams && !noBots]]) $(id).style.display = show ? '' : 'none';
+  for (const [id, show] of [['setbots', !NEWMENU && !noBots && !LEVEL_DEFS[selLevel]().teams], ['setbotsM', !NEWMENU && !noBots && !!LEVEL_DEFS[selLevel]().teams], ['setbotsR', !NEWMENU && !noBots && !!LEVEL_DEFS[selLevel]().teams], ['looklink', !!LEVEL_DEFS[selLevel]().look], ['setteam', !NEWMENU && !!(NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {}).teams && !noBots]]) $(id).style.display = show ? '' : 'none';
 }
 
 // ---------- Entities ----------
@@ -2576,7 +2680,7 @@ function loadModels() {
       sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
     }
     return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
-  }))).then(ms => MODELS.push(...ms));
+  }))).then(ms => { MODELS.push(...ms); if (MODELS[4] && NEWMENU) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
     w.scene = sc; w.yaw = w.fixedYaw !== undefined ? w.fixedYaw : orientWeapon(sc);
@@ -3068,7 +3172,8 @@ function fpvFit(r) {
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
 const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
-const teamsOn = () => !!(LV && LV.teams) && MODE !== 'drive';
+let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
+const teamsOn = () => NEWMENU ? !!LV && GAME_TEAMS && MODE !== 'drive' && MODE !== 'range' : !!(LV && LV.teams) && MODE !== 'drive';
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
 const teamKills = t => ents.reduce((n, e) => n + (e.team === t ? e.kills : 0), 0);
 let myTeam = 'midas';
@@ -3094,21 +3199,36 @@ const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], 
 const bots = [];
 let ents = [P];
 // plan: one entry per bot, its team ('midas' / 'rebels', or undefined without teams). Midas bots are soldiers, Rebels bots the Master and the Apprentice.
-let botSig = '';
+let botSig = '', botN = 0;
 const REBEL_MODELS = [5, 4];
 function buildBots(plan) {
-  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botSig = plan.join();
-  for (let i = 0; i < plan.length; i++) {
-    const [name] = BOT_DEFS[i] || ['Bot ' + (i + 1)];
-    const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = plan[i];
-    b.mesh = makeBotMesh(b, plan[i] === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
+  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botN = 0; botSig = NEWMENU ? botKind() : plan.join();
+  for (let i = 0; i < plan.length; i++) bots.push(makeBot(plan[i]));
+  ents = [P, ...bots, ...remotes];
+}
+// Bots come and go as players join and leave (Bots on in Host Options), without restarting the match
+function fitBots() {
+  if (NET.role !== 'host' || !READY || !MODELS.length) return;
+  const plan = botPlan(), key = t => t || '';
+  for (const k of new Set([...plan, ...bots.map(b => b.team)].map(key))) {
+    const want = plan.filter(t => key(t) === k).length, have = bots.filter(b => key(b.team) === k);
+    for (const b of have.slice(want)) { try { VEH.onLeave(b); } catch (e) {} scene.remove(b.mesh); bots.splice(bots.indexOf(b), 1); }
+    for (let n = have.length; n < want; n++) { const b = makeBot(k || undefined); bots.push(b); ents.push(b); respawn(b); }
+  }
+  ents = [P, ...bots, ...remotes];
+}
+function makeBot(team) {
+  {
+    const i = botN++, used = new Set(bots.map(b => b.name)), def = BOT_DEFS.find(([n]) => !used.has(n));
+    const name = def ? def[0] : 'Bot ' + (i + 1);
+    const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = team;
+    b.mesh = makeBotMesh(b, team === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
     const style = BOT_STYLE_IDS[Math.random() * BOT_STYLE_IDS.length | 0];
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
       react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0,
       style, cover: Math.random() < BOT_STYLES[style].cover, crouchHold: 0, jumpCd: 0 };
-    bots.push(b);
+    return b;
   }
-  ents = [P, ...bots, ...remotes];
 }
 
 function pickSpawn(e) {
@@ -4986,16 +5106,29 @@ function applySettings() {
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); return; }
   if (selLevel !== curLevel && levelReady(selLevel)) { switchLevel(selLevel); resetMatch(); }
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  const plan = botPlan();
-  if (plan.join() !== botSig) { buildBots(plan); resetMatch(); }
+  if (!NEWMENU) { const plan = botPlan(); if (plan.join() !== botSig) { buildBots(plan); resetMatch(); } }
+  else if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
 }
+// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (four a side in a team battle)
+let BOT_LEVEL = 3;
+const BOT_FILL = 8;
+const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
-  if (MODE === 'drive' || MODE === 'range') return [];
-  if (LEVEL_DEFS[selLevel]().teams) return [...Array(+$('sbotsM').value).fill('midas'), ...Array(+$('sbotsR').value).fill('rebels')]; // each side set separately
-  return Array(+$('sbots').value).fill(undefined);
+  if (!NEWMENU) {
+    if (MODE === 'drive' || MODE === 'range') return [];
+    if (LEVEL_DEFS[selLevel]().teams) return [...Array(+$('sbotsM').value).fill('midas'), ...Array(+$('sbotsR').value).fill('rebels')]; // each side set separately
+    return Array(+$('sbots').value).fill(undefined);
+  }
+  const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
+  if (!BOT_LEVEL || mode === 'drive' || mode === 'range') return [];
+  const humans = ents.filter(e => !e.bot && !e.isReplica);
+  if (!GAME_TEAMS) return Array(Math.max(0, BOT_FILL - humans.length)).fill(undefined);
+  const side = t => Math.max(0, BOT_FILL / 2 - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
+  return [...Array(side('midas')).fill('midas'), ...Array(side('rebels')).fill('rebels')];
 }
 function setPlaying(on) {
   if (on) applySettings();
+  if (on && PREGAME) { PREGAME = false; document.body.classList.remove('pregame'); }
   locked = on;
   $('overlay').style.display = on || matchOver ? 'none' : 'flex'; $('overlay').classList.add('ingame'); $('totitle').style.display = 'none';
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
@@ -5009,7 +5142,7 @@ function setPlaying(on) {
 $('play').onclick = () => {
   if (NET.role === 'host') try { localStorage.setItem('tse.last', JSON.stringify({ level: selLevel })); } catch (e) {}
   initAudio(); if (NET.role === 'guest' || remotes.length) getMic();
-  if (NET.role === 'guest') { P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); }
+  if (NET.role === 'guest') { NET.go = true; P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); else if (NEWMENU && !NET.joined && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); }
   if (!isTouch) { renderer.domElement.requestPointerLock(); return; }
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
@@ -5128,9 +5261,12 @@ function initPreview() {
 // On a team level you pick from your own side's characters (the Rebels are the Master and the Apprentice, Midas everyone
 // else), so it's clear at a glance who's on which side
 const TEAM_CHARS = { rebels: [5, 4], midas: [0, 1, 2, 3, 6] };
+// ?dev's character grid: Midas the four soldiers; Rebels the Master, two Apprentices (index 7 is the second) and the Officer
+const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], rebels: [5, 4, 7, 6] };
+const TEAM_CHARS_NOW = () => NEWMENU ? TEAM_CHARS_NEW : TEAM_CHARS;
 function syncChars() {
   const sel = $('schar'), lv = NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {};
-  const ok = lv.teams && TEAM_CHARS[myTeam] ? TEAM_CHARS[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
+  const teams = TEAM_CHARS_NOW(), ok = (NEWMENU ? GAME_TEAMS : lv.teams) && teams[myTeam] ? teams[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i).filter(i => NEWMENU || i < 7);
   const want = ok.includes(+sel.value) ? +sel.value : ok[0];
   if (sel.options.length === ok.length && [...sel.options].every((o, k) => +o.value === ok[k])) { sel.value = want; return; }
   sel.length = 0; ok.forEach(i => sel.add(new Option(MODELS[i].label, i))); sel.value = want;
@@ -5139,6 +5275,7 @@ function syncChars() {
 function refreshPreview() {
   if (MODELS.length) syncChars();
   setPreview(+$('schar').value);
+  if (NEWMENU) pickerChanged();
 }
 function setPreview(i) {
   if (!prev) return;
@@ -5214,7 +5351,7 @@ $('tomenu').onclick = () => {
 function chooseMode(kind) {
   selLevel = kind === 'fort' ? 'fortress' : kind === 'drive' ? 'drive' : kind === 'range' ? 'range' : selLevel === 'drive' || selLevel === 'range' ? 'complex' : selLevel;
   document.querySelectorAll('#levels button').forEach(x => x.classList.toggle('on', x.dataset.lv === selLevel));
-  updateGoal(); refreshPreview(); $('title').style.display = 'none';
+  updateGoal(); refreshPreview(); showTitle(false);
   showScreen('main');
   // Get the chosen level ready behind the menu (the fort builds its walking map, a few seconds)
   if (READY && NET.role === 'host' && selLevel !== curLevel) whenLevel(selLevel, () => { $('play').disabled = true; $('play').textContent = 'Getting ready…'; setTimeout(() => { applySettings(); $('play').disabled = false; $('play').textContent = 'Play'; }, 30); })
@@ -5233,7 +5370,172 @@ $('goarena').onclick = () => chooseMode('arena');
 $('gofort').onclick = () => chooseMode('fort');
 $('godrive').onclick = () => chooseMode('drive');
 $('gorange').onclick = () => chooseMode('range');
-$('totitle').onclick = () => { $('title').style.display = ''; };
+$('totitle').onclick = () => showTitle(true);
+// ---------- ?dev start flow (NEWMENU) ----------
+// Page 1, the title: the splash and a loading bar on black; once the level is in, the black fades away to a slow orbit of it
+// and (for the host) "host a new game" appears. Page 2: Host Options (host only) and the character grid, then Go!
+// Guests connect as soon as the page opens, so the grid shows who has taken what before they join ('lobby' / 'picks').
+var PREGAME = NEWMENU, LOBBY = new Map(), PICKS = [], PICKED = false, lastLobby = 0, titleShown = 0, titleReadyAt = 0;
+const TITLE_CAMS = { fortress: { p: [-9.5, 31.8, 36], t: [1.5, 39.5, 0] } }; // camera and the point it orbits, per level
+const TITLE_SWAY = 10 * Math.PI / 180, TITLE_PERIOD = 26; // ±10° around the level, once every TITLE_PERIOD seconds
+function showTitle(on) { $('title').style.display = on ? '' : 'none'; document.body.classList.toggle('titleon', !!on && NEWMENU); }
+function titleCam(now) {
+  if (!PREGAME) return;
+  const c = TITLE_CAMS[curLevel]; if (!c) return;
+  const a = TITLE_SWAY * Math.sin(now / 1000 * 2 * Math.PI / TITLE_PERIOD), dx = c.p[0] - c.t[0], dz = c.p[2] - c.t[2];
+  camera.position.set(c.t[0] + dx * Math.cos(a) + dz * Math.sin(a), c.p[1], c.t[2] - dx * Math.sin(a) + dz * Math.cos(a));
+  camera.lookAt(c.t[0], c.t[1], c.t[2]);
+}
+// Loading bar, then the fade (a few frames after the level is in, so its first draw happens behind the black)
+let tbarK = 0;
+function titleTick() {
+  if (!NEWMENU || !PREGAME) return;
+  const want = NET.role === 'host' ? selLevel : NET.lobbyLevel;
+  const ready = READY && (want ? curLevel === want : performance.now() - READY_T > 6000);
+  tbarK = Math.max(tbarK, ready ? 1 : READY ? 0.95 : 0.9 * LOADP.d / Math.max(1, LOADP.n));
+  $('tbar').firstChild.style.width = (tbarK * 100).toFixed(1) + '%'; $('tbar').setAttribute('aria-valuenow', Math.round(tbarK * 100));
+  if (!ready) return;
+  if (!titleReadyAt) titleReadyAt = performance.now();
+  if (titleShown || performance.now() - titleReadyAt < 250) return;
+  titleShown = performance.now();
+  $('curtain').classList.add('off'); $('tbar').classList.add('done');
+  if (NET.role === 'host') { const b = $('hostgo'); b.classList.add('on'); b.tabIndex = 0; }
+  else setTimeout(() => showTitle(false), 1800); // a guest goes on to the character grid by itself
+}
+let READY_T = 0;
+$('hostgo').onclick = () => { if (!$('hostgo').classList.contains('on')) return; showTitle(false); chooseMode('level'); renderHost(); };
+// Host Options: Level, Game Type, Bots
+const HOST_LEVELS = ['fortress', 'complex', 'facility', 'bunker', 'creek', 'minimal', 'tunnel', 'sewer'];
+const HOST_LEVEL_NAMES = { fortress: 'Fort' };
+if (NEWMENU) {
+  for (const lv of HOST_LEVELS) {
+    if (!LEVEL_DEFS[lv]) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.v = lv; b.textContent = HOST_LEVEL_NAMES[lv] || LEVEL_NAMES[lv] || lv;
+    b.onclick = () => { const x = document.querySelector(`#levels button[data-lv="${lv}"]`); if (x) x.onclick(); renderHost(); sendPicks(); };
+    $('hlevels').append(b);
+  }
+  $('hgame').querySelectorAll('button').forEach(b => b.onclick = () => { GAME_TEAMS = b.dataset.v === 'teams'; updateGoal(); refreshPreview(); renderHost(); sendPicks(); });
+  $('hbots').querySelectorAll('button').forEach(b => b.onclick = () => { BOT_LEVEL = +b.dataset.v; if (BOT_LEVEL) { $('sdiff').value = BOT_LEVEL; setDiff(BOT_LEVEL); } renderHost(); });
+  $('hinvite').onclick = () => $('copyinv').onclick();
+  $('sdiff').value = BOT_LEVEL;
+  $('netstat').textContent = ''; $('charcard').querySelector('.cfoot').append($('netstat')); // a guest's connection status sits by Go!
+  try { $('pname').value = localStorage.getItem('tse.name') || ''; } catch (e) {}
+  $('pname').addEventListener('input', () => { try { localStorage.setItem('tse.name', $('pname').value.trim()); } catch (e) {} pickerChanged(); });
+  $('joingo').onclick = () => { if (canGo()) $('play').onclick(); };
+  new MutationObserver(syncGo).observe($('play'), { attributes: true, childList: true, characterData: true, subtree: true });
+}
+function renderHost() {
+  $('hlevels').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === selLevel));
+  $('hgame').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'teams') === GAME_TEAMS));
+  $('hbots').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === BOT_LEVEL));
+  $('hbotnote').textContent = BOT_LEVEL ? `Bots fill the empty places, up to ${BOT_FILL} players${GAME_TEAMS ? ` (${BOT_FILL / 2} a side)` : ''}.` : 'Only people, no bots.';
+}
+// Go! leaves the menu: it needs a name and a character (and the level loaded)
+const canGo = () => READY && PICKED && !!$('pname').value.trim() && !$('play').disabled;
+function syncGo() {
+  if (!NEWMENU) return;
+  const b = $('joingo'), loading = !READY || $('play').disabled;
+  b.disabled = !canGo();
+  b.textContent = loading && READY ? $('play').textContent : 'Go!';
+  b.title = !$('pname').value.trim() ? 'Type your name first' : !PICKED ? 'Choose your player first' : '';
+}
+// The character grid
+const myKey = () => NET.role === 'host' ? 'h' : (NET.peer && NET.peer.id) || '-';
+const myPickName = () => ($('pname').value.trim() || (NET.role === 'host' ? 'Host' : 'Guest')).slice(0, 16);
+function hostPicks() {
+  const l = [];
+  if (PICKED) l.push([+$('schar').value, myPickName(), 'h']);
+  for (const r of remotes) if (r.conn) l.push([r.modelIdx, r.name, r.conn.peer]);
+  for (const [c, p] of LOBBY) if (p.model >= 0) l.push([p.model, p.name, c.peer]);
+  return l;
+}
+const takenBy = (i, key) => PICKS.find(e => e[0] === i && e[2] !== key);
+const allTaken = key => MODELS.every((m, i) => takenBy(i, key));
+const blocked = (i, key) => !!takenBy(i, key) && !allTaken(key); // once every character is taken, later players double up
+function buildPicker() {
+  if (!NEWMENU || params.has('posecheck') || !prev) return;
+  const was = +$('schar').value, thumbs = [];
+  for (let i = 0; i < MODELS.length; i++) { // portraits from the preview renderer
+    setPreview(i); prev.rig.wrap.rotation.y = 0.35; animRig(prev.rig, 0, 0, false, 0);
+    prev.r.render(prev.sc, prev.cam); thumbs[i] = prev.r.domElement.toDataURL('image/png');
+  }
+  setPreview(was);
+  const box = $('cpick'); box.textContent = '';
+  for (const t of ['midas', 'rebels']) {
+    const list = TEAM_CHARS_NEW[t].filter(i => MODELS[i]); if (!list.length) continue;
+    const g = document.createElement('div'); g.className = 'cteam';
+    g.innerHTML = `<h3><i style="background:${TEAMS[t].color}"></i>${TEAMS[t].name}</h3><div class="ctiles"></div>`;
+    for (const i of list) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ctile'; b.dataset.i = i; b.setAttribute('aria-label', MODELS[i].label); b.title = MODELS[i].label;
+      b.innerHTML = `<img alt="" src="${thumbs[i]}"><span class="ctag"></span>`;
+      b.onclick = () => pick(i);
+      g.querySelector('.ctiles').append(b);
+    }
+    box.append(g);
+  }
+  pickerChanged();
+}
+function pick(i) {
+  if (!MODELS[i] || blocked(i, myKey())) return;
+  const t = TEAM_CHARS_NEW.rebels.includes(i) ? 'rebels' : 'midas';
+  if (t !== myTeam) { const b = document.querySelector(`#teams button[data-team="${t}"]`); if (b) b.onclick(); }
+  PICKED = true; syncChars(); $('schar').value = i; refreshPreview();
+  if (NET.role === 'guest') lobbySend(true);
+}
+function pickerChanged() {
+  if (!NEWMENU || !LOBBY) return;
+  if (NET.role === 'host') sendPicks(); else renderPicker();
+}
+function renderPicker() {
+  if (NET.role === 'host') PICKS = hostPicks();
+  const key = myKey(), me = PICKED ? +$('schar').value : -1;
+  $('cpick').querySelectorAll('.ctile').forEach(b => {
+    const i = +b.dataset.i, other = takenBy(i, key), mine = i === me;
+    b.classList.toggle('mine', mine); b.classList.toggle('taken', !!other && !mine);
+    b.setAttribute('aria-pressed', mine); b.setAttribute('aria-disabled', !mine && blocked(i, key));
+    b.querySelector('.ctag').textContent = mine ? myPickName() : other ? other[1] : '';
+  });
+  syncGo();
+}
+// Host: tell every connection (players and the ones still on the start page) who has which character
+function sendPicks() {
+  if (!NEWMENU || NET.role !== 'host') return;
+  PICKS = hostPicks(); renderPicker();
+  const m = { t: 'picks', l: PICKS, lv: selLevel, tg: GAME_TEAMS };
+  for (const c of [...remotes.map(r => r.conn), ...LOBBY.keys()]) if (c && c.open) try { c.send(m); } catch (e) {}
+}
+function onLobby(conn, m) { // a guest on the start page: its name and the character it wants (refused if someone has it)
+  const name = String(m.name || 'Guest').slice(0, 16), want = m.model | 0, cur = LOBBY.get(conn) || { model: -1 };
+  PICKS = hostPicks();
+  const ok = m.model >= 0 && !!MODELS[want] && !blocked(want, conn.peer);
+  LOBBY.set(conn, { name, model: ok ? want : m.model < 0 ? -1 : cur.model, seen: performance.now() });
+  sendPicks();
+}
+// Guest
+function lobbySend(force) {
+  if (!NEWMENU || NET.role !== 'guest' || NET.go || NET.joined || !NET.conn || !NET.conn.open) return;
+  if (!force && performance.now() - lastLobby < 1500) return;
+  lastLobby = performance.now();
+  NET.conn.send({ t: 'lobby', name: myPickName(), model: PICKED ? +$('schar').value : -1 });
+}
+function onPicks(m) {
+  PICKS = (Array.isArray(m.l) ? m.l : []).filter(Array.isArray).map(e => [e[0] | 0, String(e[1] || '').slice(0, 16), String(e[2] || '')]);
+  if (!NET.joined && typeof m.tg === 'boolean' && m.tg !== GAME_TEAMS) { GAME_TEAMS = m.tg; refreshPreview(); }
+  if (!NET.joined && m.lv && LEVEL_DEFS[m.lv]) { NET.lobbyLevel = m.lv; lobbyLevel(); }
+  if (MODELS.length && !NET.joined && !NET.go) {
+    const me = +$('schar').value, rec = PICKS.find(e => e[2] === myKey());
+    if (PICKED && blocked(me, myKey())) { PICKED = false; note('Someone else just took that character', 2.5); }
+    if (PICKED && (!rec || rec[0] !== me || rec[1] !== myPickName())) lobbySend();
+    else if (!PICKED && rec) lobbySend();
+  }
+  renderPicker();
+}
+// A guest shows the host's level behind the start page (and has it ready when they join)
+function lobbyLevel() {
+  const lv = NET.lobbyLevel;
+  if (!READY || NET.joined || !lv || curLevel === lv) return;
+  whenLevel(lv, () => { if (!NET.joined && NET.lobbyLevel === lv && curLevel !== lv) switchLevel(lv); });
+}
 // Menu screens: the main buttons, How to play and Settings
 function showScreen(s) { $('maincard').dataset.scr = s; $('overlay').classList.toggle('sub', s !== 'main'); if (s === 'settings') syncMenu(); updateChatbox(); }
 document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showScreen(b.dataset.go));
@@ -5270,7 +5572,7 @@ document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
   if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
   document.querySelectorAll('#teams button').forEach(x => x.classList.toggle('on', x === b));
   refreshPreview(); // your side's characters
-  if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
+  if (NET.role === 'guest' && NET.conn && NET.conn.open && (!NEWMENU || NET.joined)) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
 });
 // Look panel: opens over the paused game with the scene showing through
 const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lklit: ['lit', v => v], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v], lktop: ['top', v => v] };
@@ -5682,6 +5984,7 @@ function applyFx(m) {
 function updateRoster() {
   const el = $('roster'); if (!el) return;
   el.textContent = remotes.length ? `In game: ${remotes.map(r => r.name).join(', ')}` : 'Send this link to friends. They join with their own name and character.';
+  if (NEWMENU && LOBBY) { sendPicks(); fitBots(); } // the grid's names, and bots make room for people (or fill in for them)
 }
 
 // ----- Host -----
@@ -5709,9 +6012,11 @@ function onGuestMsg(conn, m) {
   let r = remotes.find(x => x.conn === conn);
   if (r) r.seen = performance.now();
   if (m.t === 'bye') { removeRemote(conn); try { conn.close(); } catch (e) {} return; }
-  if (m.t === 'ping') return;
+  if (m.t === 'ping') { const l = LOBBY.get(conn); if (l) l.seen = performance.now(); return; }
+  if (m.t === 'lobby') { if (!r && NEWMENU) onLobby(conn, m); return; }
   if (m.t === 'hello') {
     if (!MODELS.length) return;
+    LOBBY.delete(conn);
     const name = String(m.name || 'Guest').slice(0, 16);
     if (!r) {
       r = makeEntity(name, false);
@@ -5720,7 +6025,7 @@ function onGuestMsg(conn, m) {
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       setRemoteModel(r, m.model);
-      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), look: LOOK, level: curLevel, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      sendTo(r, { t: 'welcome', id: r.id, dev: DEV, ws: RANGE.cfg(), look: LOOK, level: curLevel, tg: GAME_TEAMS, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
       // after a long game, and a message that big closes the connection, so the guest never got in
       for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
@@ -5771,6 +6076,7 @@ function onGuestMsg(conn, m) {
   }
 }
 function removeRemote(conn) {
+  if (LOBBY.delete(conn)) sendPicks();
   const i = remotes.findIndex(x => x.conn === conn); if (i < 0) return;
   const r = remotes[i]; remotes.splice(i, 1);
   scene.remove(r.mesh); const k = ents.indexOf(r); if (k >= 0) ents.splice(k, 1);
@@ -5782,6 +6088,7 @@ const NET_TIMEOUT = 12000;
 let sweepT = performance.now();
 function dropSilentRemotes() {
   const now = performance.now(), stalled = now - sweepT > 3000; sweepT = now;
+  for (const [c, l] of LOBBY) { if (stalled) l.seen = now; else if (now - l.seen > NET_TIMEOUT) { LOBBY.delete(c); try { c.close(); } catch (e) {} sendPicks(); } }
   for (const r of remotes.slice()) {
     if (stalled) r.seen = now; // this tab was frozen or throttled, so the silence isn't necessarily theirs
     else if (now - r.seen > NET_TIMEOUT) { removeRemote(r.conn); try { r.conn.close(); } catch (e) {} }
@@ -5830,7 +6137,8 @@ function startGuest() {
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
     conn.on('open', () => {
-      $('netstat').textContent = 'Connected'; conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
+      $('netstat').textContent = NEWMENU && !NET.go ? '' : 'Connected';
+      if (NEWMENU && !NET.go) lobbySend(true); else conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
       NET.beat = setInterval(() => { if (conn.open) conn.send({ t: 'ping' }); }, 2000); // a timer, not the frame loop, so a backgrounded tab still counts as here
     });
     conn.on('data', onHostMsg);
@@ -5847,7 +6155,7 @@ function onHostMsg(m) {
   if (!m || typeof m !== 'object') return;
   switch (m.t) {
     case 'welcome':
-      NET.myId = m.id; P.id = m.id; NET.joined = true; KILL_LIMIT = m.lim; matchOver = !!m.over;
+      NET.myId = m.id; P.id = m.id; NET.joined = true; if (NEWMENU && typeof m.tg === 'boolean') GAME_TEAMS = m.tg; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
       if (m.look) useLook(m.look); // and sky
@@ -5884,6 +6192,7 @@ function onHostMsg(m) {
       $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
       if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
       break;
+    case 'picks': if (NEWMENU) onPicks(m); break; // ?dev start page: who has which character, the host's level and game type
     default: if (!VEH.onHostMsg(m)) applyFx(m);
   }
 }
@@ -6123,6 +6432,7 @@ function updateCamGrid() {
   }
 }
 if (NET.role === 'host') { startHost(); setInterval(dropSilentRemotes, 1000); }
+else if (NEWMENU) startGuest(); // ?dev: connect straight away, to see who has which character
 // Leaving (closing the tab, navigating away): say goodbye and close the connections, so nobody is left looking at a frozen
 // avatar and camera tile. If the goodbye never makes it out, the host's silence check catches it.
 addEventListener('pagehide', () => {
@@ -6148,6 +6458,8 @@ loadModels().then(() => ensureLevel(selLevel)).then(() => {
   else { P.alive = false; $('pname').placeholder = 'Your name'; }
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; $('tload').textContent = ''; READY = true;
   initPreview();
+  READY_T = performance.now();
+  if (NEWMENU) { buildPicker(); renderHost(); lobbyLevel(); syncGo(); }
   loadOtherSets();
 }).catch(e => { console.error(e); $('play').textContent = 'Characters failed to load'; });
 let last = performance.now();
@@ -6180,6 +6492,7 @@ function loop(now) {
   }
   netTick(dt);
   updateCamera(dt);
+  titleCam(now); titleTick();
   updateHoverTags(dt);
   updatePlayerRig(dt);
   renderPreview(dt);
@@ -6201,7 +6514,7 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (tpK < 0.5 && bodyK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (tpK < 0.5 && bodyK < 0.5 && !PREGAME) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
