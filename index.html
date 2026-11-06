@@ -152,7 +152,7 @@ body.guest .hostonly{display:none!important}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
-#hostcard,#curtain,#splash,.tslot,#cpick,.clabel,.cfoot{display:none}
+#hostcard,#curtain,#splash,.tslot,#cpick,.clabel,.cfoot,.clinks{display:none}
 #chatbox{display:none;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
 #chatbox>label{font-size:13px;opacity:.85}
 #chatbox.on{display:flex}
@@ -218,9 +218,9 @@ body.titleon #overlay{visibility:hidden}
 body.pregame #hud,body.pregame #touch{visibility:hidden}
 /* Host Options (host only, before the game): a yellow card beside the character card */
 body.newmenu #hostcard{width:300px;background:#d4ae3c;color:#111;padding:30px 30px 26px;border-radius:3px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
-body.newmenu.pregame:not(.guest) #hostcard{display:block}
-body.newmenu.pregame #maincard{display:none}
-body.newmenu.pregame .menu{width:min(100%,980px);align-items:stretch}
+body.newmenu:not(.guest) #hostcard{display:block}
+body.newmenu #maincard[data-scr=main]{display:none}
+body.newmenu .menu{width:min(100%,980px);align-items:stretch}
 #overlay.sub #hostcard{display:none!important}
 #hostcard h2{margin:0 0 22px;font:400 24px/1.2 system-ui,sans-serif;letter-spacing:0;text-transform:none}
 #hostcard .hopt{margin-bottom:20px}
@@ -263,13 +263,20 @@ body.newmenu .cfoot{display:flex;align-items:center;gap:16px;margin-top:24px}
 #charcard #joingo:hover{background:#333}
 #charcard #joingo:disabled{background:#aaa;cursor:default}
 body.newmenu #charcard #netstat{margin:0;font:600 14px system-ui,sans-serif;color:#555}
-body:not(.pregame) #joingo{display:none}
 body.guest.pregame #maincard{display:none}
 body.newmenu.pregame #chatbox{display:none!important}
-body.newmenu.pregame #overlay.sub #maincard{display:block}
+body.newmenu #charcard #chatbox{margin-top:22px;color:#111}
+body.newmenu #charcard #chatbox>label{font:400 22px/1.2 system-ui,sans-serif;opacity:1}
+body.newmenu #charcard #chatlog{background:#ececec;height:96px}
+body.newmenu #charcard #chatlog .me b{color:#111}
+body.newmenu #charcard #chatbox input{background:#fff;color:#111;border:0;border-bottom:2px solid #111;border-radius:0;font-size:15px}
+body.newmenu #charcard #chatbox input:focus{border-bottom-color:#d4ae3c}
 #charcard .clink{background:none;color:#111;padding:6px 2px;font:500 15px/1 system-ui,sans-serif;text-decoration:underline;text-underline-offset:4px}
 #charcard .clink:hover{background:none;color:#555}
-body:not(.newmenu) #howgo,body:not(.pregame) #howgo{display:none}
+body.pregame #startover,body.pregame #leavego{display:none}
+body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
+#charcard #startover{background:none;color:#111;border:2px solid #111;border-radius:999px;padding:13px 30px;font:500 18px/1 system-ui,sans-serif}
+#charcard #startover:hover{background:#111;color:#fff}
 @media (max-width:420px){.ctiles{grid-template-columns:repeat(2,76px)}#charcard .ctile{width:76px;height:88px}body.newmenu #charcard{padding:22px 18px}}
 </style>
 </head>
@@ -446,7 +453,8 @@ body:not(.newmenu) #howgo,body:not(.pregame) #howgo{display:none}
   <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="rebels">Rebels</button></div></div>
   <div id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
-  <div class="cfoot"><button type="button" id="joingo" disabled>Go!</button><button type="button" id="howgo" class="clink" data-go="howto">How to play</button></div>
+  <div class="cfoot"><button type="button" id="joingo" disabled>Go!</button><button type="button" id="startover" class="hostonly">Start over</button></div>
+  <div class="clinks"><button type="button" id="howgo" class="clink" data-go="howto">How to play</button><button type="button" class="clink" data-go="settings">Settings</button><button type="button" id="pdraw" class="clink" hidden>Draw</button><button type="button" id="leavego" class="clink">Leave game</button></div>
 </div>
 </div></div>
 <div id="results"><div class="card">
@@ -3698,7 +3706,7 @@ function resetMatch() {
   matchOver = false;
   if (window.TRANSCRIPT) TRANSCRIPT.event('start');
   ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
-  if (NET.role === 'host') broadcast({ t: 'reset' });
+  if (NET.role === 'host') broadcast(NEWMENU ? { t: 'reset', tg: GAME_TEAMS } : { t: 'reset' });
 }
 // w is the winner
 function endMatch(w) {
@@ -5137,6 +5145,7 @@ function setPlaying(on) {
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = useId = null;
     $('joy').style.display = 'none';
+    if (NEWMENU) syncPause();
   }
 }
 $('play').onclick = () => {
@@ -5345,7 +5354,7 @@ $('restart').onclick = () => $('next').onclick();
 // Back to the title page: a fresh start (a host leaving ends the game for everyone who joined; a guest just leaves)
 $('tomenu').onclick = () => {
   if (NET.role === 'host' && remotes.length && !confirm('Leave the game? Everyone who joined you will be disconnected.')) return;
-  location.assign(location.pathname);
+  location.assign(location.pathname + (DEV ? '?dev' : ''));
 };
 // Title page: pick a game. Everything has been loading behind it since the page opened.
 function chooseMode(kind) {
@@ -5377,13 +5386,58 @@ $('totitle').onclick = () => showTitle(true);
 // Guests connect as soon as the page opens, so the grid shows who has taken what before they join ('lobby' / 'picks').
 var PREGAME = NEWMENU, LOBBY = new Map(), PICKS = [], PICKED = false, lastLobby = 0, titleShown = 0, titleReadyAt = 0;
 const TITLE_CAMS = { fortress: { p: [-9.5, 31.8, 36], t: [1.5, 39.5, 0] } }; // camera and the point it orbits, per level
-const TITLE_SWAY = 10 * Math.PI / 180, TITLE_PERIOD = 26; // ±10° around the level, once every TITLE_PERIOD seconds
+const TITLE_SWAY = 5 * Math.PI / 180, TITLE_PERIOD = 26; // ±5° around the level, once every TITLE_PERIOD seconds
 function showTitle(on) { $('title').style.display = on ? '' : 'none'; document.body.classList.toggle('titleon', !!on && NEWMENU); }
+// Keep the view clear: the first time a level shows, find the swing nearest the set angle where nothing (a tree, a wall)
+// comes between the camera and the point it looks at, with room to spare round the lens; failing that, move in closer.
+// Only the triangles near the camera's possible paths are tested (the terrain alone is ~190k), so this takes a moment
+const titleFit = {}, TITLE_MAXOFF = 20, TITLE_KS = [1, 0.9, 0.8, 0.7, 0.6], _tR = new THREE.Ray(), _tA = new V3(), _tB = new V3(), _tC = new V3(), _tD = new V3();
+function titleAt(c, a, k, out) {
+  const dx = (c.p[0] - c.t[0]) * k, dz = (c.p[2] - c.t[2]) * k;
+  return out.set(c.t[0] + dx * Math.cos(a) + dz * Math.sin(a), c.t[1] + (c.p[1] - c.t[1]) * k, c.t[2] - dx * Math.sin(a) + dz * Math.cos(a));
+}
+function titleTris(c) { // world-space triangles inside the box the camera paths could sweep
+  const box = new THREE.Box3().expandByPoint(_tA.set(c.t[0], c.t[1], c.t[2])), mb = new THREE.Box3(), tb = new THREE.Box3(), step = Math.PI / 180;
+  for (const k of TITLE_KS) for (let i = -TITLE_MAXOFF - 6; i <= TITLE_MAXOFF + 6; i += 2) box.expandByPoint(titleAt(c, i * step, k, _tB));
+  box.expandByScalar(2.5);
+  const out = [];
+  scene.traverseVisible(o => {
+    if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || !o.geometry || !o.geometry.attributes.position) return;
+    const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    if (!mb.copy(g.boundingBox).applyMatrix4(o.matrixWorld).intersectsBox(box)) return;
+    const pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count, M = o.matrixWorld;
+    for (let t = 0; t < n; t += 3) {
+      _tA.fromBufferAttribute(pos, idx ? idx.getX(t) : t).applyMatrix4(M);
+      _tB.fromBufferAttribute(pos, idx ? idx.getX(t + 1) : t + 1).applyMatrix4(M);
+      _tC.fromBufferAttribute(pos, idx ? idx.getX(t + 2) : t + 2).applyMatrix4(M);
+      tb.makeEmpty().expandByPoint(_tA).expandByPoint(_tB).expandByPoint(_tC);
+      if (tb.intersectsBox(box)) out.push(_tA.clone(), _tB.clone(), _tC.clone());
+    }
+  });
+  return out;
+}
+function titleClear(tris, c, a, k) { // rays from the target to the camera and to points a metre round it
+  const T = new V3(c.t[0], c.t[1], c.t[2]), P = titleAt(c, a, k, new V3());
+  for (const [ox, oy, oz] of [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+    _tD.set(P.x + ox, P.y + oy, P.z + oz).sub(T); const L = _tD.length() + 1.5;
+    _tR.set(T, _tD.normalize());
+    for (let i = 0; i < tris.length; i += 3) if (_tR.intersectTriangle(tris[i], tris[i + 1], tris[i + 2], false, _tC) && _tC.distanceTo(T) < L) return false;
+  }
+  return true;
+}
+function fitTitle(c) {
+  const tris = titleTris(c), step = Math.PI / 180, n = Math.ceil(TITLE_SWAY / step), memo = new Map();
+  const ok = (i, k) => { const key = k + ':' + i; if (!memo.has(key)) memo.set(key, titleClear(tris, c, i * step, k)); return memo.get(key); };
+  const clearRun = (mid, k) => { for (let i = mid - n; i <= mid + n; i++) if (!ok(i, k)) return false; return true; };
+  for (const k of TITLE_KS) // closer in only if no swing at the set distance is clear
+    for (let j = 0; j <= TITLE_MAXOFF; j++) for (const mid of j ? [j, -j] : [0]) if (clearRun(mid, k)) return { mid: mid * step, k };
+  return { mid: 0, k: 1 };
+}
 function titleCam(now) {
   if (!PREGAME) return;
   const c = TITLE_CAMS[curLevel]; if (!c) return;
-  const a = TITLE_SWAY * Math.sin(now / 1000 * 2 * Math.PI / TITLE_PERIOD), dx = c.p[0] - c.t[0], dz = c.p[2] - c.t[2];
-  camera.position.set(c.t[0] + dx * Math.cos(a) + dz * Math.sin(a), c.p[1], c.t[2] - dx * Math.sin(a) + dz * Math.cos(a));
+  const f = titleFit[curLevel] || (READY ? (titleFit[curLevel] = fitTitle(c)) : { mid: 0, k: 1 });
+  titleAt(c, f.mid + TITLE_SWAY * Math.sin(now / 1000 * 2 * Math.PI / TITLE_PERIOD), f.k, camera.position);
   camera.lookAt(c.t[0], c.t[1], c.t[2]);
 }
 // Loading bar, then the fade (a few frames after the level is in, so its first draw happens behind the black)
@@ -5422,7 +5476,16 @@ if (NEWMENU) {
   try { $('pname').value = localStorage.getItem('tse.name') || ''; } catch (e) {}
   $('pname').addEventListener('input', () => { try { localStorage.setItem('tse.name', $('pname').value.trim()); } catch (e) {} pickerChanged(); });
   $('joingo').onclick = () => { if (canGo()) $('play').onclick(); };
+  $('startover').onclick = () => { $('slimit').value = $('sglimit').value; $('next').onclick(); }; // a new round with the settings as they are now
+  $('pdraw').onclick = () => { const b = $('drawbtn'); if (b) b.onclick(); };
+  $('leavego').onclick = () => $('tomenu').onclick();
   new MutationObserver(syncGo).observe($('play'), { attributes: true, childList: true, characterData: true, subtree: true });
+}
+// The pause screen is the start page again: Host Options and the character grid; Go! goes back in, and changes take
+// effect then (a new level, game type or bots start a new round, as Start over does)
+function syncPause() {
+  renderHost(); renderPicker();
+  const d = $('drawbtn'); $('pdraw').hidden = !d || d.style.display === 'none'; if (d) $('pdraw').textContent = d.textContent;
 }
 function renderHost() {
   $('hlevels').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === selLevel));
@@ -5480,7 +5543,8 @@ function pick(i) {
   const t = TEAM_CHARS_NEW.rebels.includes(i) ? 'rebels' : 'midas';
   if (t !== myTeam) { const b = document.querySelector(`#teams button[data-team="${t}"]`); if (b) b.onclick(); }
   PICKED = true; syncChars(); $('schar').value = i; refreshPreview();
-  if (NET.role === 'guest') lobbySend(true);
+  if (NET.role === 'guest' && NET.joined) { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: myPickName(), model: i, tm: myTeam }); } // in the game: the host shows it now
+  else if (NET.role === 'guest') lobbySend(true);
 }
 function pickerChanged() {
   if (!NEWMENU || !LOBBY) return;
@@ -6190,6 +6254,7 @@ function onHostMsg(m) {
     case 'end': showGuestResults(m); break;
     case 'reset': // the host started a new round: the round's end let go of the mouse, so offer it back
       $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
+      if (NEWMENU && typeof m.tg === 'boolean' && m.tg !== GAME_TEAMS) { GAME_TEAMS = m.tg; updateGoal(); refreshPreview(); } // the host may have changed the game type
       if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
       break;
     case 'picks': if (NEWMENU) onPicks(m); break; // ?dev start page: who has which character, the host's level and game type

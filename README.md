@@ -10,7 +10,7 @@ The game opens on a title page (`title.jpg`, a placeholder render of the fort; r
 
 With `?dev` the game opens on the new, streamlined start instead. It replaces the mode buttons; Test Drive and the Shooting Range aren't in it (`?dev&level=drive` and `?dev&level=range` still open them).
 
-- **Title page.** The splash (`splash.png`, cropped from `Images/splashscreen.png`) and a loading bar on black. Once the level is in, the black fades to a slow orbit of the fort (±10°; `TITLE_CAMS` sets the camera per level), and **host a new game** appears.
+- **Title page.** The splash (`splash.png`, cropped from `Images/splashscreen.png`) and a loading bar on black. Once the level is in, the black fades to a slow orbit of the fort (±5°; `TITLE_CAMS` sets the camera per level, and the swing shifts sideways, or moves in closer, until nothing blocks the view), and **host a new game** appears.
 - **Host Options** (the host only, yellow card):
   - **Level**: every arena map, the Fort first.
   - **Game Type**: Team battle (Midas against the Rebels) or Free for all.
@@ -20,7 +20,7 @@ With `?dev` the game opens on the new, streamlined start instead. It replaces th
   - A character someone else picked shows their name in a black bar and can't be taken, unless every character is taken.
   - Invited friends connect as soon as the page opens, so they see the picks live and the host's level behind the card.
   - **Go!** leaves the menu. It stays off until you have typed a name and picked a character.
-- In the game, the pause screen is the old one, with the character grid beside it.
+- **Pause** (Esc) shows the same two cards. **Go!** goes back in, and changes take effect then: a new level, game type or bot setting starts a new round, and a guest's new character shows for everyone straight away. The host also has **Start over** (a new round with the current settings). Under the buttons: How to play, Settings, Draw and Leave game.
 
 Without `?dev`, the title page and the old modes are as before:
 
