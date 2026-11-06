@@ -207,9 +207,9 @@ Shots leave bullet holes on walls and anything else they hit, so you can draw on
 
 Press **P** (or **Draw** on the pause screen) to put your weapons away and take out a pen and a spray can; P again (or **Weapons**) brings your weapons back as they were. Everything is in `art.js` (`ART` in `index.html`).
 
-- **Pen**: a click leaves a dot, and holding the button draws a line, on whatever is up to 3 m away.
-- **Spray can**: each click puts down one big splatter, up to 8 m away. It's bigger and thinner the further you spray from (0.3 m across up close, about 1.1 m at 8 m). There are four splatter shapes, each turned at random.
-- **Colours**: six (`PALETTE`: terracotta, mustard, slate blue, olive, black, white). **1–6** pick one, and each tool keeps its own. **Q** or the wheel switches tool. The HUD shows the tool and the colours, and the crosshair is the pen's dot or the splatter's size, in the colour (faint when out of reach). Paint never runs out.
+- **Pen**: a click leaves a dot, and holding the button draws a line (4 cm wide) on whatever is up to 3.6 m away.
+- **Spray can**: the same, broad: a 30 cm line up to 9.6 m away, for as long as you hold the button, with a mist and a hiss. Its round mark wraps onto what it lands on (a curb, a wheel) and stops at an edge instead of hanging off it. The sizes and reaches are `PEN_R`, `SPRAY_R`, `PEN_REACH` and `SPRAY_REACH` at the top of `art.js`.
+- **Colours**: six (`PALETTE`: terracotta, mustard, slate blue, olive, black, white). **1–6** pick one, and each tool keeps its own. **Q** or the wheel switches tool. The HUD shows the tool and the colours, and the crosshair is the pen's dot or the can's mark at the distance you're aiming, in the colour (faint when out of reach). Paint never runs out.
 - **What it sticks to**: everything you can see.
   - The level, and its doors: paint on a door swings with it.
   - Vehicles: it rides along.
@@ -220,7 +220,8 @@ Press **P** (or **Draw** on the pause screen) to put your weapons away and take 
 - **Safety**: while drawing, nothing hurts you but a fall, and bots leave you alone. With no weapons out you can't hurt anyone either.
   - The tools take a second to come out, and you're only safe once they're in your hand.
   - Going back to weapons ends the safety at once, and the gun takes a second to come up.
-- **In hand**: you hold the tool in first person, and others see you holding it. The pen and the can are drawn in code (like the knife), and their caps take the colour.
+- **In hand**: in first person your hand holds the tool upright, low on the right, the forearm coming up from the corner (`HELD_HIP` in `index.html`, `ARM_TURN` and `FPV_UP` in `art.js`). Others see you holding it. The pen (a fat marker) and the can are drawn in code, like the knife, and their caps take the colour.
+- **Vehicles and characters by name**: paint on a vehicle part or a character's mesh is addressed by the mesh's name, not its place in the model, because a model's parts can load in a different order on each machine. If a vehicle or a character is rebuilt, its paint goes back on.
 - **On a phone**: Draw is on the pause screen. Fire paints, Swap switches tool, and you tap a colour in the column on the right.
 - **Where it works**: every game but Test Drive. You can't paint from a seat where you couldn't shoot.
 
