@@ -203,6 +203,27 @@ Press **Enter** to open the chat box, type, and press **Enter** again to send (E
 
 Shots leave bullet holes on walls and anything else they hit, so you can draw on walls by shooting. Grenades and gas cans leave a big black scorch mark on the floor and walls around the blast. Both stay for the whole round and clear when a new round starts or the level changes. Everyone sees everyone's marks, including players who join mid-round.
 
+## Draw: the pen and the spray can
+
+Press **P** (or **Draw** on the pause screen) to put your weapons away and take out a pen and a spray can; P again (or **Weapons**) brings your weapons back as they were. Everything is in `art.js` (`ART` in `index.html`).
+
+- **Pen**: a click leaves a dot, and holding the button draws a line, on whatever is up to 3 m away.
+- **Spray can**: each click puts down one big splatter, up to 8 m away. It's bigger and thinner the further you spray from (0.3 m across up close, about 1.1 m at 8 m). There are four splatter shapes, each turned at random.
+- **Colours**: six (`PALETTE`: terracotta, mustard, slate blue, olive, black, white). **1–6** pick one, and each tool keeps its own. **Q** or the wheel switches tool. The HUD shows the tool and the colours, and the crosshair is the pen's dot or the splatter's size, in the colour (faint when out of reach). Paint never runs out.
+- **What it sticks to**: everything you can see.
+  - The level, and its doors: paint on a door swings with it.
+  - Vehicles: it rides along.
+  - Characters, others and bots: it moves with the body. When someone dies, their paint stays on the body and they come back clean.
+- **Layers**: each click is a new layer, drawn over the ones before. Bullet holes go on top of paint, and paint goes on top of scorch marks.
+- **How long it lasts**: until the round resets or the level changes, like the bullet holes. Past 1500 layers the oldest go.
+- **Who sees it**: everyone sees everyone's paint as it's drawn, including players who join mid-round (`pl` messages, in pieces under 24 KB).
+- **Safety**: while drawing, nothing hurts you but a fall, and bots leave you alone. With no weapons out you can't hurt anyone either.
+  - The tools take a second to come out, and you're only safe once they're in your hand.
+  - Going back to weapons ends the safety at once, and the gun takes a second to come up.
+- **In hand**: you hold the tool in first person, and others see you holding it. The pen and the can are drawn in code (like the knife), and their caps take the colour.
+- **On a phone**: Draw is on the pause screen. Fire paints, Swap switches tool, and you tap a colour in the column on the right.
+- **Where it works**: every game but Test Drive. You can't paint from a seat where you couldn't shoot.
+
 ## Muzzle flash and smoke
 
 Each gun has its own muzzle flash and smoke, seen on your own gun and on other players and bots:
@@ -237,7 +258,7 @@ It isn't on any map yet while it's being tuned. To try it, add `?give=uzi` to th
 
 ## Controls
 
-WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · M mute · N camera · Enter chat · Tab scores · Esc pause
+WASD move · Shift run · C crouch · Space jump · Left click shoot · Right click or X aim (X toggles; Ctrl-click is a right click) · R reload (it also reloads by itself when empty) · Q, wheel or 1–5 switch weapon · F or G grenade (hold to cook) · E use (computer, vehicle, take over a soldier), otherwise knife · P draw (pen and spray can) · M mute · N camera · Enter chat · Tab scores · Esc pause
 
 Every action has a key, so a one-button Mac mouse or a trackpad can play everything. A scroll-wheel swipe switches weapon once, however long the swipe keeps scrolling. Short hints appear the moment they matter (the keys, low ammo, the wall walk, the computer, the vehicles) a few times per browser, then stop.
 
