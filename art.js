@@ -72,6 +72,7 @@
       this.grow(this.skin ? 256 : 1024);
       const m = this.skin ? new THREE.SkinnedMesh(this.g, MAT_SKIN) : new THREE.Mesh(this.g, MAT);
       m.frustumCulled = false; m.renderOrder = ro; m.castShadow = false; m.receiveShadow = !this.skin; m.matrixAutoUpdate = A.obj !== world;
+      paintOnly(m);
       if (this.skin) { const s = this.skin; m.bind(s.skeleton, s.bindMatrix); m.position.copy(s.position); m.quaternion.copy(s.quaternion); m.scale.copy(s.scale); s.parent.add(m); m.updateMatrixWorld(true); }
       else A.obj.add(m);
       this.mesh = m;
@@ -109,6 +110,9 @@
     }
     dispose() { if (this.mesh.parent) this.mesh.parent.remove(this.mesh); this.g.dispose(); }
   }
+  // Paint is never aimed at: the tools' rays go through it to the surface under it (so a new coat goes on over the last,
+  // on the same part), and it's left out of a model's list of parts
+  function paintOnly(m) { m.raycast = () => {}; m.userData.paint = true; }
   function batchFor(A, k) {
     let ch = chains.get(A.obj);
     if (!ch) { ch = []; chains.set(A.obj, ch); }
@@ -158,12 +162,12 @@
   // (that skinned mesh's bind pose, so paint follows the body however it's posed). Meshes go by name (n: which of the
   // ones with that name), not by place: a model's parts can load in a different order on each machine
   const hinges = () => [...levelSheds().map(s => s.door), ...(typeof DOORS !== 'undefined' && DOORS && DOORS.leaves ? DOORS.leaves.map(l => l.hinge) : []), LV && LV.towerDoor && TDOOR.hinge].filter(Boolean);
-  const rigSkins = rig => rig._skins || (rig._skins = (() => { const s = []; rig.root.traverse(o => { if (o.isSkinnedMesh) s.push(o); }); return s; })());
+  const rigSkins = rig => rig._skins || (rig._skins = (() => { const s = []; rig.root.traverse(o => { if (o.isSkinnedMesh && !o.userData.paint) s.push(o); }); return s; })());
   // a vehicle's meshes, in a fixed order, and a sphere round all of them in its own frame (for a quick miss)
   function vehInfo(v) {
     if (v._pmG === v.g) return v._pi;
     v._pmG = v.g; v.g.updateMatrixWorld(true);
-    const meshes = []; v.g.traverse(o => { if (o.isMesh) meshes.push(o); });
+    const meshes = []; v.g.traverse(o => { if (o.isMesh && !o.userData.paint) meshes.push(o); });
     const box = new THREE.Box3(); for (const m of meshes) { const g = m.geometry; if (!g.boundingBox) g.computeBoundingBox(); box.union(g.boundingBox.clone().applyMatrix4(m.matrixWorld)); }
     const sph = box.getBoundingSphere(new THREE.Sphere()); sph.applyMatrix4(new THREE.Matrix4().copy(v.g.matrixWorld).invert());
     return (v._pi = { meshes, sph });
@@ -269,7 +273,7 @@
   // A door or a vehicle part: its own triangles, in its own frame (a door: every mesh under the hinge)
   function sprayObject(L, A, p, n, r, rgba) {
     const root = A.obj, inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), r2 = r * r, lift = r * SPRAY_LIFT_K;
-    const list = []; if (A.kind === 'v') list.push(root); else root.traverse(o => { if (o.isMesh && o.visible) list.push(o); });
+    const list = []; if (A.kind === 'v') list.push(root); else root.traverse(o => { if (o.isMesh && o.visible && !o.userData.paint) list.push(o); });
     for (const m of list) {
       const mat = m === root ? _m4.identity() : new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld), two = m.material.side === THREE.DoubleSide;
       meshTris(m, mat, p, r, (a, b, c, fn) => {
@@ -636,7 +640,7 @@
       const s = to[i];
       for (const b of ch) {
         if (s && b.n) {
-          const m = new THREE.SkinnedMesh(b.g, MAT_SKIN); m.frustumCulled = false; m.renderOrder = b.mesh.renderOrder;
+          const m = new THREE.SkinnedMesh(b.g, MAT_SKIN); m.frustumCulled = false; m.renderOrder = b.mesh.renderOrder; paintOnly(m);
           m.bind(s.skeleton, s.bindMatrix); m.position.copy(s.position); m.quaternion.copy(s.quaternion); m.scale.copy(s.scale); s.parent.add(m);
           corpsePaint.push({ w: rig.wrap, g: b.g });
           if (b.mesh.parent) b.mesh.parent.remove(b.mesh); b.g = new THREE.BufferGeometry(); // (the body has the geometry now)
