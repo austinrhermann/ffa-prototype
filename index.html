@@ -277,6 +277,7 @@ body.touch .card small.tc{display:block}
       <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt>Q</dt><dd>Drop the weapon in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
+      <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
       <dt>N</dt><dd>Turn your camera on or off</dd>
       <dt>Enter</dt><dd>Chat with everyone in the game</dd>
@@ -290,6 +291,7 @@ body.touch .card small.tc{display:block}
       <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt>Q</dt><dd>Drop the weapon in your hands</dd>
       <dt>R</dt><dd>Reload</dd>
+      <dt>P</dt><dd>Draw: a pen and a spray can (1–6 colour, Q switches tool)</dd>
       <dt>Tab</dt><dd>Weapon settings (Tab again to shoot)</dd>
     </dl>
     <dl class="kb drive-only">
@@ -309,7 +311,8 @@ body.touch .card small.tc{display:block}
       <dt>Fire</dt><dd>Hold to shoot, drag to aim</dd>
       <dt>Aim</dt><dd>Tap to toggle</dd>
       <dt>Use</dt><dd>Doors, vehicles, the computer (hold for 4 seconds inside the bunker door to lock it)</dd>
-      <dt>Swap</dt><dd>Next weapon</dd>
+      <dt>Swap</dt><dd>Next weapon (drawing: pen or spray can)</dd>
+      <dt>Draw</dt><dd>On the pause screen: a pen and a spray can instead of your weapons. Tap a colour on the right; Fire paints</dd>
       <dt>Gyro</dt><dd>Aim by moving your phone</dd>
     </dl>
   </div></div>
@@ -557,6 +560,8 @@ let SNOW = null, curLevel = null;
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
 const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+// Draw mode, the pen and the spray can (art.js fills it in)
+const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 function unup(c1, r1, c2, r2) { for (let r = r1; r < r2; r++) for (let c = c1; c < c2; c++) U[idx(c, r)] = 0; }
@@ -2748,7 +2753,7 @@ const corpses = [];
 function spawnCorpse(e) {
   if (!e.rig) return;
   const mi = MODELS.indexOf(e.rig.model);
-  spawnCorpseAt(mi, e.pos, e.yaw);
+  ART.toCorpse(e.id, spawnCorpseAt(mi, e.pos, e.yaw)); // the paint on them goes down with them
   netFx({ t: 'co', id: e.id, m: mi, p: arr(e.pos), y: +e.yaw.toFixed(3) });
 }
 function spawnCorpseAt(mi, pos, yaw) {
@@ -2757,6 +2762,7 @@ function spawnCorpseAt(mi, pos, yaw) {
   r.wrap.position.copy(pos); r.wrap.rotation.y = yaw;
   scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0, r });
   if (corpses.length > 30) scene.remove(corpses.shift().w);
+  return r;
 }
 // They drop backwards in half a second: the arms and hands fly out and land flat (the library characters; the older ones just
 // let theirs swing down), the legs splay and the knees give
@@ -2976,9 +2982,11 @@ function updateSelfView() {
   if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
   let want = RANGE.on ? RANGE.inHand() : curW;
+  if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
+  else
   if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
   else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
-  if (r.held !== want) { r.held = want; if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
+  if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
   if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
 }
 function updatePlayerRig(dt) {
@@ -2988,12 +2996,12 @@ function updatePlayerRig(dt) {
   r.wrap.position.copy(P.pos); r.wrap.rotation.set(0, P.yaw + Math.PI, 0); // (upright: a vehicle seat tilts the body with the vehicle)
   if (bodyK > 0.01) { fpvPose(r); } else fpvA2 = 0;
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
-  if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) r.gunVis.matrix.copy(r.gunVis.userData.base);
+  if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) { r.gunVis.matrix.copy(r.gunVis.userData.base); ART.fpvTool(r.gunVis, 0); } // (the pen and can stand in the fist again)
 }
 // First person: the gun hand moves (arm and all) to where the floating viewmodel gun used to be, so every character
 // holds every gun in the same place on screen, whatever the size of their arms
 const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
-const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42) };
+const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42), pen: new V3(0.25, -0.18, -0.55), spray: new V3(0.25, -0.17, -0.6) }; // (the art tools: low on the right)
 // Where the gun hand is in the view, and how far the arm tips about the shoulder (positive: the gun points down): the hip hold,
 // or the reload (gun and hand drop down beside the body), the knife stab and the grenade throw. All camera-space, like the old viewmodel
 let fpvA2 = 0;
@@ -3015,6 +3023,7 @@ function fpvPose(r) {
     const t = 1 - throwT / 0.4, a = sstep(0, 0.35, t), b = sstep(0.35, 0.65, t), c = sstep(0.65, 1, t);
     _fh.lerp(THROW_BACK, a).lerp(THROW_OUT, b).lerp(hip, c); fpvA2 = -0.9 * a * (1 - b) + 0.3 * b * (1 - c);
     r.hideHeld = t >= 0.5; // the grenade leaves the hand
+  } else if (r.held === 'pen' || r.held === 'spray') { ART.pose(_fh);
   } else if (P.reloading > 0 && VMW[r.held]) {
     const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
     _fh.lerp(RELOAD_AT, k); fpvA2 = RELOAD_BEND * k; fpvAimW = 1 - k;
@@ -3039,6 +3048,15 @@ function fpvFit(r) {
     _fp.copy(_fc); node.worldToLocal(_fp);
     for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) { u.b.position.sub(_fp).applyQuaternion(_qd).add(_fp); u.b.quaternion.premultiply(_qd); }
     r.wrap.updateMatrixWorld(true); _fb.setFromObject(gv).getCenter(_fc);
+  }
+  const qa = !VMW[r.held] && ART.armTurn(r.held);
+  if (qa) { // draw mode: the arm tips up about the tool (a turn in the camera's frame), so the pen or can stands upright in the fist
+    _qi.copy(camera.quaternion).multiply(qa).multiply(_qd.copy(camera.quaternion).invert()); _qi.slerp(_qd.identity(), 1 - bodyK);
+    const node = r.upper[0].b.parent; node.getWorldQuaternion(_qb2);
+    _qd.copy(_qb2).invert().multiply(_qi).multiply(_qb2);
+    _fp.copy(_fc); node.worldToLocal(_fp);
+    for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) { u.b.position.sub(_fp).applyQuaternion(_qd).add(_fp); u.b.quaternion.premultiply(_qd); }
+    r.wrap.updateMatrixWorld(true); ART.fpvTool(gv, bodyK); _fb.setFromObject(gv).getCenter(_fc); // and the tool stands upright in the view
   }
   // the old viewmodel camera had a narrower view, so widen its x and y to get the same spot on screen (a straight remap: the reload pose is behind the lens)
   const K = Math.tan(camera.fov * Math.PI / 360) / Math.tan(vmCam.fov * Math.PI / 360);
@@ -3194,7 +3212,7 @@ const holeMesh = (() => {
   x.fillStyle = g; x.fillRect(0, 0, 64, 64);
   const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(HOLE_R * 2, HOLE_R * 2), mat, HOLE_MAX);
-  m.count = 0; m.frustumCulled = false; m.renderOrder = 1; scene.add(m); return m;
+  m.count = 0; m.frustumCulled = false; m.renderOrder = 3; scene.add(m); return m; // over the paint (2) and the scorches (1)
 })();
 let holeNext = 0;
 const _hm = new THREE.Matrix4(), _hq = new THREE.Quaternion(), _hz = new V3(0, 0, 1), _hp = new V3(), _hn = new V3(), _hs = new V3(1, 1, 1);
@@ -3211,7 +3229,7 @@ function _addHole(h) {
   if (r.count === -1) { r.offset = at; r.count = 16; } else { const lo = Math.min(r.offset, at), hi = Math.max(r.offset + r.count, at + 16); r.offset = lo; r.count = hi - lo; }
   holeNext = (holeNext + 1) % HOLE_MAX; holeMesh.count = holes.length; holeMesh.instanceMatrix.needsUpdate = true;
 }
-function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); }
+function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); ART.clear(); } // (and the paint)
 const _r3 = v => Math.round(v * 1000) / 1000;
 const HOLE_CHUNK = 300; // holes per 'hl' message to a guest who just joined
 const addSentHole = h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }; // one from the host, checked
@@ -3524,10 +3542,13 @@ function updateGate(dt) {
   }
 }
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
+// Someone drawing (pen or spray can out): nothing hurts them but a fall, and bots leave them be
+const isArtist = e => (e === P ? ART.safe : e.art > 0);
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
   if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
+  if (isArtist(t) && weapon !== 'fall') return; // in draw mode, with the pen or the can out
   t.health -= amt;
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -3920,6 +3941,7 @@ function selectWeapon(id, instant) {
   if (!instant) switchT = 0.3;
 }
 function nextWeapon(dir) {
+  if (ART.on) return ART.swap(); // pen <-> spray can
   if (RANGE.on) return RANGE.next(dir);
   if (!P.alive || P.inv.length < 2) return;
   const i = P.inv.indexOf(curW);
@@ -3983,7 +4005,7 @@ function dropWeapons(e) {
   }
   e.inv = ['pistol'];
 }
-function reload() { gun.burstLeft = 0; if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
+function reload() { if (ART.on) return; gun.burstLeft = 0; if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
 const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
@@ -4064,6 +4086,7 @@ function fireRocket(w, start, targets) {
   sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 90, g: 1 });
 }
 function updateGun(dt) {
+  if (ART.on) return ART.update(dt); // draw mode: the pen and the spray can
   if (RANGE.on) return RANGE.updateGun(dt); // the range runs the new weapon rules
   gun.cd -= dt; knifeCd -= dt;
   gun.spray = Math.max(0, gun.spray - dt * (mouseDown ? 0.6 : 2.5));
@@ -4089,11 +4112,11 @@ function updateGun(dt) {
   }
 }
 function playerKnife() {
-  if (!P.alive || knifeCd > 0 || throwT > 0) return;
+  if (!P.alive || knifeCd > 0 || throwT > 0 || ART.on) return;
   knifeCd = 0.75; knifeT = 0.6;
   if (knifeAttack(P)) hitMarker(false);
 }
-function playerNade() { startCook(); }
+function playerNade() { if (!ART.on) startCook(); }
 const NADE_FUSE = 2.25;
 let cookT = -1, beepT = 0;
 function startCook() {
@@ -4166,7 +4189,7 @@ function botNade(b, t) {
 function findTarget(b) {
   let best = null, bd = 55;
   for (const o of ents) {
-    if (o === b || !o.alive || sameTeam(b, o)) continue;
+    if (o === b || !o.alive || sameTeam(b, o) || isArtist(o)) continue;
     const d = b.pos.distanceTo(o.pos);
     if (d < bd && seenAt(b, o)) { bd = d; best = o; }
   }
@@ -4661,7 +4684,9 @@ addEventListener('keydown', e => {
   // M mutes and unmutes anywhere (menus, the scoreboard), except while typing
   if (e.code === 'KeyM' && !e.repeat && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) { if (VOICE.stream) setMute(!VOICE.muted); else if (!locked) getMic(); }
   if (!locked || e.repeat) return;
+  if (e.code === 'KeyP') { ART.toggle(); return; } // draw mode on and off
   if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
+  if (ART.key(e.code)) return; // draw mode: 1-6 colours, Q pen or spray
   if (e.code === 'KeyV' && tpOk() && RANGE.on) { tpWant = !tpWant; return; }
   if (RANGE.key(e.code)) return; // the range's weapon keys (F is the knife; right-click with the grenade for a mine)
   if (e.code === 'KeyR') reload();
@@ -4758,7 +4783,7 @@ function playHints(dt) {
 const _fpvDir = new V3();
 function updateCamera(dt) {
   punch *= Math.exp(-10 * dt);
-  const ads = (mouseRight || tAim) && P.alive && P.reloading <= 0 && knifeT <= 0 && throwT <= 0;
+  const ads = (mouseRight || tAim) && P.alive && P.reloading <= 0 && knifeT <= 0 && throwT <= 0 && !ART.on;
   adsK += ((ads ? 1 : 0) - adsK) * Math.min(1, dt * 12);
   zoomK = adsK; // every gun brings its sights up to the eye...
   const fovK = RANGE.on && !RANGE.zooms() ? 0 : adsK; // ...but in the new weapon system only the Carbine and the Rifle zoom the view
@@ -5644,11 +5669,12 @@ function applyFx(m) {
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
+    case 'pt': case 'pa': ART.net(m); break; // paint
     case 'mz': if (GUN_FX[m.k] && Array.isArray(m.p) && Array.isArray(m.d)) {
       const e = ents.find(o => o.id === m.i && o !== P), p = e && e.alive && e.rig && e.mesh ? botMuzzle(e, WEAPONS[m.k]) : v3(m.p);
       _muzzleFx(m.k, p, v3(m.d).normalize(), false);
     } break;
-    case 'co': if (m.id !== NET.myId && MODELS[m.m]) spawnCorpseAt(m.m, v3(m.p), m.y); break;
+    case 'co': if (m.id !== NET.myId && MODELS[m.m]) ART.toCorpse(m.id, spawnCorpseAt(m.m, v3(m.p), m.y)); break;
     case 'rk': if (NET.role === 'guest' && Array.isArray(m.o) && Array.isArray(m.d)) launchRocket(ents.find(o => o.id === m.i) || {}, v3(m.o), v3(m.d), WEAPONS.bazooka, true); break;
     default: if (NET.role === 'guest') RANGE.fx(m); // the host's mines (?dev)
   }
@@ -5698,6 +5724,7 @@ function onGuestMsg(conn, m) {
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
       // after a long game, and a message that big closes the connection, so the guest never got in
       for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
+      ART.welcome(r); // and the paint so far ('pl')
       respawn(r); VEH.welcome(r);
       note(`${name} joined`, 2); updateRoster(); getMic();
     } else {
@@ -5714,6 +5741,7 @@ function onGuestMsg(conn, m) {
       r.target.set(m.p[0], m.p[1], m.p[2]); r.vel.set(m.v[0], m.v[1], m.v[2]);
       r.yaw = m.yaw + Math.PI; r.pitch = m.pitch; r.h = m.h === CROUCH_H ? CROUCH_H : STAND_H;
       if (m.w !== r.wpn && WEAPONS[m.w]) { r.wpn = m.w; setRigWeapon(r.rig, m.w); }
+      r.art = Math.max(0, Math.min(2, m.ar | 0)); r.artC = Math.max(0, Math.min(5, m.ac | 0)); // draw mode: 1 the pen, 2 the spray can, and its colour
       if (Array.isArray(m.bt)) r.gBats = m.bt.slice(0, 4).map(x => Math.max(0, Math.min(9, x | 0))); // their batteries, to show on their belt
       if (m.inv) {
         r.inv = Object.keys(m.inv).filter(k => WEAPONS[k]); r.ammoBy = {};
@@ -5779,6 +5807,7 @@ function snapshot() {
       p: arr(e.pos), y: +(e.isPlayer ? e.yaw + Math.PI : e.yaw).toFixed(3), pt: +e.pitch.toFixed(2), c: e.h < STAND_H ? 1 : 0, a: e.alive, w: e.isPlayer ? curW : e.wpn,
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths, tm: e.team || null,
       cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
+      ar: e.isPlayer ? ART.state() : e.art | 0, ac: e.isPlayer ? ART.colour() : e.artC | 0, // drawing: the pen (1) or the spray can (2), and its colour
       iv: (e.isPlayer ? P.inv : e.inv) || [], bt: e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0], // what they carry, to show on them
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
@@ -5822,16 +5851,17 @@ function onHostMsg(m) {
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
       if (m.look) useLook(m.look); // and sky
-      NET.wantLevel = m.level; NET.holeQ = []; // the holes that come after the welcome ('hl') wait here until the level is in
+      NET.wantLevel = m.level; NET.holeQ = []; ART.hold(); // the holes and paint that come after the welcome ('hl', 'pl') wait here until the level is in
       whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
         if (NET.wantLevel !== m.level) return;
         if (m.level !== curLevel) switchLevel(m.level);
         clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
-        [...(Array.isArray(m.holes) ? m.holes : []), ...(NET.holeQ || [])].forEach(addSentHole); NET.holeQ = null;
+        [...(Array.isArray(m.holes) ? m.holes : []), ...(NET.holeQ || [])].forEach(addSentHole); NET.holeQ = null; ART.release();
       });
       (m.peers || []).forEach(p => callPeer(p[0], p[1])); updateMicHud();
       break;
     case 'level': NET.wantLevel = m.id; whenLevel(m.id, () => { if (NET.wantLevel === m.id) switchLevel(m.id); }); break;
+    case 'pl': ART.joinLog(m); break; // the paint so far, after the welcome
     case 'hl': if (Array.isArray(m.h)) m.h.slice(0, HOLE_CHUNK).forEach(h => { if (NET.holeQ) NET.holeQ.push(h); else addSentHole(h); }); break; // the holes so far, after the welcome
     case 'sn': applySnapshot(m); break;
     case 'spawn': NET.spawnSeq = m.n; guestSpawn(v3(m.p), m.y); break;
@@ -5879,7 +5909,7 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm, art: Math.max(0, Math.min(2, d.ar | 0)), artC: Math.max(0, Math.min(5, d.ac | 0)) });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
     r.gInv = Array.isArray(d.iv) ? d.iv.filter(k => WEAPONS[k]) : []; r.gBats = Array.isArray(d.bt) ? d.bt : null;
@@ -5928,7 +5958,7 @@ function netTick(dt) {
   else if (NET.conn && NET.conn.open && NET.joined) {
     syncAmmo();
     NET.conn.send({
-      t: 'st', s: NET.spawnSeq, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(),
+      t: 'st', s: NET.spawnSeq, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(), ar: ART.state(), ac: ART.colour(),
       inv: Object.fromEntries((P.inv || []).map(id => [id, [P.ammoBy[id].mag, P.ammoBy[id].res]])), vs: VEH.myState(),
     });
   }
@@ -6162,6 +6192,7 @@ function loop(now) {
   updateVM(dt);
   VEH.after(dt);
   RANGE.after(dt);
+  ART.after(dt);
   updateSelfView();
   updateHUD(dt);
   updateChatbox();
@@ -6177,7 +6208,8 @@ requestAnimationFrame(loop);
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js?v=24"></script>
-<script src="range.js?v=17"></script>
+<script src="range.js?v=18"></script>
+<script src="art.js?v=4"></script>
 <script src="transcript.js"></script>
 </body>
 </html>
