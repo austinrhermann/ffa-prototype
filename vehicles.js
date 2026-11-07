@@ -296,10 +296,13 @@
     const d = new V3(0, -Math.sin(LAMP_DIP), Math.cos(LAMP_DIP)).transformDirection(M);
     return at.map(a => ({ o, p: new V3(a[0], a[1], a[2]).applyMatrix4(M), d: d.clone() }));
   }
-  // The lit ones, in the world: [{ o: where, d: which way, v: the vehicle }]. They're on while someone (or a bot) drives, unless the driver
-  // has put them out (L at the wheel)
+  // The lit ones, in the world: [{ o: where, d: which way, v: the vehicle }]. They're the driver's light: yours are on if your
+  // flashlight is (L turns both on or off, at the wheel or not); a bot's come on at night (DAY.dark, index.html; the host's
+  // word, like a guest's in its 'ith'). A parked vehicle's are out
   function lampBeams() {
     const out = [];
+    if (cur) cur.lamp = RANGE.lightOn();
+    if (NET.role !== 'guest') for (const v of list) if (!v.owner && (v.npc || v.npcBusy)) v.lamp = !!(typeof DAY !== 'undefined' && DAY.dark);
     for (const v of list) {
       if (v.dead || !v.lamp || !v.lamps || !(v.owner || v.npc || v.npcBusy)) continue;
       for (const l of v.lamps) { l.o.updateWorldMatrix(true, false); out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), v }); }
@@ -369,7 +372,7 @@
     const pr = PRESETS[key];
     const v = { i: list.length, key, kind: pr.kind, layout: pr.layout, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
       pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, npc: null, npcBusy: false, dead: false, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
-    v.lamp = true; list.push(v); rebuild(v); place(v); return v;
+    v.lamp = false; list.push(v); rebuild(v); place(v); return v;
   }
   function clearAll() { for (const v of list) scene.remove(v.g); list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
   function spawnLot(lot) { clearAll(); for (const [key, x, z, yaw] of lot) make(key, x, z, yaw); }
@@ -1196,7 +1199,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       }
       if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
-      if (cur && code === 'KeyL' && typeof DEV !== 'undefined' && DEV) { cur.lamp = !cur.lamp; sBeep(cur.lamp ? 900 : 600); return true; } // (?dev) the headlights
+      if (cur && code === 'KeyL' && typeof DEV !== 'undefined' && DEV) { RANGE.toggleLight(); return true; } // (?dev) the headlights: your light, as at the wheel
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
     },
