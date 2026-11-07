@@ -45,6 +45,9 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #cprompt{position:absolute;top:60%;left:50%;transform:translateX(-50%);background:var(--panel);padding:6px 14px;border-radius:4px;font-size:15px}
 #cpu{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,14,12,.92);border:2px solid #3fbf7f;border-radius:6px;padding:12px;color:#bff5d6;font:13px/1.5 ui-monospace,Menlo,monospace;text-align:center}
 #cpu canvas{display:block;width:336px;height:368px;image-rendering:pixelated;margin-bottom:8px}
+/* ?dev: the map is on the computer's own screen, and the camera looks straight at it; just the way out shows here */
+body.monscreen #cpu{top:auto;bottom:4%;transform:translateX(-50%);background:rgba(0,0,0,.55);border:0;padding:6px 14px;border-radius:999px;color:#fff}
+body.monscreen #cpu canvas,body.monscreen #cpuinfo,body.monscreen #rcross,body.monscreen #rslots,body.monscreen .ch,body.monscreen #cprompt{display:none!important}
 #msg{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:24px;text-shadow:0 2px 6px #000;text-align:center}
 #resume{position:absolute;top:44%;left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 16px;border-radius:4px;font-size:15px;display:none}
 #note{position:absolute;top:60%;left:50%;transform:translateX(-50%);font-size:16px;text-shadow:0 2px 6px #000}
@@ -80,6 +83,7 @@ body:not(.dev) #levels{grid-template-columns:repeat(2,1fr)}
 #godrive,#gorange{display:none}
 body.dev #godrive,body.dev #gorange{display:inline-block}
 body:not(.dev) .devonly{display:none!important}
+body:not(.dev) .hotonly,body.dev .nohot{display:none!important}
 /* Menus (start, join, pause, results): the title page's look, bold white type and solid black buttons, over the title
    picture before the game starts and over the paused game after. margin:auto centres them and still scrolls from the top. */
 #overlay{position:fixed;inset:0;display:flex;overflow:auto;background:linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.6)),#000 url(title.jpg) center/cover no-repeat}
@@ -292,7 +296,7 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
   <div id="ammo"><div id="hpbar" aria-label="Health"><div id="hp"></div></div><div id="nades"></div><div id="bullets"></div></div>
   <div id="msg"></div>
   <div id="cprompt" style="display:none">E: use the computer</div>
-  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div>Space: open or close the gate &middot; E: step away</div></div>
+  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div id="cpuhelp">Space: open or close the gate &middot; E: step away</div></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
   <div id="camgrid"></div>
@@ -368,12 +372,17 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt>C</dt><dd>Crouch</dd>
       <dt>Space</dt><dd>Jump</dd>
       <dt>Left click</dt><dd>Use the weapon in your hands (hold to cook a grenade)</dd>
-      <dt>X, right click</dt><dd>Aim down sights (X toggles; Ctrl-click works as right click)</dd>
+      <dt class="nohot">X, right click</dt><dd class="nohot">Aim down sights (X toggles; Ctrl-click works as right click)</dd>
+      <dt class="hotonly">Right click</dt><dd class="hotonly">Aim down sights (Ctrl-click works as right click). With a spray can: a fine line</dd>
+      <dt class="hotonly">X</dt><dd class="hotonly">Knife (4 from the front, a kill from behind)</dd>
+      <dt class="hotonly">F</dt><dd class="hotonly">Grenade (takes an F battery): hold to cook, let go to throw. Right-click while holding F and it's a mine: let go to set it down</dd>
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
-      <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
-      <dt>Q</dt><dd>Drop the weapon in your hands (you carry three, plus the knife)</dd>
+      <dt class="nohot">1–6, wheel</dt><dd class="nohot">Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
+      <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns, spray cans (one per colour: click sprays) and flashlights (click: on or off). Walk over something to pick it up</dd>
+      <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
+      <dt class="hotonly">Radio</dt><dd class="hotonly">Pick one up and it rides along without taking a hand: anyone else carrying one hears you however far away you are</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
-      <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
+      <dt class="nohot">P</dt><dd class="nohot">Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
       <dt>N</dt><dd>Turn your camera on or off</dd>
       <dt>Enter</dt><dd>Chat with everyone in the game</dd>
@@ -541,20 +550,38 @@ float sunAt(vec3 p) {
   return mix(sunSlice(c, s0), sunSlice(c, min(s0 + 1.0, sunGrid.y - 1.0)), g.y - s0);
 }
 `;
+// Flashlights (?dev, items.js): up to FLASH_MAX cones from people's eyes. Inside one a surface shows its own colour, the
+// texture as it is, with none of the light and shadow from the look. far: where each cone stops (short of the first wall
+// down its middle, so it doesn't shine through it). With none on (n = 0) nothing changes.
+const FLASH_MAX = 4, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) } };
+const FLASH_GLSL = `
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}];
+float flashAt(vec3 p) {
+  float k = 0.0;
+  for (int i = 0; i < ${FLASH_MAX}; i++) {
+    if (float(i) >= flN) break;
+    vec3 v = p - flPos[i]; float d = length(v);
+    k = max(k, smoothstep(0.935, 0.97, dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] - 1.5, flFar[i], d)));
+  }
+  return k;
+}
+`;
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
       reflectedLight.directDiffuse *= sunAt(vSunPos);
-    #endif`);
+    #endif`).replace('#include <tonemapping_fragment>', `
+    if (flN > 0.5) gl_FragColor.rgb = mix(gl_FragColor.rgb, diffuseColor.rgb + totalEmissiveRadiance, flashAt(vSunPos));
+    #include <tonemapping_fragment>`);
 };
 // The same grid on the CPU (your gun takes its light from where you stand)
 function sunAtCPU(p) {
@@ -668,8 +695,9 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, radio: () => null, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
+const ITEMS = { on: false, update() {}, after() {}, drop() {}, heldMesh: () => new THREE.Group(), guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], radioPair: () => false };
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
@@ -2333,6 +2361,7 @@ let DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams
 document.body.classList.toggle('dev', DEV);
 // The new start flow (title page over the live level, Host Options, the character grid) is ?dev only for now
 const NEWMENU = DEV;
+if (DEV) { $('sprox').checked = true; PROX_VOICE = true; } // ?dev: proximity voice on from the start (radios carry it further: items.js)
 if (NEWMENU) document.body.classList.add('newmenu', 'pregame', 'titleon');
 let READY = false; // everything loaded: from then on the menu can switch levels
 let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
@@ -2342,11 +2371,11 @@ function switchLevel(id) {
   if (NET.role === 'host') broadcast({ t: 'level', id });
   loadLevel(id); applyLook(); // Fortress turns the look on
   if (TG && LV && LV.gate) { GATE.hp = 100; setGate(true); } // the fort's main gate starts open
-  if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
+  if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); ITEMS.onLevel(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules of the selected level's mode
 function updateGoal() {
   const mode = NET.role === 'host' ? LEVEL_DEFS[selLevel]().mode : MODE, drive = mode === 'drive', range = mode === 'range', noBots = drive || range;
-  $('goal').textContent = ((NEWMENU ? GAME_TEAMS : LEVEL_DEFS[selLevel]().teams) ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.' : '');
+  $('goal').textContent = ((NEWMENU ? GAME_TEAMS : LEVEL_DEFS[selLevel]().teams) ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) + (selLevel === 'fortress' ? ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). ' + (DEV ? 'The computer up in the tower room shows a map of everyone, the spray cans and the flashlights.' : 'The computer up in the tower room shows everyone on a map and opens or shuts the gate.') : '');
   $('mtitle').textContent = drive ? 'Test Drive' : range ? 'Shooting Range' : NEWMENU ? LEVEL_NAMES[selLevel] || 'Battle in the Arena' : LEVEL_DEFS[selLevel]().teams ? 'Fortress Free-For-All' : 'Battle in the Arena';
   $('maincard').classList.toggle('drive', drive); $('maincard').classList.toggle('range', range);
   if (drive) $('goal').textContent = 'Drive, jump, drift and fly. Nothing to win yet: this is where the vehicles get worked out before they go into the other games.';
@@ -3097,8 +3126,8 @@ function updateSelfView() {
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
   else
   if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
-  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
-  if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
+  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : k === 'light' ? 'flashlight' : null; }
+  if (r.held !== want) { r.held = want; if (want === 'flashlight') setRigWeapon(r, want, ITEMS.heldMesh('light')); else if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
   if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
 }
 function updatePlayerRig(dt) {
@@ -3671,7 +3700,7 @@ function updateGate(dt) {
 }
 function waveNote(text) { note(text, 3); netFx({ t: 'wn', x: text }); }
 // Someone drawing (pen or spray can out): nothing hurts them but a fall, and bots leave them be
-const isArtist = e => (e === P ? ART.safe : e.art > 0);
+const isArtist = e => (e === P ? ART.safe : e.art === 1 || e.art === 2); // (3: a spray can held as a weapon, ?dev: not safe)
 function damage(t, amt, attacker, weapon, head) {
   if (NET.role === 'guest') { if (attacker === P) netSendHit(t, amt, weapon, head); return; }
   if (!t.alive || matchOver) return;
@@ -3705,7 +3734,7 @@ function resetMatch() {
   clearCorpses(); clearHoles();
   matchOver = false;
   if (window.TRANSCRIPT) TRANSCRIPT.event('start');
-  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
+  ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); ITEMS.reset(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast(NEWMENU ? { t: 'reset', tg: GAME_TEAMS } : { t: 'reset' });
 }
 // w is the winner
@@ -4069,7 +4098,7 @@ function selectWeapon(id, instant) {
   if (!instant) switchT = 0.3;
 }
 function nextWeapon(dir) {
-  if (ART.on) return ART.swap(); // pen <-> spray can
+  if (ART.on && !ART.wmode) return ART.swap(); // pen <-> spray can
   if (RANGE.on) return RANGE.next(dir);
   if (!P.alive || P.inv.length < 2) return;
   const i = P.inv.indexOf(curW);
@@ -4214,8 +4243,8 @@ function fireRocket(w, start, targets) {
   sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 90, g: 1 });
 }
 function updateGun(dt) {
-  if (ART.on) return ART.update(dt); // draw mode: the pen and the spray can
-  if (RANGE.on) return RANGE.updateGun(dt); // the range runs the new weapon rules
+  if (ART.on && !ART.wmode) return ART.update(dt); // draw mode: the pen and the spray can
+  if (RANGE.on) { RANGE.updateGun(dt); if (RANGE.hot) ART.update(dt); return; } // the range runs the new weapon rules (?dev: a spray can in your hands paints)
   gun.cd -= dt; knifeCd -= dt;
   gun.spray = Math.max(0, gun.spray - dt * (mouseDown ? 0.6 : 2.5));
   if (P.reloading > 0) {
@@ -4240,11 +4269,12 @@ function updateGun(dt) {
   }
 }
 function playerKnife() {
+  if (RANGE.on && RANGE.hot) return RANGE.quickKnife();
   if (!P.alive || knifeCd > 0 || throwT > 0 || ART.on) return;
   knifeCd = 0.75; knifeT = 0.6;
   if (knifeAttack(P)) hitMarker(false);
 }
-function playerNade() { if (!ART.on) startCook(); }
+function playerNade() { if (RANGE.on && RANGE.hot) return RANGE.hotDown(); if (!ART.on) startCook(); }
 const NADE_FUSE = 2.25;
 let cookT = -1, beepT = 0;
 function startCook() {
@@ -4252,6 +4282,7 @@ function startCook() {
   P.nades--; cookT = 0; beepT = 0.5; sPin();
 }
 function releaseCook() {
+  if (RANGE.on && RANGE.hot) return RANGE.hotUp();
   if (cookT < 0) return;
   const fuse = Math.max(0.05, NADE_FUSE - cookT); cookT = -1;
   if (!P.alive) return;
@@ -4823,12 +4854,12 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
+  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen && !DEV) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
-addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyE') endLockHold(); if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG' || e.code === 'KeyF') releaseCook(); });
+addEventListener('keyup', e => { keys[e.code] = false; if (RANGE.keyUp(e.code)) return; if (e.code === 'KeyE') endLockHold(); if (e.code === 'Tab') boardOpen = false; if (e.code === 'KeyG' || e.code === 'KeyF') releaseCook(); });
 addEventListener('wheel', e => {
   if (!locked || !e.deltaY) return;
   const now = performance.now(), fresh = now - wheelT > 220; wheelT = now; // a gesture ends after a short quiet spell
@@ -4945,6 +4976,7 @@ function updateCamera(dt) {
   }
   camera.updateMatrixWorld();
   VEH.camera(dt);
+  screenCam(dt);
 }
 
 // Lean out: pressed up against a parapet or window sill (something solid ahead at waist height, clear air at eye height)
@@ -5851,15 +5883,46 @@ function nearComputer(e) {
 }
 function setMonitor(on) {
   monitorOpen = !!on; $('cpu').style.display = monitorOpen ? 'block' : 'none';
+  document.body.classList.toggle('monscreen', monitorOpen && DEV);
+  $('cpuhelp').textContent = DEV ? 'E: step away' : 'Space: open or close the gate \u00b7 E: step away';
   if (monitorOpen) { mouseDown = false; clickQ = false; drawMap(); }
 }
+// ?dev: E at the computer takes the camera to its screen, which fills MON_FILL of the view's height, and the map is drawn
+// on the screen itself. The gate is only worked at the gate now.
+const MON_FILL = 0.8, MON_PX = 512;
+let monK = 0, monScreen = null, monLevel = null;
+function findScreen() {
+  if (!LV || !LV.core) return null;
+  const [x, y, z] = LV.core.at, core = new V3(x, y, z); let best = null, bd = 3;
+  scene.traverse(o => { if (o.isMesh && o.material && /COMPUTER SCREEN/i.test(o.material.name || '')) { const c = new THREE.Box3().setFromObject(o).getCenter(new V3()), d = c.distanceTo(core); if (d < bd) { bd = d; best = o; } } });
+  if (!best) return null;
+  const box = new THREE.Box3().setFromObject(best), c = box.getCenter(new V3()), sz = box.getSize(new V3());
+  const ax = sz.x <= sz.y && sz.x <= sz.z ? 'x' : sz.y <= sz.z ? 'y' : 'z', n = new V3(); n[ax] = Math.sign(c[ax] - core[ax]) || 1; // facing away from the box
+  const w = ax === 'x' ? sz.z : sz.x, h = ax === 'y' ? sz.z : sz.y;
+  const cv = $('cmap'); if (cv.width !== MON_PX) { cv.width = cv.height = MON_PX; mapLevel = null; }
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.LinearEncoding;
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.96, h * 0.96), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: false }));
+  plane.position.copy(c).addScaledVector(n, 0.004); plane.lookAt(c.clone().add(n)); plane.visible = false; scene.add(plane);
+  return { c, n, h, plane, tex };
+}
+function screenCam(dt) {
+  monK += ((monitorOpen && DEV ? 1 : 0) - monK) * Math.min(1, dt * 7);
+  if (monLevel !== curLevel) { if (monScreen) scene.remove(monScreen.plane); monScreen = null; monLevel = curLevel; }
+  if (monK < 0.001) { if (monScreen) monScreen.plane.visible = false; return; }
+  if (!monScreen) monScreen = findScreen(); if (!monScreen) return;
+  const S = monScreen, t = Math.tan(camera.fov * Math.PI / 360), d = Math.max(S.h / MON_FILL / (2 * t), S.h / 0.94 / (2 * t * camera.aspect)), k = monK * monK * (3 - 2 * monK); // (on a narrow screen it fits the width)
+  const to = S.c.clone().addScaledVector(S.n, d), q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(to, S.c, new V3(0, 1, 0)));
+  camera.position.lerp(to, k); camera.quaternion.slerp(q, k); camera.updateMatrixWorld();
+  S.plane.visible = true;
+}
 function toggleGate() {
+  if (DEV) return; // (?dev: not from the computer any more)
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gate' }); return; }
   switchGate(P);
 }
 // Host: someone at the computer flips the gate
 function switchGate(e) {
-  if (!nearComputer(e) || matchOver) return;
+  if (!nearComputer(e) || matchOver || DEV) return;
   const open = !gateOpen();
   if (!open && gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return; }
   if (!open) GATE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
@@ -5981,6 +6044,7 @@ function drawMap() {
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
   g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
+  if (DEV) return drawMapDev(g, X, Z, cv);
   const [gx, gz] = LV.gate.at, gateCol = gateOpen() ? '#ffd23f' : '#9fd8ff';
   g.fillStyle = gateCol; g.fillRect(X(gx) - 7, Z(gz) - 2, 14, 4);
   const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
@@ -5992,6 +6056,31 @@ function drawMap() {
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
   }
   $('cpuinfo').textContent = `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(GATE.hp)}%)`} · Others on the map ${n}`;
+}
+
+// ?dev's map: your side as green plus signs (you ringed in white), everyone else red; the six spray cans as triangles in
+// their colours, the flashlights as yellow dots (ITEMS.mapMarks: where each one lies, or who has it)
+function drawMapDev(g, X, Z, cv) {
+  const u = cv.width / 336, mine = e => e === P || (teamsOn() && e.team && e.team === P.team);
+  const [gx, gz] = LV.gate.at; g.fillStyle = gateOpen() ? '#ffd23f' : '#9fd8ff'; g.fillRect(X(gx) - 7 * u, Z(gz) - 2 * u, 14 * u, 4 * u);
+  for (const m of ITEMS.mapMarks()) {
+    const x = X(m.x), z = Z(m.z), c = new THREE.Color(m.colour), lum = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+    g.fillStyle = m.colour; g.strokeStyle = lum > 0.5 ? '#111' : '#fff'; g.lineWidth = 1.2 * u; g.lineJoin = 'round';
+    g.beginPath();
+    if (m.kind === 'spray') { const r = 8.5 * u; g.moveTo(x, z - r); g.lineTo(x + r * 0.95, z + r * 0.65); g.lineTo(x - r * 0.95, z + r * 0.65); g.closePath(); g.fill(); g.stroke(); } // (an outline that stands out from its colour: black on the light ones, white on the dark)
+    else { g.arc(x, z, 3.6 * u, 0, Math.PI * 2); g.fill(); }
+  }
+  let ours = 0, theirs = 0;
+  for (const e of ents) {
+    if (!e.alive) continue;
+    const x = X(e.pos.x), z = Z(e.pos.z), r = 5 * u, t = 1.8 * u, ok = mine(e); if (e !== P) { if (ok) ours++; else theirs++; }
+    if (e === P) { g.strokeStyle = '#fff'; g.lineWidth = 1.5 * u; g.beginPath(); g.arc(x, z, r + 3 * u, 0, Math.PI * 2); g.stroke(); }
+    g.fillStyle = ok ? '#57e07a' : '#ff4b3a'; g.fillRect(x - r, z - t, 2 * r, 2 * t); g.fillRect(x - t, z - r, 2 * t, 2 * r);
+  }
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, cv.height - 26 * u, cv.width, 26 * u);
+  g.fillStyle = '#bff5d6'; g.font = `${Math.round(12 * u)}px ui-monospace,Menlo,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(`Gate ${gateOpen() ? 'open' : `shut (${Math.ceil(GATE.hp)}%)`} · ${teamsOn() ? `Your side ${ours} · Theirs ${theirs}` : `Others ${theirs}`}`, cv.width / 2, cv.height - 13 * u);
+  if (monScreen) monScreen.tex.needsUpdate = true;
 }
 
 // ---------- Multiplayer: host-in-browser P2P (PeerJS / WebRTC) + voice chat ----------
@@ -6105,12 +6194,13 @@ function onGuestMsg(conn, m) {
   }
   if (!r) return;
   switch (m.t) {
+    case 'itd': case 'ith': ITEMS.hostMsg(r, m); break; // ?dev items: a guest put one down, or what's in its hands
     case 'st':
       if (m.s !== r.spawnSeq || !r.alive) break;
       r.target.set(m.p[0], m.p[1], m.p[2]); r.vel.set(m.v[0], m.v[1], m.v[2]);
       r.yaw = m.yaw + Math.PI; r.pitch = m.pitch; r.h = m.h === CROUCH_H ? CROUCH_H : STAND_H;
       if (m.w !== r.wpn && WEAPONS[m.w]) { r.wpn = m.w; setRigWeapon(r.rig, m.w); }
-      r.art = Math.max(0, Math.min(2, m.ar | 0)); r.artC = Math.max(0, Math.min(5, m.ac | 0)); // draw mode: 1 the pen, 2 the spray can, and its colour
+      r.art = Math.max(0, Math.min(3, m.ar | 0)); r.artC = Math.max(0, Math.min(5, m.ac | 0)); // draw mode: 1 the pen, 2 the spray can, and its colour
       if (Array.isArray(m.bt)) r.gBats = m.bt.slice(0, 4).map(x => Math.max(0, Math.min(9, x | 0))); // their batteries, to show on their belt
       if (m.inv) {
         r.inv = Object.keys(m.inv).filter(k => WEAPONS[k]); r.ammoBy = {};
@@ -6218,6 +6308,7 @@ function guestSpawn(p, y) {
 function onHostMsg(m) {
   if (!m || typeof m !== 'object') return;
   switch (m.t) {
+    case 'itg': case 'its': ITEMS.guestMsg(m); break; // ?dev items: one for you, and where they all are
     case 'welcome':
       NET.myId = m.id; P.id = m.id; NET.joined = true; if (NEWMENU && typeof m.tg === 'boolean') GAME_TEAMS = m.tg; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (typeof m.dev === 'boolean' && m.dev !== DEV) { DEV = m.dev; RANGE.onLevel(); buildAmmoBoxes(); } // the host's weapons, not this link's
@@ -6283,7 +6374,7 @@ function applySnapshot(s) {
     r.vel.copy(r.target).sub(r.prev).multiplyScalar(20);
     if (r.vel.length() > 25) r.vel.set(0, 0, 0);
     if (d.a && !r.alive) { r.pos.copy(r.target); r.yawV = d.y; }
-    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm, art: Math.max(0, Math.min(2, d.ar | 0)), artC: Math.max(0, Math.min(5, d.ac | 0)) });
+    Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm, art: Math.max(0, Math.min(3, d.ar | 0)), artC: Math.max(0, Math.min(5, d.ac | 0)) });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
     r.gInv = Array.isArray(d.iv) ? d.iv.filter(k => WEAPONS[k]) : []; r.gBats = Array.isArray(d.bt) ? d.bt : null;
@@ -6477,7 +6568,7 @@ function updateVoiceProximity() {
   for (const [peerId, video] of Object.entries(VOICE.els)) {
     if (!PROX_VOICE) { video.volume = 1; continue; }
     const e = entityById(VOICE.peerEntity[peerId]);
-    video.volume = e && e.pos ? proxGain(P.pos.distanceTo(e.pos)) : 1;
+    video.volume = e && e.pos ? (ITEMS.radioPair(e) ? 1 : proxGain(P.pos.distanceTo(e.pos))) : 1; // (?dev: two radios hear each other anywhere)
   }
 }
 function updateCamGrid() {
@@ -6556,6 +6647,7 @@ function loop(now) {
     updateCorpses(dt); fadeCorpses(dt);
   }
   netTick(dt);
+  ITEMS.update(dt);
   updateCamera(dt);
   titleCam(now); titleTick();
   updateHoverTags(dt);
@@ -6571,6 +6663,7 @@ function loop(now) {
   VEH.after(dt);
   RANGE.after(dt);
   ART.after(dt);
+  ITEMS.after(dt);
   updateSelfView();
   updateHUD(dt);
   updateChatbox();
@@ -6579,15 +6672,16 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (tpK < 0.5 && bodyK < 0.5 && !PREGAME) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (tpK < 0.5 && bodyK < 0.5 && !PREGAME && monK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js?v=24"></script>
-<script src="range.js?v=18"></script>
-<script src="art.js?v=4"></script>
+<script src="range.js?v=19"></script>
+<script src="art.js?v=5"></script>
+<script src="items.js?v=1"></script>
 <script src="transcript.js"></script>
 </body>
 </html>

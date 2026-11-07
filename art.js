@@ -416,12 +416,15 @@
 
   // ---------------------------------------------------------------- the tools
   let on = false, safe = false, tool = 'pen', drawT = 0, press = 0, spraying = 0, seq = 0, fxT = 0, hissT = 0;
+  // ?dev: no draw mode; a spray can is a weapon in one of your hands (range.js), one colour each. Click sprays, right-click
+  // draws the fine line. Nobody is safe with one out (wmode)
+  let wmode = false;
   const colOf = { pen: 0, spray: 2 };
   let stroke = null; // the line being drawn: { L, rec, key, S, sent: points sent, last: point (world), lastN, broken }
   const r3 = v => Math.round(v * 1000) / 1000, r2 = v => Math.round(v * 100) / 100;
   const newId = () => `${NET.myId}.${++seq}`;
   function toggle() {
-    if (!RANGE.on) return;
+    if (!RANGE.on || RANGE.hot) return;
     if (!on) {
       if (!P.alive) return;
       on = true; safe = false; drawT = SWITCH; stroke = null;
@@ -479,6 +482,15 @@
   }
   function update(dt) {
     if (!RANGE.on) { if (on) leave(); return; }
+    if (RANGE.hot) { // the spray can in your hands
+      const c = RANGE.paint();
+      if (c >= 0) {
+        if (!wmode) { endStroke(); on = true; wmode = true; safe = false; drawT = 0.3; }
+        if (colOf.spray !== c) { endStroke(); colOf.pen = colOf.spray = c; }
+        const t = mouseRight || tAim ? 'pen' : 'spray'; if (t !== tool) { endStroke(); tool = t; }
+      } else if (wmode) { endStroke(); on = false; wmode = false; drawT = 0; }
+      if (!on) return;
+    }
     spraying = 0;
     if (drawT > 0) { drawT -= dt; clickQ = false; endStroke(); if (drawT <= 0) safe = true; return; }
     if (!P.alive || monitorOpen || VEH.noGuns) { endStroke(); clickQ = false; return; }
@@ -673,6 +685,7 @@
 #arthud .sw b.alt:after{content:"";position:absolute;left:3px;top:3px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #000}
 #artcross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;display:none;box-sizing:border-box}
 body.art-on #ammo,body.art-on #rslots,body.art-on #rcross,body.art-on .ch{display:none!important}
+body.art-w #ammo,body.art-w #rcross,body.art-w .ch{display:none!important}
 body.touch #arthud{right:calc(10px + env(safe-area-inset-right,0px));bottom:auto;top:calc(104px + env(safe-area-inset-top,0px))}
 body.touch #arthud .sw{flex-direction:column}
 body.touch #arthud .sw b{width:38px;height:38px}`;
@@ -693,21 +706,21 @@ body.touch #arthud .sw b{width:38px;height:38px}`;
 
   function after(dt) {
     if (on && !RANGE.on) leave();
-    document.body.classList.toggle('art-on', on);
+    document.body.classList.toggle('art-on', on && !wmode); document.body.classList.toggle('art-w', wmode);
     press += ((on && tool === 'pen' && mouseDown && drawT <= 0 ? 1 : 0) - press) * Math.min(1, dt * 14);
     const inGame = $('tomenu').style.display !== 'none';
-    btn.style.display = inGame && RANGE.on ? '' : 'none'; btn.textContent = on ? 'Weapons' : 'Draw';
+    btn.style.display = inGame && RANGE.on && !RANGE.hot ? '' : 'none'; btn.textContent = on ? 'Weapons' : 'Draw';
     // what's in your hands
     if (on) { vm.visible = false; knifeVM.visible = false; if (typeof nadeVM !== 'undefined' && nadeVM) nadeVM.visible = false; }
     const out = on && drawT <= 0.15 && P.alive;
-    const vk = out ? tool + colOf[tool] : '';
-    if (vk !== vmKey) { vmKey = vk; artVM.clear(); if (out) { const o = heldObject(tool, colOf[tool]); o.position.set(0.22, -0.2, -0.5); o.rotation.set(0.1, 0.3, 0.15); artVM.add(o); } }
+    const vt = wmode ? 'spray' : tool, vk = out ? vt + colOf[tool] : '';
+    if (vk !== vmKey) { vmKey = vk; artVM.clear(); if (out) { const o = heldObject(vt, colOf[tool]); o.position.set(0.22, -0.2, -0.5); o.rotation.set(0.1, 0.3, 0.15); artVM.add(o); } }
     artVM.visible = out;
     const mine = toolIn(P.rig && P.rig.gunVis); if (mine) mine.userData.tint.color.copy(PAL[colOf[tool]]);
     // other people's tools
     for (const e of ents) {
       if (e === P || !e.rig) continue;
-      const k = e.art > 0 ? (e.art === 1 ? 'pen' : 'spray') : null, rg = e.rig;
+      const k = e.art > 0 ? (e.art === 1 ? 'pen' : 'spray') : null, rg = e.rig; // (3: a ?dev spray can, held as a weapon)
       if (k) {
         if (rg.artKind !== k || (rg.artVis && rg.gunVis !== rg.artVis)) { setRigWeapon(rg, k, heldObject(k, e.artC | 0)); rg.artKind = k; rg.artVis = rg.gunVis; }
         const t = toolIn(rg.gunVis); if (t) t.userData.tint.color.copy(PAL[e.artC | 0] || PAL[0]);
@@ -732,8 +745,8 @@ body.touch #arthud .sw b{width:38px;height:38px}`;
     }
     // HUD
     const show = on && locked && P.alive;
-    hud.style.display = show ? 'flex' : 'none';
-    if (show) {
+    hud.style.display = show && !wmode ? 'flex' : 'none';
+    if (show && !wmode) {
       const k = tool + colOf.pen + colOf.spray;
       if (k !== hudKey) {
         hudKey = k; toolEl.textContent = tool === 'pen' ? 'Pen' : 'Spray can';
@@ -757,7 +770,7 @@ body.touch #arthud .sw b{width:38px;height:38px}`;
 
   // ---------------------------------------------------------------- keys
   function key(code) {
-    if (!on) return false;
+    if (!on || wmode) return false;
     const n = /^Digit([1-9])$/.exec(code);
     if (n) { if (+n[1] <= 6) pickCol(+n[1] - 1); return true; }
     if (code === 'KeyQ') { setTool(tool === 'pen' ? 'spray' : 'pen'); return true; }
@@ -765,12 +778,13 @@ body.touch #arthud .sw b{width:38px;height:38px}`;
   }
 
   Object.defineProperty(ART, 'on', { get: () => on, configurable: true });
-  Object.defineProperty(ART, 'safe', { get: () => on && safe, configurable: true });
+  Object.defineProperty(ART, 'safe', { get: () => on && safe && !wmode, configurable: true });
+  Object.defineProperty(ART, 'wmode', { get: () => wmode, configurable: true });
   Object.assign(ART, {
     toggle, update, after, key, pose, armTurn, fpvTool, heldObject, net, welcome, joinLog, toCorpse, clear,
     swap() { if (on) setTool(tool === 'pen' ? 'spray' : 'pen'); },
-    held: () => (on && drawT <= 0.15 && P.alive ? tool : null), // what your body holds
-    state: () => (on && safe ? (tool === 'pen' ? 1 : 2) : 0), // what others see you hold (0: your weapons)
+    held: () => (on && drawT <= 0.15 && P.alive ? (wmode ? 'spray' : tool) : null), // what your body holds
+    state: () => (wmode ? 3 : on && safe ? (tool === 'pen' ? 1 : 2) : 0), // what others see you hold (0: your weapons; 3: a spray can as a weapon, not safe)
     colour: () => colOf[tool],
     hold() { joinQ = []; }, // a guest: the paint so far waits for the level
     release() { const q = joinQ || []; joinQ = null; q.forEach(take); },

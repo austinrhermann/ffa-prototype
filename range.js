@@ -33,6 +33,14 @@
     { id: 'mine', name: 'Mine', kind: 'mine', ammo: 'F' },
     { id: 'tube', name: 'F Tube', kind: 'tube', model: 'bazooka', ammo: 'F' },
   ];
+  // ?dev: the knife is X and the grenade F (hold it to cook, right-click while holding for a mine, let go to throw or set it),
+  // so the hands are just your three. Things that aren't guns take a hand too: a spray can (one per colour, the colours in
+  // art.js's order) and the flashlight. The radio rides along without taking one (items.js)
+  const HOTON = () => typeof DEV !== 'undefined' && !!DEV; // (a guest takes the host's ?dev when it joins)
+  const PAINT_NAMES = ['Red', 'Yellow', 'Blue', 'Green', 'Black', 'White'];
+  PAINT_NAMES.forEach((n, c) => SLOTS.push({ id: 'spray' + c, name: n + ' spray', kind: 'spray', c, ammo: '' }));
+  SLOTS.push({ id: 'flashlight', name: 'Flashlight', kind: 'light', ammo: '' });
+  const ITEM_KINDS = { spray: 1, light: 1 };
   // The knife is always yours, in hand 4 and on F; you carry three weapons at most. The grenade isn't a weapon you pick up:
   // an F battery IS one (hand 5, there whenever you carry an F battery), and it's a mine if you hold right-click and click.
   // The F tube just launches it further.
@@ -108,12 +116,13 @@
   const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
   const K = () => (live() ? 1 : maxHp(P) / LIFE); // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
-  const held = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 }; // your three hands (cur === HANDS is the knife), and your batteries
+  const held = [null, null, null], heldU = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 };
+  let myRadio = null, hot = null, hotPrev = 0, hotMine = false, hotBack = 0, lightOn = true; // hot: the F grenade in hand (and the hand to go back to) // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
   const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw')][i - HANDS]); // hands 0-4
   const slot = () => handSlot(cur) || KNIFE;
   const has = t => S.ammo.infinite || bats[t] > 0;
-  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i === HANDS + 1 && has('F')));
+  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i === HANDS + 1 && has('F') && (!HOTON() || !!hot)));
   const mineMode = () => mouseRight || tAim; // the grenade, with right-click held: a mine
   const spend = t => { if (S.ammo.infinite) return true; if (bats[t] <= 0) return false; bats[t]--; return true; };
   const gunOf = s => S.guns[s.id];
@@ -133,7 +142,7 @@
   const PIT_DUMMIES = [[0, 1.5, '1.5 m'], [3.5, 0, '3.5 m'], [-5.5, 0, '5.5 m'], [0, -3.5, 'behind a wall']];
   // Where the weapons lie: a row behind the firing line (Pistol on the left as you turn round to it), each with its ammo pack
   // just past it, and one more F pack on its own for grenades and mines
-  const SPOTS = [...SLOTS.filter(sl => sl.kind !== 'throw' && sl.kind !== 'mine').map(sl => ({ id: sl.id, pack: sl.ammo, label: sl.name })), { id: null, pack: 'F', label: 'F batteries' }]
+  const SPOTS = [...SLOTS.filter(sl => sl.kind !== 'throw' && sl.kind !== 'mine' && !ITEM_KINDS[sl.kind]).map(sl => ({ id: sl.id, pack: sl.ammo, label: sl.name })), { id: null, pack: 'F', label: 'F batteries' }]
     .map((sp, i) => Object.assign(sp, { x: 9 - i * 3, z: 6, t: 0 }));
   const weaponSpots = () => SPOTS.filter(sp => sp.id);
   const decals = [];
@@ -487,9 +496,12 @@
   function updateGun(dt) {
     gun.cd -= dt; knifeCd -= dt; gun.spray = 0; gun.burstLeft = 0;
     heat = Math.max(0, heat - dt * (mouseDown ? 0.6 : 2.5));
-    if (cur > HANDS && !has('F') && cooking < 0 && throwT <= 0) pick(HANDS); // that was your last F battery
+    if (HOTON() && !hot && hotBack > 0 && (hotBack -= dt) <= 0) backFromNade();
+    if (cur > HANDS && !has('F') && cooking < 0 && throwT <= 0 && !hot && hotBack <= 0) pick(HANDS); // that was your last F battery
     const s = slot();
-    if (!s.model && s.kind !== 'throw') { mouseRight = false; tAim = false; } // nothing to aim down (the grenade's right-click makes a mine)
+    if (!s.model && s.kind !== 'throw' && s.kind !== 'spray') { mouseRight = false; tAim = false; } // nothing to aim down (the grenade's right-click makes a mine; the spray can's a fine line)
+    if (s.kind === 'spray') return; // art.js paints with it
+    if (s.kind === 'light') { if (clickQ && P.alive) { clickQ = false; lightOn = !lightOn; sBeep(lightOn ? 900 : 600); } return; }
     if (!P.alive || monitorOpen || VEH.noGuns) return;
     if (P.reloading > 0) { P.reloading -= dt; if (P.reloading <= 0) { P.reloading = 0; if (spend(s.ammo)) P.ammo = clipOf(s); } return; }
     if (switchT > 0) { if (s.kind !== 'throw') clickQ = false; return; }
@@ -504,6 +516,7 @@
     }
     if (s.kind === 'knife') { if (clickQ && knifeCd <= 0) { clickQ = false; shotN++; knife(); } return; }
     // Grenade: hold to cook (it beeps faster as the fuse runs down), let go to throw. With right-click held, a click sets it as a mine.
+    if (HOTON()) { clickQ = false; if (hot) cookHot(dt); return; } // ?dev: all on F (hotDown / hotUp)
     const fresh = clickQ; clickQ = false;
     if (cooking < 0 && mineMode()) { if (fresh && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); return; } gun.cd = 0.5; throwT = 0.3; shotN++; placeMine(); } return; }
     if (cooking < 0) { if (fresh && mouseDown && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); gun.cd = 0.5; return; } cooking = 0; beepT = 0.5; sPin(); } return; }
@@ -511,6 +524,57 @@
     if (beepT <= 0) { const rem = S.throw.fuse - cooking; beepT = rem > 1.5 ? 0.5 : rem > 0.75 ? 0.25 : 0.12; sBeep(1300 + (1 - rem / S.throw.fuse) * 1000); }
     if (cooking >= S.throw.fuse) { cooking = -1; gun.cd = 0.8; shotN++; blast(new V3(P.pos.x, P.pos.y + 1.2, P.pos.z), P, 'throw'); note('Held it too long', 1.5); return; }
     if (!mouseDown) throwNow();
+  }
+
+  // ---------------------------------------------------------------- ?dev: the grenade on F
+  // F down takes out an F battery and pulls the pin; right-click before it goes off makes it a mine (the fuse stops);
+  // F up throws it, or sets the mine down where you're looking. Then back to what you had in your hands.
+  function hotDown() {
+    if (!P.alive || hot || hotBack > 0 || cooking >= 0 || throwT > 0 || monitorOpen || VEH.noGuns || P.reloading > 0) return;
+    if (!has('F')) { outOf('F'); return; }
+    hot = { back: cur }; hotPrev = cur; pick(HANDS + 1, true); spend('F');
+    cooking = 0; beepT = 0.5; hotMine = false; sPin();
+    hint('hotnade', 'Let go of F to throw. Right-click while holding F to make it a mine', 4);
+  }
+  function cookHot(dt) {
+    if (hotMine) return;
+    if (mineMode()) { hotMine = true; sBeep(1500); return; }
+    cooking += dt; beepT -= dt;
+    if (beepT <= 0) { const rem = S.throw.fuse - cooking; beepT = rem > 1.5 ? 0.5 : rem > 0.75 ? 0.25 : 0.12; sBeep(1300 + (1 - rem / S.throw.fuse) * 1000); }
+    if (cooking >= S.throw.fuse) { cooking = -1; hot = null; hotBack = 0.6; shotN++; blast(new V3(P.pos.x, P.pos.y + 1.2, P.pos.z), P, 'throw'); note('Held it too long', 1.5); }
+  }
+  function hotUp() {
+    if (!hot) return;
+    if (P.alive && hotMine) { cooking = -1; throwT = 0.3; gun.cd = 0.5; shotN++; placeMine(); }
+    else if (P.alive && cooking >= 0) throwNow();
+    cooking = -1; hot = null; hotMine = false; hotBack = 0.35;
+  }
+  function backFromNade() {
+    hotBack = 0; const b = hotPrev; hot = null;
+    const want = [b, ...held.map((h, i) => i)].find(i => i < HANDS ? !!held[i] : i === HANDS);
+    pick(want === undefined ? HANDS : want, true);
+  }
+
+  // ---------------------------------------------------------------- items (items.js runs them; these are your hands' side)
+  const itemSlot = u => (u[0] === 's' ? byId('spray' + u.slice(1)) : u[0] === 'f' ? byId('flashlight') : null);
+  // Something off the ground (the host says it's yours): into a free hand, or the radio
+  function giveItem(u) {
+    if (u[0] === 'r') { if (myRadio) return false; myRadio = u; note('Picked up a radio: anyone else with one hears you, however far', 2.5); return true; }
+    const sl = itemSlot(u); if (!sl) return false;
+    if (held.includes(sl) || heldU.includes(u)) return false;
+    const i = held.indexOf(null); if (i < 0) { if (fullT <= 0) { fullT = 2; note('Your hands are full (3 things): Q drops the one you hold', 1.8); } return false; }
+    held[i] = sl; heldU[i] = u; syncInv();
+    note(`Picked up the ${sl.name}${sl.kind === 'spray' ? ' can: click sprays, right-click draws a fine line' : sl.kind === 'light' ? ': click turns it on or off' : ''}`, 2);
+    if (sl.kind === 'light') lightOn = true;
+    if (cur === HANDS && !hot) pick(i); else drawSlots();
+    return true;
+  }
+  // The host took it back (you died, the round started again, or it went to someone else first)
+  function loseItem(u) {
+    if (myRadio === u) { myRadio = null; return; }
+    const i = heldU.indexOf(u); if (i < 0) return;
+    held[i] = null; heldU[i] = null; syncInv();
+    if (i === cur) { const next = held.findIndex(Boolean); pick(next < 0 ? HANDS : next, true); } else drawSlots();
   }
 
   // ---------------------------------------------------------------- picking a weapon
@@ -530,7 +594,7 @@
   const syncInv = () => { P.inv = held.filter(h => h && h.model).map(h => h.model); };
   // In the range you start with the knife and nothing else; in a game with the Pistol loaded and a spare A battery or so
   function kit() {
-    held.fill(null); for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
+    held.fill(null); heldU.fill(null); myRadio = null; hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
     curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
     if (!on()) { held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA); }
@@ -563,6 +627,10 @@
   // Q: throw the weapon in your hands a few metres ahead (with what's left in its clip), then take the next one
   function drop() {
     const s = slot(); if (cur >= HANDS || !held[cur] || cooking >= 0) return;
+    if (heldU[cur]) { // an item: items.js puts it down (the host keeps track of it)
+      const u = heldU[cur]; held[cur] = null; heldU[cur] = null; syncInv(); ITEMS.drop(u);
+      const next = held.findIndex(Boolean); pick(next < 0 ? HANDS : next); return;
+    }
     syncAmmo();
     const load = s.model ? P.ammoBy[s.model].mag : 0;
     const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
@@ -777,9 +845,10 @@
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
   function drawSlots() {
-    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
+    const hands = (HOTON() ? [0, 1, 2] : [0, 1, 2, 3, 4]).map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
     const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
-    slotsEl.innerHTML = hands.join('') + `<div class="am">${am}</div>`;
+    const hk = HOTON() ? `<div class="${cur === HANDS ? 'on' : ''}">X&nbsp; Knife</div><div class="${cur === HANDS + 1 ? 'on' : has('F') ? '' : 'no'}">F&nbsp; ${hot && hotMine ? 'Mine' : 'Grenade'} <small>F ×${batsTxt('F')}</small></div>` + (myRadio ? '<div>Radio</div>' : '') : '';
+    slotsEl.innerHTML = hands.join('') + hk + `<div class="am">${am}</div>`;
   }
   drawSlots();
   const fmt = (n, step) => (step >= 1 ? String(Math.round(n)) : step >= 0.1 ? (+n).toFixed(1) : (+n).toFixed(2));
@@ -952,6 +1021,7 @@
   }
 
   Object.defineProperty(RANGE, 'on', { get: live, configurable: true }); // the new weapons are in charge
+  Object.defineProperty(RANGE, 'hot', { get: HOTON, configurable: true }); // ?dev: knife on X, grenade on F, items
   Object.defineProperty(RANGE, 'range', { get: on, configurable: true });
   Object.defineProperty(RANGE, 'life', { get: () => LIFE, configurable: true }); // the Shooting Range itself
   Object.defineProperty(RANGE, 'panelOpen', { get: () => panelOpen, configurable: true });
@@ -994,12 +1064,29 @@
     handKind: () => slot().kind, // 'knife', 'throw' (the grenade), 'mine', 'gun', 'tube'
     inHand: () => slot().model || null, // the game's weapon id in your hands (none for the knife and the grenade)
     zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
-    next(dir) { if (!P.alive) return; const can = [0, 1, 2, 3, 4].filter(canPick), i = can.indexOf(cur); pick(can[(i + dir + can.length) % can.length]); },
+    next(dir) {
+      if (!P.alive || hot) return;
+      const can = (HOTON() ? [0, 1, 2] : [0, 1, 2, 3, 4]).filter(canPick); if (!can.length) return;
+      const i = can.indexOf(cur); pick(can[i < 0 ? (dir > 0 ? 0 : can.length - 1) : (i + dir + can.length) % can.length]);
+    },
+    hotDown, hotUp, quickKnife, giveItem, loseItem,
+    items: () => [...heldU.filter(Boolean), ...(myRadio ? [myRadio] : [])], // what you carry of items.js's things
+    handItem: () => (cur < HANDS ? heldU[cur] : null),
+    handsUsed: () => held.filter(Boolean).length,
+    paint: () => (slot().kind === 'spray' && P.alive ? slot().c : -1), // the colour of the spray can in your hands
+    lightOn: () => slot().kind === 'light' && lightOn && P.alive,
+    radio: () => myRadio,
+    keyUp(code) { if (live() && HOTON() && code === 'KeyF') { hotUp(); return true; } return false; },
     key(code) {
       if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
+      if (HOTON()) {
+        if (n) { if (P.alive && !hot && +n[1] <= HANDS) pick(+n[1] - 1); return true; }
+        if (code === 'KeyF') { hotDown(); return true; }
+        if (code === 'KeyX') { quickKnife(); return true; }
+      }
       if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
-      if (code === 'KeyQ') { if (P.alive) drop(); return true; }
+      if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
       if (code === 'KeyF') { quickKnife(); return true; }
       return (on() && code === 'KeyE') || code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
@@ -1036,7 +1123,7 @@
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
-      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode(); if (k !== slotsKey) { slotsKey = k; drawSlots(); }
+      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine + myRadio; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
       if (on()) { scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); } // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;

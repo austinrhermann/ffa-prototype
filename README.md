@@ -22,6 +22,16 @@ With `?dev` the game opens on the new, streamlined start instead. It replaces th
   - **Go!** leaves the menu. It stays off until you have typed a name and picked a character.
 - **Pause** (Esc) shows the same two cards. **Go!** goes back in, and changes take effect then: a new level, game type or bot setting starts a new round, and a guest's new character shows for everyone straight away. The host also has **Start over** (a new round with the current settings). Under the buttons: How to play, Settings, Draw and Leave game.
 
+### In the game (`?dev` only for now)
+
+- **Your three hands** (1–3, the wheel) hold guns, spray cans and flashlights. Walk over something to pick it up; Q drops what's in your hands.
+- **X is the knife and F the grenade.** Hold F to cook it and let go to throw. Right-click while holding F to make it a mine instead (its fuse stops); let go to set it down where you're looking. Either way you're back to what you had in your hands.
+- **Spray cans** (one per colour: red, yellow, blue, green, black, white): click sprays, right-click draws a fine line. There's no draw mode any more (P does nothing), and holding a can doesn't keep you safe.
+- **Flashlights** (4): click turns one on or off. Its cone shows what it falls on in its own colours, without the look's light and shadow. It stops a little past the first wall down its middle, so it doesn't shine through it; the edges of the cone can still reach past a corner.
+- **Radios** (4) don't take a hand. Proximity voice chat starts on, and two people carrying radios hear each other however far apart they are.
+- Whatever someone carries drops where they die, and a new round puts everything back. The host keeps track of all of it (`items.js`), and the items' places are worked out from the level's ammo, spawn and weapon spots.
+- **The computer** (E) takes your view to its screen, which fills 80% of the height. The map shows your side as green plus signs (you ringed in white), everyone else red, the spray cans as triangles in their colours and the flashlights as yellow dots. The gate is only worked at the gate now.
+
 Without `?dev`, the title page and the old modes are as before:
 
 - **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
