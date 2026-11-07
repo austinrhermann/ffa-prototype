@@ -116,7 +116,7 @@
   const K = () => (live() ? 1 : maxHp(P) / LIFE); // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], heldU = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 };
-  let myLight = null, hot = null, hotPrev = 0, hotMine = false, hotBack = 0, lightOn = true; // hot: the F grenade in hand (and the hand to go back to) // your three hands (cur === HANDS is the knife), and your batteries
+  let hot = null, hotPrev = 0, hotMine = false, hotBack = 0, lightOn = false; // hot: the F grenade in hand (and the hand to go back to) // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
   const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw')][i - HANDS]); // hands 0-4
   const slot = () => handSlot(cur) || KNIFE;
@@ -555,9 +555,8 @@
 
   // ---------------------------------------------------------------- items (items.js runs them; these are your hands' side)
   const itemSlot = u => (u[0] === 's' ? byId('spray' + u.slice(1)) : null);
-  // Something off the ground (the host says it's yours): into a free hand, or the flashlight
+  // Something off the ground (the host says it's yours): into a free hand. (Everyone has a flashlight of their own: L)
   function giveItem(u) {
-    if (u[0] === 'f') { if (myLight) return false; myLight = u; lightOn = true; note('Picked up a flashlight: L turns it on or off', 2.5); return true; }
     const sl = itemSlot(u); if (!sl) return false;
     if (held.includes(sl) || heldU.includes(u)) return false;
     const i = held.indexOf(null); if (i < 0) { if (fullT <= 0) { fullT = 2; note('Your hands are full (3 things): Q drops the one you hold', 1.8); } return false; }
@@ -568,7 +567,6 @@
   }
   // The host took it back (you died, the round started again, or it went to someone else first)
   function loseItem(u) {
-    if (myLight === u) { myLight = null; return; }
     const i = heldU.indexOf(u); if (i < 0) return;
     held[i] = null; heldU[i] = null; syncInv();
     if (i === cur) { const next = held.findIndex(Boolean); pick(next < 0 ? HANDS : next, true); } else drawSlots();
@@ -591,7 +589,7 @@
   const syncInv = () => { P.inv = held.filter(h => h && h.model).map(h => h.model); };
   // In the range you start with the knife and nothing else; in a game with the Pistol loaded and a spare A battery or so
   function kit() {
-    held.fill(null); heldU.fill(null); myLight = null; hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
+    held.fill(null); heldU.fill(null); hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
     curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
     if (!on()) { held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA); }
@@ -844,7 +842,7 @@
   function drawSlots() {
     const hands = (HOTON() ? [0, 1, 2] : [0, 1, 2, 3, 4]).map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
     const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
-    const hk = HOTON() ? `<div class="${cur === HANDS ? 'on' : ''}">X&nbsp; Knife</div><div class="${cur === HANDS + 1 ? 'on' : has('F') ? '' : 'no'}">F&nbsp; ${hot && hotMine ? 'Mine' : 'Grenade'} <small>F ×${batsTxt('F')}</small></div>` + (myLight ? `<div class="${lightOn ? 'on' : ''}">L&nbsp; Flashlight <small>${lightOn ? 'on' : 'off'}</small></div>` : '') : '';
+    const hk = HOTON() ? `<div class="${cur === HANDS ? 'on' : ''}">X&nbsp; Knife</div><div class="${cur === HANDS + 1 ? 'on' : has('F') ? '' : 'no'}">F&nbsp; ${hot && hotMine ? 'Mine' : 'Grenade'} <small>F ×${batsTxt('F')}</small></div>` + `<div class="${lightOn ? 'on' : ''}">L&nbsp; ${VEH.driving && VEH.driving() ? 'Headlights' : 'Flashlight'} <small>${lightOn ? 'on' : 'off'}</small></div>` : '';
     slotsEl.innerHTML = hands.join('') + hk + `<div class="am">${am}</div>`;
   }
   drawSlots();
@@ -1067,11 +1065,12 @@
       const i = can.indexOf(cur); pick(can[i < 0 ? (dir > 0 ? 0 : can.length - 1) : (i + dir + can.length) % can.length]);
     },
     hotDown, hotUp, quickKnife, giveItem, loseItem,
-    items: () => [...heldU.filter(Boolean), ...(myLight ? [myLight] : [])], // what you carry of items.js's things
+    items: () => heldU.filter(Boolean), // what you carry of items.js's things
     handItem: () => (cur < HANDS ? heldU[cur] : null),
     handsUsed: () => held.filter(Boolean).length,
     paint: () => (slot().kind === 'spray' && P.alive ? slot().c : -1), // the colour of the spray can in your hands
-    lightOn: () => !!myLight && lightOn && P.alive,
+    lightOn: () => lightOn && P.alive, // your flashlight (everyone has one, off to start with); at the wheel, your headlights
+    toggleLight() { if (!P.alive) return; lightOn = !lightOn; sBeep(lightOn ? 900 : 600); },
     keyUp(code) { if (live() && HOTON() && code === 'KeyF') { hotUp(); return true; } return false; },
     key(code) {
       if (!live()) return false;
@@ -1080,7 +1079,7 @@
         if (n) { if (P.alive && !hot && +n[1] <= HANDS) pick(+n[1] - 1); return true; }
         if (code === 'KeyF') { hotDown(); return true; }
         if (code === 'KeyX') { quickKnife(); return true; }
-        if (code === 'KeyL') { if (myLight && P.alive) { lightOn = !lightOn; sBeep(lightOn ? 900 : 600); } else if (!myLight) note('No flashlight: find one first', 1.2); return true; }
+        if (code === 'KeyL') { RANGE.toggleLight(); return true; }
       }
       if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
       if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
@@ -1120,7 +1119,7 @@
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
-      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine + myLight + lightOn; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
+      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine + lightOn + !!(VEH.driving && VEH.driving()); if (k !== slotsKey) { slotsKey = k; drawSlots(); }
       if (on()) { scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); } // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;

@@ -379,7 +379,8 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt class="nohot">1–6, wheel</dt><dd class="nohot">Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns and spray cans (one per colour: click sprays). Walk over something to pick it up</dd>
-      <dt class="hotonly">L</dt><dd class="hotonly">Flashlight on or off (once you've found one: it rides along without taking a hand and lights the way for whatever you hold). At the wheel, L turns the headlights on or off</dd>
+      <dt class="hotonly">L</dt><dd class="hotonly">Your flashlight on or off (everyone has one: it lights the way for whatever you hold). In a vehicle it's your headlights: get in with it on and they come on</dd>
+      <dt class="hotonly">Day</dt><dd class="hotonly">The sun goes round every two minutes. At night only the moon's faint light, flashlights and headlights show you anything (bots put theirs on too)</dd>
       <dt class="hotonly">Shower</dt><dd class="hotonly">In the courtyard: stand in it and press E to wash the paint off you (the mirror beside it shows how you look)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
@@ -535,9 +536,9 @@ const toonMat = params => new THREE.MeshToonMaterial({ gradientMap: RAMP, ...par
 // Where the sun reaches, on levels that have it baked (the fort): the set's own surfaces carry the renders' lit-or-shadow mask
 // as their occlusion map, and everything else (characters, trucks, props, doors) is lit by a grid of where the sun reaches
 // (models/<level>_sun.png: slices by height, laid out in rows). Every toon material takes its sunlight through one or the other.
-const SUN = { on: { value: 0 }, map: { value: null }, lo: { value: new THREE.Vector3() }, size: { value: new THREE.Vector3() }, grid: { value: new THREE.Vector4() }, data: null };
+const SUN = { on: { value: 0 }, bake: { value: 1 }, map: { value: null }, lo: { value: new THREE.Vector3() }, size: { value: new THREE.Vector3() }, grid: { value: new THREE.Vector4() }, data: null };
 const SUN_GLSL = `
-uniform float sunOn; uniform sampler2D sunMap; uniform vec3 sunLo, sunSize; uniform vec4 sunGrid; // grid: cells along x, y, z; slices per row
+uniform float sunOn, sunBake; uniform sampler2D sunMap; uniform vec3 sunLo, sunSize; uniform vec4 sunGrid; // grid: cells along x, y, z; slices per row
 varying vec3 vSunPos;
 float sunSlice(vec2 c, float s) {
   vec2 tile = vec2(mod(s, sunGrid.w), floor(s / sunGrid.w)), atlas = vec2(sunGrid.w, ceil(sunGrid.y / sunGrid.w)) * sunGrid.xz;
@@ -582,7 +583,7 @@ float flashAt(vec3 p) {
 `;
 const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, ...FLASH_UNIFORMS() });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunBake: SUN.bake, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
@@ -591,7 +592,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
     vSunPos = (modelMatrix * sunWp).xyz;`);
   sh.fragmentShader = SUN_GLSL + FLASH_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
-      reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
+      reflectedLight.directDiffuse *= mix(1.0, texture2D(aoMap, vUv2).r, sunBake); // (sunBake 0: the day goes round, ?dev)
     #else
       reflectedLight.directDiffuse *= sunAt(vSunPos);
     #endif`).replace('#include <tonemapping_fragment>', `
@@ -671,14 +672,102 @@ function applyLook() {
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
 skyDome.renderOrder = -1; skyDome.frustumCulled = false; skyDome.visible = false; scene.add(skyDome);
 skyDome.onBeforeRender = (r, sc, cam) => skyDome.position.copy(cam.position);
-function setSky(on) {
+function setSky(on, sky = LOOK.sky, top = LOOK.top) {
   skyDome.visible = on; if (!on) return;
-  const g = skyDome.geometry, pos = g.attributes.position, col = new Float32Array(pos.count * 3);
-  const h = new THREE.Color(LOOK.sky).convertSRGBToLinear(), t = new THREE.Color(LOOK.top).convertSRGBToLinear(), c = new THREE.Color();
+  const g = skyDome.geometry, pos = g.attributes.position;
+  let a = g.attributes.color; if (!a) { a = new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3); g.setAttribute('color', a); }
+  const h = new THREE.Color(sky).convertSRGBToLinear(), t = new THREE.Color(top).convertSRGBToLinear(), c = new THREE.Color(), col = a.array;
   for (let i = 0; i < pos.count; i++) {
     c.copy(t).lerp(h, (1 - pos.getY(i) / 600) / 2).convertLinearToSRGB(); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  a.needsUpdate = true;
+}
+
+// ---------- ?dev: day and night ----------
+// On a level with the look (the fort), the sun goes round once every DAY_LEN seconds: up on the far side of the fort, over,
+// and down on the side the teams start from, passing through the look's own sun (LOOK.az, LOOK.el) in the afternoon, where
+// everything is exactly the look as set. A game starts there. Then dusk, a night, and dawn.
+// The moon shares the sun's light: it's up while the sun is down, on a path of its own so its shadows don't fall the way the
+// day's did: lower (MOON_EL at its highest), and highest on the other side of the sky from the sun's noon, so the night's
+// shadows fall the other way. (Of the paths tried, the one that stays furthest from anywhere the sun is by day; the two
+// only come close low down, as the moon rises and sets, when its light is fading anyway.) Its light is a faint blue, and
+// at night what it doesn't reach is black: a flashlight (L) or a headlight shows you what's there.
+// The fort's own shadows are baked in for the look's sun, so while the day goes round they're left out (SUN.bake, and the
+// grid for what moves, SUN.on) and the fort casts real-time ones like everything else, from a bigger shadow map.
+// The host keeps the time (DAY.p, 0 sunrise, 0.5 sunset) and sends it with items.js's 'its'; DAY.dark puts the bots'
+// flashlights on, and the headlights of the vehicles they drive.
+const DAY_LEN = 120, MOON_EL = 40 * Math.PI / 180, MOON = '#33496f';
+const DAY = { on: false, p: null, dark: false, el: 90, gunSun: 1, gunT: 0, set: null };
+const _UP = new THREE.Vector3(0, 1, 0), _dc4 = new THREE.Vector3(), _dS = new THREE.Vector3(), _dM = new THREE.Vector3(), _dc = [new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()];
+// The sun's path for the look and the level: sets toward the teams' start (or wherever the look's sun is, on a level without one)
+function dayPath() {
+  const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180, D = new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+  const W = new THREE.Vector3(), ts = LV.teamSpawns ? Object.values(LV.teamSpawns).flat().map(i => LV.spawns[i]).filter(Boolean) : [];
+  for (const s of ts) { W.x += s[0]; W.z += s[2]; }
+  if (W.lengthSq() < 1e-6) W.set(D.x, 0, D.z); W.normalize();
+  const U = D.clone().addScaledVector(W, -D.dot(W)).normalize(), p0 = (Math.PI - Math.atan2(D.dot(U), D.dot(W))) / (2 * Math.PI);
+  const hp = (Math.hypot(U.x, U.z) > 0.05 ? new THREE.Vector3(-U.x, 0, -U.z) : new THREE.Vector3(-D.x, 0, -D.z)).normalize(), mW = new THREE.Vector3().crossVectors(hp, _UP).normalize(); // (its highest away from the sun's)
+  return { key: LOOK.az + ',' + LOOK.el + ',' + LV.mesh, W, U, p0, mW, mU: hp.multiplyScalar(Math.cos(MOON_EL)).addScaledVector(_UP, Math.sin(MOON_EL)) };
+}
+// The colours by the sun's height (degrees): from the look's own, high, down through a gold, a red sunset and dusk to night
+const DAY_KEYS = () => ({
+  e: [-12, -4, 2, 10, 25],
+  shadow: ['#000000', '#11121d', '#2b2533', '#3a3444', LOOK.shadow],
+  sky: ['#060a14', '#36314c', '#c07150', '#b3917a', LOOK.sky],
+  top: ['#02050c', '#111838', '#2a3260', '#2a4878', LOOK.top],
+  lit: ['#000000', '#000000', '#c8804e', '#dcb58b', LOOK.lit], // (what the sun lights; from the shadow colour up, nothing below 0°)
+});
+function dayCol(out, keys, vals, e) {
+  if (e <= keys[0]) return out.set(vals[0]);
+  for (let i = 1; i < keys.length; i++) if (e <= keys[i]) return out.set(vals[i - 1]).lerp(_dc[3].set(vals[i]), (e - keys[i - 1]) / (keys[i] - keys[i - 1]));
+  return out.set(vals[vals.length - 1]);
+}
+// The set's baked shadows in or out (and the shadow map to cover the fort, from further along the sun)
+function dayBake(bake) {
+  SUN.bake.value = bake ? 1 : 0;
+  if (levelGroup) levelGroup.traverse(o => { if (o.isMesh && o.userData.baked) o.castShadow = !bake; });
+  const n = bake ? 2048 : 4096, c = sun.shadow.camera, r = bake ? 45 : 70;
+  if (sun.shadow.mapSize.x !== n) { sun.shadow.mapSize.set(n, n); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+  Object.assign(c, { left: -r, right: r, top: r, bottom: -r, far: bake ? 150 : 260 }); c.updateProjectionMatrix();
+  DAY.set = bake ? null : levelGroup;
+}
+function updateDay(dt) {
+  const want = !!(DEV && LV && LV.look);
+  if (!want) { if (DAY.on) { DAY.on = false; DAY.dark = false; dayBake(true); applyLook(); } sunDisc.visible = moonDisc.visible = false; return; }
+  if (!DAY.on) { DAY.on = true; DAY.path = null; }
+  if (DAY.set !== levelGroup) dayBake(false);
+  if (!DAY.path || DAY.path.key !== LOOK.az + ',' + LOOK.el + ',' + LV.mesh) DAY.path = dayPath();
+  const P_ = DAY.path; if (DAY.p === null) DAY.p = P_.p0;
+  if (!PREGAME && !DAY.hold) DAY.p = (DAY.p + dt / DAY_LEN) % 1; // (still on the title screen: the afternoon waits. hold: stop the clock, to look at one time)
+  const th = Math.PI - 2 * Math.PI * DAY.p, ps = th + Math.PI;
+  _dS.copy(P_.W).multiplyScalar(Math.cos(th)).addScaledVector(P_.U, Math.sin(th));
+  _dM.copy(P_.mW).multiplyScalar(Math.cos(ps)).addScaledVector(P_.mU, Math.sin(ps));
+  const e = Math.asin(Math.max(-1, Math.min(1, _dS.y))) * 180 / Math.PI, me = Math.asin(Math.max(-1, Math.min(1, _dM.y))) * 180 / Math.PI;
+  DAY.el = e; DAY.dark = e < 3;
+  // One light: the sun while it's up, the moon after
+  const up = _dS.y > 0; SUN_DIR.copy(up ? _dS : _dM);
+  const K = DAY_KEYS(), sh = dayCol(_dc[0], K.e, K.shadow, e), sky = dayCol(_dc[1], K.e, K.sky, e).clone(), top = dayCol(_dc[2], K.e, K.top, e).clone();
+  const lt = up ? dayCol(new THREE.Color(), K.e, K.lit, e) : new THREE.Color(0);
+  const L = up ? new THREE.Color(Math.max(0, lt.r - sh.r), Math.max(0, lt.g - sh.g), Math.max(0, lt.b - sh.b)).multiplyScalar(Math.min(1, e / 1.5))
+    : new THREE.Color(MOON).multiplyScalar(Math.min(1, Math.max(0, me / 10)));
+  for (const [f, d] of [[shadeFill, sun], ...LOOK_EXTRA]) { f.color.copy(sh); f.intensity = 1; d.color.copy(L); d.intensity = 1; d.userData.lit = d.color.clone(); }
+  SUN.on.value = 0; // (the grid is the look's sun's)
+  scene.background.copy(sky); scene.fog.color.copy(sky); setSky(true, sky, top);
+  // The sun and the moon in the sky
+  sunDisc.visible = _dS.y > -0.05; moonDisc.visible = _dM.y > -0.05;
+  sunDisc.material.color.set(0xfff4dc).lerp(_dc[3].set(0xff8a4a), Math.max(0, Math.min(1, 1 - e / 14)));
+  // Your gun's light: in the sun (or the moon) where you stand, or not (a look along the light, a few times a second)
+  if ((DAY.gunT -= dt) <= 0) {
+    DAY.gunT = 0.2; const c = camera.position;
+    DAY.gunWant = TG ? (tgRay(c.x, c.y, c.z, SUN_DIR.x, SUN_DIR.y, SUN_DIR.z, 120) >= 120 ? 1 : 0) : 1;
+  }
+  DAY.gunSun += ((DAY.gunWant === undefined ? 1 : DAY.gunWant) - DAY.gunSun) * Math.min(1, dt * 8);
+}
+const discMat = c => new THREE.MeshBasicMaterial({ color: c, fog: false, depthWrite: false });
+const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(16, 32), discMat(0xfff4dc)), moonDisc = new THREE.Mesh(new THREE.CircleGeometry(10, 32), discMat(0xd9e2f2));
+for (const [d, v] of [[sunDisc, _dS], [moonDisc, _dM]]) {
+  d.renderOrder = -0.5; d.frustumCulled = false; d.visible = false; scene.add(d);
+  d.onBeforeRender = (r, sc, cam) => { d.position.copy(cam.position).addScaledVector(v, 550); d.lookAt(cam.position); d.updateMatrixWorld(); };
 }
 
 addEventListener('resize', () => {
@@ -722,7 +811,7 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, toggleLight() {}, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
 const ITEMS = { on: false, update() {}, after() {}, drop() {}, guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], nearShower: () => false, useShower: () => false, washed() {} };
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
@@ -2812,7 +2901,7 @@ function loadSet(d) {
     sc.traverse(o => {
       if (!o.isMesh) return;
       if (o.material.map) o.material.map.anisotropy = 8;
-      if (o.material.aoMap) o.castShadow = false; // its shadows are baked in (the sun mask); real-time ones are for what moves
+      if (o.material.aoMap) { o.castShadow = false; o.userData.baked = true; } // its shadows are baked in (the sun mask); real-time ones are for what moves (and, as the day goes round, everything: updateDay)
       if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
       if (o.material.name === 'Creek_Water' || o.material.name === 'Sewer_Water') o.castShadow = false;
     });
@@ -6094,7 +6183,7 @@ function drawMap() {
 }
 
 // ?dev's map: your side as green plus signs (you ringed in white), everyone else red; the six spray cans as triangles in
-// their colours, the flashlights as yellow dots (ITEMS.mapMarks: where each one lies, or who has it)
+// their colours, (ITEMS.mapMarks: where each one lies, or who has it)
 function drawMapDev(g, X, Z, cv) {
   const u = cv.width / 336, mine = e => e === P || (teamsOn() && e.team && e.team === P.team);
   const [gx, gz] = LV.gate.at; g.fillStyle = gateOpen() ? '#ffd23f' : '#9fd8ff'; g.fillRect(X(gx) - 7 * u, Z(gz) - 2 * u, 14 * u, 4 * u);
@@ -6703,8 +6792,13 @@ function loop(now) {
   updateSelfView();
   updateHUD(dt);
   updateChatbox();
-  if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
-  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
+  updateDay(dt);
+  if (TG) { // the shadow map round you (with the day going round, a bigger one, mostly ahead of you, from further along the light)
+    const c = sun.target.position.copy(camera.position);
+    if (DAY.on) { const f = camera.getWorldDirection(_dc4); f.y = 0; c.addScaledVector(f, 40); }
+    sun.position.copy(c).addScaledVector(SUN_DIR, DAY.on ? 130 : 60); sun.target.updateMatrixWorld();
+  }
+  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(DAY.on ? DAY.gunSun : sunAtCPU(camera.position)); // your gun is in the shade with you
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
@@ -6714,10 +6808,10 @@ requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
-<script src="vehicles.js?v=25"></script>
-<script src="range.js?v=21"></script>
+<script src="vehicles.js?v=26"></script>
+<script src="range.js?v=22"></script>
 <script src="art.js?v=6"></script>
-<script src="items.js?v=6"></script>
+<script src="items.js?v=7"></script>
 <script src="transcript.js"></script>
 </body>
 </html>

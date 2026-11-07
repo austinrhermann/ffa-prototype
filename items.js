@@ -2,16 +2,17 @@
 // and tells everyone; a player picks one up by walking over it, as with a weapon.
 //   - Spray cans: one per colour (art.js's six), each a thing on its own, so a picture in several colours takes some
 //     finding. One takes a hand (range.js); click sprays, right-click draws a fine line.
-//   - Flashlights (FLASHLIGHTS of them): don't take a hand; L turns yours on and off, whatever you hold, so you can see and
-//     shoot in the dark. A cone from your eyes shows what it falls on in its own colours, with none of the light and shadow
-//     (the shaders' flashAt, index.html), and each cone has a small shadow map so it stops at what's really in the way.
+// And everyone's flashlight (not a thing to find: everyone has one, off to start with): L turns yours on and off, whatever you
+// hold, so you can see and shoot in the dark (the bots put theirs on at night: DAY.dark, index.html). A cone from your eyes shows
+// what it falls on in its own colours, with none of the light and shadow (the shaders' flashAt, index.html), and each cone has a
+// small shadow map so it stops at what's really in the way. At the wheel your light is your headlights (vehicles.js).
 // And the shower (the level's shower: the fort's is in a corner of the courtyard): E in it washes the paint off you. A
 // mirror beside it, to see what you look like.
 // Whatever someone carries drops where they die. A new round puts everything back where it started.
 // Loaded after the main game script, range.js and art.js; it uses their globals (scene, P, ents, NET, RANGE, ART, ...).
 // The game calls into ITEMS (declared in index.html) from its loop, network, voice and the computer's map.
 (() => {
-  const FLASHLIGHTS = 4, SPRAYS = 6;
+  const FLASHLIGHTS = 0, SPRAYS = 6; // (flashlights were things to find; everyone has one now)
   const PAINT = ['#B06455', '#E1B559', '#5A6490', '#455533', '#000000', '#FFFFFF']; // art.js's palette, in its order
   // Their ids: s0-s5 the cans (by colour), f0-f3 the flashlights. The order they're laid out in, so each kind ends up spread
   // across the level
@@ -81,6 +82,7 @@
 
   // ---------------------------------------------------------------- the host
   let sendT = 0;
+  const lit = new Set(), guestLit = new Set(); // ids whose flashlights are on (the host's word); the guests' own say (the host's copy)
   const near = (e, p) => Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.1 && Math.abs(e.pos.y - p.y) < 1.3;
   const carried = (id, k) => items.filter(it => it.holder === id && (k ? it.kind === k : it.kind === 'spray')).length; // (only a spray can takes a hand)
   // On the ground near where e is, a step ahead of them
@@ -112,12 +114,15 @@
         break;
       }
     }
-    // your own flashlight: on or off
-    const lit = RANGE.lightOn();
-    for (const it of items) if (it.holder === 'h' && it.kind === 'light') it.hand = lit;
+    // Whose flashlights are on: yours, the guests' (as they say), the bots' at night
+    lit.clear();
+    if (RANGE.lightOn()) lit.add('h');
+    for (const r of remotes) if (r.alive && guestLit.has(r.id)) lit.add(r.id);
+    if (DAY.dark) for (const b of ents) if (b.bot && b.alive) lit.add(b.id);
     if ((sendT -= dt) <= 0 && remotes.length) {
       sendT = 0.15;
-      broadcast({ t: 'its', l: items.map(it => [it.u, it.holder || '', +it.pos.x.toFixed(2), +it.pos.y.toFixed(2), +it.pos.z.toFixed(2), it.hand ? 1 : 0]), vo: VEH.lampsOff() }); // (vo: vehicles with their headlights put out)
+      broadcast({ t: 'its', l: items.map(it => [it.u, it.holder || '', +it.pos.x.toFixed(2), +it.pos.y.toFixed(2), +it.pos.z.toFixed(2), it.hand ? 1 : 0]), vo: VEH.lampsOff(), // (vo: vehicles with their headlights out)
+        fl: [...lit], td: DAY.on ? +DAY.p.toFixed(5) : null }); // (fl: whose flashlights are on; td: the time of day)
     }
   }
   function hostMsg(r, m) {
@@ -129,7 +134,7 @@
     } else if (m.t === 'wash') { // a guest in the shower
       if (on() && r.alive && inShower(r)) { washed(r.id); broadcast({ t: 'wa', id: r.id }); }
     } else if (m.t === 'ith') { // its flashlight: on or off; and the headlights of what it drives (h: [vehicle, on])
-      for (const x of items) if (x.holder === r.id && x.kind === 'light') x.hand = !!m.l;
+      if (m.l) guestLit.add(r.id); else guestLit.delete(r.id);
       const v = Array.isArray(m.h) && VEH.list && VEH.list[m.h[0] | 0]; if (v && v.owner === r.id) v.lamp = !!m.h[1];
     }
   }
@@ -145,6 +150,8 @@
     }
     if (!Array.isArray(m.l)) return;
     if (Array.isArray(m.vo)) VEH.setLamps(m.vo.filter(Number.isInteger));
+    if (Array.isArray(m.fl)) { lit.clear(); for (const id of m.fl) if (typeof id === 'string') lit.add(id); }
+    if (Number.isFinite(m.td) && DAY.on) { const d = ((m.td - DAY.p + 1.5) % 1) - 0.5; DAY.p = (DAY.p + d + 1) % 1; } // (the host's time; it went on a moment while this was on its way, too little to matter)
     for (const x of m.l) {
       if (!Array.isArray(x)) continue;
       const it = byU(String(x[0])); if (!it) continue;
@@ -158,7 +165,6 @@
   function guestUpdate() {
     const lit = RANGE.lightOn(), v = VEH.driving && VEH.driving(), key = (lit ? 'on' : 'off') + (v ? v.i + (v.lamp ? '+' : '-') : '');
     if (key !== lastHand && NET.conn && NET.conn.open) { lastHand = key; NET.conn.send(Object.assign({ t: 'ith', l: lit ? 1 : 0 }, v ? { h: [v.i, v.lamp ? 1 : 0] } : {})); }
-    for (const it of items) if (it.holder === meId() && it.kind === 'light') it.hand = lit; // (yours shows at once)
   }
 
   // Q with an item in your hands (range.js has already taken it out of them)
@@ -215,9 +221,9 @@
   function updateBeams() {
     beams.length = 0;
     if (on()) {
-      for (const it of items) {
-        if (it.kind !== 'light' || !it.holder || !it.hand) continue;
-        const e = entOf(it.holder); if (!e || !e.alive) continue;
+      for (const e of ents) {
+        if (!e.alive || !(e === P ? RANGE.lightOn() : lit.has(e.id))) continue;
+        if (e === P ? VEH.driving && VEH.driving() : (VEH.list || []).some(v => v.owner === e.id)) continue; // a driver's light is the headlights
         const o = new V3(), d = new V3(); aimOf(e, o, d); beams.push({ o, d, far: FAR, skip: e, veh: null });
       }
       for (const b of VEH.lampBeams ? VEH.lampBeams() : []) beams.push({ o: b.o, d: b.d, far: LAMP_FAR, skip: null, veh: b.v });
@@ -355,7 +361,7 @@
   }
   function update(dt) {
     if (!on()) return;
-    if (!built) { if (!READY) return; onLevel(); } // (once the level is in: its spots and ground aren't ready before)
+    if (!built) { if (!READY || (LV && LV.mesh && !TG)) return; onLevel(); } // (once the level is in: its spots and ground aren't ready before)
     if (NET.role === 'host') hostUpdate(dt); else guestUpdate();
   }
 
