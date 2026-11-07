@@ -782,6 +782,7 @@ body.touch #arthud .sw b{width:38px;height:38px}`;
   Object.defineProperty(ART, 'wmode', { get: () => wmode, configurable: true });
   Object.assign(ART, {
     toggle, update, after, key, pose, armTurn, fpvTool, heldObject, net, welcome, joinLog, toCorpse, clear,
+    wash(e, id) { if (e) clearEnt(e); dropLog(id); }, // (?dev) the shower: the paint off a character, for good
     swap() { if (on) setTool(tool === 'pen' ? 'spray' : 'pen'); },
     held: () => (on && drawT <= 0.15 && P.alive ? (wmode ? 'spray' : tool) : null), // what your body holds
     state: () => (wmode ? 3 : on && safe ? (tool === 'pen' ? 1 : 2) : 0), // what others see you hold (0: your weapons; 3: a spray can as a weapon, not safe)

@@ -5,18 +5,17 @@
 //   - Flashlights (FLASHLIGHTS of them): don't take a hand; L turns yours on and off, whatever you hold, so you can see and
 //     shoot in the dark. A cone from your eyes shows what it falls on in its own colours, with none of the light and shadow
 //     (the shaders' flashAt, index.html), and each cone has a small shadow map so it stops at what's really in the way.
-//   - Radios (RADIOS of them): don't take a hand either. With proximity voice chat on, two people carrying radios hear each
-//     other wherever they are.
+// And the shower (the level's shower: the fort's is in a corner of the courtyard): E in it washes the paint off you.
 // Whatever someone carries drops where they die. A new round puts everything back where it started.
 // Loaded after the main game script, range.js and art.js; it uses their globals (scene, P, ents, NET, RANGE, ART, ...).
 // The game calls into ITEMS (declared in index.html) from its loop, network, voice and the computer's map.
 (() => {
-  const FLASHLIGHTS = 4, RADIOS = 4, SPRAYS = 6;
+  const FLASHLIGHTS = 4, SPRAYS = 6;
   const PAINT = ['#B06455', '#E1B559', '#5A6490', '#455533', '#000000', '#FFFFFF']; // art.js's palette, in its order
-  // Their ids: s0-s5 the cans (by colour), f0-f3 the flashlights, r0-r3 the radios. The order they're laid out in, so each
-  // kind ends up spread across the level
-  const ORDER = ['s0', 'f0', 's1', 'r0', 's2', 'f1', 's3', 'r1', 's4', 'f2', 's5', 'r2', 'f3', 'r3'].filter(u => +u.slice(1) < { s: SPRAYS, f: FLASHLIGHTS, r: RADIOS }[u[0]]);
-  const kindOf = u => ({ s: 'spray', f: 'light', r: 'radio' }[u[0]]);
+  // Their ids: s0-s5 the cans (by colour), f0-f3 the flashlights. The order they're laid out in, so each kind ends up spread
+  // across the level
+  const ORDER = ['s0', 'f0', 's1', 's2', 'f1', 's3', 's4', 'f2', 's5', 'f3'].filter(u => +u.slice(1) < { s: SPRAYS, f: FLASHLIGHTS }[u[0]]);
+  const kindOf = u => ({ s: 'spray', f: 'light' }[u[0]]);
   const on = () => typeof DEV !== 'undefined' && DEV && RANGE.on && !RANGE.range && MODE !== 'drive';
 
   // ---------------------------------------------------------------- what they look like
@@ -30,19 +29,10 @@
     [body, head, sw].forEach(m => { m.castShadow = true; g.add(m); }); g.add(lens);
     return g;
   }
-  function radioMesh() {
-    const g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.13, 0.035), mat(0x3a4a3a));
-    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.12, 6), mat(0x111111));
-    const grill = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.004), mat(0x1c1c1c));
-    ant.position.set(0.024, 0.12, 0); grill.position.set(0, 0.02, 0.019);
-    [box, ant, grill].forEach(m => { m.castShadow = true; g.add(m); });
-    return g;
-  }
   function groundMesh(u) {
     const k = kindOf(u), o = new THREE.Group();
     if (k === 'spray') { const c = ART.heldObject('spray', +u.slice(1)); if (c) { c.scale.setScalar(2.4); o.add(c); } }
-    else if (k === 'light') { const l = lightMesh(); l.scale.setScalar(2.4); l.rotation.y = Math.PI / 2; o.add(l); }
-    else { const r = radioMesh(); r.scale.setScalar(2.4); o.add(r); }
+    else { const l = lightMesh(); l.scale.setScalar(2.4); l.rotation.y = Math.PI / 2; o.add(l); }
     return o;
   }
 
@@ -77,7 +67,7 @@
   let built = false;
   function build() { if (built) return; built = true; for (const it of items) { it.mesh = groundMesh(it.u); it.mesh.visible = false; scene.add(it.mesh); } }
   function onLevel() {
-    build();
+    build(); placeShower();
     const h = homes();
     items.forEach((it, i) => { it.home.copy(h[i] || new V3()); });
     reset();
@@ -114,7 +104,7 @@
       if (it.noPick) { const e = entOf(it.noPick); if (!e || !near(e, it.pos) || !e.alive) it.noPick = null; } // you dropped it: step off it first
       for (const e of pickers) {
         if (e.id === it.noPick || !near(e, it.pos)) continue;
-        if (it.kind !== 'spray' ? carried(e.id, it.kind) > 0 : (e === P ? RANGE.handsUsed() : (e.inv || []).length + carried(e.id)) >= 3) continue; // one radio and one flashlight each
+        if (it.kind !== 'spray' ? carried(e.id, it.kind) > 0 : (e === P ? RANGE.handsUsed() : (e.inv || []).length + carried(e.id)) >= 3) continue; // one flashlight each
         if (e === P) { if (!RANGE.giveItem(it.u)) continue; }
         else sendTo(e, { t: 'itg', u: it.u });
         it.holder = e.id; it.hand = false; sendT = 0;
@@ -126,7 +116,7 @@
     for (const it of items) if (it.holder === 'h' && it.kind === 'light') it.hand = lit;
     if ((sendT -= dt) <= 0 && remotes.length) {
       sendT = 0.15;
-      broadcast({ t: 'its', l: items.map(it => [it.u, it.holder || '', +it.pos.x.toFixed(2), +it.pos.y.toFixed(2), +it.pos.z.toFixed(2), it.hand ? 1 : 0]) });
+      broadcast({ t: 'its', l: items.map(it => [it.u, it.holder || '', +it.pos.x.toFixed(2), +it.pos.y.toFixed(2), +it.pos.z.toFixed(2), it.hand ? 1 : 0]), vo: VEH.lampsOff() }); // (vo: vehicles with their headlights put out)
     }
   }
   function hostMsg(r, m) {
@@ -135,8 +125,11 @@
       if (!it || it.holder !== r.id) return;
       const p = Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) ? new V3(m.p[0], m.p[1], m.p[2]) : null;
       it.pos.copy(p && p.distanceTo(r.pos) < 4 ? p : r.pos); it.holder = null; it.hand = false; it.noPick = r.id; sendT = 0;
-    } else if (m.t === 'ith') { // its flashlight: on or off
+    } else if (m.t === 'wash') { // a guest in the shower
+      if (on() && r.alive && inShower(r)) { washed(r.id); broadcast({ t: 'wa', id: r.id }); }
+    } else if (m.t === 'ith') { // its flashlight: on or off; and the headlights of what it drives (h: [vehicle, on])
       for (const x of items) if (x.holder === r.id && x.kind === 'light') x.hand = !!m.l;
+      const v = Array.isArray(m.h) && VEH.list && VEH.list[m.h[0] | 0]; if (v && v.owner === r.id) v.lamp = !!m.h[1];
     }
   }
 
@@ -150,6 +143,7 @@
       return;
     }
     if (!Array.isArray(m.l)) return;
+    if (Array.isArray(m.vo)) VEH.setLamps(m.vo.filter(Number.isInteger));
     for (const x of m.l) {
       if (!Array.isArray(x)) continue;
       const it = byU(String(x[0])); if (!it) continue;
@@ -161,8 +155,8 @@
     for (const u of RANGE.items()) { const it = byU(u); if (it && it.holder !== meId() && now - it.givenAt > 1500) RANGE.loseItem(u); }
   }
   function guestUpdate() {
-    const lit = RANGE.lightOn(), key = lit ? 'on' : 'off';
-    if (key !== lastHand && NET.conn && NET.conn.open) { lastHand = key; NET.conn.send({ t: 'ith', l: lit ? 1 : 0 }); }
+    const lit = RANGE.lightOn(), v = VEH.driving && VEH.driving(), key = (lit ? 'on' : 'off') + (v ? v.i + (v.lamp ? '+' : '-') : '');
+    if (key !== lastHand && NET.conn && NET.conn.open) { lastHand = key; NET.conn.send(Object.assign({ t: 'ith', l: lit ? 1 : 0 }, v ? { h: [v.i, v.lamp ? 1 : 0] } : {})); }
     for (const it of items) if (it.holder === meId() && it.kind === 'light') it.hand = lit; // (yours shows at once)
   }
 
@@ -175,19 +169,22 @@
     note('Dropped the spray can', 1);
   }
 
-  // ---------------------------------------------------------------- flashlights
-  // Each lit one: a cone from its holder's eyes the way they look. What the light can see is drawn from there, depth only,
-  // into one quarter of a small target (FLASH.depth): the level, the props and everyone but the holder, so the cone stops at
-  // what you see (walls, corners, posts, people), not at the walking shapes
-  const FAR = 28, RES = 256, _d = new V3(), _o = new V3(), _q = new THREE.Quaternion(), _eu = new THREE.Euler(0, 0, 0, 'YXZ');
-  const target = new THREE.WebGLRenderTarget(RES * 2, RES * 2, { depthBuffer: true, stencilBuffer: false });
-  target.depthTexture = new THREE.DepthTexture(RES * 2, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
+  // ---------------------------------------------------------------- flashlights and headlights
+  // Each lit one: a cone, from its holder's eyes the way they look, or from a headlight (vehicles.js) ahead and a little down.
+  // What the light can see is drawn from there, depth only, into one tile of a small target (FLASH.depth, four tiles across,
+  // two down): the level, the props, the vehicles and everyone but the holder, so the cone stops at what you see (walls,
+  // corners, posts, people), not at the walking shapes. More than FLASH_MAX at once: the ones nearest you
+  const FAR = 28, LAMP_FAR = 40, RES = 256, COLS = 4, _d = new V3(), _o = new V3(), _q = new THREE.Quaternion(), _eu = new THREE.Euler(0, 0, 0, 'YXZ');
+  const target = new THREE.WebGLRenderTarget(RES * COLS, RES * 2, { depthBuffer: true, stencilBuffer: false });
+  target.depthTexture = new THREE.DepthTexture(RES * COLS, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
   target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
-  FLASH.depth.value = target.depthTexture; FLASH.texel.value = 1 / (RES * 2);
-  // one material for all of it: depth only, both sides (a wall seen from behind still blocks), bodies posed (skinning only
-  // takes on a skinned mesh)
-  const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, skinning: true });
-  depthMat.onBeforeCompile = () => {}; // (not the flashlight's own shader: it reads the target it's drawing into)
+  FLASH.depth.value = target.depthTexture; FLASH.texel.value.set(1 / (RES * COLS), 1 / (RES * 2));
+  // Depth only, both sides (a wall seen from behind still blocks). Two of them: three.js r128 makes a material's shader for the
+  // first thing it draws and never looks again at whether the next one is skinned, so one material for the level and the
+  // bodies drew the bodies in their rest pose (a T). Bodies get the skinned one, mesh by mesh, so their shadows take their pose
+  const depthOpts = { colorWrite: false, side: THREE.DoubleSide };
+  const depthMat = new THREE.MeshBasicMaterial(depthOpts), depthSkin = new THREE.MeshBasicMaterial(Object.assign({ skinning: true }, depthOpts));
+  depthMat.onBeforeCompile = depthSkin.onBeforeCompile = () => {}; // (not the flashlight's own shader: it reads the target it's drawing into)
   const cams = [...Array(FLASH_MAX)].map(() => new THREE.PerspectiveCamera(46, 1, FLASH_NEAR, FAR)); // (46°: the cone, 41°, with a little over)
   function aimOf(e, o, d) {
     if (e === P) { o.copy(myEye); d.set(0, 0, -1).applyQuaternion(_q.setFromEuler(_eu.set(P.pitch, P.yaw, 0, 'YXZ'))); return; }
@@ -195,37 +192,122 @@
     o.set(e.pos.x, e.pos.y + (e.h || 1.8) * 0.85, e.pos.z);
     d.set(Math.sin(e.yaw) * cp, Math.sin(e.pitch || 0), Math.cos(e.yaw) * cp).normalize();
   }
-  // Draw a group as if it were a scene, with the depth material over everything (only a scene takes an override)
-  function drawDepth(root, cam) {
-    if (!root || !root.visible) return;
-    const was = root.isScene; root.isScene = true; root.overrideMaterial = depthMat;
+  // Draw a group as if it were a scene (only a scene renders on its own), with the depth material over everything
+  function asScene(root, cam, over) {
+    const was = root.isScene; root.isScene = true; root.overrideMaterial = over; // (null, not missing: three.js takes anything but null as an override)
     try { renderer.render(root, cam); } finally { root.isScene = was; delete root.overrideMaterial; }
   }
+  function drawDepth(root, cam) { if (root && root.visible) asScene(root, cam, depthMat); }
+  // A body (or a vehicle and whoever rides it): each mesh gets the depth material that suits it for the moment it's drawn.
+  // (A mesh that isn't drawn, a hit box, stays out)
+  const swapped = [];
+  function drawBody(root, cam) {
+    if (!root || !root.visible) return;
+    root.traverseVisible(o => {
+      if (!o.isMesh || !o.material) return;
+      const m = o.material; if (Array.isArray(m) ? !m.some(x => x.visible) : !m.visible) return;
+      swapped.push(o, m); o.material = o.isSkinnedMesh ? depthSkin : depthMat;
+    });
+    try { asScene(root, cam, null); } finally { for (let k = 0; k < swapped.length; k += 2) swapped[k].material = swapped[k + 1]; swapped.length = 0; }
+  }
+  const beams = [];
   function updateBeams() {
-    const lit = [];
-    if (on()) for (const it of items) {
-      if (it.kind !== 'light' || !it.holder || !it.hand || lit.length >= FLASH_MAX) continue;
-      const e = entOf(it.holder); if (e && e.alive) lit.push(e);
+    beams.length = 0;
+    if (on()) {
+      for (const it of items) {
+        if (it.kind !== 'light' || !it.holder || !it.hand) continue;
+        const e = entOf(it.holder); if (!e || !e.alive) continue;
+        const o = new V3(), d = new V3(); aimOf(e, o, d); beams.push({ o, d, far: FAR, skip: e, veh: null });
+      }
+      for (const b of VEH.lampBeams ? VEH.lampBeams() : []) beams.push({ o: b.o, d: b.d, far: LAMP_FAR, skip: null, veh: b.v });
+      if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
     }
-    FLASH.n.value = 0; if (!lit.length) return; // (no light while its own map is drawn)
+    FLASH.n.value = 0; if (!beams.length) return; // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
-    lit.forEach((e, i) => {
-      aimOf(e, _o, _d);
-      const cam = cams[i]; cam.position.copy(_o); cam.lookAt(_o.x + _d.x, _o.y + _d.y, _o.z + _d.z); cam.updateMatrixWorld();
-      target.viewport.set((i % 2) * RES, (i >> 1) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
-      renderer.setRenderTarget(target); renderer.clear(false, true, false);
-      drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
-      for (const o of ents) if (o !== e && o.alive) drawDepth(o === P ? P.rig && P.rig.wrap : o.mesh, cam);
-      FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
-      FLASH.pos.value[i].copy(_o); FLASH.dir.value[i].copy(_d); FLASH.far.value[i] = FAR;
+    try {
+      beams.forEach((b, i) => {
+        const cam = cams[i]; if (cam.far !== b.far) { cam.far = b.far; cam.updateProjectionMatrix(); }
+        cam.position.copy(b.o); cam.lookAt(b.o.x + b.d.x, b.o.y + b.d.y, b.o.z + b.d.z); cam.updateMatrixWorld();
+        target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
+        renderer.setRenderTarget(target); renderer.clear(false, true, false);
+        drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
+        for (const v of VEH.list || []) if (v !== b.veh && v.g) drawBody(v.g, cam);
+        for (const o of ents) if (o !== b.skip && o.alive) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam);
+        FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+        FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = b.far;
+      });
+    } finally { renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac; }
+    FLASH.n.value = beams.length;
+  }
+
+  // ---------------------------------------------------------------- the shower
+  // A tray, a pipe up the wall to a head, taps and a curtain on a rail. Stand in it and E washes every bit of paint off you
+  // (art.js forgets it, for everyone, players who join later too). A guest asks the host, who checks they're in it and tells
+  // everyone; the water runs for whoever washes, where everyone can see it
+  const WASH_R = 0.9, WATER_T = 2.2;
+  let shower = null; // { at: V3 (the middle of the tray, on the floor), g: the mesh, water, t: how long the water still runs }
+  function showerMesh() {
+    const g = new THREE.Group(), m = c => toonMat({ color: c });
+    const chrome = m(0xaab2b8), add = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+    // (built facing -z with the wall behind at +z; the level's yaw turns it)
+    add(new THREE.BoxGeometry(1.0, 0.07, 1.0), m(0xdfe6ea), 0, 0.035, 0).receiveShadow = true;
+    add(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 16), m(0x3a3f44), 0, 0.075, 0.05);
+    add(new THREE.CylinderGeometry(0.022, 0.022, 2.2, 10), chrome, 0, 1.1, 0.45);
+    add(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 8).rotateX(Math.PI / 2), chrome, 0, 2.2, 0.28);
+    add(new THREE.CylinderGeometry(0.06, 0.1, 0.05, 16), chrome, 0, 2.16, 0.11);
+    [[-0.09, 0xc8463a], [0.09, 0x3a6ec8]].forEach(([x, c]) => add(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 10).rotateX(Math.PI / 2), m(c), x, 1.15, 0.41));
+    for (const [x, z, w, d] of [[0, -0.5, 1.02, 0.025], [-0.5, 0, 0.025, 1.0], [0.5, 0, 0.025, 1.0]]) add(new THREE.BoxGeometry(w, 0.025, d), chrome, x, 2.3, z);
+    const curtain = add(new THREE.BoxGeometry(0.02, 1.85, 0.95), m(0x8fbcd0), -0.49, 1.33, -0.02); curtain.material.side = THREE.DoubleSide;
+    // the water: streaks falling from the head to the tray
+    const N = 36, pos = new Float32Array(N * 6), geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const water = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xcfeaff, transparent: true, opacity: 0.7 }));
+    water.frustumCulled = false; water.visible = false; water.userData.seed = [...Array(N)].map(() => [Math.random() * 0.16 - 0.08, Math.random() * 0.16 - 0.08, Math.random()]);
+    g.add(water);
+    return { g, water };
+  }
+  function placeShower() {
+    if (shower) { scene.remove(shower.g); shower = null; }
+    const d = typeof LV !== 'undefined' && LV && LV.shower; if (!d) return;
+    const { g, water } = showerMesh(); g.position.set(d[0], d[1], d[2]); g.rotation.y = d[3] || 0; scene.add(g);
+    shower = { at: new V3(d[0], d[1], d[2]), g, water, t: 0 };
+  }
+  const inShower = e => !!shower && !!e && Math.hypot(e.pos.x - shower.at.x, e.pos.z - shower.at.z) < WASH_R && Math.abs(e.pos.y - shower.at.y) < 1.2;
+  const nearShower = () => on() && P.alive && !VEH.riding && inShower(P);
+  let washT = 0;
+  function useShower() {
+    if (!nearShower() || washT > 0) return false;
+    washT = 1;
+    if (NET.role === 'host') { washed('h'); broadcast({ t: 'wa', id: 'h' }); }
+    else { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'wash' }); runWater(); }
+    return true;
+  }
+  function washed(id) { // the paint off whoever it is, and the water on
+    const e = entOf(id); ART.wash(e, id);
+    runWater(); if (e === P) note('All clean', 1.5);
+  }
+  function runWater() {
+    if (!shower) return;
+    shower.t = WATER_T;
+    if (typeof AC !== 'undefined' && AC && typeof noiseBuf !== 'undefined') { const v = vol(shower.at, 30); if (v > 0.02) for (let k = 0; k < 4; k++) noise(AC.currentTime + k * 0.5, 0.7, 0.05 * v, 7000, 4000); }
+  }
+  function waterTick(dt) {
+    if (!shower) return;
+    shower.g.visible = on();
+    washT = Math.max(0, washT - dt);
+    const w = shower.water; w.visible = shower.t > 0 && on(); if (!w.visible) return;
+    shower.t -= dt;
+    const p = w.geometry.attributes.position, now = performance.now() / 1000, top = 2.12;
+    w.userData.seed.forEach(([x, z, ph], i) => {
+      const f = (now * 1.6 + ph) % 1, y = top - f * (top - 0.1), sp = 1 + f * 2.2; // a streak falls and spreads a little
+      p.setXYZ(i * 2, x * sp, y, 0.11 + z * sp); p.setXYZ(i * 2 + 1, x * sp, Math.max(0.08, y - 0.28), 0.11 + z * sp);
     });
-    renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac;
-    FLASH.n.value = lit.length;
+    p.needsUpdate = true; w.material.opacity = 0.7 * Math.min(1, shower.t / 0.4);
   }
 
   // ---------------------------------------------------------------- what you see
   function after(dt) {
+    waterTick(dt);
     const live = on(), now = performance.now();
     for (const it of items) {
       if (!it.mesh) continue;
@@ -240,11 +322,9 @@
     if (NET.role === 'host') hostUpdate(dt); else guestUpdate();
   }
 
-  // ---------------------------------------------------------------- for the computer's map and the voice chat
-  const mapMarks = () => (on() ? items.filter(it => it.kind !== 'radio').map(it => ({ kind: it.kind, colour: it.kind === 'spray' ? PAINT[it.c] : '#ffd23f', x: it.pos.x, z: it.pos.z })) : []);
-  const radioOf = id => items.some(it => it.kind === 'radio' && it.holder === id);
-  const radioPair = e => on() && !!e && radioOf(meId()) && radioOf(e.id);
+  // ---------------------------------------------------------------- for the computer's map
+  const mapMarks = () => (on() ? items.map(it => ({ kind: it.kind, colour: it.kind === 'spray' ? PAINT[it.c] : '#ffd23f', x: it.pos.x, z: it.pos.z })) : []);
 
   Object.defineProperty(ITEMS, 'on', { get: on, configurable: true });
-  Object.assign(ITEMS, { update, after, drop, onLevel, reset, hostMsg, guestMsg, mapMarks, radioPair });
+  Object.assign(ITEMS, { update, after, drop, onLevel, reset, hostMsg, guestMsg, mapMarks, nearShower, useShower, washed });
 })();

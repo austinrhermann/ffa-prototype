@@ -29,7 +29,8 @@ With `?dev` the game opens on the new, streamlined start instead. It replaces th
 - **Spray cans** (one per colour: red, yellow, blue, green, black, white): click sprays, right-click draws a fine line. There's no draw mode any more (P does nothing), and holding a can doesn't keep you safe.
 - **Flashlights** (4) don't take a hand: once you've found one, L turns it on or off, so it lights the way for whatever you're holding. Its cone shows what it falls on in its own colours, without the look's light and shadow. Each lit one draws a small shadow map (what it can see, from your eyes), so it stops at whatever is really in the way: walls, corners, posts, people.
 - **The fort's tunnel** (bunker to cellar) is dark: no bulbs, no light. You need a flashlight down there.
-- **Radios** (4) don't take a hand. Proximity voice chat starts on, and two people carrying radios hear each other however far apart they are.
+- **Headlights**: the truck has two and the motorcycle one. They come on when someone drives (a bot too), pointing a little down, and L at the wheel turns them off and on. They work like the flashlights, shadow map and all; up to eight lights at once, the nearest ones to you if there are more.
+- **The shower**, in a shady corner of the fort's courtyard: stand in it and press E to wash all the paint off you (everyone sees you come out clean, and players who join later never see that paint).
 - Whatever someone carries drops where they die, and a new round puts everything back. The host keeps track of all of it (`items.js`), and the items' places are worked out from the level's ammo, spawn and weapon spots.
 - **The computer** (E) takes your view to its screen, which fills 80% of the height. The map shows your side as green plus signs (you ringed in white), everyone else red, the spray cans as triangles in their colours and the flashlights as yellow dots. The gate is only worked at the gate now.
 

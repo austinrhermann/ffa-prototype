@@ -379,9 +379,9 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt class="nohot">1–6, wheel</dt><dd class="nohot">Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns and spray cans (one per colour: click sprays). Walk over something to pick it up</dd>
-      <dt class="hotonly">L</dt><dd class="hotonly">Flashlight on or off (once you've found one: it rides along like the radio and lights the way for whatever you hold)</dd>
+      <dt class="hotonly">L</dt><dd class="hotonly">Flashlight on or off (once you've found one: it rides along without taking a hand and lights the way for whatever you hold). At the wheel, L turns the headlights on or off</dd>
+      <dt class="hotonly">Shower</dt><dd class="hotonly">In the courtyard: stand in it and press E to wash the paint off you</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
-      <dt class="hotonly">Radio</dt><dd class="hotonly">Pick one up and it rides along without taking a hand: anyone else carrying one hears you however far away you are</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt class="nohot">P</dt><dd class="nohot">Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
       <dt>M</dt><dd>Mute or unmute your mic</dd>
@@ -551,18 +551,19 @@ float sunAt(vec3 p) {
   return mix(sunSlice(c, s0), sunSlice(c, min(s0 + 1.0, sunGrid.y - 1.0)), g.y - s0);
 }
 `;
-// Flashlights (?dev, items.js): up to FLASH_MAX cones from people's eyes. Inside one a surface shows its own colour, the
-// texture as it is, with none of the light and shadow from the look. Each cone has a little shadow map (items.js renders
-// what the light can see into one quarter of FLASH.depth; mat: its camera), so it stops at whatever is really in the way:
-// walls, corners, people. far: how far they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 4, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: 1 / 512 } };
+// Flashlights and headlights (?dev, items.js): up to FLASH_MAX cones, from people's eyes and the front of vehicles. Inside
+// one a surface shows its own colour, the texture as it is, with none of the light and shadow from the look. Each cone has a
+// little shadow map (items.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
+// two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
+// they reach. With none on (n = 0) nothing changes.
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform float flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
   vec2 nd = lp.xy / lp.w; if (any(greaterThan(abs(nd), vec2(1.0)))) return 0.0;
-  vec2 uv = (nd * 0.5 + 0.5 + vec2(mod(float(i), 2.0), floor(float(i) / 2.0))) * 0.5;
+  vec2 uv = (nd * 0.5 + 0.5 + vec2(mod(float(i), 4.0), floor(float(i) / 4.0))) * vec2(0.25, 0.5);
   float bias = 0.06 + 0.02 * lp.w, s = 0.0;
   for (int k = 0; k < 4; k++) { vec2 o = (vec2(mod(float(k), 2.0), floor(float(k) / 2.0)) - 0.5) * flTexel; s += lp.w <= flLin(texture2D(flDepth, uv + o).r, f) + bias ? 0.25 : 0.0; }
   return s;
@@ -720,9 +721,9 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, radio: () => null, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
-const ITEMS = { on: false, update() {}, after() {}, drop() {}, guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], radioPair: () => false };
+const ITEMS = { on: false, update() {}, after() {}, drop() {}, guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], nearShower: () => false, useShower: () => false, washed() {} };
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
@@ -877,6 +878,7 @@ function levelFortress() {
     // (or the computer in the tower room) shuts it again, and a shut gate is whole again. (hp was 1000: twice as tough now)
     gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 800, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
     core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the map and the gate switch)
+    shower: [2.45, 33.5, -3.35, Math.PI / 2], // (?dev, items.js) in the courtyard's shady corner, its back to the east wall: [x, y, z, yaw]
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-66, -10, 76, 124], cell: 0.5, top: 52, bottom: 18 }, // (the whole island now, new ground and all)
@@ -2387,7 +2389,6 @@ let DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams
 document.body.classList.toggle('dev', DEV);
 // The new start flow (title page over the live level, Host Options, the character grid) is ?dev only for now
 const NEWMENU = DEV;
-if (DEV) { $('sprox').checked = true; PROX_VOICE = true; } // ?dev: proximity voice on from the start (radios carry it further: items.js)
 if (NEWMENU) document.body.classList.add('newmenu', 'pregame', 'titleon');
 let READY = false; // everything loaded: from then on the menu can switch levels
 let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
@@ -2781,10 +2782,14 @@ function loadModels() {
     }
     for (const m of MODELS) if (m.poses) computeModelGuns(m);
   });
-  // The Cargo Truck (vehicles.js draws the truck with it); without it it's built from boxes
-  const truck = parseGLB('Cargo_Truck').then(sc => VEH.setModel('truck', sc)).catch(e => console.warn('Cargo Truck model:', e));
-  // The motorcycle (the fort's, and the Sport bike in Test Drive); without it it's built from boxes
-  const bike = parseGLB('Motorcycle').then(sc => VEH.setModel('sport', sc)).catch(e => console.warn('Motorcycle model:', e));
+  // The Cargo Truck (vehicles.js draws the truck with it) and the motorcycle (the fort's, and the Sport bike in Test Drive).
+  // Without one, that vehicle is built from boxes, so a download or decode that fails tries again in the background (a few
+  // times, further apart each time) and the vehicles already out are rebuilt from the model when it comes (VEH.setModel)
+  const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => VEH.setModel(key, sc)).catch(e => {
+    console.warn(file + ' model:', e);
+    if (n < 4) setTimeout(() => vehModel(file, key, n + 1), 3000 * (n + 1));
+  });
+  const truck = vehModel('Cargo_Truck', 'truck'), bike = vehModel('Motorcycle', 'sport');
   return Promise.all([soldiers, weps, props, sets, guns, truck, bike, sunGrids, extras]);
 }
 // Level sets: the drawn version (textured) and the collision version (never drawn), fetched the first time a level needs them.
@@ -3146,7 +3151,7 @@ function heldObject(kind) {
 function updateSelfView() {
   const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
   const see = (tpK > 0.15 || bodyK > 0.5) && P.alive;
-  if (r.gear) r.gear.visible = bodyK < 0.5; // no guns and ammo on your own back in first person
+  if (r.gear) r.gear.visible = tpK > 0.15; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
   let want = RANGE.on ? RANGE.inHand() : curW;
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
@@ -4838,7 +4843,8 @@ function updateBot(b, dt) {
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
 const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, armorRay() { return null; }, inArmour() { return false; }, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
-  netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; } };
+  netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; },
+  lampBeams: () => [], lampsOff: () => [], setLamps() {}, driving: () => null };
 
 // ---------- Shooting Range (range.js fills this in) ----------
 
@@ -4880,7 +4886,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen && !DEV) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
+  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen && !DEV) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!ITEMS.useShower() && !(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   if (e.code === 'Space' && monitorOpen) toggleGate();
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
@@ -6040,6 +6046,7 @@ function updateComputer() {
   else if (near && !monitorOpen) text = 'E: use the computer';
   else if (locked && !chatOpen && !monitorOpen && (text = lockPrompt())) { /* the bunker door's lock */ }
   else if (locked && !chatOpen && nearTowerDoor(P) && TDOOR.state !== 'broken' && !isAtk(P)) text = TDOOR.state === 'open' ? 'E: close and lock the door' : 'E: open the door';
+  else if (locked && !chatOpen && ITEMS.nearShower()) text = 'E: wash off the paint';
   else if (locked && !chatOpen && gateOpen() && nearGateDoor(P)) text = gateLock > 0 ? `The broken gate can be shut in ${Math.ceil(gateLock)}s` : 'E: shut the gate';
   $('cprompt').style.display = text ? 'block' : 'none'; if (text) $('cprompt').textContent = text;
   if (monitorOpen) drawMap();
@@ -6151,6 +6158,7 @@ function applyFx(m) {
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
     case 'pt': case 'pa': ART.net(m); break; // paint
+    case 'wa': if (typeof m.id === 'string') ITEMS.washed(m.id); break; // (?dev) someone washed in the shower
     case 'mz': if (GUN_FX[m.k] && Array.isArray(m.p) && Array.isArray(m.d)) {
       const e = ents.find(o => o.id === m.i && o !== P), p = e && e.alive && e.rig && e.mesh ? botMuzzle(e, WEAPONS[m.k]) : v3(m.p);
       _muzzleFx(m.k, p, v3(m.d).normalize(), false);
@@ -6220,7 +6228,7 @@ function onGuestMsg(conn, m) {
   }
   if (!r) return;
   switch (m.t) {
-    case 'itd': case 'ith': ITEMS.hostMsg(r, m); break; // ?dev items: a guest put one down, or what's in its hands
+    case 'itd': case 'ith': case 'wash': ITEMS.hostMsg(r, m); break; // ?dev items: a guest put one down, or what's in its hands
     case 'st':
       if (m.s !== r.spawnSeq || !r.alive) break;
       r.target.set(m.p[0], m.p[1], m.p[2]); r.vel.set(m.v[0], m.v[1], m.v[2]);
@@ -6244,7 +6252,7 @@ function onGuestMsg(conn, m) {
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
-    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
+    case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'wa' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
     case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(250, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
@@ -6594,7 +6602,7 @@ function updateVoiceProximity() {
   for (const [peerId, video] of Object.entries(VOICE.els)) {
     if (!PROX_VOICE) { video.volume = 1; continue; }
     const e = entityById(VOICE.peerEntity[peerId]);
-    video.volume = e && e.pos ? (ITEMS.radioPair(e) ? 1 : proxGain(P.pos.distanceTo(e.pos))) : 1; // (?dev: two radios hear each other anywhere)
+    video.volume = e && e.pos ? proxGain(P.pos.distanceTo(e.pos)) : 1;
   }
 }
 function updateCamGrid() {
@@ -6704,10 +6712,10 @@ requestAnimationFrame(loop);
 // Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
-<script src="vehicles.js?v=24"></script>
-<script src="range.js?v=20"></script>
-<script src="art.js?v=5"></script>
-<script src="items.js?v=3"></script>
+<script src="vehicles.js?v=25"></script>
+<script src="range.js?v=21"></script>
+<script src="art.js?v=6"></script>
+<script src="items.js?v=5"></script>
 <script src="transcript.js"></script>
 </body>
 </html>

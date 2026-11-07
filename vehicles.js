@@ -117,7 +117,11 @@
     }
     MODELS[key] = m;
     Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, track: m.track, wheelR: m.wheelR });
+    refresh(key, { wheelbase: m.wheelbase, track: m.track, wheelR: m.wheelR });
   }
+  // Vehicles already out when their model arrives (the level was up before the file came in, as on a slow connection or a
+  // guest who joins at once) were built from boxes: build them again from the model, on its axles
+  function refresh(key, axles) { for (const v of list) if (v.key === key) { Object.assign(v.p, axles); rebuild(v); } }
   // A motorcycle model (tools/build_motorcycle.py): the body, the steering parts under Steer (at the front axle, its y up the
   // steering axis), the two wheels and where the rider sits. Its wheels go on the preset's axles like the truck's.
   function setBikeModel(key, sc) {
@@ -127,6 +131,7 @@
       wheelbase: wf.position.z - wb.position.z, wheelR: wf.scale.x };
     MODELS[key] = m;
     Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, wheelR: m.wheelR });
+    refresh(key, { wheelbase: m.wheelbase, wheelR: m.wheelR });
   }
   function buildBikeModel(v, m) {
     const p = v.p, L = p.wheelbase, r = p.wheelR, k = r / m.wheelR, g = new THREE.Group(), body = new THREE.Group();
@@ -263,11 +268,45 @@
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
     Object.assign(v, v.kind === 'bike' ? buildBike(v) : v.layout === 'truck' ? buildTruck(v) : buildCar(v));
+    v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
     if (v.hit) v.g.add(v.hit); // a shootable box, if the game gave it one
     if (v.dead) darken(v);
     scene.add(v.g); pose(v, 0);
   }
+  // ---------------------------------------------------------------- headlights (?dev: items.js draws them as flashlights)
+  // Each one: where it sits in the part it's fixed to (the body; a bike's on the fork, so it turns with the bars) and the way
+  // it points there: straight ahead and a little down (LAMP_DIP). The Cargo Truck's two and the motorcycle's one are measured
+  // off the models; a vehicle built from boxes has them at the front of its shape
+  const LAMP_DIP = 0.12;
+  function lampsOf(v) {
+    const o = (v.kind === 'bike' && v.fork) || v.body || v.g, bike = v.kind === 'bike';
+    v.g.updateMatrixWorld(true);
+    const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
+    let at;
+    if (v.model && v.layout === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
+    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.06, 0.68]];
+    else if (bike) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.15]];
+    else {
+      const b = new THREE.Box3(), gi = new THREE.Matrix4().copy(v.g.matrixWorld).invert(), bb = new THREE.Box3();
+      v.g.traverse(m => { if (m.isMesh && m.geometry) { if (!m.geometry.boundingBox) m.geometry.computeBoundingBox(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(gi, m.matrixWorld))); } });
+      if (b.isEmpty()) return [];
+      at = [1, -1].map(sd => [sd * (b.max.x - b.min.x) * 0.3, b.min.y + (b.max.y - b.min.y) * 0.3, b.max.z + 0.05]);
+    }
+    const d = new V3(0, -Math.sin(LAMP_DIP), Math.cos(LAMP_DIP)).transformDirection(M);
+    return at.map(a => ({ o, p: new V3(a[0], a[1], a[2]).applyMatrix4(M), d: d.clone() }));
+  }
+  // The lit ones, in the world: [{ o: where, d: which way, v: the vehicle }]. They're on while someone (or a bot) drives, unless the driver
+  // has put them out (L at the wheel)
+  function lampBeams() {
+    const out = [];
+    for (const v of list) {
+      if (v.dead || !v.lamp || !v.lamps || !(v.owner || v.npc || v.npcBusy)) continue;
+      for (const l of v.lamps) { l.o.updateWorldMatrix(true, false); out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), v }); }
+    }
+    return out;
+  }
+
   // Wrecked: a model swaps to its wreck (burnt darker, on its own wheels); anything else just goes dark
   function darken(v) {
     if (v.wreckMesh) { v.shell.visible = false; v.wreckMesh.visible = true; v.steerWheel.parent.visible = false; v.wheels.forEach(w => { w.piv.visible = false; }); }
@@ -330,7 +369,7 @@
     const pr = PRESETS[key];
     const v = { i: list.length, key, kind: pr.kind, layout: pr.layout, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
       pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, npc: null, npcBusy: false, dead: false, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
-    list.push(v); rebuild(v); place(v); return v;
+    v.lamp = true; list.push(v); rebuild(v); place(v); return v;
   }
   function clearAll() { for (const v of list) scene.remove(v.g); list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
   function spawnLot(lot) { clearAll(); for (const [key, x, z, yaw] of lot) make(key, x, z, yaw); }
@@ -1137,6 +1176,10 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     armorRay,
     inArmour: id => list.some(v => v.model && v.layout === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
+    lampBeams, // (?dev) the headlights: on or off, for items.js and its messages
+    lampsOff: () => list.filter(v => !v.lamp).map(v => v.i),
+    setLamps(off) { for (const v of list) if (v !== cur) v.lamp = !off.includes(v.i); },
+    driving: () => cur,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
     lenOf,
     // Boxes round the body ({ c: centre, h: half sizes }, in the vehicle's frame)
@@ -1153,6 +1196,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       }
       if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
+      if (cur && code === 'KeyL' && typeof DEV !== 'undefined' && DEV) { cur.lamp = !cur.lamp; sBeep(cur.lamp ? 900 : 600); return true; } // (?dev) the headlights
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
     },
