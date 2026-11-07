@@ -380,7 +380,7 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt class="nohot">1–6, wheel</dt><dd class="nohot">Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
       <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns and spray cans (one per colour: click sprays). Walk over something to pick it up</dd>
       <dt class="hotonly">L</dt><dd class="hotonly">Your flashlight on or off (everyone has one: it lights the way for whatever you hold). In a vehicle it's your headlights: get in with it on and they come on</dd>
-      <dt class="hotonly">Day</dt><dd class="hotonly">The sun goes round every two minutes. At night only the moon's faint light, flashlights and headlights show you anything (bots put theirs on too)</dd>
+      <dt class="hotonly">Day</dt><dd class="hotonly">The sun goes round every five minutes. At night only the moon's faint light, flashlights and headlights show you anything (bots put theirs on too)</dd>
       <dt class="hotonly">Shower</dt><dd class="hotonly">In the courtyard: stand in it and press E to wash the paint off you (the mirror beside it shows how you look)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
@@ -696,7 +696,7 @@ function setSky(on, sky = LOOK.sky, top = LOOK.top) {
 // grid for what moves, SUN.on) and the fort casts real-time ones like everything else, from a bigger shadow map.
 // The host keeps the time (DAY.p, 0 sunrise, 0.5 sunset) and sends it with items.js's 'its'; DAY.dark puts the bots'
 // flashlights on, and the headlights of the vehicles they drive.
-const DAY_LEN = 120, MOON_EL = 40 * Math.PI / 180, MOON = '#33496f';
+const DAY_LEN = 300, MOON_EL = 40 * Math.PI / 180, MOON = '#33496f';
 const DAY = { on: false, p: null, dark: false, el: 90, gunSun: 1, gunT: 0, set: null };
 const _UP = new THREE.Vector3(0, 1, 0), _dc4 = new THREE.Vector3(), _dS = new THREE.Vector3(), _dM = new THREE.Vector3(), _dc = [new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()];
 // The sun's path for the look and the level: sets toward the teams' start (or wherever the look's sun is, on a level without one)
