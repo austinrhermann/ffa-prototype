@@ -24,10 +24,11 @@ With `?dev` the game opens on the new, streamlined start instead. It replaces th
 
 ### In the game (`?dev` only for now)
 
-- **Your three hands** (1–3, the wheel) hold guns, spray cans and flashlights. Walk over something to pick it up; Q drops what's in your hands.
+- **Your three hands** (1–3, the wheel) hold guns and spray cans. Walk over something to pick it up; Q drops what's in your hands.
 - **X is the knife and F the grenade.** Hold F to cook it and let go to throw. Right-click while holding F to make it a mine instead (its fuse stops); let go to set it down where you're looking. Either way you're back to what you had in your hands.
 - **Spray cans** (one per colour: red, yellow, blue, green, black, white): click sprays, right-click draws a fine line. There's no draw mode any more (P does nothing), and holding a can doesn't keep you safe.
-- **Flashlights** (4): click turns one on or off. Its cone shows what it falls on in its own colours, without the look's light and shadow. It stops a little past the first wall down its middle, so it doesn't shine through it; the edges of the cone can still reach past a corner.
+- **Flashlights** (4) don't take a hand: once you've found one, L turns it on or off, so it lights the way for whatever you're holding. Its cone shows what it falls on in its own colours, without the look's light and shadow. Each lit one draws a small shadow map (what it can see, from your eyes), so it stops at whatever is really in the way: walls, corners, posts, people.
+- **The fort's tunnel** (bunker to cellar) is dark: no bulbs, no light. You need a flashlight down there.
 - **Radios** (4) don't take a hand. Proximity voice chat starts on, and two people carrying radios hear each other however far apart they are.
 - Whatever someone carries drops where they die, and a new round puts everything back. The host keeps track of all of it (`items.js`), and the items' places are worked out from the level's ammo, spawn and weapon spots.
 - **The computer** (E) takes your view to its screen, which fills 80% of the height. The map shows your side as green plus signs (you ringed in white), everyone else red, the spray cans as triangles in their colours and the flashlights as yellow dots. The gate is only worked at the gate now.

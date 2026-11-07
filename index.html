@@ -378,7 +378,8 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt class="hotonly">F</dt><dd class="hotonly">Grenade (takes an F battery): hold to cook, let go to throw. Right-click while holding F and it's a mine: let go to set it down</dd>
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt class="nohot">1–6, wheel</dt><dd class="nohot">Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
-      <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns, spray cans (one per colour: click sprays) and flashlights (click: on or off). Walk over something to pick it up</dd>
+      <dt class="hotonly">1–3, wheel</dt><dd class="hotonly">What's in your three hands: guns and spray cans (one per colour: click sprays). Walk over something to pick it up</dd>
+      <dt class="hotonly">L</dt><dd class="hotonly">Flashlight on or off (once you've found one: it rides along like the radio and lights the way for whatever you hold)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt class="hotonly">Radio</dt><dd class="hotonly">Pick one up and it rides along without taking a hand: anyone else carrying one hears you however far away you are</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
@@ -551,23 +552,35 @@ float sunAt(vec3 p) {
 }
 `;
 // Flashlights (?dev, items.js): up to FLASH_MAX cones from people's eyes. Inside one a surface shows its own colour, the
-// texture as it is, with none of the light and shadow from the look. far: where each cone stops (short of the first wall
-// down its middle, so it doesn't shine through it). With none on (n = 0) nothing changes.
-const FLASH_MAX = 4, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) } };
+// texture as it is, with none of the light and shadow from the look. Each cone has a little shadow map (items.js renders
+// what the light can see into one quarter of FLASH.depth; mat: its camera), so it stops at whatever is really in the way:
+// walls, corners, people. far: how far they reach. With none on (n = 0) nothing changes.
+const FLASH_MAX = 4, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: 1 / 512 } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}];
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform float flTexel;
+float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
+float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
+  vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
+  vec2 nd = lp.xy / lp.w; if (any(greaterThan(abs(nd), vec2(1.0)))) return 0.0;
+  vec2 uv = (nd * 0.5 + 0.5 + vec2(mod(float(i), 2.0), floor(float(i) / 2.0))) * 0.5;
+  float bias = 0.06 + 0.02 * lp.w, s = 0.0;
+  for (int k = 0; k < 4; k++) { vec2 o = (vec2(mod(float(k), 2.0), floor(float(k) / 2.0)) - 0.5) * flTexel; s += lp.w <= flLin(texture2D(flDepth, uv + o).r, f) + bias ? 0.25 : 0.0; }
+  return s;
+}
 float flashAt(vec3 p) {
   float k = 0.0;
   for (int i = 0; i < ${FLASH_MAX}; i++) {
     if (float(i) >= flN) break;
     vec3 v = p - flPos[i]; float d = length(v);
-    k = max(k, smoothstep(0.935, 0.97, dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] - 1.5, flFar[i], d)));
+    float c = smoothstep(0.935, 0.97, dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] - 3.0, flFar[i], d));
+    if (c > 0.0) k = max(k, c * flSeen(i, p, flFar[i]));
   }
   return k;
 }
 `;
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
@@ -581,6 +594,18 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
       reflectedLight.directDiffuse *= sunAt(vSunPos);
     #endif`).replace('#include <tonemapping_fragment>', `
     if (flN > 0.5) gl_FragColor.rgb = mix(gl_FragColor.rgb, diffuseColor.rgb + totalEmissiveRadiance, flashAt(vSunPos));
+    #include <tonemapping_fragment>`);
+};
+// Unlit materials whose vertex colours are their light (the fort's tunnel and cellar, tunnelKit's bake): in a flashlight
+// they show their own colour, without the bake. (Other unlit things, bulbs and labels, are their own colour already.)
+THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
+  if (!this.vertexColors) return;
+  Object.assign(sh.uniforms, FLASH_UNIFORMS());
+  sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+    vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+  sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
+    #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
+    if (flN > 0.5) gl_FragColor.rgb = mix(gl_FragColor.rgb, flBase, flashAt(vSunPos));
     #include <tonemapping_fragment>`);
 };
 // The same grid on the CPU (your gun takes its light from where you stand)
@@ -697,7 +722,7 @@ let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
 const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, radio: () => null, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
-const ITEMS = { on: false, update() {}, after() {}, drop() {}, heldMesh: () => new THREE.Group(), guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], radioPair: () => false };
+const ITEMS = { on: false, update() {}, after() {}, drop() {}, guestMsg() {}, hostMsg() {}, reset() {}, onLevel() {}, mapMarks: () => [], radioPair: () => false };
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
@@ -1365,7 +1390,8 @@ function tunnelKit(draw, col, cm, bake = false) {
     return o;
   };
   const box = (kind, [x0, x1, y0, y1, z0, z1], solid, open) => prism(kind, [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], solid, open);
-  const bulbM = new THREE.MeshBasicMaterial({ color: 0xffd36e }), wireM = new THREE.LineBasicMaterial({ color: 0x15110d }), bulbG = new THREE.SphereGeometry(0.075, 10, 8);
+  // ?dev: the baked tunnel (the fort's) is dark, bulbs off: you need a flashlight down there
+  const dark = bake && (() => { try { return DEV; } catch (e) { return false; } })(), bulbM = new THREE.MeshBasicMaterial({ color: dark ? 0x2b2721 : 0xffd36e }), wireM = new THREE.LineBasicMaterial({ color: 0x15110d }), bulbG = new THREE.SphereGeometry(0.075, 10, 8);
   const bulb = (x, y, z) => { const o = new THREE.Mesh(bulbG, bulbM); o.position.set(x, y, z); g.add(o); lights.push([x, y, z, 1]); };
   const bakeLight = () => { // each corner's light: a floor of 0.34 and the bulbs' glow, times how much the face looks up
     const a = new V3(), b = new V3(), c = new V3(), n = new V3();
@@ -1375,8 +1401,8 @@ function tunnelKit(draw, col, cm, bake = false) {
         a.fromBufferAttribute(pos, t); b.fromBufferAttribute(pos, t + 1); c.fromBufferAttribute(pos, t + 2); n.crossVectors(b.sub(a), c.sub(a)).normalize();
         const shade = n.y > 0.5 ? 1 : n.y < -0.5 ? 0.6 : 0.82;
         for (let k = 0; k < 3; k++) {
-          const x = pos.getX(t + k), y = pos.getY(t + k), z = pos.getZ(t + k); let br = 0.34;
-          for (const [lx, ly, lz, s] of lights) br += s * 0.9 / (1 + ((x - lx) ** 2 + (y - ly) ** 2 + (z - lz) ** 2) / 6);
+          const x = pos.getX(t + k), y = pos.getY(t + k), z = pos.getZ(t + k); let br = dark ? 0.035 : 0.34;
+          if (!dark) for (const [lx, ly, lz, s] of lights) br += s * 0.9 / (1 + ((x - lx) ** 2 + (y - ly) ** 2 + (z - lz) ** 2) / 6);
           const v = Math.min(1, br) * shade; colr.setXYZ(t + k, v, v, v);
         }
       }
@@ -3126,8 +3152,8 @@ function updateSelfView() {
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
   else
   if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
-  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : k === 'light' ? 'flashlight' : null; }
-  if (r.held !== want) { r.held = want; if (want === 'flashlight') setRigWeapon(r, want, ITEMS.heldMesh('light')); else if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
+  else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
+  if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
   if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
 }
 function updatePlayerRig(dt) {
@@ -6679,9 +6705,9 @@ requestAnimationFrame(loop);
 if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
 <script src="vehicles.js?v=24"></script>
-<script src="range.js?v=19"></script>
+<script src="range.js?v=20"></script>
 <script src="art.js?v=5"></script>
-<script src="items.js?v=1"></script>
+<script src="items.js?v=3"></script>
 <script src="transcript.js"></script>
 </body>
 </html>

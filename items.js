@@ -2,10 +2,11 @@
 // and tells everyone; a player picks one up by walking over it, as with a weapon.
 //   - Spray cans: one per colour (art.js's six), each a thing on its own, so a picture in several colours takes some
 //     finding. One takes a hand (range.js); click sprays, right-click draws a fine line.
-//   - Flashlights (FLASHLIGHTS of them): take a hand; while it's in your hands and on (click), a cone from your eyes shows
-//     what it falls on in its own colours, with none of the light and shadow (the toon shader's flashAt, index.html).
-//   - Radios (RADIOS of them): don't take a hand. With proximity voice chat on, two people carrying radios hear each other
-//     wherever they are.
+//   - Flashlights (FLASHLIGHTS of them): don't take a hand; L turns yours on and off, whatever you hold, so you can see and
+//     shoot in the dark. A cone from your eyes shows what it falls on in its own colours, with none of the light and shadow
+//     (the shaders' flashAt, index.html), and each cone has a small shadow map so it stops at what's really in the way.
+//   - Radios (RADIOS of them): don't take a hand either. With proximity voice chat on, two people carrying radios hear each
+//     other wherever they are.
 // Whatever someone carries drops where they die. A new round puts everything back where it started.
 // Loaded after the main game script, range.js and art.js; it uses their globals (scene, P, ents, NET, RANGE, ART, ...).
 // The game calls into ITEMS (declared in index.html) from its loop, network, voice and the computer's map.
@@ -68,7 +69,7 @@
   }
 
   // ---------------------------------------------------------------- the items (everyone's copy; the host's is the one that counts)
-  // holder: the id of whoever carries it (null: on the ground at pos). hand: it's in their hands and, for a flashlight, on
+  // holder: the id of whoever carries it (null: on the ground at pos). hand: for a flashlight, it's on
   const items = ORDER.map(u => ({ u, kind: kindOf(u), c: u[0] === 's' ? +u.slice(1) : -1, home: new V3(), pos: new V3(), holder: null, hand: false, mesh: null, noPick: null, givenAt: 0 }));
   const byU = u => items.find(it => it.u === u);
   const meId = () => (NET.role === 'host' ? 'h' : NET.myId);
@@ -90,7 +91,7 @@
   // ---------------------------------------------------------------- the host
   let sendT = 0;
   const near = (e, p) => Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.1 && Math.abs(e.pos.y - p.y) < 1.3;
-  const carried = (id, k) => items.filter(it => it.holder === id && (k ? it.kind === k : it.kind !== 'radio')).length;
+  const carried = (id, k) => items.filter(it => it.holder === id && (k ? it.kind === k : it.kind === 'spray')).length; // (only a spray can takes a hand)
   // On the ground near where e is, a step ahead of them
   function dropSpot(e, ahead) {
     const f = e === P ? new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)) : fwdOf(e), x = e.pos.x + f.x * ahead, z = e.pos.z + f.z * ahead;
@@ -113,16 +114,16 @@
       if (it.noPick) { const e = entOf(it.noPick); if (!e || !near(e, it.pos) || !e.alive) it.noPick = null; } // you dropped it: step off it first
       for (const e of pickers) {
         if (e.id === it.noPick || !near(e, it.pos)) continue;
-        if (it.kind === 'radio' ? carried(e.id, 'radio') > 0 : (e === P ? RANGE.handsUsed() : (e.inv || []).length + carried(e.id)) >= 3) continue;
+        if (it.kind !== 'spray' ? carried(e.id, it.kind) > 0 : (e === P ? RANGE.handsUsed() : (e.inv || []).length + carried(e.id)) >= 3) continue; // one radio and one flashlight each
         if (e === P) { if (!RANGE.giveItem(it.u)) continue; }
         else sendTo(e, { t: 'itg', u: it.u });
         it.holder = e.id; it.hand = false; sendT = 0;
         break;
       }
     }
-    // what's in your own hands
-    const hu = RANGE.handItem(), lit = RANGE.lightOn();
-    for (const it of items) if (it.holder === 'h') it.hand = it.u === hu && (it.kind !== 'light' || lit);
+    // your own flashlight: on or off
+    const lit = RANGE.lightOn();
+    for (const it of items) if (it.holder === 'h' && it.kind === 'light') it.hand = lit;
     if ((sendT -= dt) <= 0 && remotes.length) {
       sendT = 0.15;
       broadcast({ t: 'its', l: items.map(it => [it.u, it.holder || '', +it.pos.x.toFixed(2), +it.pos.y.toFixed(2), +it.pos.z.toFixed(2), it.hand ? 1 : 0]) });
@@ -134,8 +135,8 @@
       if (!it || it.holder !== r.id) return;
       const p = Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) ? new V3(m.p[0], m.p[1], m.p[2]) : null;
       it.pos.copy(p && p.distanceTo(r.pos) < 4 ? p : r.pos); it.holder = null; it.hand = false; it.noPick = r.id; sendT = 0;
-    } else if (m.t === 'ith') { // what it holds in its hands (a flashlight: on or off)
-      for (const x of items) if (x.holder === r.id) x.hand = !!it && x === it && !!m.on;
+    } else if (m.t === 'ith') { // its flashlight: on or off
+      for (const x of items) if (x.holder === r.id && x.kind === 'light') x.hand = !!m.l;
     }
   }
 
@@ -160,9 +161,9 @@
     for (const u of RANGE.items()) { const it = byU(u); if (it && it.holder !== meId() && now - it.givenAt > 1500) RANGE.loseItem(u); }
   }
   function guestUpdate() {
-    const hu = RANGE.handItem(), lit = RANGE.lightOn(), it = hu && byU(hu), key = it ? hu + (it.kind !== 'light' || lit ? 1 : 0) : '';
-    if (key !== lastHand && NET.conn && NET.conn.open) { lastHand = key; NET.conn.send({ t: 'ith', u: hu || '', on: it ? (it.kind !== 'light' || lit) : false }); }
-    if (it) it.hand = it.kind !== 'light' || lit;
+    const lit = RANGE.lightOn(), key = lit ? 'on' : 'off';
+    if (key !== lastHand && NET.conn && NET.conn.open) { lastHand = key; NET.conn.send({ t: 'ith', l: lit ? 1 : 0 }); }
+    for (const it of items) if (it.holder === meId() && it.kind === 'light') it.hand = lit; // (yours shows at once)
   }
 
   // Q with an item in your hands (range.js has already taken it out of them)
@@ -171,37 +172,59 @@
     const p = dropSpot(P, 1.2);
     if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'itd', u, p: [p.x, p.y, p.z] }); it.holder = null; it.pos.copy(p); return; }
     it.pos.copy(p); it.holder = null; it.hand = false; it.noPick = 'h'; sendT = 0;
-    note(`Dropped the ${it.kind === 'spray' ? 'spray can' : 'flashlight'}`, 1);
+    note('Dropped the spray can', 1);
   }
 
   // ---------------------------------------------------------------- flashlights
-  // Each lit one: a cone from its holder's eyes the way they look, stopped a little past the first wall down its middle
-  const FAR = 28, ray = new THREE.Raycaster(), _d = new V3(), _o = new V3();
-  const beams = new Map(); // item -> { far, t }
+  // Each lit one: a cone from its holder's eyes the way they look. What the light can see is drawn from there, depth only,
+  // into one quarter of a small target (FLASH.depth): the level, the props and everyone but the holder, so the cone stops at
+  // what you see (walls, corners, posts, people), not at the walking shapes
+  const FAR = 28, RES = 256, _d = new V3(), _o = new V3(), _q = new THREE.Quaternion(), _eu = new THREE.Euler(0, 0, 0, 'YXZ');
+  const target = new THREE.WebGLRenderTarget(RES * 2, RES * 2, { depthBuffer: true, stencilBuffer: false });
+  target.depthTexture = new THREE.DepthTexture(RES * 2, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
+  target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
+  FLASH.depth.value = target.depthTexture; FLASH.texel.value = 1 / (RES * 2);
+  // one material for all of it: depth only, both sides (a wall seen from behind still blocks), bodies posed (skinning only
+  // takes on a skinned mesh)
+  const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, skinning: true });
+  depthMat.onBeforeCompile = () => {}; // (not the flashlight's own shader: it reads the target it's drawing into)
+  const cams = [...Array(FLASH_MAX)].map(() => new THREE.PerspectiveCamera(46, 1, FLASH_NEAR, FAR)); // (46°: the cone, 41°, with a little over)
   function aimOf(e, o, d) {
-    if (e === P) { camera.getWorldPosition(o); if (o.distanceTo(myEye) > 0.3) o.copy(myEye); d.set(0, 0, -1).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(P.pitch, P.yaw, 0, 'YXZ'))); return; }
+    if (e === P) { o.copy(myEye); d.set(0, 0, -1).applyQuaternion(_q.setFromEuler(_eu.set(P.pitch, P.yaw, 0, 'YXZ'))); return; }
     const cp = Math.cos(e.pitch || 0);
     o.set(e.pos.x, e.pos.y + (e.h || 1.8) * 0.85, e.pos.z);
     d.set(Math.sin(e.yaw) * cp, Math.sin(e.pitch || 0), Math.cos(e.yaw) * cp).normalize();
   }
-  function updateBeams(dt) {
-    let n = 0;
+  // Draw a group as if it were a scene, with the depth material over everything (only a scene takes an override)
+  function drawDepth(root, cam) {
+    if (!root || !root.visible) return;
+    const was = root.isScene; root.isScene = true; root.overrideMaterial = depthMat;
+    try { renderer.render(root, cam); } finally { root.isScene = was; delete root.overrideMaterial; }
+  }
+  function updateBeams() {
+    const lit = [];
     if (on()) for (const it of items) {
-      if (it.kind !== 'light' || !it.holder || !it.hand || n >= FLASH_MAX) { beams.delete(it); continue; }
-      const e = entOf(it.holder); if (!e || !e.alive) continue;
-      aimOf(e, _o, _d);
-      let b = beams.get(it); if (!b) { b = { far: FAR, t: 0 }; beams.set(it, b); }
-      if ((b.t -= dt) <= 0) { // the first wall down the middle (a tenth of a second at a time)
-        b.t = 0.1; ray.set(_o, _d); ray.far = FAR;
-        const h = castShotLevel(ray, [...W.meshes, ...W.floors]); b.far = h ? Math.min(FAR, h.distance + 0.6) : FAR;
-      }
-      FLASH.pos.value[n].copy(_o); FLASH.dir.value[n].copy(_d); FLASH.far.value[n] = b.far; n++;
+      if (it.kind !== 'light' || !it.holder || !it.hand || lit.length >= FLASH_MAX) continue;
+      const e = entOf(it.holder); if (e && e.alive) lit.push(e);
     }
-    FLASH.n.value = n;
+    FLASH.n.value = 0; if (!lit.length) return; // (no light while its own map is drawn)
+    const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
+    renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
+    lit.forEach((e, i) => {
+      aimOf(e, _o, _d);
+      const cam = cams[i]; cam.position.copy(_o); cam.lookAt(_o.x + _d.x, _o.y + _d.y, _o.z + _d.z); cam.updateMatrixWorld();
+      target.viewport.set((i % 2) * RES, (i >> 1) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
+      renderer.setRenderTarget(target); renderer.clear(false, true, false);
+      drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
+      for (const o of ents) if (o !== e && o.alive) drawDepth(o === P ? P.rig && P.rig.wrap : o.mesh, cam);
+      FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      FLASH.pos.value[i].copy(_o); FLASH.dir.value[i].copy(_d); FLASH.far.value[i] = FAR;
+    });
+    renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac;
+    FLASH.n.value = lit.length;
   }
 
   // ---------------------------------------------------------------- what you see
-  const lightVM = new THREE.Group(); lightVM.add(lightMesh()); lightVM.position.set(0.2, -0.2, -0.42); lightVM.rotation.set(0.05, 0.08, 0); lightVM.visible = false; vmScene.add(lightVM);
   function after(dt) {
     const live = on(), now = performance.now();
     for (const it of items) {
@@ -209,20 +232,11 @@
       it.mesh.visible = live && !it.holder;
       if (it.mesh.visible) { it.mesh.position.set(it.pos.x, it.pos.y + 0.55 + Math.sin(now / 350 + it.home.x) * 0.06, it.pos.z); it.mesh.rotation.y += dt * 1.5; }
     }
-    // your flashlight, in first person
-    lightVM.visible = live && RANGE.handKind() === 'light' && P.alive && tpK < 0.5 && bodyK < 0.5 && !VEH.riding;
-    // other people's flashlights, in their hands
-    for (const e of ents) {
-      if (e === P || !e.rig) continue;
-      const rg = e.rig, has = live && e.alive && items.some(it => it.kind === 'light' && it.holder === e.id && it.hand);
-      if (has) { if (rg.itKind !== 'light' || rg.gunVis !== rg.itVis) { setRigWeapon(rg, 'flashlight', lightMesh()); rg.itKind = 'light'; rg.itVis = rg.gunVis; } }
-      else if (rg.itKind) { rg.itKind = null; rg.itVis = null; if (e.wpn && WEAPONS[e.wpn]) setRigWeapon(rg, e.wpn); else if (rg.gunVis) { rg.gunBone.remove(rg.gunVis); rg.gunVis = null; } }
-    }
-    updateBeams(dt);
+    updateBeams();
   }
   function update(dt) {
     if (!on()) return;
-    if (!built) onLevel();
+    if (!built) { if (!READY) return; onLevel(); } // (once the level is in: its spots and ground aren't ready before)
     if (NET.role === 'host') hostUpdate(dt); else guestUpdate();
   }
 
@@ -232,5 +246,5 @@
   const radioPair = e => on() && !!e && radioOf(meId()) && radioOf(e.id);
 
   Object.defineProperty(ITEMS, 'on', { get: on, configurable: true });
-  Object.assign(ITEMS, { update, after, drop, onLevel, reset, hostMsg, guestMsg, mapMarks, radioPair, heldMesh: k => (k === 'light' ? lightMesh() : radioMesh()) });
+  Object.assign(ITEMS, { update, after, drop, onLevel, reset, hostMsg, guestMsg, mapMarks, radioPair });
 })();
