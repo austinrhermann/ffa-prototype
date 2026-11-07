@@ -5,7 +5,8 @@
 //   - Flashlights (FLASHLIGHTS of them): don't take a hand; L turns yours on and off, whatever you hold, so you can see and
 //     shoot in the dark. A cone from your eyes shows what it falls on in its own colours, with none of the light and shadow
 //     (the shaders' flashAt, index.html), and each cone has a small shadow map so it stops at what's really in the way.
-// And the shower (the level's shower: the fort's is in a corner of the courtyard): E in it washes the paint off you.
+// And the shower (the level's shower: the fort's is in a corner of the courtyard): E in it washes the paint off you. A
+// mirror beside it, to see what you look like.
 // Whatever someone carries drops where they die. A new round puts everything back where it started.
 // Loaded after the main game script, range.js and art.js; it uses their globals (scene, P, ents, NET, RANGE, ART, ...).
 // The game calls into ITEMS (declared in index.html) from its loop, network, voice and the computer's map.
@@ -67,7 +68,7 @@
   let built = false;
   function build() { if (built) return; built = true; for (const it of items) { it.mesh = groundMesh(it.u); it.mesh.visible = false; scene.add(it.mesh); } }
   function onLevel() {
-    build(); placeShower();
+    build(); placeShower(); placeMirror();
     const h = homes();
     items.forEach((it, i) => { it.home.copy(h[i] || new V3()); });
     reset();
@@ -292,6 +293,7 @@
     if (typeof AC !== 'undefined' && AC && typeof noiseBuf !== 'undefined') { const v = vol(shower.at, 30); if (v > 0.02) for (let k = 0; k < 4; k++) noise(AC.currentTime + k * 0.5, 0.7, 0.05 * v, 7000, 4000); }
   }
   function waterTick(dt) {
+    if (mirror) mirror.g.visible = on();
     if (!shower) return;
     shower.g.visible = on();
     washT = Math.max(0, washT - dt);
@@ -303,6 +305,41 @@
       p.setXYZ(i * 2, x * sp, y, 0.11 + z * sp); p.setXYZ(i * 2 + 1, x * sp, Math.max(0.08, y - 0.28), 0.11 + z * sp);
     });
     p.needsUpdate = true; w.material.opacity = 0.7 * Math.min(1, shower.t / 0.4);
+  }
+
+  // ---------------------------------------------------------------- the mirror
+  // three.js's Reflector: before the mirror is drawn, a second camera, the main one flipped across the mirror's plane, draws
+  // the scene into a picture the mirror shows. That's a second view of the scene, so it's only drawn when the mirror is in
+  // view (three.js leaves out what's off screen), from the main camera, near enough to see (MIRROR_NEAR). In first person
+  // your own body is never drawn (it only casts a shadow): for the reflection it is, with what's in your hands and on your back
+  const MIRROR_NEAR = 16;
+  let mirror = null;
+  function placeMirror() {
+    if (mirror) { scene.remove(mirror.g); mirror.glass.getRenderTarget().dispose(); mirror = null; }
+    const d = typeof LV !== 'undefined' && LV && LV.mirror; if (!d || !THREE.Reflector) return;
+    const [x, y, z, yaw, w, h] = d, g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw;
+    const px = Math.min(2, devicePixelRatio || 1) * 300;
+    const glass = new THREE.Reflector(new THREE.PlaneGeometry(w, h), { textureWidth: Math.round(px * w), textureHeight: Math.round(px * h), color: 0xb8bcc0, clipBias: 0.003 });
+    glass.position.z = 0.025; g.add(glass);
+    const frame = toonMat({ color: 0x5b4632 });
+    for (const [fw, fh, fx, fy] of [[w + 0.1, 0.05, 0, (h + 0.05) / 2], [w + 0.1, 0.05, 0, -(h + 0.05) / 2], [0.05, h, (w + 0.05) / 2, 0], [0.05, h, -(w + 0.05) / 2, 0]]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, 0.04), frame); b.position.set(fx, fy, 0.02); b.castShadow = true; g.add(b);
+    }
+    const draw = glass.onBeforeRender;
+    glass.onBeforeRender = function (r, sc, cam, ...rest) {
+      if (cam !== camera || !on() || cam.position.distanceTo(g.position) > MIRROR_NEAR) return;
+      const undo = showSelf();
+      try { draw.call(this, r, sc, cam, ...rest); } finally { undo(); }
+    };
+    scene.add(g); mirror = { g, glass };
+  }
+  // Your body, your gun and your gear drawn for a moment (whatever they were before comes back after)
+  function showSelf() {
+    const r = P.rig; if (!r || !P.alive) return () => {};
+    const was = r.body.map(o => [o.material.colorWrite, o.material.depthWrite]), gv = r.gunVis && r.gunVis.visible, gr = r.gear && r.gear.visible;
+    for (const o of r.body) { o.material.colorWrite = true; o.material.depthWrite = true; }
+    if (r.gunVis && !r.hideHeld) r.gunVis.visible = true; if (r.gear) r.gear.visible = true;
+    return () => { r.body.forEach((o, i) => { o.material.colorWrite = was[i][0]; o.material.depthWrite = was[i][1]; }); if (r.gunVis) r.gunVis.visible = gv; if (r.gear) r.gear.visible = gr; };
   }
 
   // ---------------------------------------------------------------- what you see

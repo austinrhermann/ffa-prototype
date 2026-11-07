@@ -31,6 +31,7 @@ With `?dev` the game opens on the new, streamlined start instead. It replaces th
 - **The fort's tunnel** (bunker to cellar) is dark: no bulbs, no light. You need a flashlight down there.
 - **Headlights**: the truck has two and the motorcycle one. They come on when someone drives (a bot too), pointing a little down, and L at the wheel turns them off and on. They work like the flashlights, shadow map and all; up to eight lights at once, the nearest ones to you if there are more.
 - **The shower**, in a shady corner of the fort's courtyard: stand in it and press E to wash all the paint off you (everyone sees you come out clean, and players who join later never see that paint).
+- **A mirror** on the wall beside the shower. It's a real reflection (three.js's Reflector: the scene drawn a second time, from the camera flipped across the glass), so you see yourself, paint and all. It only draws when it's on screen and you're within 16 m.
 - Whatever someone carries drops where they die, and a new round puts everything back. The host keeps track of all of it (`items.js`), and the items' places are worked out from the level's ammo, spawn and weapon spots.
 - **The computer** (E) takes your view to its screen, which fills 80% of the height. The map shows your side as green plus signs (you ringed in white), everyone else red, the spray cans as triangles in their colours and the flashlights as yellow dots. The gate is only worked at the gate now.
 
