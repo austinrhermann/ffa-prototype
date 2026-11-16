@@ -13,11 +13,12 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="theme-color" content="#000000">
 <style>
-:root{--hud:#eef3ea;--accent:#9dff7a;--hit:#ffffff;--head:#ff5a4f;--panel:rgba(14,18,22,.78);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--hud:#eef3ea;--accent:#9dff7a;--hit:#ffffff;--head:#ff5a4f;--panel:rgba(14,18,22,.78);box-sizing:border-box} /* (no safe-area padding here: the game fills the whole screen, round the notch and home bar too; the HUD keeps clear with env() itself) */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--panel:rgba(10,12,15,.82)}}
 :root[data-theme="dark"]{--panel:rgba(10,12,15,.82)}
-html,body{margin:0;height:100%;overflow:hidden;background:#1a1f25;color:var(--hud);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--hud);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;user-select:none}
 canvas{display:block}
+body>canvas:first-child{position:fixed;left:0;top:0}
 #hud{position:fixed;inset:0;pointer-events:none}
 .ch{position:absolute;background:var(--accent);left:50%;top:50%}
 #c1,#c2{width:2px;height:8px;margin-left:-1px}#c1{margin-top:-13px}#c2{margin-top:5px}
@@ -563,8 +564,8 @@ scene.add(camera);
 // renders' exposure (lit), shadowed ones far darker (shadow, a touch lighter than the renders' so attackers in shadow stay
 // visible); a blue haze over distance in the sky's horizon colour (sky), the sky darkening to top overhead.
 const LOOK_DEFAULT = { az: 20.8, el: 43.5, lit: '#bababa', shadow: '#34333b', edge: 0.54, soft: 0.07, sky: '#567a9b', top: '#214882' };
-let LOOK = { ...LOOK_DEFAULT };
-try { Object.assign(LOOK, JSON.parse(localStorage.getItem('fortressLook3') || '{}')); } catch (e) {}
+let LOOK = { ...LOOK_DEFAULT }; // every load starts from these (the ?dev Look panel changes them for this visit only; a guest takes the host's)
+try { localStorage.removeItem('fortressLook3'); } catch (e) {} // (the look used to be saved, and an old one could leave the fort nearly black)
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
 RAMP.magFilter = RAMP.minFilter = THREE.LinearFilter; RAMP.generateMipmaps = false;
 const toonMat = params => new THREE.MeshToonMaterial({ gradientMap: RAMP, ...params });
@@ -5742,13 +5743,13 @@ function showLook() {
 for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) $(id).oninput = e => {
   if (NET.role === 'guest') { showLook(); note('The host sets the look for everyone', 2); return; }
   const v = e.target.type === 'color' ? e.target.value : +e.target.value; LOOK[k] = v; $('o' + id).textContent = fmt(v);
-  applyLook(); try { localStorage.setItem('fortressLook3', JSON.stringify(LOOK)); } catch (err) {}
+  applyLook();
   lookSend();
 };
 $('looklink').onclick = () => { showLook(); $('overlay').classList.add('looking'); };
 $('lkback').onclick = () => $('overlay').classList.remove('looking');
 let lookT = 0; const lookSend = () => { if (NET.role === 'host' && remotes.length) { clearTimeout(lookT); lookT = setTimeout(() => netFx({ t: 'look', l: LOOK }), 120); } };
-$('lkreset').onclick = () => { if (NET.role === 'guest') { note('The host sets the look for everyone', 2); return; } LOOK = { ...LOOK_DEFAULT }; try { localStorage.removeItem('fortressLook3'); } catch (e) {} applyLook(); showLook(); lookSend(); };
+$('lkreset').onclick = () => { if (NET.role === 'guest') { note('The host sets the look for everyone', 2); return; } LOOK = { ...LOOK_DEFAULT }; applyLook(); showLook(); lookSend(); };
 $('lkcopy').onclick = () => { const t = JSON.stringify(LOOK); navigator.clipboard.writeText(t).then(() => note('Look settings copied', 1.5)).catch(() => prompt('Look settings', t)); };
 $('next').onclick = () => {
   initAudio();
@@ -6736,7 +6737,7 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (tpK < 0.5 && bodyK < 0.5 && !PREGAME && monK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (tpK < 0.5 && bodyK < 0.5 && !PREGAME && monK < 0.5 && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 </script>
