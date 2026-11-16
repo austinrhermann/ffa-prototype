@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>FFA</title>
+<!-- Added to the home screen (iOS Safari, Chrome and Firefox all share it), the game opens full screen with no browser bars -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Space Explorers">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#000000">
 <style>
 :root{--hud:#eef3ea;--accent:#9dff7a;--hit:#ffffff;--head:#ff5a4f;--panel:rgba(14,18,22,.78);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--panel:rgba(10,12,15,.82)}}
@@ -57,7 +65,7 @@ body.monscreen #cpu canvas,body.monscreen #cpuinfo,body.monscreen #rcross,body.m
 #board tr.me td{color:var(--accent)}
 #mic{position:absolute;left:18px;bottom:78px;font-size:13px;background:var(--panel);padding:4px 10px;border-radius:4px}
 #mic:empty{display:none}
-#tmic{left:calc(170px + env(safe-area-inset-left,0px))}
+#tmic{left:calc(84px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #camgrid{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:50vw}
@@ -180,10 +188,8 @@ body.touch #touch{display:block}
 #tnade{width:52px;height:52px;right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 #tuse{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 #tswap{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
-#tknife{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(36px + env(safe-area-inset-bottom,0px))}
 .tt{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));height:34px;padding:0 12px;border-radius:17px;background:var(--panel);border:1px solid rgba(238,243,234,.25);color:var(--hud);font-size:13px;display:flex;align-items:center}
 #tpause{left:calc(12px + env(safe-area-inset-left,0px))}
-#tboard{left:calc(84px + env(safe-area-inset-left,0px))}
 /* At the wheel: the gun buttons give way to Brake (handbrake, where Fire is), Reset (back on its wheels) and View; Use gets you out */
 #tbrake{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
 #treset{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
@@ -281,6 +287,38 @@ body.pregame #startover,body.pregame #leavego{display:none}
 body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
 #charcard #startover{background:none;color:#111;border:2px solid #111;border-radius:999px;padding:13px 30px;font:500 18px/1 system-ui,sans-serif}
 #charcard #startover:hover{background:#111;color:#fff}
+/* A phone held sideways: Host Options and the character card side by side, everything smaller, so it fits without scrolling */
+@media (orientation:landscape) and (max-height:540px){
+body.newmenu .menu{flex-wrap:nowrap;gap:12px;padding:10px calc(10px + env(safe-area-inset-right,0px)) 10px calc(10px + env(safe-area-inset-left,0px))}
+body.newmenu #hostcard{width:224px;flex:none;padding:14px 16px 14px}
+#hostcard h2{margin-bottom:10px;font-size:18px}
+#hostcard .hopt{margin-bottom:9px}
+#hostcard h3{margin-bottom:5px;font-size:15px}
+#hostcard .hseg{gap:4px}
+#hostcard .hseg button{padding:6px 10px;font-size:13px}
+#hostcard small{margin-top:4px;font-size:11.5px}
+#hostcard #hinvite{margin-top:2px;padding:9px;font-size:14px}
+body.newmenu #charcard{width:auto;flex:1 1 auto;min-width:0;max-width:600px;padding:14px 18px}
+body.newmenu #charcard .crow{margin-bottom:10px}
+body.newmenu #charcard .crow label,body.newmenu #charcard .clabel{font-size:17px}
+body.newmenu #charcard .clabel{margin-bottom:8px}
+body.newmenu #charcard input#pname{padding:4px 8px;font-size:17px}
+body.newmenu #cpick{gap:8px 18px}
+.ctiles{grid-template-columns:repeat(4,56px);gap:6px}
+#charcard .ctile{width:56px;height:66px}
+.ctile .ctag{padding:3px 2px;font-size:10px}
+body.newmenu .cfoot{margin-top:12px}
+#charcard #joingo{padding:11px 36px;font-size:17px}
+#charcard #startover{padding:9px 22px;font-size:15px}
+body.newmenu .clinks{margin-top:6px}
+body.newmenu #charcard #chatlog{height:56px}
+body.newmenu #charcard #chatbox{margin-top:10px}
+body.newmenu #charcard #chatbox>label{font-size:17px}
+}
+/* iOS can't go full screen from a web page: point to Add to Home Screen (on the title page, or a guest's start page, and only in the browser) */
+#fshint{display:none;position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:31;max-width:calc(100vw - 32px);box-sizing:border-box;padding:7px 8px 7px 14px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font:500 13px/1.3 system-ui,sans-serif;align-items:center;gap:10px}
+body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
+#fshint button{flex:none;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font:600 15px/1 system-ui,sans-serif;cursor:pointer}
 @media (max-width:420px){.ctiles{grid-template-columns:repeat(2,76px)}#charcard .ctile{width:76px;height:88px}body.newmenu #charcard{padding:22px 18px}}
 </style>
 </head>
@@ -311,16 +349,15 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
   <div class="tb gun" id="taim" data-act="aim">Aim</div>
   <div class="tb gun" id="tnade" data-act="nade">Frag</div>
   <div class="tb" id="tuse" data-act="use">Use</div>
-  <div class="tb gun" id="tknife" data-act="knife">Knife</div>
   <div class="tb gun" id="tswap" data-act="swap">Swap</div>
   <div class="tb drv" id="tbrake" data-act="brake">Brake</div>
   <div class="tb drv" id="treset" data-act="vreset">Reset</div>
   <div class="tb drv" id="tview" data-act="view">View</div>
   <div class="tt" id="tpause" data-act="pause">Pause</div>
-  <div class="tt" id="tboard" data-act="board">Scores</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
 </div>
 <div id="curtain"></div>
+<div id="fshint" role="note"><span>Full screen: Share › <b>Add to Home Screen</b>, then play from the icon</span><button type="button" id="fshintx" aria-label="Dismiss">×</button></div>
 <div id="title">
   <h1>THE SPACE EXPLORERS</h1>
   <div class="tbtns"><button type="button" id="goarena">Battle in the Arena</button><button type="button" id="gofort">Fortress Free-For-All</button><button type="button" id="godrive">Test Drive</button><button type="button" id="gorange">Shooting Range</button></div>
@@ -5163,6 +5200,14 @@ function updateHUD(dt) {
 // ---------- Touch ----------
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) document.body.classList.add('touch');
+// iOS (Safari, Chrome and Firefox there are all WebKit) has no full screen for pages; from the home screen it opens without browser bars
+{
+  const ios = /iP(hone|od|ad)/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const app = navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
+  let gone = false; try { gone = sessionStorage.getItem('tse.fshint') === '1'; } catch (e) {}
+  if (ios && isTouch && !app && !gone) document.body.classList.add('fshint');
+  $('fshintx').onclick = () => { document.body.classList.remove('fshint'); try { sessionStorage.setItem('tse.fshint', '1'); } catch (e) {} };
+}
 const joy = { x: 0, y: 0, id: null, ox: 0, oy: 0 };
 const look = { id: null, x: 0, y: 0 };
 let fireId = null, useId = null, brakeId = null, jumpT = 0;
@@ -5217,7 +5262,7 @@ $('play').onclick = () => {
   if (NET.role === 'guest') { NET.go = true; P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); else if (NEWMENU && !NET.joined && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); }
   if (!isTouch) { renderer.domElement.requestPointerLock(); return; }
   const el = document.documentElement;
-  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // (iPhones have neither: see the home-screen hint)
   setPlaying(true);
 };
 
@@ -5235,11 +5280,9 @@ tl.addEventListener('touchstart', e => {
     else if (act === 'vreset' || act === 'view') { const code = act === 'view' ? 'KeyV' : 'KeyR'; dispatchEvent(new KeyboardEvent('keydown', { code })); dispatchEvent(new KeyboardEvent('keyup', { code })); } // a key press, for the vehicle
     else if (act === 'use') { useId = t.identifier; el.classList.add('on'); dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' })); } // E, held for as long as the finger is down (doors lock on a 4 s hold)
     else if (act === 'reload') reload();
-    else if (act === 'knife') playerKnife();
     else if (act === 'swap') nextWeapon(1);
     else if (act === 'nade') playerNade();
     else if (act === 'aim') { tAim = !tAim; el.classList.toggle('on', tAim); }
-    else if (act === 'board') boardOpen = !boardOpen;
     else if (act) { /* pause, mic handled on touchend */ }
     else if (t.clientX < innerWidth * 0.45 && joy.id === null) {
       joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.t0 = performance.now(); joy.moved = 0;
@@ -6699,7 +6742,7 @@ requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=26"></script>
 <script src="range.js?v=22"></script>
-<script src="art.js?v=6"></script>
+<script src="art.js?v=7"></script>
 <script src="items.js?v=6"></script>
 </body>
 </html>

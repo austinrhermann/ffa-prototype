@@ -429,7 +429,7 @@
       if (!P.alive) return;
       on = true; safe = false; drawT = SWITCH; stroke = null;
       RANGE.stow(); mouseRight = false; tAim = false; clickQ = false;
-      hint('draw', 'Draw: 1–6 colour, Q pen or spray can, P back to your weapons', 4.5);
+      hint('draw', isTouch ? 'Draw: tap a colour on the right, Swap for pen or spray can, Fire paints' : 'Draw: 1–6 colour, Q pen or spray can, P back to your weapons', 4.5);
     } else leave();
   }
   function leave() {
@@ -686,9 +686,12 @@
 #artcross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;display:none;box-sizing:border-box}
 body.art-on #ammo,body.art-on #rslots,body.art-on #rcross,body.art-on .ch{display:none!important}
 body.art-w #ammo,body.art-w #rcross,body.art-w .ch{display:none!important}
-body.touch #arthud{right:calc(10px + env(safe-area-inset-right,0px));bottom:auto;top:calc(104px + env(safe-area-inset-top,0px))}
-body.touch #arthud .sw{flex-direction:column}
-body.touch #arthud .sw b{width:38px;height:38px}`;
+body.touch #arthud{right:calc(6px + env(safe-area-inset-right,0px));top:calc(54px + env(safe-area-inset-top,0px));bottom:calc(6px + env(safe-area-inset-bottom,0px));justify-content:center;gap:6px}
+body.touch #arthud .at{font-size:12px;padding:3px 7px}
+body.touch #arthud .at small{display:none}
+body.touch #arthud .sw{flex-direction:column;gap:5px}
+body.touch #arthud .sw b{width:40px;height:min(40px,calc((100vh - 140px) / 6 - 5px));min-height:24px}
+body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the colours) */`;
   document.head.appendChild(css);
   const hud = document.createElement('div'); hud.id = 'arthud';
   hud.innerHTML = `<div class="at"><span id="arttool">Pen</span><small>${isTouch ? 'Swap switches' : 'Q switches'}</small></div><div class="sw">${PALETTE.map((c, i) => `<b data-c="${i}" style="background:${c}">${i + 1}</b>`).join('')}</div>`;
