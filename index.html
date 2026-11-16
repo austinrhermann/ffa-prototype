@@ -31,7 +31,6 @@ canvas{display:block}
 #chatin{position:absolute;left:18px;bottom:112px;width:min(340px,calc(100% - 36px));box-sizing:border-box;padding:7px 10px;background:var(--panel);color:var(--hud);border:1px solid var(--accent);border-radius:4px;font:inherit;font-size:14px;outline:none;pointer-events:auto;display:none;z-index:5}
 #chatin.on{display:block}
 body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px + env(safe-area-inset-top,0px))}
-#tchat{left:calc(300px + env(safe-area-inset-left,0px))}
 #ammo{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 #hpbar{width:160px;height:20px;display:flex;justify-content:flex-end}
 #hp{width:100%;height:100%;background:hsl(120,75%,45%)}
@@ -58,7 +57,7 @@ body.monscreen #cpu canvas,body.monscreen #cpuinfo,body.monscreen #rcross,body.m
 #board tr.me td{color:var(--accent)}
 #mic{position:absolute;left:18px;bottom:78px;font-size:13px;background:var(--panel);padding:4px 10px;border-radius:4px}
 #mic:empty{display:none}
-#tmic{left:calc(244px + env(safe-area-inset-left,0px))}
+#tmic{left:calc(170px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #camgrid{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:50vw}
@@ -68,8 +67,6 @@ body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 .camtile.speaking{border-color:var(--accent);box-shadow:0 0 12px 2px var(--accent)}
 .camname{position:absolute;left:4px;bottom:2px;max-width:calc(100% - 8px);padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.55);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.touch .camtile{width:84px;height:63px}
-#tcam{left:calc(376px + env(safe-area-inset-left,0px))}
-#tcam.on{background:var(--accent);color:#0d1a08}
 #title{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:24px;box-sizing:border-box;background:#000 url(title.jpg) center/cover no-repeat}
 #title h1{margin:0;color:#fff;font:800 clamp(34px,7.5vw,96px)/1.05 system-ui,sans-serif;letter-spacing:.08em;text-align:center;text-shadow:0 3px 22px rgba(0,0,0,.55)}
 .tbtns{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
@@ -178,19 +175,22 @@ body.touch #touch{display:block}
 .tb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;transform:scale(.8);background:rgba(14,18,22,.45);border:2px solid rgba(238,243,234,.35);color:var(--hud);font-size:12px;font-weight:600}
 .tb.on{background:var(--accent);color:#0d1a08}
 #tfire{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));border-color:var(--accent);font-size:14px}
-#tjump{width:60px;height:60px;right:calc(128px + env(safe-area-inset-right,0px));bottom:calc(44px + env(safe-area-inset-bottom,0px))}
 #treload{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
 #taim{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 #tnade{width:52px;height:52px;right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
-#tcrouch{display:none}
 #tuse{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
 #tswap{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
 #tknife{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(36px + env(safe-area-inset-bottom,0px))}
 .tt{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));height:34px;padding:0 12px;border-radius:17px;background:var(--panel);border:1px solid rgba(238,243,234,.25);color:var(--hud);font-size:13px;display:flex;align-items:center}
 #tpause{left:calc(12px + env(safe-area-inset-left,0px))}
 #tboard{left:calc(84px + env(safe-area-inset-left,0px))}
-#tgyro{left:calc(170px + env(safe-area-inset-left,0px))}
-#tgyro.on{background:var(--accent);color:#0d1a08}
+/* At the wheel: the gun buttons give way to Brake (handbrake, where Fire is), Reset (back on its wheels) and View; Use gets you out */
+#tbrake{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
+#treset{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+#tview{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#touch .drv{display:none}
+body.driving #touch .drv{display:flex}
+body.driving #touch .gun,body.riding.noguns #touch .gun{display:none}
 #joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(238,243,234,.35);background:rgba(14,18,22,.3);display:none}
 #knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(238,243,234,.55)}
 body.touch #top{top:calc(54px + env(safe-area-inset-top,0px));font-size:12px}
@@ -306,21 +306,19 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
 </div>
 <div id="touch">
   <div id="joy"><div id="knob"></div></div>
-  <div class="tb" id="tfire" data-act="fire">Fire</div>
-  <div class="tb" id="tjump" data-act="jump">Jump</div>
-  <div class="tb" id="treload" data-act="reload">Reload</div>
-  <div class="tb" id="taim" data-act="aim">Aim</div>
-  <div class="tb" id="tnade" data-act="nade">Frag</div>
-  <div class="tb" id="tcrouch" data-act="crouch">Crouch</div>
+  <div class="tb gun" id="tfire" data-act="fire">Fire</div>
+  <div class="tb gun" id="treload" data-act="reload">Reload</div>
+  <div class="tb gun" id="taim" data-act="aim">Aim</div>
+  <div class="tb gun" id="tnade" data-act="nade">Frag</div>
   <div class="tb" id="tuse" data-act="use">Use</div>
-  <div class="tb" id="tknife" data-act="knife">Knife</div>
-  <div class="tb" id="tswap" data-act="swap">Swap</div>
+  <div class="tb gun" id="tknife" data-act="knife">Knife</div>
+  <div class="tb gun" id="tswap" data-act="swap">Swap</div>
+  <div class="tb drv" id="tbrake" data-act="brake">Brake</div>
+  <div class="tb drv" id="treset" data-act="vreset">Reset</div>
+  <div class="tb drv" id="tview" data-act="view">View</div>
   <div class="tt" id="tpause" data-act="pause">Pause</div>
   <div class="tt" id="tboard" data-act="board">Scores</div>
-  <div class="tt" id="tgyro" data-act="gyro">Gyro</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
-  <div class="tt" id="tchat" data-act="chat">Chat</div>
-  <div class="tt" id="tcam" data-act="cam">Cam</div>
 </div>
 <div id="curtain"></div>
 <div id="title">
@@ -412,14 +410,15 @@ body.newmenu .clinks{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:14px}
       <dt>W / S in the air</dt><dd>Dip or lift the nose off a jump</dd>
     </dl>
     <dl class="tc">
-      <dt>Left side</dt><dd>Drag to move, push fully to run</dd>
+      <dt>Left side</dt><dd>Drag to move, push fully to run; tap to jump</dd>
       <dt>Right side</dt><dd>Drag to look</dd>
       <dt>Fire</dt><dd>Hold to shoot, drag to aim</dd>
       <dt>Aim</dt><dd>Tap to toggle</dd>
       <dt>Use</dt><dd>Doors, vehicles, the computer (hold for 4 seconds inside the bunker door to lock it)</dd>
       <dt>Swap</dt><dd>Next weapon (drawing: pen or spray can)</dd>
       <dt>Draw</dt><dd>On the pause screen: a pen and a spray can instead of your weapons. Tap a colour on the right; Fire paints</dd>
-      <dt>Gyro</dt><dd>Aim by moving your phone</dd>
+      <dt>Frag</dt><dd>Hold to cook a grenade, let go to throw</dd>
+      <dt>Driving</dt><dd>Left stick: up for gas, down to brake and reverse, sideways to steer. Brake is the handbrake, Reset puts it back on its wheels, View swaps chase and seat, Use gets out</dd>
     </dl>
   </div></div>
   <div class="mbtns"><button type="button" class="wide" data-go="main">‹ Back</button></div>
@@ -2389,8 +2388,8 @@ $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 // A guest takes the host's (welcome), so everyone in a game plays the same weapons and health
 let DEV = new URLSearchParams(location.search).has('dev') && new URLSearchParams(location.search).get('dev') !== '0';
 document.body.classList.toggle('dev', DEV);
-// The new start flow (title page over the live level, Host Options, the character grid) is ?dev only for now
-const NEWMENU = DEV;
+// The start flow: the title page over the live level, Host Options and the character grid (for everyone now, not only ?dev)
+const NEWMENU = true;
 if (NEWMENU) document.body.classList.add('newmenu', 'pregame', 'titleon');
 let READY = false; // everything loaded: from then on the menu can switch levels
 let selLevel = LEVEL_DEFS[new URLSearchParams(location.search).get('level')] ? new URLSearchParams(location.search).get('level') : 'fortress';
@@ -3766,14 +3765,12 @@ function resetMatch() {
   HEALS.forEach(h => setHeal(h, true));
   clearCorpses(); clearHoles();
   matchOver = false;
-  if (window.TRANSCRIPT) TRANSCRIPT.event('start');
   ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); ITEMS.reset(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast(NEWMENU ? { t: 'reset', tg: GAME_TEAMS } : { t: 'reset' });
 }
 // w is the winner
 function endMatch(w) {
   matchOver = true;
-  if (window.TRANSCRIPT) TRANSCRIPT.event('end');
   sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const tm = teamsOn() && w.team ? w.team : null;
   const title = tm ? `${TEAMS[tm].name} win` : w.isPlayer ? 'You win' : `${w.name} wins`;
@@ -4307,7 +4304,7 @@ function playerKnife() {
   knifeCd = 0.75; knifeT = 0.6;
   if (knifeAttack(P)) hitMarker(false);
 }
-function playerNade() { if (RANGE.on && RANGE.hot) return RANGE.hotDown(); if (!ART.on) startCook(); }
+function playerNade() { if (RANGE.on) return RANGE.hotDown(); if (!ART.on) startCook(); } // (the range's grenades are F batteries: the keyboard switches to them, touch's Frag cooks one straight away)
 const NADE_FUSE = 2.25;
 let cookT = -1, beepT = 0;
 function startCook() {
@@ -4315,7 +4312,7 @@ function startCook() {
   P.nades--; cookT = 0; beepT = 0.5; sPin();
 }
 function releaseCook() {
-  if (RANGE.on && RANGE.hot) return RANGE.hotUp();
+  if (RANGE.on) return RANGE.hotUp();
   if (cookT < 0) return;
   const fuse = Math.max(0.05, NADE_FUSE - cookT); cookT = -1;
   if (!P.alive) return;
@@ -4852,7 +4849,7 @@ const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOp
 
 // ---------- Input ----------
 const keys = {};
-let locked = false, boardOpen = false, tCrouch = false, tAim = false;
+let locked = false, boardOpen = false, tAim = false;
 const SENS = 0.0022;
 // Controls settings (pause screen), remembered in this browser
 const CTL = (() => { try { return Object.assign({ sens: 1, aimTog: false }, JSON.parse(localStorage.getItem('tse.controls') || '{}')); } catch (e) { return { sens: 1, aimTog: false }; } })();
@@ -4938,7 +4935,7 @@ function updatePlayer(dt) {
   if (!P.alive) { if (NET.role !== 'guest') { P.respawnT -= dt; if (P.respawnT <= 0) respawn(P); } return; }
   if (VEH.riding) return; // in a vehicle (either seat): it moves you
   playHints(dt);
-  if (keys.KeyC || tCrouch) P.h = CROUCH_H;
+  if (keys.KeyC) P.h = CROUCH_H;
   else if (P.h < STAND_H && !blockedAt(P.pos.x, P.pos.y, P.pos.z, STAND_H)) P.h = STAND_H;
   const crouched = P.h < STAND_H;
   const f = monitorOpen ? 0 : (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = monitorOpen ? 0 : (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0); // standing at the computer
@@ -5163,13 +5160,13 @@ function updateHUD(dt) {
   }
 }
 
-// ---------- Touch / gyro ----------
+// ---------- Touch ----------
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) document.body.classList.add('touch');
 const joy = { x: 0, y: 0, id: null, ox: 0, oy: 0 };
 const look = { id: null, x: 0, y: 0 };
-let fireId = null, jumpId = null, useId = null, gyroOn = false, gyroLast = 0;
-const TOUCH_SENS = 0.006, GYRO_SENS = 1, JOY_R = 55;
+let fireId = null, useId = null, brakeId = null, jumpT = 0;
+const TOUCH_SENS = 0.006, JOY_R = 55, TAP_MS = 220, TAP_PX = 12; // a quick touch on the left side that hardly moves is a jump
 
 function applySettings() {
   setDiff(+$('sdiff').value);
@@ -5209,7 +5206,7 @@ function setPlaying(on) {
   if (!on) {
     closeChat(); setAway(false); setMonitor(false); showScreen('main');
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
-    joy.x = joy.y = 0; joy.id = look.id = fireId = jumpId = useId = null;
+    joy.x = joy.y = 0; joy.id = look.id = fireId = useId = brakeId = null; jumpT = 0;
     $('joy').style.display = 'none';
     if (NEWMENU) syncPause();
   }
@@ -5224,30 +5221,6 @@ $('play').onclick = () => {
   setPlaying(true);
 };
 
-async function toggleGyro() {
-  if (!gyroOn && typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-    try { if (await DeviceMotionEvent.requestPermission() !== 'granted') return; } catch (e) { return; }
-  }
-  gyroOn = !gyroOn; gyroLast = 0;
-  $('tgyro').classList.toggle('on', gyroOn);
-}
-addEventListener('devicemotion', e => {
-  if (!gyroOn || !locked || !P.alive) { gyroLast = 0; return; }
-  const r = e.rotationRate; if (!r) return;
-  const now = performance.now();
-  const dt = gyroLast ? Math.min(0.1, (now - gyroLast) / 1000) : 0; gyroLast = now;
-  const k = Math.PI / 180 * dt * GYRO_SENS * camera.fov / 75;
-  const raw = screen.orientation ? screen.orientation.angle : (window.orientation || 0);
-  const a = ((raw % 360) + 360) % 360;
-  let dy, dp;
-  if (a === 90) { dy = r.beta; dp = -r.gamma; }
-  else if (a === 270) { dy = -r.beta; dp = r.gamma; }
-  else if (a === 180) { dy = -r.gamma; dp = -r.beta; }
-  else { dy = r.gamma; dp = r.beta; }
-  P.yaw += (dy || 0) * k;
-  P.pitch = Math.max(-1.5, Math.min(1.5, P.pitch + (dp || 0) * k));
-});
-
 const tl = $('touch');
 tl.addEventListener('touchstart', e => {
   if (!locked) return;
@@ -5258,18 +5231,18 @@ tl.addEventListener('touchstart', e => {
     if (act === 'fire') {
       mouseDown = true; clickQ = true; fireId = t.identifier;
       if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; }
-    } else if (act === 'jump') { keys.Space = true; jumpId = t.identifier; }
+    } else if (act === 'brake') { keys.Space = true; brakeId = t.identifier; el.classList.add('on'); } // the handbrake, while held
+    else if (act === 'vreset' || act === 'view') { const code = act === 'view' ? 'KeyV' : 'KeyR'; dispatchEvent(new KeyboardEvent('keydown', { code })); dispatchEvent(new KeyboardEvent('keyup', { code })); } // a key press, for the vehicle
     else if (act === 'use') { useId = t.identifier; el.classList.add('on'); dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' })); } // E, held for as long as the finger is down (doors lock on a 4 s hold)
     else if (act === 'reload') reload();
     else if (act === 'knife') playerKnife();
     else if (act === 'swap') nextWeapon(1);
     else if (act === 'nade') playerNade();
-    else if (act === 'crouch') { tCrouch = !tCrouch; el.classList.toggle('on', tCrouch); }
     else if (act === 'aim') { tAim = !tAim; el.classList.toggle('on', tAim); }
     else if (act === 'board') boardOpen = !boardOpen;
-    else if (act) { /* pause / gyro handled on touchend */ }
+    else if (act) { /* pause, mic handled on touchend */ }
     else if (t.clientX < innerWidth * 0.45 && joy.id === null) {
-      joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY;
+      joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.t0 = performance.now(); joy.moved = 0;
       const j = $('joy'); j.style.left = t.clientX + 'px'; j.style.top = t.clientY + 'px'; j.style.display = 'block';
       $('knob').style.transform = 'translate(0,0)';
     } else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; }
@@ -5281,36 +5254,50 @@ tl.addEventListener('touchmove', e => {
     if (t.identifier === joy.id) {
       let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy;
       const l = Math.hypot(dx, dy); if (l > JOY_R) { dx *= JOY_R / l; dy *= JOY_R / l; }
-      joy.x = dx / JOY_R; joy.y = dy / JOY_R;
+      joy.x = dx / JOY_R; joy.y = dy / JOY_R; joy.moved = Math.max(joy.moved, Math.hypot(t.clientX - joy.ox, t.clientY - joy.oy));
       $('knob').style.transform = `translate(${dx}px,${dy}px)`;
     }
     if (t.identifier === look.id) {
-      const s = TOUCH_SENS * camera.fov / 75;
-      P.yaw -= (t.clientX - look.x) * s;
-      P.pitch = Math.max(-1.5, Math.min(1.5, P.pitch - (t.clientY - look.y) * s));
+      const s = TOUCH_SENS * camera.fov / 75, dx = t.clientX - look.x, dy = t.clientY - look.y;
+      if (!VEH.mouse(dx * TOUCH_SENS / SENS, dy * TOUCH_SENS / SENS)) { // in a vehicle the drag swings its camera
+        P.yaw -= dx * s;
+        P.pitch = Math.max(-1.5, Math.min(1.5, P.pitch - dy * s));
+      }
       look.x = t.clientX; look.y = t.clientY;
     }
   }
 }, { passive: false });
 function touchEnd(e) {
   for (const t of e.changedTouches) {
-    if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('joy').style.display = 'none'; }
+    if (t.identifier === joy.id) {
+      if (e.type === 'touchend' && !VEH.riding && joy.moved < TAP_PX && performance.now() - joy.t0 < TAP_MS) { keys.Space = true; jumpT = 0.15; } // a tap: jump
+      joy.id = null; joy.x = joy.y = 0; $('joy').style.display = 'none';
+    }
     if (t.identifier === look.id) look.id = null;
     if (t.identifier === fireId) { fireId = null; mouseDown = false; }
-    if (t.identifier === jumpId) { jumpId = null; keys.Space = false; }
+    if (t.identifier === brakeId) { brakeId = null; keys.Space = false; $('tbrake').classList.remove('on'); }
     if (t.identifier === useId) { useId = null; $('tuse').classList.remove('on'); dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' })); }
     const el = t.target.closest('[data-act]');
     const act = el ? el.dataset.act : null;
-    if (e.type === 'touchend' && act === 'gyro') toggleGyro();
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
-    if (e.type === 'touchend' && act === 'chat') openChat();
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
-    if (e.type === 'touchend' && act === 'cam') toggleCam();
     if (act === 'nade') releaseCook();
   }
 }
 tl.addEventListener('touchend', touchEnd);
 tl.addEventListener('touchcancel', touchEnd);
+// Each frame: let go of a tap's jump, and swap the buttons for the driving ones at the wheel
+let touchSeat = '';
+function touchTick(dt) {
+  if (jumpT > 0 && (jumpT -= dt) <= 0) { jumpT = 0; if (brakeId === null) keys.Space = false; }
+  const seat = VEH.driving() ? 'drive' : VEH.riding ? 'ride' : '';
+  const ng = !!VEH.noGuns; if (ng !== document.body.classList.contains('noguns')) document.body.classList.toggle('noguns', ng); // (a passenger's view decides it)
+  if (seat === touchSeat) return; touchSeat = seat;
+  document.body.classList.toggle('driving', seat === 'drive'); document.body.classList.toggle('riding', !!seat);
+  $('tuse').textContent = seat ? 'Exit' : 'Use';
+  if (seat) { mouseDown = false; fireId = null; tAim = false; $('taim').classList.remove('on'); } // no trigger held or sights up on the way in
+  if (brakeId !== null && seat !== 'drive') { brakeId = null; keys.Space = false; $('tbrake').classList.remove('on'); }
+}
 
 // ---------- Character preview ----------
 let prev = null;
@@ -5525,7 +5512,7 @@ function titleTick() {
 let READY_T = 0;
 $('hostgo').onclick = () => { if (!$('hostgo').classList.contains('on')) return; showTitle(false); chooseMode('level'); renderHost(); };
 // Host Options: Level, Game Type, Bots
-const HOST_LEVELS = ['fortress', 'complex', 'facility', 'bunker', 'creek', 'minimal', 'tunnel', 'sewer'];
+const HOST_LEVELS = ['fortress', 'complex', 'facility', 'bunker', 'creek', 'minimal', 'tunnel', 'sewer'].filter(id => DEV || id === 'fortress' || id === 'minimal'); // (the rest are ?dev only)
 const HOST_LEVEL_NAMES = { fortress: 'Fort' };
 if (NEWMENU) {
   for (const lv of HOST_LEVELS) {
@@ -6487,7 +6474,6 @@ async function getMic() {
       if (s) s.replaceTrack(track); else { const eid = VOICE.peerEntity[id]; closeVoice(id); callPeer(id, eid); }
     }
     setMute(VOICE.muted);
-    if (window.TRANSCRIPT) TRANSCRIPT.onLocalMic(VOICE.stream);
   } catch (e) { note('Microphone unavailable: voice chat is listen-only', 4); }
 }
 function blankVideoTrack() {
@@ -6540,7 +6526,6 @@ function hookCall(c) {
     if (a.srcObject !== s) { a.srcObject = s; a.play().catch(() => {}); }
     tile.video.muted = true; tile.video.srcObject = s; tile.video.play().catch(() => {});
     tile.meter = speechMeter(s);
-    if (window.TRANSCRIPT) TRANSCRIPT.onRemoteStream(c.peer, s);
   });
   c.on('close', () => closeVoice(c.peer));
 }
@@ -6548,7 +6533,6 @@ function answerCall(c) { if (c.metadata && c.metadata.id) linkPeer(c.peer, c.met
 function callPeer(id, eid) { if (!NET.peer || !id || id === NET.peer.id || VOICE.calls[id]) return; if (eid) linkPeer(id, eid); hookCall(NET.peer.call(id, outStream(), { metadata: { id: P.id } })); }
 function closeVoice(id) {
   const c = VOICE.calls[id]; delete VOICE.calls[id]; try { if (c) c.close(); } catch (e) {}
-  if (window.TRANSCRIPT) TRANSCRIPT.onClose(id);
   if (VOICE.els[id]) VOICE.els[id].srcObject = null;
   delete VOICE.els[id];
   const tile = CAMGRID.tiles[id]; if (tile) { tile.video.srcObject = null; tile.wrap.remove(); delete CAMGRID.tiles[id]; }
@@ -6703,6 +6687,7 @@ function loop(now) {
   updateSelfView();
   updateHUD(dt);
   updateChatbox();
+  if (isTouch) touchTick(dt);
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
   renderer.clear();
@@ -6711,13 +6696,10 @@ function loop(now) {
   if (tpK < 0.5 && bodyK < 0.5 && !PREGAME && monK < 0.5) renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
-// Without ?dev the game opens straight on the fort menu: Fort or Dev_Fort, no title page
-if (!DEV && NET.role === 'host') { if (selLevel !== 'minimal') selLevel = 'fortress'; chooseMode('level'); }
 </script>
-<script src="vehicles.js?v=25"></script>
-<script src="range.js?v=21"></script>
+<script src="vehicles.js?v=26"></script>
+<script src="range.js?v=22"></script>
 <script src="art.js?v=6"></script>
 <script src="items.js?v=6"></script>
-<script src="transcript.js"></script>
 </body>
 </html>

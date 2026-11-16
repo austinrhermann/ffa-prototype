@@ -703,7 +703,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     ride = v; rideSeat = k; v.occ[k] = me(); view = driveMode() ? 'chase' : 'seat'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; lookIdle = 9; // in the fort you ride in your seat, ready to shoot
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vride', i: v.i, s: k });
-    note(`${k > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}. V changes view, E gets out`, 3);
+    note(`${k > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}. ${TOUCH ? 'Exit gets out' : 'V changes view, E gets out'}`, 3);
   }
   // Out beside your seat: the driver on the left, the front passenger on the right, the back over the tailgate
   function spotFor(v, k) {
@@ -733,7 +733,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
     soundStart(v);
     if (driveMode()) hint('tune', 'Tab tunes this vehicle: acceleration, brakes, steering, weight, suspension and more', 5);
-    note(`${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
+    note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
   }
   function leave(force) {
     const v = cur; if (!v) return false;
@@ -945,11 +945,11 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     if (cur && on) {
       const v = cur, mph = Math.round(Math.abs(v.speed) * 2.23694), t = LAP.on ? ((performance.now() - LAP.start) / 1000).toFixed(1) : '–';
       const lapLine = driveMode() ? `<br>Lap ${t} s · last ${LAP.last ? LAP.last.toFixed(2) : '–'} · best ${LAP.best ? LAP.best.toFixed(2) : '–'}` : '';
-      hud.innerHTML = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${lapLine}<br><small>Tab tune · R back on your wheels · V view · E out</small>`;
+      hud.innerHTML = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${lapLine}${TOUCH ? '' : '<br><small>Tab tune · R back on your wheels · V view · E out</small>'}`;
       hud.style.display = 'block';
     } else if (ride && on) {
       const v = ride, mph = Math.round(Math.abs(v.speed) * 2.23694), d = ents.find(e => e.id === v.owner && e !== P);
-      hud.innerHTML = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}<br><small>V view · E out</small>`;
+      hud.innerHTML = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}${TOUCH ? '' : '<br><small>V view · E out</small>'}`;
       hud.style.display = 'block';
     } else hud.style.display = 'none';
     const nv = on && !cur && !ride && P.alive ? nearest() : null;
@@ -977,11 +977,17 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
 
   // ---------------------------------------------------------------- hooks the game calls
-  const input = () => ({
-    thr: (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0),
-    steer: (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0),
-    hand: !!keys.Space, reset: false,
-  });
+  // Keys, plus the touch stick (up for gas, down to brake and reverse, sideways to steer), with a little dead zone
+  const stick = a => Math.abs(a) < 0.15 ? 0 : (a - Math.sign(a) * 0.15) / 0.85, clamp1 = a => Math.max(-1, Math.min(1, a));
+  const TOUCH = typeof isTouch !== 'undefined' && isTouch; // (a phone: the touch buttons, not keys)
+  const input = () => {
+    const j = typeof joy !== 'undefined' && joy.id !== null ? joy : null;
+    return {
+      thr: clamp1((keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - (j ? stick(j.y) : 0)),
+      steer: clamp1((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + (j ? stick(j.x) : 0)),
+      hand: !!keys.Space, reset: false,
+    };
+  };
   const idle = { thr: 0, steer: 0, hand: false, reset: false }, parked = { thr: 0, steer: 0, hand: true, reset: false }; // nobody aboard: the handbrake's on
   let resetQ = false, selfOn = false, selfRig = null;
   function setSelf(on) { // your own body is normally only a shadow; in Test Drive it's drawn (third person, or riding in the open)

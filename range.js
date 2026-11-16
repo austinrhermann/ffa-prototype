@@ -495,7 +495,7 @@
   function updateGun(dt) {
     gun.cd -= dt; knifeCd -= dt; gun.spray = 0; gun.burstLeft = 0;
     heat = Math.max(0, heat - dt * (mouseDown ? 0.6 : 2.5));
-    if (HOTON() && !hot && hotBack > 0 && (hotBack -= dt) <= 0) backFromNade();
+    if (!hot && hotBack > 0 && (hotBack -= dt) <= 0) backFromNade(); // (after a grenade off F, or the touch Frag button)
     if (cur > HANDS && !has('F') && cooking < 0 && throwT <= 0 && !hot && hotBack <= 0) pick(HANDS); // that was your last F battery
     const s = slot();
     if (!s.model && s.kind !== 'throw' && s.kind !== 'spray') { mouseRight = false; tAim = false; } // nothing to aim down (the grenade's right-click makes a mine; the spray can's a fine line)
@@ -514,7 +514,7 @@
     }
     if (s.kind === 'knife') { if (clickQ && knifeCd <= 0) { clickQ = false; shotN++; knife(); } return; }
     // Grenade: hold to cook (it beeps faster as the fuse runs down), let go to throw. With right-click held, a click sets it as a mine.
-    if (HOTON()) { clickQ = false; if (hot) cookHot(dt); return; } // ?dev: all on F (hotDown / hotUp)
+    if (HOTON() || hot) { clickQ = false; if (hot) cookHot(dt); return; } // ?dev: all on F (hotDown / hotUp); touch's Frag button uses it too
     const fresh = clickQ; clickQ = false;
     if (cooking < 0 && mineMode()) { if (fresh && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); return; } gun.cd = 0.5; throwT = 0.3; shotN++; placeMine(); } return; }
     if (cooking < 0) { if (fresh && mouseDown && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); gun.cd = 0.5; return; } cooking = 0; beepT = 0.5; sPin(); } return; }
@@ -532,7 +532,7 @@
     if (!has('F')) { outOf('F'); return; }
     hot = { back: cur }; hotPrev = cur; pick(HANDS + 1, true); spend('F');
     cooking = 0; beepT = 0.5; hotMine = false; sPin();
-    hint('hotnade', 'Let go of F to throw. Right-click while holding F to make it a mine', 4);
+    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4);
   }
   function cookHot(dt) {
     if (hotMine) return;
