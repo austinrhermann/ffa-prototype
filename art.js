@@ -24,8 +24,8 @@
   const radiusOf = t => (t === 'pen' ? PEN_R : SPRAY_R), reachOf = t => (t === 'pen' ? PEN_REACH : SPRAY_REACH);
   const PEN = 0, SPRAY = 2; // a layer's tool (rec.s)
 
-  // ---------------------------------------------------------------- the mark: a round dot, solid to near its edge, white
-  // (each layer's colour tints it)
+  // ---------------------------------------------------------------- the mark: a round dot (the shader cuts the circle; the
+  // texture is only there so the material gets UVs)
   const DOT = (() => {
     const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
     const x = c.getContext('2d'), g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
@@ -44,10 +44,8 @@
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n  vPcol = pcol;')
       .replace('vSunPos = (modelMatrix * sunWp).xyz;', 'vSunPos = (modelMatrix * sunWp).xyz + normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz) * 0.3;');
     sh.fragmentShader = 'varying vec4 vPcol;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
-      if (vUv.x < 0.0 || vUv.x > 1.0 || vUv.y < 0.0 || vUv.y > 1.0) discard;
-      vec4 texelColor = texture2D(map, vUv);
-      diffuseColor *= vec4(texelColor.rgb * vPcol.rgb * 1.15, texelColor.a * vPcol.a);
-      if (diffuseColor.a < 0.004) discard;`);
+      vec2 dc = vUv - 0.5; if (dot(dc, dc) > 0.25) discard; // a hard-edged round dot (no soft rim: stacked along a stroke it turned to speckle)
+      diffuseColor *= vec4(vPcol.rgb * 1.15, vPcol.a);`);
   }
   // A subclass so a copy (a fading body's) keeps the shader
   class PaintMat extends THREE.MeshToonMaterial {
