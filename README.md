@@ -10,7 +10,7 @@ One level, the fort (`levelFortress` in `index.html`), with the start flow below
 - **Host Options** (the host only, yellow card):
   - **Time of Day**: Day, Dusk or Night (`TIMES` in `index.html`). Everyone in the game, and invited friends still on the start page, get the host's lighting. **Fine-tune lighting** opens the sun, shadow and sky sliders (also in Settings, host only). Every page load starts from Day.
   - **Game Type**: Team battle (Midas against the Rebels) or Free for all.
-  - **Bots**: No, or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle).
+  - **Bots**: No (the default), or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle).
   - **Copy invite link.**
 - **Your character** (everyone, white card): your name (remembered in your browser) and the 8 characters, 4 a side. A character someone else picked shows their name and can't be taken. **Go!** goes in once you have a name and a character.
 - **Pause** (Esc) shows the same two cards; changes take effect on **Go!** (a new game type or bot setting starts a new round).
