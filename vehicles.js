@@ -227,9 +227,9 @@
   // ---------------------------------------------------------------- headlights and tail lights (headlights.js lights them)
   // Each lamp: where it sits in the part it's fixed to (the body; a bike's on the fork, so it turns with the bars), the way it
   // points there, how far it reaches, how wide (the cosine of the cone's half angle; fov: the shadow camera's) and its colour.
-  // Headlights point ahead and down (LAMP_DIP), so the light lands just in front. The truck's sit on its headlight lenses and
-  // its one tail light on the middle of its brake lights; the motorcycle's one headlight is measured off the model.
-  const LAMP_DIP = { car: 0.42, bike: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3), TAIL_COL = new V3(1.35, 0.12, 0.08);
+  // Headlights point ahead and down (LAMP_DIP), so the light lands just in front. The truck's sit on its headlight lenses;
+  // the motorcycle's one is on its model's lens. Tail lights are only the truck's brake-light lenses (lampGlow), no beam.
+  const LAMP_DIP = { car: 0.42, bike: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3);
   // The middle and the front (or back) of some meshes' vertices, in o's frame: per side (x < 0 and x > 0) or all together
   function lensSpots(meshes, o, split, front) {
     const inv = new THREE.Matrix4().copy(o.matrixWorld).invert(), v = new V3(), out = split ? [[], []] : [[]];
@@ -247,16 +247,14 @@
     v.g.updateMatrixWorld(true);
     const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
     const dip = LAMP_DIP[bike ? 'bike' : 'car'], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
-    const head = p => ({ o, p, d: ahead.clone(), far: bike ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL, tail: false });
+    const head = p => ({ o, p, d: ahead.clone(), far: bike ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL });
     if (v.heads && v.heads.length) { // the truck, from its model's lenses
       const out = lensSpots(v.heads, o, true, true).map(head);
-      if (v.tails && v.tails.length) for (const p of lensSpots(v.tails, o, false, false))
-        out.push({ o, p, d: new V3(0, -Math.sin(0.55), -Math.cos(0.55)).transformDirection(M), far: 7, cone: 0.62, fov: 110, col: TAIL_COL, tail: true });
       return out;
     }
     let at;
     if (v.model && v.layout === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
-    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.06, 0.78]];
+    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.085, 0.655]]; // the middle of the model's headlight lens
     else if (bike) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.2]];
     else {
       const b = new THREE.Box3(), gi = new THREE.Matrix4().copy(v.g.matrixWorld).invert(), bb = new THREE.Box3();
@@ -265,38 +263,37 @@
       at = [1, -1].map(sd => [sd * (b.max.x - b.min.x) * 0.3, b.min.y + (b.max.y - b.min.y) * 0.3, b.max.z + 0.05]);
     }
     const lamps = at.map(a => head(new V3(a[0], a[1], a[2]).applyMatrix4(M)));
-    if (bike) { // the motorcycle's lens: a small disc on the front of the headlight, which glows at night
-      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), new THREE.MeshBasicMaterial({ color: 0x5a5648 }));
+    if (bike) { // the motorcycle's lens: a disc over the model's own, which glows at night
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.072, 20), new THREE.MeshBasicMaterial({ color: 0x5a5648, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
       lens.position.copy(lamps[0].p); lens.lookAt(lens.position.clone().add(new V3(0, 0, 1).transformDirection(M))); o.add(lens);
       v.lens = lens;
     }
     return lamps;
   }
   // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, col, v: the vehicle }]. They're on while someone (or
-  // a bot) drives. The tail light is brighter while the vehicle slows down hard (braking)
+  // a bot) drives
   function lampBeams() {
     const out = [];
     for (const v of list) {
       if (v.dead || !v.lamp || !v.lamps || !(v.owner || v.npc || v.npcBusy)) continue;
       for (const l of v.lamps) {
         l.o.updateWorldMatrix(true, false);
-        const col = l.tail ? l.col.clone().multiplyScalar(0.45 + 0.55 * (v.brakeK || 0)) : l.col;
-        out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, col, v });
+        out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, col: l.col, v });
       }
     }
     return out;
   }
-  // The lenses: headlights glow white when they're on; the tail lights glow red, brighter when braking (in daylight too)
+  // The lenses: headlights glow white when they're on; the brake lights glow red only while braking, day or night: for
+  // the driver, the whole time S (back) or Space is held; everyone else gets the driver's word (brakeOn, in the vehicle's
+  // network state); a bot's show when it slows down hard
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
   function lampGlow(v, dt) {
     const s = Math.abs(v.speed || 0), decel = v.prevS === undefined ? 0 : (v.prevS - s) / Math.max(dt, 1e-3); v.prevS = s;
-    const mine = v === cur, inp = mine ? input() : null;
-    const braking = s > 0.5 && (decel > 2.5 || (mine && (inp.hand || (inp.thr < 0 && v.speed > 0.5))));
-    v.brakeK = (v.brakeK || 0) + ((braking ? 1 : 0) - (v.brakeK || 0)) * Math.min(1, dt * 10);
     const driven = !v.dead && !!(v.owner || v.npc || v.npcBusy), lit = driven && nightOn();
+    if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
+    else v.brakeOn = v.owner ? !!v.netBrake : driven && s > 0.5 && decel > 2.5;
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
-    const tk = driven ? (lit ? 0.35 : 0) + 0.65 * v.brakeK : 0;
-    for (const m of v.tails || []) m.material.emissive.copy(_tailOn).multiplyScalar(tk);
+    for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : _off);
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
   }
 
@@ -829,6 +826,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   function setNet(v, s) {
     const [, x, y, z, yaw, pitch, roll, vx, vy, vz, steer] = s.map(Number);
     if (![x, y, z, yaw].every(Number.isFinite)) return;
+    if (s.length > 11) v.netBrake = s[11] === 1; // (a driver's own state message: its brake lights)
     v.net = { x, y, z, yaw, pitch: pitch || 0, roll: roll || 0, vx: vx || 0, vy: vy || 0, vz: vz || 0, steer: steer || 0, t: performance.now() };
   }
   function applyParams(v, p) {
@@ -1116,9 +1114,9 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     },
     exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked, 2 an NPC has it), who's in seat 1, seat 2, ...]
-    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), v.dead ? 1 : v.npcBusy ? 2 : 0, ...v.occ.slice(1).map(o => o || 0)]),
-    myState: () => (cur && simulated(cur) ? stateOf(cur) : null),
+    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked, 2 an NPC has it; + 4 brake lights on), who's in seat 1, seat 2, ...]
+    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : v.npcBusy ? 2 : 0) + (v.brakeOn ? 4 : 0), ...v.occ.slice(1).map(o => o || 0)]),
+    myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0] : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
       // Match the host's vehicles: rebuild from the first one that differs
@@ -1127,8 +1125,10 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       for (let j = k; j < vh.length; j++) { const s = vh[j]; if (Array.isArray(s) && PRESETS[s[0]]) make(s[0], +s[2] || 0, +s[4] || 0, +s[5] || 0); else break; }
       vh.forEach((s, i) => {
         const v = list[i]; if (!v || !Array.isArray(s)) return;
-        if (s[12] === 1 && !v.dead) VEH.wreck(v);
-        v.npcBusy = s[12] === 2;
+        const st = s[12] | 0;
+        if ((st & 3) === 1 && !v.dead) VEH.wreck(v);
+        v.npcBusy = (st & 3) === 2;
+        if (v !== cur) v.netBrake = !!(st & 4);
         for (let q = 1; q < v.seats.length; q++) if (!(v === ride && q === rideSeat)) v.occ[q] = s[12 + q] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
         v.owner = s[1] || null; setNet(v, [i, ...s.slice(2, 12)]);
