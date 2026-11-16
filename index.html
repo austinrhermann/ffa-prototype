@@ -808,9 +808,9 @@ function levelFortress() {
     },
     navLinks: [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]]],
     // Drawn things with no collision of their own (the roads sit a hand above the ground, and the rocks, bushes and trees are only pictures): the paint goes on these
-    // Trees for cover round the two spawn clearings, A (the Rebels) in the south-west and B (Midas) in the south-east: [x, z]; clear of the roads, the spawns and the pickups
-    trees: [[-47.2, 89.4], [-41.2, 87.4], [-35.2, 87.4], [-49.2, 95.4], [-47.2, 101.4], [-41.2, 105.4], [-35.2, 103.4],
-      [36.1, 98.2], [40.1, 104.2], [46.1, 106.2], [52.1, 104.2], [52.1, 90.2], [50.1, 84.2], [44.1, 84.2]],
+    // Trees for cover, where Austin drew them on the top-down map (docs/map): [x, z]. Heights and girths vary tree to tree (addTrees)
+    trees: [[-60.4, 44.3], [-33.1, 52.8], [-29.1, 54.4], [-20.1, 70.2], [-39.2, 71.4], [40.6, 72.7], [-46.8, 74.9], [47.3, 75.8], [-35.6, 77.6], [0.7, 78.0], [-41.3, 78.1], [37.1, 80.3],
+      [-47.8, 81.4], [55.0, 84.8], [-56.4, 87.8], [26.6, 91.1], [-54.1, 91.8], [60.4, 92.1], [-57.3, 94.5], [63.6, 98.1], [24.5, 99.7], [28.0, 103.4], [-25.4, 107.0], [-52.9, 107.4], [-28.3, 110.4]],
     paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
@@ -1330,20 +1330,22 @@ function regradeGround(L, draw, col) {
   if (ground) edit(ground); if (terrain) edit(terrain);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
-// Trees for cover round the spawn clearings (L.trees: [x, z] each): a thick trunk that stops shots and people (it is in the collision set too, so bots walk round it) and a few
-// faceted balls of leaves overhead, only a picture like the trees already there (paint goes on them: paintOnly). Sizes and turns come from the tree's number, not from chance,
-// so every machine grows the same trees
+// Trees for cover (L.trees: [x, z] each): a thick trunk that stops shots and people (it is in the collision set too, so bots walk round it) and a few faceted balls of leaves
+// overhead, only a picture like the trees already there (paint goes on them: paintOnly). Heights run from a squat 3 m to a tall 6 m of trunk, spread evenly over the list (each
+// tree's number picks its share), taller ones thicker; the rest of the variety comes from the number too, not from chance, so every machine grows the same trees. The trunk
+// reaches down to the lowest ground round it, so on a slope it doesn't hang in the air
 function addTrees(L, draw, col, cm) {
   const ground = []; col.updateMatrixWorld(true); col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) ground.push(o); });
   const rc = new THREE.Raycaster(), tg = new THREE.Group(); tg.name = 'Trees'; draw.add(tg);
   const bark = toonMat({ color: 0x5a4330 }), leaves = [0x2a4b35, 0x305a3b, 0x264430].map(c => toonMat({ color: c, side: THREE.DoubleSide }));
   const rnd = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  const groundAt = (x, z) => { rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200; const h = rc.intersectObjects(ground, false)[0]; return h ? h.point.y : null; };
   L.trees.forEach(([x, z], i) => {
-    rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200;
-    const hit = rc.intersectObjects(ground, false)[0]; if (!hit) return;
-    const y = hit.point.y, s = 0.9 + 0.35 * rnd(i * 5 + 1), th = 3.6 * s, a0 = rnd(i * 5 + 2) * Math.PI * 2;
-    const geo = new THREE.CylinderGeometry(0.32 * s, 0.5 * s, th + 0.3, 8); // (set a little into the ground)
-    const trunk = new THREE.Mesh(geo, bark); trunk.position.set(x, y + th / 2 - 0.15, z); trunk.castShadow = trunk.receiveShadow = true; tg.add(trunk);
+    const y = groundAt(x, z); if (y === null) return;
+    let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
+    const u = (i * 0.618034 + 0.17) % 1, th = 3 + 3.2 * u, s = (0.85 + 0.35 * u) * (0.94 + 0.12 * rnd(i * 5 + 1)), a0 = rnd(i * 5 + 2) * Math.PI * 2, bot = low - 0.25;
+    const geo = new THREE.CylinderGeometry(0.3 * s, 0.48 * s, y + th - bot, 8);
+    const trunk = new THREE.Mesh(geo, bark); trunk.position.set(x, (y + th + bot) / 2, z); trunk.castShadow = trunk.receiveShadow = true; tg.add(trunk);
     const c = new THREE.Mesh(geo, cm); c.position.copy(trunk.position); col.add(c); c.updateMatrixWorld();
     const ball = (r, dx, dy, dz, k) => {
       const b = new THREE.IcosahedronGeometry(r, 1); b.computeVertexNormals(); // (three's icosphere is drawn with smooth normals; recomputed per face it is faceted)
