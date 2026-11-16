@@ -2049,6 +2049,37 @@ function prepScene(sc) {
   });
   return sc;
 }
+// The Battery Gun's battery is a lump of its one mesh. Lift it out into a mesh of its own ('Battery': same look, same place, centred on itself)
+// so the reload can move it. The gun looks exactly as before; its slot is just a hole while the battery is away. BATTERY_BOX is the slot,
+// in the gun mesh's own units (x0 y0 z0 x1 y1 z1): the pieces of the mesh (vertices joined by triangles) that sit wholly inside it are the battery.
+const BATTERY_BOX = [-0.036, -0.04, 0.12, 0.036, 0.024, 0.244];
+function liftBattery(sc) {
+  let gm = null; sc.traverse(o => { if (!gm && o.isMesh) gm = o; });
+  const g = gm && gm.geometry; if (!g || !g.index) return;
+  const pa = g.attributes.position, na = g.attributes.normal, ua = g.attributes.uv, ix = g.index.array, B = BATTERY_BOX;
+  const par = Array.from({ length: pa.count }, (_, i) => i), root = a => { while (par[a] !== a) a = par[a] = par[par[a]]; return a; };
+  for (let i = 0; i < ix.length; i += 3) { par[root(ix[i + 1])] = root(ix[i]); par[root(ix[i + 2])] = root(ix[i]); }
+  const out = new Set();
+  for (let v = 0; v < pa.count; v++) {
+    const x = pa.getX(v), y = pa.getY(v), z = pa.getZ(v);
+    if (x < B[0] || y < B[1] || z < B[2] || x > B[3] || y > B[4] || z > B[5]) out.add(root(v));
+  }
+  const mine = [], rest = [], used = new Map(), lo = new V3(Infinity, Infinity, Infinity), hi = new V3(-Infinity, -Infinity, -Infinity), at = new V3();
+  for (let i = 0; i < ix.length; i += 3) {
+    if (out.has(root(ix[i]))) { rest.push(ix[i], ix[i + 1], ix[i + 2]); continue; }
+    for (let j = 0; j < 3; j++) { const v = ix[i + j]; mine.push(v); if (!used.has(v)) { used.set(v, used.size); lo.min(at.set(pa.getX(v), pa.getY(v), pa.getZ(v))); hi.max(at); } }
+  }
+  if (!mine.length || !rest.length) return;
+  const c = lo.clone().add(hi).multiplyScalar(0.5), P = [], N = [], UV = [];
+  for (const v of used.keys()) { P.push(pa.getX(v) - c.x, pa.getY(v) - c.y, pa.getZ(v) - c.z); N.push(na.getX(v), na.getY(v), na.getZ(v)); UV.push(ua.getX(v), ua.getY(v)); }
+  const gb = new THREE.BufferGeometry();
+  gb.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gb.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); gb.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+  gb.setIndex(mine.map(v => used.get(v)));
+  g.setIndex(rest);
+  const bat = new THREE.Mesh(gb, gm.material);
+  bat.name = 'Battery'; bat.castShadow = gm.castShadow; bat.receiveShadow = gm.receiveShadow; bat.position.copy(c); bat.userData.rest = [c.x, c.y, c.z]; // (userData is copied by clone as plain JSON)
+  gm.add(bat);
+}
 const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 // Model URLs stay the same across exports. Revalidate even entries cached under the old 24-hour policy.
 const parseGLB = key => fetch('models/' + key + '.glb', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('Missing model ' + key); return r.arrayBuffer(); })
@@ -2319,6 +2350,7 @@ function loadModels() {
   }))).then(ms => { MODELS.push(...ms); if (MODELS[4]) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
+    if (w.key === 'Battery_Gun') liftBattery(sc);
     w.scene = sc; w.yaw = w.fixedYaw !== undefined ? w.fixedYaw : orientWeapon(sc);
   })));
   const extras = parseGLB('Grenade').then(sc => { NADE_MODEL = sc; });
@@ -2684,6 +2716,7 @@ function updateHoverTags(dt) {
 // Aiming down sights still uses the viewmodel, which lines up with the crosshair
 const FPV_BODY = new URLSearchParams(location.search).get('fpv') !== 'vm', FPV_FWD = 0.25;
 let bodyK = 0;
+let bodyOn = false; // your body is drawn (and the floating viewmodel is not): only with the camera well out in front of the head, and never while you aim down the sights
 let playerModelIdx = -1;
 function setPlayerModel(i) {
   if (P.rig) scene.remove(P.rig.wrap);
@@ -2705,7 +2738,7 @@ function heldObject(kind) {
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
 function updateSelfView() {
   const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
-  const see = bodyK > 0.5 && P.alive;
+  const see = bodyOn && P.alive;
   if (r.gear) r.gear.visible = false; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
   for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
   let want = RANGE.on ? RANGE.inHand() : curW;
@@ -2721,7 +2754,8 @@ function updatePlayerRig(dt) {
   const r = P.rig;
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.set(0, P.yaw + Math.PI, 0); // (upright: a vehicle seat tilts the body with the vehicle)
-  if (bodyK > 0.01) { fpvPose(r); } else fpvA2 = 0;
+  fpvDt = dt; rlTick(r);
+  if (bodyK > 0.01) { fpvPose(r); } else { fpvA2 = 0; fpvReloadEnd(r); }
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
   if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) { r.gunVis.matrix.copy(r.gunVis.userData.base); ART.fpvTool(r.gunVis, 0); } // (the pen and can stand in the fist again)
 }
@@ -2751,6 +2785,10 @@ function fpvPose(r) {
     _fh.lerp(THROW_BACK, a).lerp(THROW_OUT, b).lerp(hip, c); fpvA2 = -0.9 * a * (1 - b) + 0.3 * b * (1 - c);
     r.hideHeld = t >= 0.5; // the grenade leaves the hand
   } else if (r.held === 'pen' || r.held === 'spray') { ART.pose(_fh);
+  } else if (r.held === 'shotgun' && r.rlOn && (r.rl.t >= 0 || r.rl.te >= 0)) { // the Battery Gun stays up in front of you (the battery and your left hand do the work: fpvReload)
+    const s = r.rl, q = rlQ(s), kick = s.te >= 0 ? Math.sin(Math.PI * Math.min(1, Math.max(0, (s.te - RL.e0) / 0.17))) : 0, slap = Math.sin(Math.PI * Math.min(1, Math.max(0, (q - RL.hit + 0.04) / 0.15)));
+    const toward = sstep(0.31, 0.52, q) * (1 - sstep(0.82, 0.97, q)); // it comes in toward the middle to meet the hand
+    _fh.x -= RL.toward * toward; _fh.y += 0.02 * kick - 0.035 * slap;
   } else if (P.reloading > 0 && VMW[r.held]) {
     const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
     _fh.lerp(RELOAD_AT, k); fpvA2 = RELOAD_BEND * k; fpvAimW = 1 - k;
@@ -2765,6 +2803,7 @@ function fpvFit(r) {
     _fm.setFromMatrix4(r.gunBone.matrixWorld).invert(); _fd.applyMatrix3(_fm);
     gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
   }
+  fpvReloadRest(r); // (the gun's middle is measured with its batteries in the slot, not wherever last frame left them)
   _fb.setFromObject(gv).getCenter(_fc);
   if (VMW[r.held] && fpvAimW > 0.001) { // the whole arm turns about the grip so the barrel points where the camera does (hand and gun stay together)
     _gz.set(0, 0, -1).transformDirection(gv.matrixWorld); _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -2791,6 +2830,120 @@ function fpvFit(r) {
   _fm.setFromMatrix4(r.upper[0].b.parent.matrixWorld).invert(); _fd.applyMatrix3(_fm);
   for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) u.b.position.add(_fd);
   r.wrap.updateMatrixWorld(true); // the muzzle (tracer, flash, smoke) reads the finished pose
+  fpvReload(r);
+}
+
+// Battery Gun reload, first person. The battery pops out of the slot and arcs off the bottom of the screen (the green trail: units of half the screen's
+// height; e0 is when it goes and eLen how long it flies, in seconds), then your left hand brings a fresh one up from the lower left and slaps it into
+// the slot from the side. The hand starts handAt seconds after the old battery goes and takes the rest of the reload; hit is the slap, as a share of that.
+// The last battery is different: nothing to reload with, so it ejects when you fire it and the slot stays empty; once you pick up more, the hand
+// comes straight away. shift/pole place the left shoulder and elbow, palm is how far past the wrist the battery sits, ready/over are where the hand
+// waits and how far from the slot it winds up, toward is how far the gun comes in to meet it.
+const RL = { e0: 0.085, eLen: 0.58, handAt: 0.5, hit: 0.74, dx: -1.34, vy: 1.55, g: 4.31, spin: 6.9, toward: 0.12, shift: new V3(-0.05, -0.2, -0.1), pole: new V3(-0.3, -1, -0.2), palm: 0.22, ready: [-0.8, -0.7, 0.42], over: 0.17 };
+const RL_AXIS = new V3(0.5, 0.35, 0.8).normalize();
+let fpvDt = 0.016;
+const rlQ = s => (s.t < 0 ? -1 : (s.t - s.ha) / Math.max(0.2, s.D - s.ha)); // how far the hand has got (0 to 1; below 0 it has not started)
+function placeWorld(o, pos, q) { // put o (whose parent's world matrix is current) at a world position and orientation
+  const pm = o.parent.matrixWorld, pq = new THREE.Quaternion(); pm.decompose(new V3(), pq, new V3());
+  o.position.copy(pos).applyMatrix4(new THREE.Matrix4().copy(pm).invert()); o.quaternion.copy(pq).invert().multiply(q);
+}
+// What the Battery Gun in your hands is doing, tracked every frame (even aiming down the sights, so a last shot there is not missed):
+// s.t seconds into a reload (-1: none), s.D its length, s.ha when the hand starts, s.te seconds since the old battery was ejected (-1: not flying)
+function rlTick(r) {
+  const gv = r.gunVis, bat = gv && r.held === 'shotgun' && gv.getObjectByName('Battery');
+  if (!bat) { r.rlOn = false; return; }
+  let s = r.rl;
+  if (!s || s.gv !== gv) {
+    fpvReloadEnd(r);
+    const fresh = bat.clone(); fresh.name = 'Fresh battery'; fresh.visible = false; bat.parent.add(fresh);
+    s = r.rl = { gv, bat, fresh, gm: bat.parent, on: false, ua: rigBone(r, 'DEF-UpperArm_1L'), fa: rigBone(r, 'DEF-Forearm_1L'), wr: rigBone(r, 'DEF-WristL'), t: -1, D: 1.7, ha: RL.handAt, te: -1, was: P.ammo > 0 && !(P.reloading > 0) };
+    s.ik = !!(s.ua && s.fa && s.wr);
+    if (s.fa) s.faRest = s.fa.quaternion.clone();
+    s.carpals = r.upper.filter(u => u.lv === 2 && u.b.name.endsWith('L') && u.b !== s.ua).map(u => u.b); // (the fingers hang off the rig, not off the arm)
+  }
+  r.rlOn = true;
+  const D = s.D = WP().reload || 1.7;
+  if (P.reloading > 0) {
+    if (s.t < 0) { // it has just begun
+      if (s.was) { s.te = 0; s.ha = RL.handAt; } // fired with a spare battery: the old one goes now
+      else s.ha = s.te >= 0 ? Math.max(0, RL.handAt - s.te) : 0; // topped up from empty: it is out already (or on its way)
+      s.ha = Math.min(s.ha, D * 0.35);
+    }
+    s.t = Math.max(0, Math.min(D, D - P.reloading)); s.was = false;
+  } else {
+    s.t = -1;
+    if (P.ammo > 0) { s.te = -1; s.was = true; } else { if (s.was) s.te = RL.e0; s.was = false; } // (the last one: out it goes, and the gun stays empty)
+  }
+  if (s.te >= 0 && (s.te += fpvDt) > RL.e0 + RL.eLen * 1.1) s.te = -1; // gone off the bottom of the screen
+}
+// The old battery of the gun mesh's own gun (bat): in its slot, flying, or gone. cam/fov are what it flies across (the view it is drawn in)
+function rlOld(s, bat, cam, fov) {
+  const rest = bat.userData.rest, q = rlQ(s);
+  if ((P.ammo > 0 && s.t < 0) || q >= RL.hit) { bat.visible = true; bat.position.fromArray(rest); bat.quaternion.identity(); return; }
+  const es = (s.te - RL.e0) / RL.eLen;
+  if (s.te < 0) { bat.visible = false; return; }
+  if (es < 0) { bat.visible = true; bat.position.fromArray(rest); bat.quaternion.identity(); return; }
+  const gm = bat.parent, slot = gm.localToWorld(new V3().fromArray(rest)), Qg = gm.getWorldQuaternion(new THREE.Quaternion()), T = Math.tan(fov * Math.PI / 360);
+  const c = cam.worldToLocal(slot.clone()), d = -c.z, x = c.x / (T * d) + RL.dx * es, y = c.y / (T * d) + RL.vy * es - 0.5 * RL.g * es * es;
+  bat.visible = true; placeWorld(bat, new V3(x * T * d, y * T * d, -d).applyMatrix4(cam.matrixWorld), new THREE.Quaternion().setFromAxisAngle(RL_AXIS, RL.spin * es).premultiply(Qg));
+}
+function fpvReloadRest(r) { // both batteries in the slot (the fresh one just sits inside the old one's place while it is out of use)
+  const s = r.rl; if (!s) return;
+  s.bat.position.fromArray(s.bat.userData.rest); s.bat.quaternion.identity(); s.fresh.position.copy(s.bat.position); s.fresh.quaternion.identity();
+}
+function fpvReloadEnd(r) { // the battery back in its slot, the left arm down again
+  const s = r.rl; if (!s || !s.on) return; s.on = false;
+  fpvReloadRest(r); s.bat.visible = true; s.fresh.visible = false;
+  if (s.fa) s.fa.quaternion.copy(s.faRest);
+}
+function fpvReload(r) {
+  const s = r.rl, gv = r.gunVis;
+  if (!r.rlOn || !s || s.gv !== gv || r.held !== 'shotgun' || !bodyOn) return fpvReloadEnd(r);
+  s.on = true;
+  if (s.fa) s.fa.quaternion.copy(s.faRest);
+  r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld();
+  const { bat, fresh, gm } = s, T = Math.tan(camera.fov * Math.PI / 360), rest = new V3().fromArray(bat.userData.rest), q = rlQ(s);
+  const slot = gm.localToWorld(rest.clone()), Qg = gm.getWorldQuaternion(new THREE.Quaternion()), up = new V3(0, 1, 0).applyQuaternion(Qg);
+  const gx = new V3(1, 0, 0).applyQuaternion(Qg), side = gx.multiplyScalar(gx.dot(new V3(1, 0, 0).applyQuaternion(camera.quaternion)) > 0 ? -1 : 1); // the slot is open at the sides: the hand slaps the battery in from the left
+  const tw = (x, y, d) => new V3(x * T * d, y * T * d, -d).applyMatrix4(camera.matrixWorld); // a spot on the screen (x, y in half screen heights) at a depth
+  rlOld(s, bat, camera, camera.fov); // the old battery: up out of the slot, along the trail, gone off the bottom of the screen
+  // The fresh one, in the left hand
+  fresh.visible = q >= 0 && q < RL.hit;
+  if (q < 0) return;
+  const k = sstep(0, 0.31, q) * (1 - sstep(0.82, 1, q)), ua = s.ua, fa = s.fa, wr = s.wr;
+  const wp = o => o.getWorldPosition(new V3()), S0 = s.ik ? wp(ua) : null, E0 = s.ik ? wp(fa) : null, W0 = s.ik ? wp(wr) : null;
+  // where the battery in the palm goes: down at the hip while the arm hangs, then the lower left, up beside the slot (on its left), and in
+  const Brest = s.ik ? W0.clone().addScaledVector(W0.clone().sub(E0).normalize(), RL.palm) : tw(-1.6, -1.6, 0.4), ready = tw(...RL.ready), hover = slot.clone().addScaledVector(side, RL.over).addScaledVector(up, 0.03);
+  let B;
+  if (q < 0.375) B = Brest.clone().lerp(ready, sstep(0, 0.375, q));
+  else if (q < 0.65) { const u = sstep(0.375, 0.65, q); B = ready.clone().lerp(hover, u).addScaledVector(up, 0.06 * Math.sin(Math.PI * u)); }
+  else if (q < RL.hit) B = hover.clone().lerp(slot, ((q - 0.65) / (RL.hit - 0.65)) ** 2);
+  else if (q < 0.8) B = slot.clone();
+  else B = slot.clone().lerp(ready, sstep(0.8, 0.9, q)).lerp(Brest, sstep(0.9, 1, q));
+  let hand = B, Qf = Qg;
+  if (s.ik) {
+    const node = ua.parent, Mb = wr.matrixWorld.clone(), Q = new THREE.Quaternion();
+    // the shoulder drops and comes forward (it is behind the lens, so it stays out of the view): the arm can reach across to the gun and rises from the bottom of the screen
+    const shift = RL.shift.clone().applyQuaternion(camera.quaternion).multiplyScalar(k);
+    ua.position.add(shift.clone().applyMatrix3(new THREE.Matrix3().setFromMatrix4(node.matrixWorld).invert())); ua.updateMatrixWorld(true);
+    const S1 = S0.clone().add(shift), a = E0.distanceTo(S0), b = W0.distanceTo(E0);
+    // two-bone reach: the wrist goes a palm's length short of B, along the arm
+    const Tw = B.clone().addScaledVector(B.clone().sub(S1).normalize(), -RL.palm), u = Tw.clone().sub(S1), d0 = u.length(), dm = (a + b) * 0.985;
+    u.divideScalar(d0); if (d0 > dm) Tw.copy(S1).addScaledVector(u, dm);
+    const d = Math.min(d0, dm), xa = (a * a + d * d - b * b) / (2 * d), h = Math.sqrt(Math.max(0, a * a - xa * xa));
+    const pole = RL.pole.clone().applyQuaternion(camera.quaternion), pp = pole.addScaledVector(u, -pole.dot(u)).normalize();
+    const Es = S1.clone().addScaledVector(u, xa).addScaledVector(pp, h);
+    const turn = (bone, q) => { const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()); bone.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq)); bone.updateMatrixWorld(true); };
+    turn(ua, Q.setFromUnitVectors(E0.clone().sub(S0).normalize(), Es.clone().sub(S1).normalize()));
+    const E2 = wp(fa);
+    turn(fa, Q.setFromUnitVectors(wp(wr).sub(E2).normalize(), Tw.clone().sub(E2).normalize()));
+    const M = wr.matrixWorld.clone().multiply(Mb.invert()), nInv = new THREE.Matrix4().copy(node.matrixWorld).invert(), m = new THREE.Matrix4(), sc = new V3();
+    for (const c of s.carpals) m.copy(nInv).multiply(M).multiply(c.matrixWorld).decompose(c.position, c.quaternion, sc);
+    r.wrap.updateMatrixWorld(true);
+    const W3 = wp(wr), fd = W3.clone().sub(wp(fa)).normalize(); hand = W3.clone().addScaledVector(fd, RL.palm).lerp(B, sstep(0.62, RL.hit, q));
+    Qf = new THREE.Quaternion().setFromUnitVectors(new V3(0, 0, 1), fd).slerp(Qg, sstep(0.44, RL.hit, q)); // held like a baton at first, lined up with the slot by the time it goes in
+  }
+  placeWorld(fresh, hand, Qf);
 }
 
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
@@ -3115,11 +3268,11 @@ function _puff(tex, p, size, life, opts) {
 // p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
 function _muzzleFx(id, p, d, own) {
   const f = GUN_FX[id]; if (!f) return;
-  if (!own || bodyK > 0.5) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
+  if (!own || bodyOn) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
   const sm = f.smoke;
   for (let i = 0; i < sm.count; i++) {
     const k = sm.count > 1 ? i / (sm.count - 1) : 0;
-    const at = p.clone().addScaledVector(d, (own && bodyK <= 0.5 ? 0.35 : 0.05) + k * 0.25);
+    const at = p.clone().addScaledVector(d, (own && !bodyOn ? 0.35 : 0.05) + k * 0.25);
     const vel = d.clone().multiplyScalar(sm.speed * (0.4 + Math.random() * 0.6)).add(new V3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4));
     _puff(sm.tex, at, sm.size * (0.8 + Math.random() * 0.4), sm.life * (0.75 + Math.random() * 0.5), { color: sm.color, additive: sm.additive, grow: sm.grow, vel, rise: sm.rise, opacity: sm.opacity * (own ? 0.7 : 1), spin: 1.2 });
   }
@@ -3662,8 +3815,8 @@ const shotRay = new THREE.Raycaster();
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
   const mw = P.rig && VMW[P.rig.held];
-  if (bodyK > 0.5 && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
-  if (bodyK > 0.5 && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
+  if (bodyOn && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
+  if (bodyOn && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
   const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
@@ -4338,6 +4491,7 @@ function updateCamera(dt) {
   camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   myEye.copy(camera.position);
   bodyK += ((FPV_BODY && P.alive && adsK < 0.3 && !VEH.riding && !PREGAME && !document.body.classList.contains('titleon') ? 1 : 0) - bodyK) * Math.min(1, dt * 12); // (not on the start pages: your body and gun would hang in front of the title camera)
+  bodyOn = bodyK > 0.001 && !ads && adsK < 0.3 && (bodyOn || bodyK > 0.92); // (it drops out the moment you aim, and comes back only once the camera has moved out past the head: no head or neck swinging by the lens)
   if (bodyK > 0.001) { // the camera sits ahead of the head, which then only casts its shadow
     _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
     const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
@@ -4446,6 +4600,8 @@ function updateVM(dt) {
   if (P.reloading > 0) rx -= Math.sin((1 - P.reloading / WP().reload) * Math.PI) * 0.7;
   if (throwT > 0) rx -= Math.sin((1 - throwT / 0.4) * Math.PI) * 0.8;
   vm.rotation.set(rx, 0, 0);
+  const vb = curW === 'shotgun' && VMW.shotgun && VMW.shotgun.holder.getObjectByName('Battery'); // the Battery Gun's battery: out of it once the last is fired, and flying when it goes
+  if (vb) { vm.updateMatrixWorld(true); vmCam.updateMatrixWorld(); if (P.rig && P.rig.rlOn) rlOld(P.rig.rl, vb, vmCam, vmCam.fov); else vb.visible = P.ammo > 0; }
   flashT -= dt;
   flash.visible = flashT > 0;
   flash.rotation.z = Math.random() * Math.PI;
@@ -5937,7 +6093,7 @@ function loop(now) {
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (bodyK < 0.5 && !PREGAME && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (!bodyOn && !PREGAME && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 </script>
