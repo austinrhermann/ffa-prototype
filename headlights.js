@@ -1,5 +1,5 @@
 // Headlights and tail lights: when the host's lighting is dark (dusk or night, index.html's nightOn()), every vehicle with
-// someone aboard lights the way ahead (and the truck glows red behind). Each lamp is a cone (vehicles.js's lampBeams: where,
+// someone aboard lights the way ahead. Each lamp is a cone (vehicles.js's lampBeams: where,
 // which way, how far, how wide and its colour). Inside a cone a surface shows its own colour times the lamp's, without the
 // look's light and shadow (index.html's flashAt, in every toon material's shader).
 // What a lamp can see is drawn from there, depth only, into one tile of a small target (FLASH.depth, four tiles across, two
