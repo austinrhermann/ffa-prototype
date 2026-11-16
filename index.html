@@ -2834,13 +2834,13 @@ function updatePlayerRig(dt) {
   r.wrap.visible = P.alive;
   r.wrap.position.copy(P.pos); r.wrap.rotation.set(0, P.yaw + Math.PI, 0); // (upright: a vehicle seat tilts the body with the vehicle)
   fpvDt = dt; rlTick(r);
-  if (bodyK > 0.01) { fpvPose(r); } else { fpvA2 = 0; fpvReloadEnd(r); }
+  if (bodyK > 0.01) { fpvPose(r); } else { fpvA2 = 0; fpvReloadEnd(r); if (r.wristRest) r.gunBone.quaternion.copy(r.wristRest); }
   animRig(r, dt, Math.hypot(P.vel.x, P.vel.z), P.h < STAND_H, P.pitch);
   if (bodyK > 0.01) fpvFit(r); else if (r.gunVis && r.gunVis.userData.base) { r.gunVis.matrix.copy(r.gunVis.userData.base); ART.fpvTool(r.gunVis, 0); } // (the pen and can stand in the fist again)
 }
 // First person: the gun hand moves (arm and all) to where the floating viewmodel gun used to be, so every character
 // holds every gun in the same place on screen, whatever the size of their arms
-const _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
+const m4 = new THREE.Matrix4(), _fb = new THREE.Box3(), _fc = new V3(), _fd = new V3(), _fm = new THREE.Matrix3(), _fm4 = new THREE.Matrix4(), FPV_HAND_X = 0.09;
 const HELD_HIP = { knife: new V3(0.1, -0.1, -0.46), nade: new V3(0.1, -0.1, -0.42), pen: new V3(0.25, -0.18, -0.55), spray: new V3(0.25, -0.17, -0.6) }; // (the art tools: low on the right)
 // Where the gun hand is in the view, and how far the arm tips about the shoulder (positive: the gun points down): the hip hold,
 // or the reload (gun and hand drop down beside the body), the knife stab and the grenade throw. All camera-space, like the old viewmodel
@@ -2869,7 +2869,7 @@ function fpvPose(r) {
     if (sp.side) { // the Battery Gun comes in toward the middle to meet the hand
       if (s.t >= 0 || s.te >= 0) { const toward = sstep(0.31, 0.52, q) * (1 - sstep(0.82, 0.97, q)); _fh.x -= RL.toward * toward; _fh.y += 0.02 * kick - 0.035 * slap; }
     } else if (s.env > 0.001) { // the others are lifted and tipped so the slot shows (the pistol's handle, the Uzi's clip, the hatch on top)
-      const e = s.env, h = sp.hold; _fh.x += h.x * e; _fh.y += h.y * e + 0.02 * kick - 0.035 * slap; _fh.z += h.z * e; fpvPitch = h.pitch * e; fpvRoll = h.roll * e;
+      const e = s.env, h = sp.hold; _fh.x += h.x * e; _fh.y += h.y * e + 0.02 * kick - 0.035 * slap; _fh.z += h.z * e; fpvPitch = h.pitch * e; fpvRoll = h.roll * s.tilt;
     }
   } else if (P.reloading > 0 && VMW[r.held]) {
     const p = 1 - P.reloading / WP().reload, k = Math.min(sstep(0, 0.15, p), 1 - sstep(0.85, 1, p));
@@ -2878,6 +2878,7 @@ function fpvPose(r) {
 }
 function fpvFit(r) {
   const hip = _fh; if (!r.gunVis || !r.upper.length || !VMW[r.held] && !HELD_HIP[r.held]) return;
+  if (r.wristRest) r.gunBone.quaternion.copy(r.wristRest); // (a reload may have rolled it)
   const gv = r.gunVis, base = gv.userData.base;
   r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
   if (base) { // the gun sits a little to the left of the hand (on screen), so the hand ends up on the right of the gun
@@ -2891,14 +2892,19 @@ function fpvFit(r) {
     _gz.set(0, 0, -1).transformDirection(gv.matrixWorld); _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
     _cf.applyAxisAngle(_kr.set(1, 0, 0).applyQuaternion(camera.quaternion), vmKick * 0.08); // and the same muzzle flip
     _qd.setFromUnitVectors(_gz, _cf); _qi.identity().slerp(_qd, fpvAimW * bodyK);
-    if (fpvPitch || fpvRoll) { // a reload tips the gun (top to the left, then muzzle up, about the view's own axes) to show its slot to the left hand
-      _qd.setFromAxisAngle(_gz.set(0, 0, -1).applyQuaternion(camera.quaternion), fpvRoll * bodyK); _qi.premultiply(_qd);
-      _qd.setFromAxisAngle(_kr.set(1, 0, 0).applyQuaternion(camera.quaternion), fpvPitch * bodyK); _qi.premultiply(_qd);
-    }
+    if (fpvPitch) { _qd.setFromAxisAngle(_kr.set(1, 0, 0).applyQuaternion(camera.quaternion), fpvPitch * bodyK); _qi.premultiply(_qd); } // a reload tips the muzzle up
     const node = r.upper[0].b.parent; node.getWorldQuaternion(_qb2);
     _qd.copy(_qb2).invert().multiply(_qi).multiply(_qb2); // into the armature's frame
     _fp.copy(_fc); node.worldToLocal(_fp);
     for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R')) { u.b.position.sub(_fp).applyQuaternion(_qd).add(_fp); u.b.quaternion.premultiply(_qd); }
+    r.wrap.updateMatrixWorld(true); _fb.setFromObject(gv).getCenter(_fc);
+  }
+  if (fpvRoll && VMW[r.held] && r.wristRest) { // a reload also rolls the gun (top to the left, so the hatch shows): the hand turns at the wrist, as the whole arm turning would swing the shoulder across the view
+    const wb = r.gunBone, node = r.upper[0].b.parent, Mb = wb.matrixWorld.clone(), M = new THREE.Matrix4(), nInv = new THREE.Matrix4().copy(node.matrixWorld).invert(), sc = new V3();
+    _qd.setFromAxisAngle(_gz.set(0, 0, -1).applyQuaternion(camera.quaternion), fpvRoll * bodyK);
+    wb.parent.getWorldQuaternion(_qb2); wb.quaternion.premultiply(_qi.copy(_qb2).invert().multiply(_qd).multiply(_qb2)); wb.updateMatrixWorld(true);
+    M.copy(wb.matrixWorld).multiply(Mb.invert());
+    for (const u of r.upper) if (u.lv === 2 && u.b.name.endsWith('R') && !/UpperArm/.test(u.b.name)) { m4.copy(nInv).multiply(M).multiply(u.b.matrixWorld).decompose(u.b.position, u.b.quaternion, sc); } // (the fingers hang off the rig, not off the wrist)
     r.wrap.updateMatrixWorld(true); _fb.setFromObject(gv).getCenter(_fc);
   }
   const qa = !VMW[r.held] && ART.armTurn(r.held);
@@ -2930,7 +2936,8 @@ function fpvFit(r) {
 // r wide and h long, end to end or side by side; at: where they sit once in, hidden inside the gun). long is the way the magazine lies, ins the way
 // it is pushed in, hov how far outside the slot the hand waits. fly: the old one leaves (slide: how far it slides out of the gun first, over the
 // first slideT of its flight). hold: where the gun is lifted to meanwhile (x y z in the view, in metres) and how far it is tipped (pitch: muzzle
-// up; roll: top to the left). lid: the hatch that opens on top for the batteries (at: hinge, len: how far it reaches, w: wide).
+// up; roll: the hand turns at the wrist, the top of the gun to the left, from tiltAt seconds in, once the old batteries are away). cells: the batteries
+// standing out of the top of a fresh clip. lid: the hatch that opens on top for the batteries (at: hinge, len: how far it reaches, w: wide).
 const RL = { e0: 0.085, eLen: 0.58, handAt: 0.5, hit: 0.74, dx: -1.34, vy: 1.55, g: 4.31, spin: 6.9, toward: 0.12, shift: new V3(-0.05, -0.2, -0.1), pole: new V3(-0.3, -1, -0.2), palm: 0.22, ready: [-0.8, -0.7, 0.42], over: 0.17 };
 const RL_AXIS = new V3(0.5, 0.35, 0.8).normalize(), Y_UP = new V3(0, 1, 0);
 const RLS = {
@@ -2938,16 +2945,17 @@ const RLS = {
   pistol: { part: 'Mag', prop: { n: 3, r: 0.0125, h: 0.04, col: 0xe8c33a }, at: [0, -0.0745, -0.067], long: [0, 0.92, 0.39], ins: [0, 0.92, 0.39], hov: 0.2,
     fly: { e0: 0.16, eLen: 0.5, dx: 0.15, vy: -0.15, g: 3.4, spin: 3, slide: 0.15, slideT: 0.22 }, hold: { x: -0.1, y: 0.2, z: -0.02, pitch: 0.45, roll: 0 } },
   uzi: { part: 'Clip', box: [-0.0135, -0.22, -0.113, 0.0135, -0.008, -0.049], long: [0, 1, 0], ins: [0, 1, 0], hov: 0.24,
+    cells: { n: 2, r: 0.011, h: 0.05, col: 0x3a8ee8, glow: 0x14407f }, // the D batteries that stand out of the top of a fresh clip
     fly: { e0: 0.16, eLen: 0.55, dx: 0.1, vy: -0.1, g: 3.6, spin: 1.5, slide: 0.045, slideT: 0.15 }, hold: { x: -0.12, y: 0.27, z: -0.02, pitch: 0.45, roll: 0 } },
   rifle: { part: 'Mag', prop: { n: 1, r: 0.02, h: 0.09, col: 0xd9d9d9, cap: 0xd4a52a }, at: [0, -0.01, -0.05], long: [0, 1, 0], ins: [0, -1, 0], hov: 0.17,
-    fly: { e0: 0.1, eLen: 0.6, dx: 0.9, vy: 0.8, g: 4.6, spin: 8 }, hold: { x: -0.1, y: 0.14, z: -0.35, pitch: 0.2, roll: 0.3 },
+    fly: { e0: 0.1, eLen: 0.6, dx: 0.9, vy: 0.8, g: 4.6, spin: 8 }, hold: { x: -0.1, y: 0.03, z: -0.1, pitch: 0.1, roll: -0.9, tiltAt: 0.25 },
     lid: { at: [0, 0.038, -0.12], len: 0.12, w: 0.05, ang: 1.5 } },
   carbine: { part: 'Mag', prop: { n: 2, r: 0.013, h: 0.09, col: 0xe8c33a, side: true }, at: [0, 0.075, 0.3], long: [0, 0, 1], ins: [0, -1, 0], hov: 0.15,
-    fly: { e0: 0.1, eLen: 0.6, dx: 0.7, vy: 1, g: 4.5, spin: 7 }, hold: { x: -0.08, y: 0.05, z: 0, pitch: 0, roll: 0.3 },
+    fly: { e0: 0.1, eLen: 0.6, dx: 0.7, vy: 1, g: 4.5, spin: 7 }, hold: { x: -0.1, y: 0.03, z: 0.05, pitch: 0.1, roll: -0.9, tiltAt: 0.3 },
     lid: { at: [0, 0.097, 0.2], len: 0.14, w: 0.05, ang: 1.5, col: 0x35373d } },
 };
 function makeMag(p) { // loose batteries as one lump along +y: n of them, end to end, or side by side
-  const g = new THREE.Group(), body = toonMat({ color: p.col }), cap = toonMat({ color: p.cap || 0xc9ced4 });
+  const g = new THREE.Group(), body = toonMat(p.glow ? { color: p.col, emissive: p.glow } : { color: p.col }), cap = toonMat({ color: p.cap || 0xc9ced4 });
   for (let k = 0; k < p.n; k++) {
     const c = new THREE.Group(), b = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, p.h, 12), body), nub = new THREE.Mesh(new THREE.CylinderGeometry(p.r * 0.45, p.r * 0.45, p.h * 0.14, 8), cap);
     nub.position.y = p.h * 0.57; c.add(b, nub);
@@ -2960,8 +2968,14 @@ function makeMag(p) { // loose batteries as one lump along +y: n of them, end to
 // out of the mesh, 'Mag' drawn here, hidden while it sits inside) and the hatch ('Lid', hidden unless a reload has it open)
 function addReloadParts(w) {
   const sp = RLS[w.id], gm = sp && (() => { let m = null; w.scene.traverse(o => { if (!m && o.isMesh) m = o; }); return m; })(); if (!gm) return;
-  if (sp.box) liftPart(w.scene, sp.box, sp.part);
-  else if (sp.prop) {
+  if (sp.box) {
+    liftPart(w.scene, sp.box, sp.part);
+    const clip = gm.getObjectByName(sp.part);
+    if (clip && sp.cells) { // hidden until it is the fresh one in your hand (rlTick)
+      const c = sp.cells, bb = clip.geometry.boundingBox || (clip.geometry.computeBoundingBox(), clip.geometry.boundingBox), cells = makeMag({ ...c, side: true });
+      cells.name = 'Cells'; cells.rotation.y = Math.PI / 2; cells.position.set(0, bb.max.y + c.h / 2 - 0.004, (bb.min.z + bb.max.z) / 2); cells.visible = false; clip.add(cells);
+    }
+  } else if (sp.prop) {
     const m = makeMag(sp.prop); m.name = sp.part; m.position.fromArray(sp.at); m.quaternion.setFromUnitVectors(Y_UP, new V3(...sp.long).normalize()); m.visible = false;
     m.userData.rest = sp.at.slice(); m.userData.restQ = m.quaternion.toArray(); gm.add(m);
   }
@@ -2984,9 +2998,10 @@ function rlTick(r) {
   if (!bat) { r.rlOn = false; return; }
   let s = r.rl;
   if (!s || s.gv !== gv) {
-    fpvReloadEnd(r);
+    fpvReloadEnd(r); if (!r.wristRest) r.wristRest = r.gunBone.quaternion.clone();
     const fresh = bat.clone(); fresh.name = 'Fresh ' + sp.part; fresh.visible = false; bat.parent.add(fresh);
-    s = r.rl = { gv, sp, fly: sp.fly, prop: !!sp.prop, lax: sp.prop ? Y_UP : new V3(...sp.long), bat, fresh, lidO: gv.getObjectByName('Lid'), lid: 0, env: 0, gm: bat.parent, on: false, ua: rigBone(r, 'DEF-UpperArm_1L'), fa: rigBone(r, 'DEF-Forearm_1L'), wr: rigBone(r, 'DEF-WristL'), t: -1, D: 1.7, ha: RL.handAt, te: -1, was: P.ammo > 0 && !(P.reloading > 0) };
+    const cells = fresh.getObjectByName('Cells'); if (cells) cells.visible = true;
+    s = r.rl = { gv, sp, fly: sp.fly, prop: !!sp.prop, lax: sp.prop ? Y_UP : new V3(...sp.long), bat, fresh, lidO: gv.getObjectByName('Lid'), lid: 0, env: 0, tilt: 0, gm: bat.parent, on: false, ua: rigBone(r, 'DEF-UpperArm_1L'), fa: rigBone(r, 'DEF-Forearm_1L'), wr: rigBone(r, 'DEF-WristL'), t: -1, D: 1.7, ha: RL.handAt, te: -1, was: P.ammo > 0 && !(P.reloading > 0) };
     s.ik = !!(s.ua && s.fa && s.wr);
     if (s.fa) s.faRest = s.fa.quaternion.clone();
     s.carpals = r.upper.filter(u => u.lv === 2 && u.b.name.endsWith('L') && u.b !== s.ua).map(u => u.b); // (the fingers hang off the rig, not off the arm)
@@ -3006,6 +3021,8 @@ function rlTick(r) {
   }
   if (s.te >= 0 && (s.te += fpvDt) > fl.e0 + fl.eLen * 1.1) s.te = -1; // gone off the bottom of the screen
   s.env += ((s.t >= 0 || s.te >= 0 ? 1 : 0) - s.env) * Math.min(1, fpvDt * 9);
+  // the roll (top of the gun to the left, so the hatch shows) comes only once the old batteries are away, and goes again after the push
+  s.tilt += ((s.t >= 0 && s.t >= ((sp.hold && sp.hold.tiltAt) || 0) && rlQ(s) < RL.hit + 0.05 ? 1 : 0) - s.tilt) * Math.min(1, fpvDt * 8);
 }
 // The old magazine of the gun mesh's own gun (bat): in its slot, flying, or gone. cam/fov are what it flies across (the view it is drawn in)
 function rlOld(s, bat, cam, fov) {
@@ -3031,7 +3048,7 @@ function fpvReloadRest(r) { // everything in its place (the fresh one just sits 
 }
 function fpvReloadEnd(r) { // the magazine back in its slot, the left arm down again
   const s = r.rl; if (!s || !s.on) return; s.on = false;
-  fpvReloadRest(r); s.bat.visible = !s.prop; s.fresh.visible = false; s.lid = 0;
+  fpvReloadRest(r); s.bat.visible = !s.prop; s.fresh.visible = false; s.lid = s.tilt = 0;
   if (s.lidO) s.lidO.visible = false;
   if (s.fa) s.fa.quaternion.copy(s.faRest);
 }
