@@ -130,7 +130,15 @@
       piv.position.set(x, r, z); g.add(piv); piv.add(spin); w.scale.setScalar(r / m.wheelR); spin.add(w);
       wheels.push({ piv, spin });
     }
-    return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw, blocked: s.blocked })) };
+    // The headlight and tail-light lenses get their own materials, so they can glow (lampGlow)
+    const heads = [], tails = [];
+    shell.traverse(o => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+      const n = o.material.name || '';
+      if (/^Headlight/i.test(n)) { o.material = o.material.clone(); heads.push(o); }
+      else if (/^brakes/i.test(n)) { o.material = o.material.clone(); tails.push(o); }
+    });
+    return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, heads, tails, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw, blocked: s.blocked })) };
   }
   // The body's length, and where its middle is (ahead of the point halfway between the axles)
   const lenOf = v => v.model ? v.model.len : v.p.wheelbase + (v.kind === 'bike' ? 0.6 : 0.9);
@@ -208,6 +216,7 @@
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
+    v.heads = v.tails = v.lens = null; // (a model's lenses, or none for one built from boxes)
     Object.assign(v, v.kind === 'bike' ? buildBike(v) : buildTruck(v));
     v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
@@ -215,37 +224,80 @@
     if (v.dead) darken(v);
     scene.add(v.g); pose(v, 0);
   }
-  // ---------------------------------------------------------------- headlights (?dev: items.js draws them as flashlights)
-  // Each one: where it sits in the part it's fixed to (the body; a bike's on the fork, so it turns with the bars) and the way
-  // it points there: straight ahead and a little down (LAMP_DIP). The Cargo Truck's two and the motorcycle's one are measured
-  // off the models; a vehicle built from boxes has them at the front of its shape
-  const LAMP_DIP = 0.12;
+  // ---------------------------------------------------------------- headlights and tail lights (headlights.js lights them)
+  // Each lamp: where it sits in the part it's fixed to (the body; a bike's on the fork, so it turns with the bars), the way it
+  // points there, how far it reaches, how wide (the cosine of the cone's half angle; fov: the shadow camera's) and its colour.
+  // Headlights point ahead and down (LAMP_DIP), so the light lands just in front. The truck's sit on its headlight lenses and
+  // its one tail light on the middle of its brake lights; the motorcycle's one headlight is measured off the model.
+  const LAMP_DIP = { car: 0.42, bike: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3), TAIL_COL = new V3(1.35, 0.12, 0.08);
+  // The middle and the front (or back) of some meshes' vertices, in o's frame: per side (x < 0 and x > 0) or all together
+  function lensSpots(meshes, o, split, front) {
+    const inv = new THREE.Matrix4().copy(o.matrixWorld).invert(), v = new V3(), out = split ? [[], []] : [[]];
+    for (const m of meshes) {
+      m.updateWorldMatrix(true, false); const pos = m.geometry.attributes.position, M = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
+      for (let k = 0; k < pos.count; k++) { v.fromBufferAttribute(pos, k).applyMatrix4(M); out[split ? (v.x < 0 ? 0 : 1) : 0].push(v.clone()); }
+    }
+    return out.filter(a => a.length).map(a => {
+      const c = a.reduce((s, q) => s.add(q), new V3()).divideScalar(a.length);
+      c.z = front ? Math.max(...a.map(q => q.z)) + 0.05 : Math.min(...a.map(q => q.z)) - 0.05; return c;
+    });
+  }
   function lampsOf(v) {
     const o = (v.kind === 'bike' && v.fork) || v.body || v.g, bike = v.kind === 'bike';
     v.g.updateMatrixWorld(true);
     const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
+    const dip = LAMP_DIP[bike ? 'bike' : 'car'], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
+    const head = p => ({ o, p, d: ahead.clone(), far: bike ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL, tail: false });
+    if (v.heads && v.heads.length) { // the truck, from its model's lenses
+      const out = lensSpots(v.heads, o, true, true).map(head);
+      if (v.tails && v.tails.length) for (const p of lensSpots(v.tails, o, false, false))
+        out.push({ o, p, d: new V3(0, -Math.sin(0.55), -Math.cos(0.55)).transformDirection(M), far: 7, cone: 0.62, fov: 110, col: TAIL_COL, tail: true });
+      return out;
+    }
     let at;
     if (v.model && v.layout === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
-    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.06, 0.68]];
-    else if (bike) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.15]];
+    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.06, 0.78]];
+    else if (bike) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.2]];
     else {
       const b = new THREE.Box3(), gi = new THREE.Matrix4().copy(v.g.matrixWorld).invert(), bb = new THREE.Box3();
       v.g.traverse(m => { if (m.isMesh && m.geometry) { if (!m.geometry.boundingBox) m.geometry.computeBoundingBox(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(gi, m.matrixWorld))); } });
       if (b.isEmpty()) return [];
       at = [1, -1].map(sd => [sd * (b.max.x - b.min.x) * 0.3, b.min.y + (b.max.y - b.min.y) * 0.3, b.max.z + 0.05]);
     }
-    const d = new V3(0, -Math.sin(LAMP_DIP), Math.cos(LAMP_DIP)).transformDirection(M);
-    return at.map(a => ({ o, p: new V3(a[0], a[1], a[2]).applyMatrix4(M), d: d.clone() }));
+    const lamps = at.map(a => head(new V3(a[0], a[1], a[2]).applyMatrix4(M)));
+    if (bike) { // the motorcycle's lens: a small disc on the front of the headlight, which glows at night
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), new THREE.MeshBasicMaterial({ color: 0x5a5648 }));
+      lens.position.copy(lamps[0].p); lens.lookAt(lens.position.clone().add(new V3(0, 0, 1).transformDirection(M))); o.add(lens);
+      v.lens = lens;
+    }
+    return lamps;
   }
-  // The lit ones, in the world: [{ o: where, d: which way, v: the vehicle }]. They're on while someone (or a bot) drives, unless the driver
-  // has put them out (L at the wheel)
+  // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, col, v: the vehicle }]. They're on while someone (or
+  // a bot) drives. The tail light is brighter while the vehicle slows down hard (braking)
   function lampBeams() {
     const out = [];
     for (const v of list) {
       if (v.dead || !v.lamp || !v.lamps || !(v.owner || v.npc || v.npcBusy)) continue;
-      for (const l of v.lamps) { l.o.updateWorldMatrix(true, false); out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), v }); }
+      for (const l of v.lamps) {
+        l.o.updateWorldMatrix(true, false);
+        const col = l.tail ? l.col.clone().multiplyScalar(0.45 + 0.55 * (v.brakeK || 0)) : l.col;
+        out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, col, v });
+      }
     }
     return out;
+  }
+  // The lenses: headlights glow white when they're on; the tail lights glow red, brighter when braking (in daylight too)
+  const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
+  function lampGlow(v, dt) {
+    const s = Math.abs(v.speed || 0), decel = v.prevS === undefined ? 0 : (v.prevS - s) / Math.max(dt, 1e-3); v.prevS = s;
+    const mine = v === cur, inp = mine ? input() : null;
+    const braking = s > 0.5 && (decel > 2.5 || (mine && (inp.hand || (inp.thr < 0 && v.speed > 0.5))));
+    v.brakeK = (v.brakeK || 0) + ((braking ? 1 : 0) - (v.brakeK || 0)) * Math.min(1, dt * 10);
+    const driven = !v.dead && !!(v.owner || v.npc || v.npcBusy), lit = driven && nightOn();
+    for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
+    const tk = driven ? (lit ? 0.35 : 0) + 0.65 * v.brakeK : 0;
+    for (const m of v.tails || []) m.material.emissive.copy(_tailOn).multiplyScalar(tk);
+    if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
   }
 
   // Wrecked: a model swaps to its wreck (burnt darker, on its own wheels); anything else just goes dark
@@ -1045,6 +1097,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       const noGun = VEH.noGuns && (cur || ride);
       for (const id of ['ammo', 'c1', 'c2', 'c3', 'c4']) { const e = $(id); if (e) e.style.visibility = noGun ? 'hidden' : ''; }
       if (!list.length) return;
+      for (const v of list) lampGlow(v, dt);
       if (noGun) { vm.visible = false; knifeVM.visible = false; }
       // Your body: in Test Drive drawn on foot (third person); in a vehicle drawn in the chase view, hidden in your seat's view
       if (cur || ride) setSelf(view === 'chase'); // (on foot the game's own body view decides)

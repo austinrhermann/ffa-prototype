@@ -1,12 +1,13 @@
-// Headlights: when the host's lighting is dark (dusk or night, index.html's nightOn()), every vehicle with someone aboard
-// lights the way ahead. Each lamp is a cone from the front of the vehicle (vehicles.js's lampBeams). Inside a cone a surface
-// shows its own colour, without the look's light and shadow (index.html's flashAt, in every toon material's shader).
+// Headlights and tail lights: when the host's lighting is dark (dusk or night, index.html's nightOn()), every vehicle with
+// someone aboard lights the way ahead (and the truck glows red behind). Each lamp is a cone (vehicles.js's lampBeams: where,
+// which way, how far, how wide and its colour). Inside a cone a surface shows its own colour times the lamp's, without the
+// look's light and shadow (index.html's flashAt, in every toon material's shader).
 // What a lamp can see is drawn from there, depth only, into one tile of a small target (FLASH.depth, four tiles across, two
 // down): the level, the props, the vehicles and everyone, so the cone stops at what's really in the way (walls, posts,
 // people). More than FLASH_MAX at once: the ones nearest you.
 // Loaded after the main game script and vehicles.js; it uses the game's globals (scene, renderer, camera, VEH, FLASH, ...).
 (() => {
-  const LAMP_FAR = 40, RES = 256, COLS = 4;
+  const LAMP_FAR = 40, RES = 256, COLS = 4, _white = new V3(1, 1, 1);
   const target = new THREE.WebGLRenderTarget(RES * COLS, RES * 2, { depthBuffer: true, stencilBuffer: false });
   target.depthTexture = new THREE.DepthTexture(RES * COLS, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
   target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
@@ -48,7 +49,8 @@
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
     try {
       beams.forEach((b, i) => {
-        const cam = cams[i];
+        const cam = cams[i], far = b.far || LAMP_FAR, fov = b.fov || 46;
+        if (cam.far !== far || cam.fov !== fov) { cam.far = far; cam.fov = fov; cam.updateProjectionMatrix(); }
         cam.position.copy(b.o); cam.lookAt(b.o.x + b.d.x, b.o.y + b.d.y, b.o.z + b.d.z); cam.updateMatrixWorld();
         target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
@@ -56,7 +58,8 @@
         for (const v of VEH.list || []) if (v !== b.v && v.g) drawBody(v.g, cam);
         for (const o of ents) if (o.alive) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam);
         FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
-        FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = LAMP_FAR;
+        FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = far;
+        FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935;
       });
     } finally { renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac; }
     FLASH.n.value = beams.length;
