@@ -2711,7 +2711,7 @@ function updateSelfView() {
   let want = RANGE.on ? RANGE.inHand() : curW;
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
   else
-  if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife'; else if (!RANGE.on && (cookT >= 0 || throwT > 0) && P.alive && NADE_MODEL) want = 'nade';
+  if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife';
   else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
   if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
   if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
@@ -3447,11 +3447,10 @@ function updateRockets(dt) {
 
 // Ammo boxes
 const ammoBoxes = [];
-const AMMO_MAT = toonMat({ color: 0x4f5b34 }), BAND_MAT = toonMat({ color: 0xe8c547 });
-const NADE_MAT = toonMat({ color: 0x33402a }), NBAND_MAT = toonMat({ color: 0xc8402f });
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
-  // Under ?dev the boxes are battery packs: A and D in turn, F where the grenades were, and each weapon's own pack on its spot
+  // Battery packs: A and D in turn, F where the grenades were, and each weapon's own pack on its spot (range.js draws them;
+  // before it has loaded there are none: the fort's switch builds them)
   if (RANGE.on) {
     let i = 0; const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : i++ % 2 ? 'D' : 'A' }));
     for (const [id, p] of STATIC_PICKUPS) { const kind = RANGE.ammoOf(id); if (kind) spots.push({ pos: p, kind }); }
@@ -3459,14 +3458,6 @@ function buildAmmoBoxes() {
       const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
     }
-    return;
-  }
-  for (const { pos: p, cell, nade } of AMMO_SPOTS) {
-    const g = new THREE.Group();
-    const box = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.45, 0.3, 0.35) : new THREE.BoxGeometry(0.7, 0.35, 0.45), nade ? NADE_MAT : AMMO_MAT), band = new THREE.Mesh(nade ? new THREE.BoxGeometry(0.47, 0.07, 0.37) : new THREE.BoxGeometry(0.72, 0.08, 0.47), nade ? NBAND_MAT : BAND_MAT);
-    box.castShadow = box.receiveShadow = band.receiveShadow = true; g.add(box, band);
-    g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
-    ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade });
   }
 }
 buildAmmoBoxes();
@@ -3605,11 +3596,8 @@ function selectWeapon(id, instant) {
   if (!instant) switchT = 0.3;
 }
 function nextWeapon(dir) {
-  if (ART.on && !ART.wmode) return ART.swap(); // pen <-> spray can
-  if (RANGE.on) return RANGE.next(dir);
-  if (!P.alive || P.inv.length < 2) return;
-  const i = P.inv.indexOf(curW);
-  selectWeapon(P.inv[(i + dir + P.inv.length) % P.inv.length]);
+  if (ART.on) return ART.swap(); // pen <-> spray can
+  RANGE.next(dir);
 }
 function curOf(e) { return e.isPlayer ? curW : e.wpn; }
 function syncE(e) { const id = curOf(e); if (e.ammoBy && e.ammoBy[id]) { e.ammoBy[id].mag = e.ammo; e.ammoBy[id].res = e.reserve; } }
@@ -3669,7 +3657,6 @@ function dropWeapons(e) {
   }
   e.inv = ['pistol'];
 }
-function reload() { if (ART.on) return; gun.burstLeft = 0; if (P.reloading <= 0 && P.ammo < WP().mag && P.reserve > 0 && P.alive) P.reloading = WP().reload; }
 const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
 // and start the tracer on the main camera's ray through that same point, about as far away
@@ -3682,131 +3669,23 @@ function vmMuzzleWorld() {
   const dir = new V3(ndc.x, ndc.y, 0.5).unproject(camera).sub(camera.position).normalize();
   return camera.position.clone().addScaledVector(dir, dist);
 }
-function fire() {
-  if (VEH.noGuns) return;
-  const w = WP();
-  const hs = Math.hypot(P.vel.x, P.vel.z);
-  const move = !P.onGround ? 0.12 : hs > 5 ? 0.16 : hs > 0.5 ? 0.012 : 0;
-  let spread = w.spread + gun.spray * 0.028 + move + w.hip * (1 - adsK);
-  if (P.h < STAND_H) spread *= 0.55;
-  spread *= 1 - 0.55 * adsK;
-  const targets = [...W.meshes, ...W.floors];
-  for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
-  if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit); // a shut gate takes damage from anyone's bullets
-  const bdh = lockedDoorHit(); if (bdh) targets.push(bdh); // and so does the bunker's door while it's locked
-  const start = vmMuzzleWorld();
-  if (w.rocket) { fireRocket(w, start, targets); return; }
-  const pellets = w.pellets || 1;
-  let sp = spread + (w.cone || 0) * (1 - 0.35 * adsK);
-  // Some guns lose accuracy with range: extra spread grows with distance to whatever is under the crosshair
-  if (w.rangeSpread) {
-    shotRay.set(camera.position, new V3(0, 0, -1).applyQuaternion(camera.quaternion)); shotRay.far = 200;
-    const h0 = castShot(shotRay, targets);
-    sp += w.rangeSpread * Math.min(1, (h0 ? h0.distance : 60) / 40) * (1 - 0.4 * adsK);
-  }
-  const dmgBy = new Map(), newHoles = []; let anyHead = false;
-  for (let i = 0; i < pellets; i++) {
-    const dir = new V3((Math.random() - 0.5) * sp, (Math.random() - 0.5) * sp + gun.spray * 0.01, -1).normalize().applyQuaternion(camera.quaternion);
-    shotRay.set(camera.position, dir); shotRay.far = 200;
-    const hit = castShot(shotRay, targets);
-    if (i < 4) tracer(start, hit ? hit.point : camera.position.clone().addScaledVector(dir, 200), w.tracer, w.trW, w.trLife, true);
-    if (!hit) continue;
-    const ud = hit.object.userData;
-    if (ud.ent) {
-      const head = ud.part === 'head';
-      let d = (head ? w.head : w.dmg) * falloffAt(w, hit.distance);
-      if (w.pellets) d *= Math.max(0.25, Math.min(1, 1 - (hit.distance - 8) / 24));
-      // the rifle: the head, or a shot into the torso that goes through the middle of the upper chest, kills; anything else takes half
-      if (w.zones && !head && !(hit.object === ud.ent.hit[1] && ud.ent.core && shotRay.intersectObject(ud.ent.core, false).length)) d = Math.ceil(maxHp(ud.ent) / 2);
-      dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
-    } else if (ud.gate) { shootGate(w); impact(hit.point, hit.object); }
-    else if (ud.bdoor) { shootBunker(doorShotAmt(w)); impact(hit.point, hit.object); }
-    else { const h = holeFromHit(hit, dir); if (h) { newHoles.push(h); if (w.holes > 1) newHoles.push(...scatterHoles(h, w.holes - 1)); } else impact(hit.point, hit.object); }
-  }
-  addHoles(newHoles);
-  for (const [ent, d] of dmgBy) damage(ent, Math.round(d), P, 'gun', anyHead);
-  if (dmgBy.size) hitMarker(anyHead);
-  const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
-  gun.spray = Math.min(1, gun.spray + w.sprayAdd);
-  P.pitch = Math.min(1.5, P.pitch + (w.kick * 0.35 + gun.spray * 0.006) * k);
-  P.yaw += (Math.random() - 0.5) * (0.009 + 0.03 * gun.spray) * k;
-  punch += w.kick * 1.2 * k; vmKick = 1; flashT = GUN_FX[curW] ? GUN_FX[curW].flash.life : 0.04;
-  muzzleFx(curW, start, new V3(0, 0, -1).applyQuaternion(camera.quaternion), true, P.id);
-  sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 60, g: 1 });
-}
-// The rocket leaves the tube and heads for whatever is under the crosshair
-function fireRocket(w, start, targets) {
-  const cdir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
-  shotRay.set(camera.position, cdir); shotRay.far = 200;
-  const hit = castShot(shotRay, targets);
-  const dir = hit && hit.point.distanceTo(start) > 1.5 ? hit.point.clone().sub(start).normalize() : cdir;
-  launchRocket(P, start, dir, w);
-  const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
-  P.pitch = Math.min(1.5, P.pitch + w.kick * 0.35 * k);
-  punch += w.kick * 1.2 * k; vmKick = 1; flashT = GUN_FX[curW].flash.life;
-  muzzleFx(curW, start, cdir, true, P.id);
-  sfx(w.sound, 1); netFx({ t: 'sf', k: w.sound, p: arr(P.pos), r: 90, g: 1 });
-}
 function updateGun(dt) {
-  if (ART.on && !ART.wmode) return ART.update(dt); // draw mode: the pen and the spray can
-  if (RANGE.on) { RANGE.updateGun(dt); return; } // the range runs the weapon rules
-  gun.cd -= dt; knifeCd -= dt;
-  gun.spray = Math.max(0, gun.spray - dt * (mouseDown ? 0.6 : 2.5));
-  if (P.reloading > 0) {
-    P.reloading -= dt;
-    if (P.reloading <= 0) { const take = Math.min(WP().mag - P.ammo, P.reserve); P.ammo += take; P.reserve -= take; }
-    return;
-  }
-  if (P.alive && P.ammo <= 0 && P.reserve > 0) { reload(); return; } // reload the moment the magazine runs dry
-  // Burst guns: once triggered, the rest of the burst fires on its own
-  if (gun.burstLeft > 0) {
-    if (switchT > 0 || !P.alive || P.ammo <= 0) gun.burstLeft = 0;
-    else if (gun.cd <= 0) { gun.burstLeft--; gun.cd = gun.burstLeft > 0 ? WP().burstGap : WP().rate; P.ammo--; fire(); if (P.ammo === 0 && P.reserve > 0) { gun.burstLeft = 0; reload(); } return; }
-    else return;
-  }
-  const want = !monitorOpen && (WP().auto ? mouseDown : clickQ);
-  if (want && gun.cd <= 0 && P.alive && knifeT <= 0 && throwT <= 0 && switchT <= 0) {
-    clickQ = false;
-    if (P.ammo <= 0) { if (P.reserve > 0) reload(); else { note('Out of ammo — find an ammo box or pick up a weapon'); gun.cd = 0.4; } return; }
-    if (WP().burst) { gun.burstLeft = WP().burst - 1; gun.cd = WP().burstGap; } else gun.cd = WP().rate;
-    P.ammo--; fire();
-    if (P.ammo === 0 && P.reserve > 0) reload();
-  }
+  if (ART.on) return ART.update(dt); // draw mode: the pen and the spray can
+  RANGE.updateGun(dt); // the weapon rules (range.js)
 }
 function playerKnife() {
   if (!P.alive || knifeCd > 0 || throwT > 0 || ART.on) return;
   knifeCd = 0.75; knifeT = 0.6;
   if (knifeAttack(P)) hitMarker(false);
 }
-function playerNade() { if (RANGE.on) return RANGE.hotDown(); if (!ART.on) startCook(); } // (the range's grenades are F batteries: the keyboard switches to them, touch's Frag cooks one straight away)
+function playerNade() { RANGE.hotDown(); } // touch's Frag: an F battery grenade straight away (the keyboard switches to it)
+function releaseCook() { RANGE.hotUp(); }
 const NADE_FUSE = 2.25;
-let cookT = -1, beepT = 0;
-function startCook() {
-  if (!P.alive || P.nades <= 0 || throwT > 0 || knifeT > 0 || cookT >= 0) return;
-  P.nades--; cookT = 0; beepT = 0.5; sPin();
-}
-function releaseCook() {
-  if (RANGE.on) return RANGE.hotUp();
-  if (cookT < 0) return;
-  const fuse = Math.max(0.05, NADE_FUSE - cookT); cookT = -1;
-  if (!P.alive) return;
-  throwT = 0.4;
-  const dir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const v = dir.clone().multiplyScalar(25); v.y += 4.5; v.x += P.vel.x * 0.5; v.z += P.vel.z * 0.5;
-  throwNade(P, camera.position.clone().addScaledVector(dir, 0.4), v, fuse);
-}
-function updateCook(dt) {
-  if (cookT < 0) return;
-  if (!P.alive) { const f = NADE_FUSE - cookT; cookT = -1; throwNade(P, new V3(P.pos.x, P.pos.y + 1, P.pos.z), new V3(0, 1, 0), Math.max(0.05, f)); return; }
-  cookT += dt;
-  beepT -= dt;
-  if (beepT <= 0) { const rem = NADE_FUSE - cookT; beepT = rem > 1.5 ? 0.5 : rem > 0.75 ? 0.25 : 0.12; sBeep(1300 + (1 - rem / NADE_FUSE) * 1000); }
-  if (cookT >= NADE_FUSE) { cookT = -1; explode({ pos: new V3(P.pos.x, P.pos.y + 1.2, P.pos.z), owner: P }); }
-}
+let cookT = -1; // (the old cook: never set now; the viewmodel still asks)
 
 // Bots
 const BOT_DMG = 0.55;
-const BW = id => (RANGE.on ? RANGE.botW(id) : WEAPONS[id]); // a bot's gun: the new weapon numbers wherever the new weapons are on
+const BW = id => RANGE.botW(id); // a bot's gun: the weapon numbers (range.js)
 // A missed bot bullet flies on past the aim point: the hole goes where it lands, and the tracer ends there
 const botRay = new THREE.Raycaster();
 function botMiss(start, aim, marks) {
@@ -4352,7 +4231,6 @@ addEventListener('keydown', e => {
   if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
   if (ART.key(e.code)) return; // draw mode: 1-6 colours, Q pen or spray
   if (RANGE.key(e.code)) return; // the range's weapon keys (F is the knife; right-click with the grenade for a mine)
-  if (e.code === 'KeyR') reload();
   if (e.code === 'KeyN') toggleCam();
   if (e.code === 'KeyF' || e.code === 'KeyG') playerNade();
   if (e.code === 'KeyQ') nextWeapon(1);
@@ -4436,11 +4314,7 @@ function updatePlayer(dt) {
 let hintT = 0;
 function playHints(dt) {
   hintT += dt; if (hintT < 3) return;
-  if (MODE === 'drive') return hint('veh', 'Walk up to a vehicle and press E to get in', 4);
-  if (MODE === 'range') return hint('range', '1–9 or Q picks a weapon · Tab opens the weapon settings', 5);
-  hint('keys', RANGE.on ? 'X aims · 1–5 picks a weapon · F knife · right-click with the grenade sets a mine · Q drops the one you hold' : 'X aims · Q switches weapon · F throws a grenade · E is the knife', 4.5);
-  const w = WP();
-  if (!RANGE.on && w.mag > 1 && P.ammo + P.reserve <= w.mag && AMMO_SPOTS.length) hint('ammo', 'Ammo low: walk over an ammo box (green, with a yellow band)');
+  hint('keys', 'X aims · 1–5 picks a weapon · F knife · right-click with the grenade sets a mine · Q drops the one you hold', 4.5);
   if (curLevel === 'fortress' && P.pos.y > 36.6 && P.pos.y < 38.5) hint('lean', 'On the wall: walk up to the parapet and look down to lean out over it', 4.5);
 }
 const _fpvDir = new V3();
@@ -4701,7 +4575,7 @@ tl.addEventListener('touchstart', e => {
     } else if (act === 'brake') { keys.Space = true; brakeId = t.identifier; el.classList.add('on'); } // the handbrake, while held
     else if (act === 'vreset' || act === 'view') { const code = act === 'view' ? 'KeyV' : 'KeyR'; dispatchEvent(new KeyboardEvent('keydown', { code })); dispatchEvent(new KeyboardEvent('keyup', { code })); } // a key press, for the vehicle
     else if (act === 'use') { useId = t.identifier; el.classList.add('on'); dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' })); } // E, held for as long as the finger is down (doors lock on a 4 s hold)
-    else if (act === 'reload') { if (!(RANGE.on && RANGE.key('KeyR'))) reload(); } // (the range's weapons reload through their own R)
+    else if (act === 'reload') RANGE.key('KeyR'); // (as R does)
     else if (act === 'swap') nextWeapon(1);
     else if (act === 'nade') playerNade();
     else if (act === 'aim') { tAim = !tAim; el.classList.toggle('on', tAim); }
@@ -6018,7 +5892,7 @@ function loop(now) {
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (navJob && (locked || away || remotes.length)) finishFortNav(); // the gate and doors are held open while it maps them
   if (NET.role === 'guest') {
-    if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); RANGE.update(dt); updateCook(dt); }
+    if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); RANGE.update(dt); }
     updateRockets(dt); updateSheds(dt);
     updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
@@ -6036,7 +5910,6 @@ function loop(now) {
     updateAmmo(dt, now);
     updatePickups(dt, now);
     updateHeals(dt);
-    updateCook(dt);
     updateCorpses(dt); fadeCorpses(dt);
   }
   netTick(dt);
@@ -6068,9 +5941,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=27"></script>
+<script src="vehicles.js?v=28"></script>
 <script src="range.js?v=24"></script>
-<script src="art.js?v=9"></script>
+<script src="art.js?v=10"></script>
 <script src="headlights.js?v=1"></script>
 </body>
 </html>

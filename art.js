@@ -414,9 +414,6 @@
 
   // ---------------------------------------------------------------- the tools
   let on = false, safe = false, tool = 'pen', drawT = 0, press = 0, spraying = 0, seq = 0, fxT = 0, hissT = 0;
-  // ?dev: no draw mode; a spray can is a weapon in one of your hands (range.js), one colour each. Click sprays, right-click
-  // draws the fine line. Nobody is safe with one out (wmode)
-  let wmode = false;
   const colOf = { pen: 0, spray: 2 };
   let stroke = null; // the line being drawn: { L, rec, key, S, sent: points sent, last: point (world), lastN, broken }
   const r3 = v => Math.round(v * 1000) / 1000, r2 = v => Math.round(v * 100) / 100;
@@ -674,7 +671,6 @@
 #arthud .sw b.alt:after{content:"";position:absolute;left:3px;top:3px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #000}
 #artcross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;display:none;box-sizing:border-box}
 body.art-on #ammo,body.art-on #rslots,body.art-on #rcross,body.art-on .ch{display:none!important}
-body.art-w #ammo,body.art-w #rcross,body.art-w .ch{display:none!important}
 body.touch #arthud{right:calc(6px + env(safe-area-inset-right,0px));top:calc(54px + env(safe-area-inset-top,0px));bottom:calc(6px + env(safe-area-inset-bottom,0px));justify-content:center;gap:6px}
 body.touch #arthud .at{font-size:12px;padding:3px 7px}
 body.touch #arthud .at small{display:none}
@@ -699,14 +695,14 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
   function after(dt) {
     if (on && !RANGE.on) leave();
     const seated = !!VEH.riding; // in a vehicle the tools are put away: no colours, no pen or can in your hands
-    document.body.classList.toggle('art-on', on && !wmode && !seated); document.body.classList.toggle('art-w', wmode);
+    document.body.classList.toggle('art-on', on && !seated);
     press += ((on && tool === 'pen' && mouseDown && drawT <= 0 ? 1 : 0) - press) * Math.min(1, dt * 14);
     const inGame = $('tomenu').style.display !== 'none';
     btn.style.display = inGame && RANGE.on ? '' : 'none'; btn.textContent = on ? 'Weapons' : 'Draw';
     // what's in your hands
     if (on) { vm.visible = false; knifeVM.visible = false; if (typeof nadeVM !== 'undefined' && nadeVM) nadeVM.visible = false; }
     const out = on && drawT <= 0.15 && P.alive && !seated;
-    const vt = wmode ? 'spray' : tool, vk = out ? vt + colOf[tool] : '';
+    const vt = tool, vk = out ? vt + colOf[tool] : '';
     if (vk !== vmKey) { vmKey = vk; artVM.clear(); if (out) { const o = heldObject(vt, colOf[tool]); o.position.set(0.22, -0.2, -0.5); o.rotation.set(0.1, 0.3, 0.15); artVM.add(o); } }
     artVM.visible = out;
     const mine = toolIn(P.rig && P.rig.gunVis); if (mine) mine.userData.tint.color.copy(PAL[colOf[tool]]);
@@ -738,8 +734,8 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
     }
     // HUD
     const show = on && locked && P.alive && !VEH.riding;
-    hud.style.display = show && !wmode ? 'flex' : 'none';
-    if (show && !wmode) {
+    hud.style.display = show ? 'flex' : 'none';
+    if (show) {
       const k = tool + colOf.pen + colOf.spray;
       if (k !== hudKey) {
         hudKey = k; toolEl.textContent = tool === 'pen' ? 'Pen' : 'Spray can';
@@ -763,7 +759,7 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
 
   // ---------------------------------------------------------------- keys
   function key(code) {
-    if (!on || wmode) return false;
+    if (!on) return false;
     const n = /^Digit([1-9])$/.exec(code);
     if (n) { if (+n[1] <= 6) pickCol(+n[1] - 1); return true; }
     if (code === 'KeyQ') { setTool(tool === 'pen' ? 'spray' : 'pen'); return true; }
@@ -771,14 +767,13 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
   }
 
   Object.defineProperty(ART, 'on', { get: () => on, configurable: true });
-  Object.defineProperty(ART, 'safe', { get: () => on && safe && !wmode && !VEH.riding, configurable: true }); // (in a vehicle you're fair game, as everyone sees: state 0)
-  Object.defineProperty(ART, 'wmode', { get: () => wmode, configurable: true });
+  Object.defineProperty(ART, 'safe', { get: () => on && safe && !VEH.riding, configurable: true }); // (in a vehicle you're fair game, as everyone sees: state 0)
   Object.assign(ART, {
     toggle, update, after, key, pose, armTurn, fpvTool, heldObject, net, welcome, joinLog, toCorpse, clear,
     wash(e, id) { if (e) clearEnt(e); dropLog(id); }, // (?dev) the shower: the paint off a character, for good
     swap() { if (on) setTool(tool === 'pen' ? 'spray' : 'pen'); },
-    held: () => (on && drawT <= 0.15 && P.alive && !VEH.riding ? (wmode ? 'spray' : tool) : null), // what your body holds (nothing in a vehicle)
-    state: () => (VEH.riding ? 0 : wmode ? 3 : on && safe ? (tool === 'pen' ? 1 : 2) : 0), // what others see you hold (0: your weapons; 3: a spray can as a weapon, not safe)
+    held: () => (on && drawT <= 0.15 && P.alive && !VEH.riding ? tool : null), // what your body holds (nothing in a vehicle)
+    state: () => (VEH.riding ? 0 : on && safe ? (tool === 'pen' ? 1 : 2) : 0), // what others see you hold (0: your weapons)
     colour: () => colOf[tool],
     hold() { joinQ = []; }, // a guest: the paint so far waits for the level
     release() { const q = joinQ || []; joinQ = null; q.forEach(take); },
