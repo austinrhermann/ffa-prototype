@@ -1332,31 +1332,99 @@ function regradeGround(L, draw, col) {
   if (ground) edit(ground); if (terrain) edit(terrain);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
-// Trees for cover (L.trees: [x, z] each): a thick trunk that stops shots and people (it is in the collision set too, so bots walk round it) and a few faceted balls of leaves
-// overhead, only a picture like the trees already there (paint goes on them: paintOnly). Heights run from a squat 3 m to a tall 6 m of trunk, spread evenly over the list (each
-// tree's number picks its share), taller ones thicker; the rest of the variety comes from the number too, not from chance, so every machine grows the same trees. The trunk
-// reaches down to the lowest ground round it, so on a slope it doesn't hang in the air
+// Trees for cover (L.trees: [x, z] each, where Austin drew them) and a denser forest around them. Every drawn tree gets a companion a few metres away (a tall pine
+// or another round one, in turn), and every tree has a few clumps of the spiky plant growing from the ground round its foot. A round tree is a thick trunk that stops
+// shots and people (it is in the collision set too, so bots walk round it) and a few faceted balls of leaves overhead; a pine is a tall dark spire standing from the
+// ground (a tapering collision post inside it). Heights run from a squat 3 m to a tall 6 m of trunk, spread evenly over the list (each tree's number picks its share),
+// taller ones thicker; the rest of the variety comes from the number too, not from chance, so every machine grows the same trees. The trunk reaches down to the
+// lowest ground round it, so on a slope it doesn't hang in the air. The leaves, pines and plants are only pictures like the trees already there (paint goes on the
+// leaves and pines: paintOnly); everything drawn is merged into one mesh per look, so fifty trees and their plants cost a handful of draws
 function addTrees(L, draw, col, cm) {
-  const ground = []; col.updateMatrixWorld(true); col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) ground.push(o); });
+  const ground = []; col.updateMatrixWorld(true); col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) ground.push(o); }); draw.updateMatrixWorld(true);
+  const road = draw.getObjectByName('Road_ext');
   const rc = new THREE.Raycaster(), tg = new THREE.Group(); tg.name = 'Trees'; draw.add(tg);
   const bark = toonMat({ color: 0x5a4330 }), leaves = [0x2a4b35, 0x305a3b, 0x264430].map(c => toonMat({ color: c, side: THREE.DoubleSide }));
+  const pineMat = toonMat({ vertexColors: true }), plantMat = toonMat({ vertexColors: true, side: THREE.DoubleSide });
+  const PINES = [0x1f3d2c, 0x234530, 0x1b3626], BLADES = [0x24432f, 0x2c5236, 0x1e3a28], STEM = 0x2a3a22, BUD = 0x8a6624;
   const rnd = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
   const groundAt = (x, z) => { rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200; const h = rc.intersectObjects(ground, false)[0]; return h ? h.point.y : null; };
-  L.trees.forEach(([x, z], i) => {
-    const y = groundAt(x, z); if (y === null) return;
-    let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
+  const bins = new Map(); // look -> the pieces so far: positions, flat normals, colours
+  const emitRaw = (key, mat, pos, hex, opts) => { // pos: flat triangles
+    let b = bins.get(key); if (!b) bins.set(key, b = { mat, pos: [], nor: [], col: [], ...opts });
+    const n = new Float32Array(pos.length), a = new V3(), c = new V3(), d = new V3(), colr = new THREE.Color(hex), cc = new Float32Array(pos.length);
+    for (let i = 0; i < pos.length; i += 9) {
+      a.set(pos[i + 3] - pos[i], pos[i + 4] - pos[i + 1], pos[i + 5] - pos[i + 2]); c.set(pos[i + 6] - pos[i], pos[i + 7] - pos[i + 1], pos[i + 8] - pos[i + 2]); d.crossVectors(a, c).normalize();
+      for (let k = 0; k < 9; k += 3) { n[i + k] = d.x; n[i + k + 1] = d.y; n[i + k + 2] = d.z; cc[i + k] = colr.r; cc[i + k + 1] = colr.g; cc[i + k + 2] = colr.b; }
+    }
+    b.pos.push(pos); b.nor.push(n); b.col.push(cc);
+  };
+  const emit = (key, mat, geo, m, hex, opts) => { const g = (geo.index ? geo.toNonIndexed() : geo.clone()).applyMatrix4(m); emitRaw(key, mat, g.attributes.position.array, hex, opts); g.dispose(); };
+  // the sites: Austin's trees, then a companion for each (kind 0 round, 1 pine), well clear of the trees, spawns, weapons and roads
+  const spawns = (L.spawns || []).map(p => [p[0], p[2]]), picks = (L.pickups || []).filter(p => typeof p[1] === 'number' && typeof p[3] === 'number').map(p => [p[1], p[3]]);
+  const near = (x, z, list, r) => list.some(p => Math.hypot(p[0] - x, p[1] - z) < r);
+  const sites = L.trees.map(([x, z]) => [x, z, 0]), own = sites.length;
+  for (let i = 0; i < own; i++) {
+    for (let t = 0; t < 8; t++) {
+      const a = rnd(i * 9 + 21 + t) * Math.PI * 2, d = 4.5 + 4 * rnd(i * 9 + 22 + t), x = L.trees[i][0] + Math.cos(a) * d, z = L.trees[i][1] + Math.sin(a) * d;
+      if (near(x, z, sites, 3.6) || near(x, z, spawns, 4.5) || near(x, z, picks, 3)) continue;
+      const y = groundAt(x, z); if (y === null) continue;
+      let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
+      if (y - low > 1.2) continue; // too steep
+      if (road) { rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200; const h = rc.intersectObject(road, false)[0]; if (h && Math.abs(h.point.y - y) < 1) continue; } // on the road
+      sites.push([x, z, i % 2 ? 0 : 1]); break;
+    }
+  }
+  const round = (x, z, y, low, i) => {
     const u = (i * 0.618034 + 0.17) % 1, th = 3 + 3.2 * u, s = (0.85 + 0.35 * u) * (0.94 + 0.12 * rnd(i * 5 + 1)), a0 = rnd(i * 5 + 2) * Math.PI * 2, bot = low - 0.25;
-    const geo = new THREE.CylinderGeometry(0.3 * s, 0.48 * s, y + th - bot, 8);
-    const trunk = new THREE.Mesh(geo, bark); trunk.position.set(x, (y + th + bot) / 2, z); trunk.castShadow = trunk.receiveShadow = true; tg.add(trunk);
-    const c = new THREE.Mesh(geo, cm); c.position.copy(trunk.position); col.add(c); c.updateMatrixWorld();
-    const ball = (r, dx, dy, dz, k) => {
-      const b = new THREE.IcosahedronGeometry(r, 1); b.computeVertexNormals(); // (three's icosphere is drawn with smooth normals; recomputed per face it is faceted)
-      const m = new THREE.Mesh(b, leaves[k % 3]); m.position.set(x + dx, y + th + dy, z + dz);
-      m.castShadow = m.receiveShadow = true; m.userData.paintOnly = true; tg.add(m);
-    };
+    const geo = new THREE.CylinderGeometry(0.3 * s, 0.48 * s, y + th - bot, 8), at = new V3(x, (y + th + bot) / 2, z);
+    emit('bark', bark, geo, new THREE.Matrix4().makeTranslation(at.x, at.y, at.z), 0xffffff);
+    const c = new THREE.Mesh(geo, cm); c.position.copy(at); col.add(c); c.updateMatrixWorld();
+    const ball = (r, dx, dy, dz, k) => emit('leaf' + (k % 3), leaves[k % 3], new THREE.IcosahedronGeometry(r, 1), new THREE.Matrix4().makeTranslation(x + dx, y + th + dy, z + dz), 0xffffff, { paint: true, shadow: true });
     ball(2.3 * s, 0, 0.9 * s, 0, i); ball(1.4 * s, 0, 2.7 * s, 0, i + 1);
     for (let k = 0; k < 3; k++) { const a = a0 + k * 2.1 + rnd(i * 5 + 3 + k) * 0.6; ball((1.2 + 0.35 * rnd(i * 5 + 4 + k)) * s, Math.cos(a) * 1.5 * s, (0.2 + 0.35 * k) * s, Math.sin(a) * 1.5 * s, i + k + 2); }
+  };
+  const pine = (x, z, y, low, i) => { // a tall dark spire from the ground up, 7 to 12 m
+    const h = 7 + 5 * rnd(i * 5 + 6), R = (1.25 + 0.55 * rnd(i * 5 + 7)) * (0.85 + 0.3 * (h - 7) / 5), a0 = rnd(i * 5 + 8) * Math.PI * 2, base = low - 0.35;
+    const prof = [[0.001, 0], [0.86, 0], [1, 0.16], [0.96, 0.38], [0.8, 0.6], [0.55, 0.8], [0.26, 0.94], [0.001, 1]].map(([r, t]) => new THREE.Vector2(r * R, t * h));
+    emit('pine', pineMat, new THREE.LatheGeometry(prof, 8), new THREE.Matrix4().makeRotationY(a0).setPosition(x, base, z), PINES[i % 3], { paint: true, shadow: true });
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * R, 0.75 * R, h, 8), cm); c.position.set(x, base + h / 2, z); col.add(c); c.updateMatrixWorld();
+  };
+  sites.forEach(([x, z, kind], i) => {
+    const y = groundAt(x, z); if (y === null) return;
+    let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
+    if (kind === 1) pine(x, z, y, low, i); else round(x, z, y, low, i);
   });
+  // The spiky plant (a thin stem, long blades leaning out from it and a brown bud on top), in clumps on the ground round each tree: like grass, nothing to collide with
+  const clump = (x, z, seed) => {
+    const y = groundAt(x, z); if (y === null) return;
+    const n = 1 + (rnd(seed + 1) * 2.4 | 0);
+    for (let p = 0; p < n; p++) {
+      const px = x + (rnd(seed + 2 + p) - 0.5) * 0.9, pz = z + (rnd(seed + 5 + p) - 0.5) * 0.9, sh = 0.9 + 0.9 * rnd(seed + 8 + p), nb = 6 + (rnd(seed + 11 + p) * 3 | 0), ln = 0.75 + 0.5 * rnd(seed + 14 + p);
+      emit('plant', plantMat, new THREE.CylinderGeometry(0.022, 0.03, sh + 0.05, 5), new THREE.Matrix4().makeTranslation(px, y + sh / 2 - 0.05, pz), STEM);
+      const tri = [], B = new V3(px, y + sh * 0.5, pz);
+      for (let b = 0; b < nb; b++) {
+        const ang = (b / nb + 0.08 * rnd(seed + 20 + b)) * Math.PI * 2, lean = 0.7 + 0.4 * rnd(seed + 30 + b), ca = Math.cos(ang), sa = Math.sin(ang), sl = Math.sin(lean), cl = Math.cos(lean), l = ln * (0.85 + 0.3 * rnd(seed + 40 + b));
+        const d = new V3(sl * ca, cl, sl * sa), M = B.clone().addScaledVector(d, l * 0.5), T = B.clone().addScaledVector(d, l).add(new V3(ca * 0.12 * l, -0.16 * l, sa * 0.12 * l));
+        const w = new V3(-sa, 0, ca), b0 = B.clone().addScaledVector(w, -0.07), b1 = B.clone().addScaledVector(w, 0.07), m0 = M.clone().addScaledVector(w, -0.055), m1 = M.clone().addScaledVector(w, 0.055);
+        for (const v of [b0, b1, m1, b0, m1, m0, m0, m1, T]) tri.push(v.x, v.y, v.z);
+      }
+      emitRaw('plant', plantMat, new Float32Array(tri), BLADES[(seed + p) % 3]);
+      emit('plant', plantMat, new THREE.IcosahedronGeometry(0.085, 0), new THREE.Matrix4().makeTranslation(px, y + sh + 0.03, pz), BUD);
+    }
+  };
+  sites.forEach(([x, z], i) => {
+    for (let k = 0; k < 4; k++) {
+      const a = rnd(i * 13 + 60 + k) * Math.PI * 2, d = 1.4 + 2.6 * rnd(i * 13 + 70 + k), cx = x + Math.cos(a) * d, cz = z + Math.sin(a) * d;
+      if (!near(cx, cz, spawns, 1.5) && !near(cx, cz, picks, 1.5)) clump(cx, cz, i * 100 + k * 7);
+    }
+  });
+  for (const [key, b] of bins) { // one mesh per look
+    const cat = arrs => { const out = new Float32Array(arrs.reduce((s, a) => s + a.length, 0)); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(cat(b.pos), 3)); g.setAttribute('normal', new THREE.BufferAttribute(cat(b.nor), 3));
+    if (b.mat.vertexColors) g.setAttribute('color', new THREE.BufferAttribute(cat(b.col), 3));
+    const m = new THREE.Mesh(g, b.mat); m.name = 'Trees_' + key; m.castShadow = key !== 'plant'; m.receiveShadow = true; if (b.paint) m.userData.paintOnly = true; tg.add(m);
+  }
   tg.updateMatrixWorld(true);
 }
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
@@ -2945,7 +3013,7 @@ const RLS = {
   pistol: { part: 'Mag', prop: { n: 3, r: 0.0125, h: 0.04, col: 0xe8c33a }, at: [0, -0.0745, -0.067], long: [0, 0.92, 0.39], ins: [0, 0.92, 0.39], hov: 0.2,
     fly: { e0: 0.16, eLen: 0.5, dx: 0.15, vy: -0.15, g: 3.4, spin: 3, slide: 0.15, slideT: 0.22 }, hold: { x: -0.1, y: 0.2, z: -0.02, pitch: 0.45, roll: 0 } },
   uzi: { part: 'Clip', box: [-0.0135, -0.22, -0.113, 0.0135, -0.008, -0.049], long: [0, 1, 0], ins: [0, 1, 0], hov: 0.24,
-    cells: { n: 2, r: 0.011, h: 0.05, col: 0x3a8ee8, glow: 0x14407f }, // the D batteries that stand out of the top of a fresh clip
+    cells: { n: 2, r: 0.011, h: 0.0362, col: 0x3a8ee8, glow: 0x14407f }, // the D batteries that stand out of the top of a fresh clip
     fly: { e0: 0.16, eLen: 0.55, dx: 0.1, vy: -0.1, g: 3.6, spin: 1.5, slide: 0.045, slideT: 0.15 }, hold: { x: -0.12, y: 0.27, z: -0.02, pitch: 0.45, roll: 0 } },
   rifle: { part: 'Mag', prop: { n: 1, r: 0.02, h: 0.09, col: 0xd9d9d9, cap: 0xd4a52a }, at: [0, -0.01, -0.05], long: [0, 1, 0], ins: [0, -1, 0], hov: 0.17,
     fly: { e0: 0.1, eLen: 0.6, dx: 0.9, vy: 0.8, g: 4.6, spin: 8 }, hold: { x: -0.1, y: 0.03, z: -0.1, pitch: 0.1, roll: -0.9, tiltAt: 0.25 },
@@ -6291,7 +6359,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=30"></script>
-<script src="range.js?v=25"></script>
+<script src="range.js?v=26"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=2"></script>
 </body>

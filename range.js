@@ -496,9 +496,6 @@
       const b = new THREE.Mesh(t === 'R' ? new THREE.CylinderGeometry(0.035, 0.035, 0.32, 10) : new THREE.CylinderGeometry(0.08, 0.08, t === 'F' ? 0.36 : 0.26, 14), m);
       b.position.x = (k - (t === 'F' || t === 'R' ? 0.5 : 1.5)) * (t === 'R' ? 0.1 : 0.19); b.castShadow = true; g.add(b);
     }
-    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
-    x.font = '800 92px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = COL[t]; x.fillText(t, 64, 68);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })); sp.scale.set(0.45, 0.45, 1); sp.position.y = 0.55; g.add(sp);
     return g;
   }
   // A dropped weapon flies, lands and slides to a stop (in a game it then becomes one of the game's pickups)
