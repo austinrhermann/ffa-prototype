@@ -205,6 +205,7 @@
   // Damage in rings round the blast: 10 at the centre, one less each ring out. Anyone with a clear line to it is hurt.
   function blast(pos, owner, src) {
     const R = blastR();
+    bulbsBlast(pos, Math.min(R, 6));
     addScorch(pos, Math.min(4, R * 0.3)); _boomFx(pos, src === 'tube' ? 6.5 : R * 0.6); sBoom(vol(pos, 90));
     const o = pos.clone(); o.y += 0.3;
     showRings(o);
@@ -273,6 +274,7 @@
       if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += (head ? g.head : g.body) * fk; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gate) { gateDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bdoor) { bdoorDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
+      else if (ud.bulb) { bulbShot(hit); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
@@ -731,7 +733,7 @@
   const setP = (p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k], S)[last] = v; };
   function buildPanel() {
     const s = slot();
-    let html = `<h2>Weapon settings</h2><p class="sub">${NET.role === 'guest' ? 'The host\'s settings apply to everyone in this game; only the crosshair is yours to change.' : 'Changes take effect as you drag, and are saved in this browser' + (NET.role === 'host' && remotes.length ? '; everyone in the game plays by them' : '') + '.'} Damage is out of ${LIFE} health.${on() ? '' : ' The game carries on while this is open.'}</p>`;
+    let html = `<h2>Weapon settings</h2><p class="sub">${NET.role === 'guest' ? 'The host\'s settings apply to everyone in this game; only the crosshair is yours to change.' : 'Changes take effect as you drag, and are saved in this browser' + (NET.role === 'host' && remotes.length ? '; everyone in the game plays by them' : '') + '.'} Damage is out of ${LIFE} health. The game carries on while this is open.</p>`;
     html += `<div class="math">${[...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => `${e === P ? '<b>' : ''}${esc(e.name)}${e === P ? '</b>' : ''} ${e.kills}/${e.deaths}`).join(' · ')}</div>`;
     for (const sl of SLOTS) if (sl.kind === 'gun') {
       const g = gunOf(sl);
@@ -774,7 +776,7 @@
     }
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
     panel.querySelector('#r-mines').onclick = e => { clearMines(true); e.target.textContent = 'Mines cleared'; };
-    panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); if (pitRings) pitRings.scale.setScalar(blastR()); buildPanel(); };
+    panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); buildPanel(); };
     panel.querySelector('#r-copy').onclick = e => {
       const txt = JSON.stringify(S, null, 1);
       navigator.clipboard.writeText(txt).then(() => { e.target.textContent = 'Copied'; }).catch(() => { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'width:100%;height:120px;margin-top:8px'; panel.append(ta); ta.select(); });

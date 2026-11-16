@@ -248,7 +248,7 @@
     }
     // the levels made of boxes, and the tiled floors (no triangle grid)
     _sph.set(p, r);
-    for (const m of TG ? W.floors : [...W.meshes, ...W.floors]) {
+    for (const m of [...(TG ? W.floors : [...W.meshes, ...W.floors]), ...W.extra]) {
       if (m.userData.noHole || m.userData.toggle !== undefined || !m.geometry.attributes.position) continue;
       const g = m.geometry; if (!g.boundingBox) g.computeBoundingBox();
       if (!_box.copy(g.boundingBox).applyMatrix4(m.matrixWorld).intersectsSphere(_sph)) continue;
@@ -358,6 +358,9 @@
     // the level (and the tower door's shape, a shed's or the bunker's door shape: those are doors)
     const wh = castShotLevel(ray, [...W.meshes, ...W.floors]);
     if (wh) near(wh.distance, { k: 'w', h: wh });
+    // what is drawn but has no collision (the roads lie a hand above the ground; the rocks, bushes and trees): paint goes on what you see
+    const xh = W.extra.length ? ray.intersectObjects(W.extra, false)[0] : null;
+    if (xh) near(xh.distance, { k: 'w', h: xh });
     // doors, exactly: the shed, cellar and bunker doors, the gate's leaves, the tower door
     const hs = hinges();
     if (hs.length) { const dh = ray.intersectObjects(hs, true).find(drawn); if (dh) near(dh.distance, { k: 'd', h: dh }); }

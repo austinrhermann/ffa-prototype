@@ -569,21 +569,39 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
   return k;
 }
 `;
+// Bulbs (the bunker's and the cellar's): warm point lights, up to BULB_MAX at once. Every toon material (the tunnel, people, guns, paint) adds the glow of the ones near it,
+// by how far they are and which way the surface faces (no shadows); a bulb that has been shot out drops out of the list. BULB.all is every bulb the sets have built, BULB.live the
+// ones in the level being played (the same list, in the same order, on every machine: that is what a broken bulb's number means)
+const BULB_MAX = 16, BULB = { n: { value: 0 }, pos: { value: [...Array(BULB_MAX)].map(() => new THREE.Vector4()) }, all: [], live: [] };
+const BULB_GLSL = `
+uniform float blN; uniform vec4 blPos[${BULB_MAX}];
+vec3 bulbLight(vec3 p, vec3 n) { // the warm glow on a surface at p that faces n
+  float k = 0.0;
+  for (int i = 0; i < ${BULB_MAX}; i++) {
+    if (float(i) >= blN) break;
+    vec3 v = blPos[i].xyz - p; float d2 = dot(v, v), R = blPos[i].w;
+    if (d2 > R * R) continue;
+    k += (1.0 - smoothstep(R * R * 0.35, R * R, d2)) / (1.0 + d2 * 0.45) * (0.12 + 0.88 * max(dot(n, v * inversesqrt(max(d2, 1e-4))), 0.0));
+  }
+  return vec3(1.0, 0.8, 0.5) * k * 1.3;
+}
+`;
 const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, ...FLASH_UNIFORMS() });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
       reflectedLight.directDiffuse *= sunAt(vSunPos);
     #endif`).replace('#include <tonemapping_fragment>', `
+    if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC, flK); }
     #include <tonemapping_fragment>`);
 };
@@ -789,6 +807,11 @@ function levelFortress() {
       tunnel: [[-24.8, 25.2, 10.0], [-22.0, 25.4, 10.0], [-19.0, 25.4, 10.0], [-16.4, 25.4, 10.7], [-13.4, 25.4, 10.7], [-10.8, 25.4, 10.7], [-10.8, 26.4, 7.8], [-10.8, 28.0, 4.9], [-10.5, 28.0, 1], [-7.86, 33.5, 1.4], [-1.5, 33.5, 1.5]],
     },
     navLinks: [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]]],
+    // Drawn things with no collision of their own (the roads sit a hand above the ground, and the rocks, bushes and trees are only pictures): the paint goes on these
+    // Trees for cover round the two spawn clearings, A (the Rebels) in the south-west and B (Midas) in the south-east: [x, z]; clear of the roads, the spawns and the pickups
+    trees: [[-47.2, 89.4], [-41.2, 87.4], [-35.2, 87.4], [-49.2, 95.4], [-47.2, 101.4], [-41.2, 105.4], [-35.2, 103.4],
+      [36.1, 98.2], [40.1, 104.2], [46.1, 106.2], [52.1, 104.2], [52.1, 90.2], [50.1, 84.2], [44.1, 84.2]],
+    paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
     clearTrees: [[-26.5, 43.7, 2.5], [-8, 9.9, 3.5], [-11.3, 11.6, 6, 'M_Material004'], [1.7, -1.4, 2.5],
@@ -836,6 +859,7 @@ function buildGrid(id) {
   MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
   if (L.mesh) addSetExtras(L);
+  bulbSync();
   TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
   if (TG) resetSheds();
   if (TG && L.towerDoor) setSolid('door', true); // the door starts open
@@ -1065,47 +1089,68 @@ function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit di
 }
 // The tunnel: a square hole in the shed's floor and a ladder down a shaft, a tunnel with bulbs on a wire, a small cellar, stairs up
 // to a door in the back wall of the room left of the gate. Built once into the set (both the picture and the collision).
-// What a tunnel is built from (the tunnel under Minimal's shed and the bunker's tunnel share it): materials, a group each for the picture and
-// the collision, prism (a solid with a ring of 4 corners at each end) and box, and the bulbs that hang on a wire
-function tunnelKit(draw, col, cm, bake = false) {
-  const X = { stone: toonMat({ color: 0x8b887f, side: THREE.DoubleSide }), wood: toonMat({ color: 0x7a5636, side: THREE.DoubleSide }), earth: toonMat({ color: 0x5c4b3c, side: THREE.DoubleSide }),
+// What a tunnel is built from (the bunker's tunnel and the cellar share it): materials, a group each for the picture and the collision, prism (a solid with a ring
+// of 4 corners at each end) and box, and the bulbs that hang on a wire. The faces of every solid point outward (into the tunnel, from the walls round it), so what
+// is lit, shot and painted from inside is the face you see; the light is the bulbs' (BULB: the shader adds the glow of the ones near a surface, so people and guns
+// in the tunnel take it too, and it goes dark where a bulb has been shot out)
+function tunnelKit(draw, col, cm) {
+  const M = { stone: toonMat({ color: 0x8b887f, side: THREE.DoubleSide }), wood: toonMat({ color: 0x7a5636, side: THREE.DoubleSide }), earth: toonMat({ color: 0x5c4b3c, side: THREE.DoubleSide }),
     roof: toonMat({ color: 0x40352b, side: THREE.DoubleSide }), crate: MAT.crate, barrel: toonMat({ color: 0x6e4a2c }) };
-  // bake: the Fortress's look is too dark underground, and its hard-edged lighting shows up as blotches under a point light, so there the inside is unlit materials whose vertex
-  // colours are the light (bakeLight, from the bulbs), with the faces shaded by direction so the shapes still read. What's out in the open (open = true) keeps X, lit by the sun
-  const lit = c => new THREE.MeshBasicMaterial({ color: c, vertexColors: true, side: THREE.DoubleSide });
-  const M = bake ? { stone: lit(0xb0aca0), wood: lit(0xa07a50), earth: lit(0x95805f), roof: lit(0x7a6850), crate: lit(0xa8854f), barrel: new THREE.MeshBasicMaterial({ color: 0x74502e }) } : X, baked = [], lights = [];
   const g = new THREE.Group(); g.name = 'Tunnel'; draw.add(g); const cg = new THREE.Group(); col.add(cg);
-  const prism = (kind, ring0, ring1, solid = true, open = false) => { // two rings of 4 corners ([x, y, z]), bottom and top
-    const P = [], q = (a, b, c) => P.push(...a, ...b, ...c), quad = (a, b, c, d) => { q(a, b, c); q(a, c, d); };
+  const prism = (kind, ring0, ring1, solid = true) => { // two rings of 4 corners ([x, y, z]), bottom and top
+    const P = [], q = (a, b, c) => P.push(...a, ...b, ...c), quad = (a, b, c, d) => { q(a, c, b); q(a, d, c); };
     quad(ring0[3], ring0[2], ring0[1], ring0[0]); quad(ring1[0], ring1[1], ring1[2], ring1[3]);
     for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(ring0[i], ring0[j], ring1[j], ring1[i]); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals();
-    if (bake && !open) { geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(P.length).fill(1), 3)); baked.push(geo); }
-    const o = new THREE.Mesh(geo, open ? X[kind] : M[kind]); o.castShadow = o.receiveShadow = true; g.add(o);
+    const o = new THREE.Mesh(geo, M[kind]); o.castShadow = o.receiveShadow = true; g.add(o);
     if (solid) cg.add(new THREE.Mesh(geo, cm));
     return o;
   };
-  const box = (kind, [x0, x1, y0, y1, z0, z1], solid, open) => prism(kind, [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], solid, open);
-  const dark = false, bulbM = new THREE.MeshBasicMaterial({ color: dark ? 0x2b2721 : 0xffd36e }), wireM = new THREE.LineBasicMaterial({ color: 0x15110d }), bulbG = new THREE.SphereGeometry(0.075, 10, 8);
-  const bulb = (x, y, z) => { const o = new THREE.Mesh(bulbG, bulbM); o.position.set(x, y, z); g.add(o); lights.push([x, y, z, 1]); };
-  const bakeLight = () => { // each corner's light: a floor of 0.34 and the bulbs' glow, times how much the face looks up
-    const a = new V3(), b = new V3(), c = new V3(), n = new V3();
-    for (const geo of baked) {
-      const pos = geo.attributes.position, colr = geo.attributes.color;
-      for (let t = 0; t < pos.count; t += 3) {
-        a.fromBufferAttribute(pos, t); b.fromBufferAttribute(pos, t + 1); c.fromBufferAttribute(pos, t + 2); n.crossVectors(b.sub(a), c.sub(a)).normalize();
-        const shade = n.y > 0.5 ? 1 : n.y < -0.5 ? 0.6 : 0.82;
-        for (let k = 0; k < 3; k++) {
-          const x = pos.getX(t + k), y = pos.getY(t + k), z = pos.getZ(t + k); let br = dark ? 0.035 : 0.34;
-          if (!dark) for (const [lx, ly, lz, s] of lights) br += s * 0.9 / (1 + ((x - lx) ** 2 + (y - ly) ** 2 + (z - lz) ** 2) / 6);
-          const v = Math.min(1, br) * shade; colr.setXYZ(t + k, v, v, v);
-        }
-      }
-      colr.needsUpdate = true;
-    }
+  const box = (kind, [x0, x1, y0, y1, z0, z1], solid) => prism(kind, [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], solid);
+  const bulbLit = new THREE.MeshBasicMaterial({ color: 0xffd36e }), bulbDead = new THREE.MeshBasicMaterial({ color: 0x2b2721 }), wireM = new THREE.LineBasicMaterial({ color: 0x15110d }), bulbG = new THREE.SphereGeometry(0.075, 10, 8);
+  const bulb = (x, y, z) => { // a bulb on its wire: shot out, it goes dark (bulbBreak)
+    const o = new THREE.Mesh(bulbG, bulbLit); o.position.set(x, y, z); g.add(o);
+    const hit = new THREE.Object3D(); hit.userData.noHole = true;
+    BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 7, mesh: o, lit: bulbLit, dead: bulbDead, alive: true, hit }); hit.userData.bulb = BULB.all[BULB.all.length - 1];
   };
-  return { M, X, g, cg, cm, prism, box, bulb, wireM, lights, baking: bake, bakeLight };
+  const lamp = (x, y, z) => BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 9, mesh: null, alive: true }); // a light with no bulb to shoot
+  return { M, X: M, g, cg, cm, prism, box, bulb, lamp, wireM };
 }
+// The bulbs in play. bulbSync hands the shaders the ones still lit; a shot (castShot finds them: bulbRay) or a blast puts one out (bulbBreak), the same bulb on every machine
+// (netFx 'bb'; the host's welcome lists the broken ones), and a new round puts them all back (clearHoles)
+const BULB_HIT_R = 0.14, _bo = new V3(), _bulbCol = new THREE.Color();
+function bulbSync() {
+  const sc = LV && LV.mesh ? LEVEL_SCENES[LV.mesh] : null;
+  BULB.live = BULB.all.filter(b => b.scene === sc);
+  const on = BULB.live.filter(b => b.alive).slice(0, BULB_MAX);
+  on.forEach((b, i) => BULB.pos.value[i].set(b.p.x, b.p.y, b.p.z, b.r)); BULB.n.value = on.length;
+}
+function bulbBreak(i, fromNet) {
+  const b = BULB.live[i]; if (!b || !b.alive || !b.mesh) return false;
+  b.alive = false; b.mesh.material = b.dead; bulbSync();
+  const v = vol(b.p, 40); if (AC && v > 0.02) { const t = AC.currentTime; noise(t, 0.16, 0.5 * v, 7500, 2500); sTone([2600, 1900], 0.035, 'triangle', 0.1 * v); } // a pop and a tinkle
+  impact(b.p, b.hit);
+  if (!fromNet) netFx({ t: 'bb', i });
+  return true;
+}
+function bulbsRestore() { let any = false; for (const b of BULB.all) if (!b.alive) { b.alive = true; if (b.mesh) b.mesh.material = b.lit; any = true; } if (any) bulbSync(); }
+const bulbsBroken = () => BULB.live.map((b, i) => (b.alive ? -1 : i)).filter(i => i >= 0);
+function bulbShot(hit) { const b = hit && hit.object.userData.bulb; return !!b && (bulbBreak(BULB.live.indexOf(b)), true); } // a shot that hit a bulb puts it out
+function bulbsBlast(pos, r) { BULB.live.forEach((b, i) => { if (b.alive && b.mesh && b.p.distanceTo(pos) < r) bulbBreak(i); }); } // and a blast every bulb close enough
+function bulbRay(o, d, far) { // the nearest live bulb a shot from o along d reaches within far, as a castShot hit
+  let best = far, bb = null;
+  for (const b of BULB.live) {
+    if (!b.alive || !b.mesh) continue;
+    _bo.copy(b.p).sub(o); const t = _bo.dot(d); if (t < 0 || t >= best) continue;
+    const c2 = _bo.lengthSq() - t * t; if (c2 > BULB_HIT_R * BULB_HIT_R) continue;
+    const th = Math.max(0, t - Math.sqrt(BULB_HIT_R * BULB_HIT_R - c2)); if (th < best) { best = th; bb = b; }
+  }
+  if (!bb) return null;
+  const p = o.clone().addScaledVector(d, best);
+  return { distance: best, point: p, object: bb.hit, face: { normal: p.clone().sub(bb.p).normalize() } };
+}
+// Your gun in the tunnel takes the bulbs' light too (the viewmodel has lights of its own): how much glow is at p, 0 and up
+function bulbAtCPU(p) { let k = 0; for (const b of BULB.live) { if (!b.alive) continue; const d2 = b.p.distanceToSquared(p), R2 = b.r * b.r; if (d2 < R2) k += (1 - Math.min(1, Math.max(0, (d2 - R2 * 0.35) / (R2 * 0.65)))) / (1 + d2 * 0.45); } return k; }
 // The cellar under the fort's west wall, the stairs up from it and the door in the room's back wall (T.pieces, barrels, door, bulbs, lamp): the end of
 // the tunnel under the shed and of the bunker's tunnel
 function buildCellar(T, draw, K) {
@@ -1128,8 +1173,7 @@ function buildCellar(T, draw, K) {
   SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3((D.x0 + D.x1) / 2, 0, D.z), y: D.y, rot: 0 });
   // a few bulbs in the cellar, and one warm light down there
   for (const [x, y, z] of T.bulbs) { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.55, z)]), wireM)); }
-  if (K.baking) K.lights.push([...T.lamp, 1.2]);
-  else { const lamp = new THREE.PointLight(0xffc98a, 1.2, 10, 1.6); lamp.position.set(...T.lamp); g.add(lamp); }
+  K.lamp(...T.lamp);
 }
 // The bunker on the Fortress (Austin's drawing): a concrete door built into the hillside west of the fort, tucked in beside the big tree and facing west, and a tunnel from
 // the room behind it to the same cellar the shed's tunnel (Minimal + tunnel) ends in. World metres [x, y, z]; boxes [x0, x1, y0, y1, z0, z1].
@@ -1147,7 +1191,7 @@ const FORT_BUNKER = {
   lock: { hp: 240, hold: 4 },                                                 // the door locks from inside (hold E for `hold` seconds) and then has hp to be shot down
 };
 function buildBunker(B, C, col, draw, cm) {
-  const K = tunnelKit(draw, col, cm, true), { g, cg, box, prism, bulb, wireM } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
+  const K = tunnelKit(draw, col, cm), { g, cg, box, prism, bulb, wireM } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
   const floorAt = s => { const P = B.profile; for (let i = 0; i + 1 < P.length; i++) if (s <= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * Math.max(0, s - P[i][0]) / (P[i + 1][0] - P[i][0]); return P[P.length - 1][1]; };
   // the tunnel: straight runs, with a square cell at each corner (open on the two sides the runs join it by)
   const runs = []; let at = 0;
@@ -1224,12 +1268,11 @@ function buildBunker(B, C, col, draw, cm) {
   const bars = [[dx - 0.15, -Math.PI / 2], [dx + 0.08, Math.PI / 2]].map(([x, ry]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 40 / 256), bmat); m.position.set(x, F0 + D.h - 0.3, zc); m.rotation.y = ry; m.renderOrder = 10; m.visible = false; g.add(m); return m; });
   const hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, D.h, dw), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(dx - 0.1, F0 + D.h / 2, zc); hit.userData.bdoor = true; g.add(hit);
   sh.lockUI = { canvas: bc, tex, bars, hit, shown: -1 };
-  // 4. Light: a bulb in the room and one every few metres along the tunnel; the cellar (and its door) are the shed tunnel's, with its own bulbs. Then every inside face takes its light from them
+  // 4. Light: a bulb in the room and one every few metres along the tunnel; the cellar (and its door) are the shed tunnel's, with its own bulbs
   const bulbAt = (x, y, z) => { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.45, z)]), wireM)); };
   bulbAt((rx0 + rx1) / 2, yt - 0.35, (rz0 + rz1) / 2);
   for (const s of [1.6, 4.4, 7.4, 9.6, 12.2]) { const r = runs.find(q => s <= q.s0 + q.len) || runs[last], p = pt(r, s - r.s0, 0, 0); bulbAt(p[0], floorAt(s) + th - 0.35, p[2]); }
   buildCellar(C, draw, K);
-  K.bakeLight();
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
 // The Fortress's new roads (tools/build_fortress_ext.py builds the new ground, and prints these): each branches off the road from the gate and runs to a spawn clearing,
@@ -1287,6 +1330,31 @@ function regradeGround(L, draw, col) {
   if (ground) edit(ground); if (terrain) edit(terrain);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
+// Trees for cover round the spawn clearings (L.trees: [x, z] each): a thick trunk that stops shots and people (it is in the collision set too, so bots walk round it) and a few
+// faceted balls of leaves overhead, only a picture like the trees already there (paint goes on them: paintOnly). Sizes and turns come from the tree's number, not from chance,
+// so every machine grows the same trees
+function addTrees(L, draw, col, cm) {
+  const ground = []; col.updateMatrixWorld(true); col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) ground.push(o); });
+  const rc = new THREE.Raycaster(), tg = new THREE.Group(); tg.name = 'Trees'; draw.add(tg);
+  const bark = toonMat({ color: 0x5a4330 }), leaves = [0x2a4b35, 0x305a3b, 0x264430].map(c => toonMat({ color: c, side: THREE.DoubleSide }));
+  const rnd = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  L.trees.forEach(([x, z], i) => {
+    rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200;
+    const hit = rc.intersectObjects(ground, false)[0]; if (!hit) return;
+    const y = hit.point.y, s = 0.9 + 0.35 * rnd(i * 5 + 1), th = 3.6 * s, a0 = rnd(i * 5 + 2) * Math.PI * 2;
+    const geo = new THREE.CylinderGeometry(0.32 * s, 0.5 * s, th + 0.3, 8); // (set a little into the ground)
+    const trunk = new THREE.Mesh(geo, bark); trunk.position.set(x, y + th / 2 - 0.15, z); trunk.castShadow = trunk.receiveShadow = true; tg.add(trunk);
+    const c = new THREE.Mesh(geo, cm); c.position.copy(trunk.position); col.add(c); c.updateMatrixWorld();
+    const ball = (r, dx, dy, dz, k) => {
+      const b = new THREE.IcosahedronGeometry(r, 1); b.computeVertexNormals(); // (three's icosphere is drawn with smooth normals; recomputed per face it is faceted)
+      const m = new THREE.Mesh(b, leaves[k % 3]); m.position.set(x + dx, y + th + dy, z + dz);
+      m.castShadow = m.receiveShadow = true; m.userData.paintOnly = true; tg.add(m);
+    };
+    ball(2.3 * s, 0, 0.9 * s, 0, i); ball(1.4 * s, 0, 2.7 * s, 0, i + 1);
+    for (let k = 0; k < 3; k++) { const a = a0 + k * 2.1 + rnd(i * 5 + 3 + k) * 0.6; ball((1.2 + 0.35 * rnd(i * 5 + 4 + k)) * s, Math.cos(a) * 1.5 * s, (0.2 + 0.35 * k) * s, Math.sin(a) * 1.5 * s, i + k + 2); }
+  });
+  tg.updateMatrixWorld(true);
+}
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
 function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
@@ -1303,6 +1371,7 @@ function addSetExtras(L) {
   if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
+  if (L.trees) addTrees(L, draw, col, cm);
   if (L.bunker) buildBunker(L.bunker, L.cellar, col, draw, cm);
   // The tower door's walking shape (shut or open with the door). Bullets don't test it: they hit the door you see (TDOOR.shot),
   // which swings with the door, so only a shut door stops them
@@ -1342,7 +1411,7 @@ function cellOf(p) {
 
 // ---------- World meshes ----------
 const TOGGLE_SHAPES = {}; // name -> the bullet shapes taken out while that piece is open
-const W = { meshes: [], colliders: [], floors: [] }; // floors: tiled floor surfaces, hit by player shots and scorched, but not used for line of sight
+const W = { meshes: [], colliders: [], floors: [], extra: [] }; // floors: tiled floor surfaces, hit by player shots and scorched, but not used for line of sight; extra: drawn things with no collision of their own that paint goes on (the roads, rocks, bushes, trees: the level's paintOnly)
 function gridTex() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -1391,7 +1460,7 @@ function makeLadder(l) {
 function buildWorld(L) {
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
   levelGroup = new THREE.Group(); scene.add(levelGroup);
-  W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0;
+  W.meshes.length = 0; W.colliders.length = 0; W.floors.length = 0; W.extra.length = 0;
   for (const k in TOGGLE_SHAPES) delete TOGGLE_SHAPES[k];
   const fog = L.fog || [35, 95]; scene.fog.near = fog[0]; scene.fog.far = fog[1];
   camera.far = L.far || (L.mesh ? 400 : 300); camera.updateProjectionMatrix();
@@ -1401,6 +1470,7 @@ function buildWorld(L) {
     const sc = LEVEL_SCENES[L.mesh], col = LEVEL_SCENES[L.collide || L.mesh]; levelGroup.add(sc);
     col.updateMatrixWorld(true); // never drawn, but bullets and sight lines still test against it
     col.traverse(o => { if (o.isMesh && !o.userData.water && !o.userData.noShot && o.name !== (L.gate && L.gate.mesh)) { o.userData.tgShot = true; W.meshes.push(o); } });
+    sc.traverse(o => { if (o.isMesh && (o.userData.paintOnly || (L.paintOnly || []).includes(o.name))) W.extra.push(o); });
     for (const l of L.ladders || []) if (!l.drawn) levelGroup.add(makeLadder(l));
     if (L.gate && L.gate.doors) levelGroup.add(buildDoors(L.gate.doors));
     if (L.towerDoor) { levelGroup.add(buildTowerDoor(L.towerDoor)); W.meshes.push(TDOOR.shot); }
@@ -1884,7 +1954,8 @@ const _shotRest = [], _shotN = new THREE.Matrix3();
 const ARMOR_HIT = new THREE.Object3D(); ARMOR_HIT.userData.noHole = true;
 function castShot(ray, targets) {
   const hit = castShotLevel(ray, targets), a = VEH.armorRay(ray.ray.origin, ray.ray.direction, hit ? hit.distance : ray.far);
-  return a ? { distance: a.t, point: ray.ray.origin.clone().addScaledVector(ray.ray.direction, a.t), object: ARMOR_HIT, face: { normal: a.n } } : hit;
+  const r = a ? { distance: a.t, point: ray.ray.origin.clone().addScaledVector(ray.ray.direction, a.t), object: ARMOR_HIT, face: { normal: a.n } } : hit;
+  return (BULB.n.value && bulbRay(ray.ray.origin, ray.ray.direction, r ? r.distance : ray.far)) || r; // (a bulb in the way stops it)
 }
 function castShotLevel(ray, targets) {
   if (!TG) return ray.intersectObjects(targets, false)[0];
@@ -3125,7 +3196,7 @@ function _addHole(h) {
   if (r.count === -1) { r.offset = at; r.count = 16; } else { const lo = Math.min(r.offset, at), hi = Math.max(r.offset + r.count, at + 16); r.offset = lo; r.count = hi - lo; }
   holeNext = (holeNext + 1) % HOLE_MAX; holeMesh.count = holes.length; holeMesh.instanceMatrix.needsUpdate = true;
 }
-function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); ART.clear(); } // (and the paint)
+function clearHoles() { holes.length = 0; holeNext = 0; holeMesh.count = 0; clearScorches(); ART.clear(); bulbsRestore(); } // (and the paint, and the broken bulbs)
 const _r3 = v => Math.round(v * 1000) / 1000;
 const HOLE_CHUNK = 300; // holes per 'hl' message to a guest who just joined
 const addSentHole = h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }; // one from the host, checked
@@ -3846,6 +3917,7 @@ function botMiss(start, aim, marks) {
   botRay.set(start, dir); botRay.far = 200;
   const hit = castShot(botRay, [...W.meshes, ...W.floors]);
   if (!hit) return start.clone().addScaledVector(dir, 200);
+  if (bulbShot(hit)) return hit.point;
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
@@ -5558,6 +5630,7 @@ function applyFx(m) {
     case 'wn': note(String(m.x || '').slice(0, 80), 3); break;
     case 'bh': if (Array.isArray(m.h)) m.h.slice(0, 32).forEach(h => { if (Array.isArray(h) && h.length === 6 && h.every(Number.isFinite)) _addHole(h); }); break;
     case 'sc': if (validScorch(m.s)) _addScorch(m.s); break;
+    case 'bb': if (Number.isInteger(m.i)) bulbBreak(m.i, true); break; // a bulb shot out
     case 'pt': case 'pa': ART.net(m); break; // paint
     case 'mz': if (GUN_FX[m.k] && Array.isArray(m.p) && Array.isArray(m.d)) {
       const e = ents.find(o => o.id === m.i && o !== P), p = e && e.alive && e.rig && e.mesh ? botMuzzle(e, WEAPONS[m.k]) : v3(m.p);
@@ -5612,7 +5685,7 @@ function onGuestMsg(conn, m) {
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
       r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
       setRemoteModel(r, m.model);
-      sendTo(r, { t: 'welcome', id: r.id, ws: RANGE.cfg(), look: LOOK, level: curLevel, tg: GAME_TEAMS, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
+      sendTo(r, { t: 'welcome', id: r.id, ws: RANGE.cfg(), look: LOOK, level: curLevel, tg: GAME_TEAMS, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, bb: bulbsBroken(), peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
       // after a long game, and a message that big closes the connection, so the guest never got in
       for (let i = 0; i < holes.length; i += HOLE_CHUNK) sendTo(r, { t: 'hl', h: holes.slice(i, i + HOLE_CHUNK) });
@@ -5747,7 +5820,7 @@ function onHostMsg(m) {
       whenLevel(m.level, () => { // the host's level may still be loading here; its holes and scorches go on once it's in
         if (NET.wantLevel !== m.level) return;
         if (m.level !== curLevel) switchLevel(m.level);
-        clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); });
+        clearHoles(); (Array.isArray(m.scorches) ? m.scorches : []).forEach(s => { if (validScorch(s)) _addScorch(s); }); (Array.isArray(m.bb) ? m.bb : []).forEach(i => { if (Number.isInteger(i)) bulbBreak(i, true); });
         [...(Array.isArray(m.holes) ? m.holes : []), ...(NET.holeQ || [])].forEach(addSentHole); NET.holeQ = null; ART.release();
       });
       (m.peers || []).forEach(p => callPeer(p[0], p[1])); updateMicHud();
@@ -6090,6 +6163,7 @@ function loop(now) {
   if (isTouch) touchTick(dt);
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
+  if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
@@ -6098,8 +6172,8 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=30"></script>
-<script src="range.js?v=24"></script>
-<script src="art.js?v=10"></script>
+<script src="range.js?v=25"></script>
+<script src="art.js?v=11"></script>
 <script src="headlights.js?v=2"></script>
 </body>
 </html>
