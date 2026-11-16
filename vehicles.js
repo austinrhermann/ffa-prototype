@@ -360,7 +360,7 @@
   // The chase camera starts a little above and behind (CAM_PITCH, Austin's angle: 2026-11-03) and stays wherever the mouse leaves it
   const CAM_PITCH = 0.25;
   let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = CAM_PITCH, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
-  const driveMode = () => MODE === 'drive'; // Test Drive: no guns, third person on foot
+  const driveMode = () => false; // (Test Drive is gone: its branches below never run)
   const camPos = new V3(), camLook = new V3();
   const me = () => (NET.role === 'guest' ? NET.myId : P.id);
   const simulated = v => v.owner === me() || (!v.owner && NET.role !== 'guest'); // the driver runs their own vehicle; the host runs parked ones
@@ -759,115 +759,6 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     LAP.prevX = x; LAP.prevZ = z;
   }
 
-  // ---------------------------------------------------------------- the stadium
-  function canvasTex(draw, size = 256) {
-    const c = document.createElement('canvas'); c.width = c.height = size; draw(c.getContext('2d'), size);
-    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
-  }
-  function speckle(base, spots, n) { return canvasTex((g, s) => { g.fillStyle = base; g.fillRect(0, 0, s, s); for (let i = 0; i < n; i++) { g.fillStyle = spots[i % spots.length]; const r = 1 + Math.random() * 1.5; g.fillRect(Math.random() * s, Math.random() * s, r, r); } }); }
-  // Quads into one geometry: q(a, b, c, d) with corners counter-clockwise seen from the side that should show
-  function Geo() {
-    const pos = [], uv = [];
-    return {
-      q(a, b, c, d, scale = 4, uvf) {
-        for (const p of [a, b, c, a, c, d]) { pos.push(p[0], p[1], p[2]); const t = uvf ? uvf(p) : [(p[0] + p[2]) / scale, p[1] / scale]; uv.push(t[0], t[1]); }
-      },
-      mesh(m, shadow = true) {
-        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
-        const o = new THREE.Mesh(g, m); o.castShadow = shadow; o.receiveShadow = true; return o;
-      },
-    };
-  }
-  function buildStadium() {
-    const draw = new THREE.Group(), col = new THREE.Group(), cm = new THREE.MeshBasicMaterial();
-    const both = (o) => { draw.add(o); const c = new THREE.Mesh(o.geometry, cm); c.position.copy(o.position); c.rotation.copy(o.rotation); col.add(c); };
-    const grass = toonMat({ map: speckle('#5f7a3c', ['#5a7439', '#64803f', '#587237', '#68843f'], 9000) });
-    const asphalt = toonMat({ map: speckle('#3b3d40', ['#34363a', '#44474b', '#2e3033'], 6000) });
-    const concrete = toonMat({ map: speckle('#a3a19a', ['#9a9891', '#acaaa3', '#93918b'], 5000) });
-    const paint = toonMat({ color: 0xece8dc }), red = toonMat({ color: 0xc8302f }), fenceM = toonMat({ color: 0x5d646b });
-    const decal = (w, d, m, x, y, z, ry = 0, rep = 0) => { const geo = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2); if (rep) { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / rep, uv.getY(i) * d / rep); } const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.receiveShadow = true; draw.add(o); return o; };
-    // Ground (infield and everything outside the wall)
-    const ground = new THREE.PlaneGeometry(420, 320).rotateX(-Math.PI / 2); { const uv = ground.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 42, uv.getY(i) * 32); }
-    const gm = new THREE.Mesh(ground, grass); gm.receiveShadow = true; both(gm);
-    // Track surface, banked through the turns, plus the walls along both edges
-    const N = 240, half = TRK.W / 2, track = Geo(), wallI = Geo(), wallO = Geo(), fence = Geo(), doorEnds = [];
-    const pts = []; for (let k = 0; k <= N; k++) { const s = TRK.len * k / N, c = lap(s); pts.push({ s, ...c, hi: bankH(c.b, -half), ho: bankH(c.b, half) }); }
-    for (let k = 0; k < N; k++) {
-      const a = pts[k], b = pts[k + 1];
-      const ai = [a.x - a.nx * half, a.hi, a.z - a.nz * half], ao = [a.x + a.nx * half, a.ho, a.z + a.nz * half];
-      const bi = [b.x - b.nx * half, b.hi, b.z - b.nz * half], bo = [b.x + b.nx * half, b.ho, b.z + b.nz * half];
-      track.q(ai, ao, bo, bi, 0, p => [p[0] / 6, p[2] / 6]); // faces up (inner, outer, next outer, next inner, going round to the left)
-      // Outer wall: concrete on the track side, up to the catch fence; its back drops to the ground outside.
-      // A walkway through it on the back straight leads to the grandstands (people only: vehicles are held back in hitWalls)
-      const mid = (a.x + b.x) / 2, front = a.z < -TRK.R + 1 && b.z < -TRK.R + 1, door = a.z > TRK.R - 1 && b.z > TRK.R - 1 && Math.abs(mid) < TRK.door;
-      const t = TRK.wallOut, ao2 = [ao[0] + a.nx * 0.5, ao[1], ao[2] + a.nz * 0.5], bo2 = [bo[0] + b.nx * 0.5, bo[1], bo[2] + b.nz * 0.5];
-      if (!door) {
-        wallO.q([ao[0], ao[1] - 0.3, ao[2]], [bo[0], bo[1] - 0.3, bo[2]], [bo[0], bo[1] + t, bo[2]], [ao[0], ao[1] + t, ao[2]]);
-        wallO.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo2[0], bo2[1] + t, bo2[2]], [ao2[0], ao2[1] + t, ao2[2]]);
-        wallO.q([ao2[0], ao2[1] + t, ao2[2]], [bo2[0], bo2[1] + t, bo2[2]], [bo2[0], 0, bo2[2]], [ao2[0], 0, ao2[2]]);
-        fence.q([ao[0], ao[1] + t, ao[2]], [bo[0], bo[1] + t, bo[2]], [bo[0], bo[1] + TRK.fence, bo[2]], [ao[0], ao[1] + TRK.fence, ao[2]]);
-      } else doorEnds.push(ao, bo);
-      // Inner wall, with a gap on the front straight onto the infield
-      if (!(front && Math.abs(mid) < TRK.gap)) {
-        const h = TRK.wallIn, ai2 = [ai[0] - a.nx * 0.5, ai[1], ai[2] - a.nz * 0.5], bi2 = [bi[0] - b.nx * 0.5, bi[1], bi[2] - b.nz * 0.5];
-        wallI.q([bi[0], bi[1] - 0.3, bi[2]], [ai[0], ai[1] - 0.3, ai[2]], [ai[0], ai[1] + h, ai[2]], [bi[0], bi[1] + h, bi[2]]);
-        wallI.q([bi[0], bi[1] + h, bi[2]], [ai[0], ai[1] + h, ai[2]], [ai2[0], ai2[1] + h, ai2[2]], [bi2[0], bi2[1] + h, bi2[2]]);
-        wallI.q([bi2[0], bi2[1] + h, bi2[2]], [ai2[0], ai2[1] + h, ai2[2]], [ai2[0], -0.3, ai2[2]], [bi2[0], -0.3, bi2[2]]);
-      }
-    }
-    const wallM = toonMat({ map: concrete.map, side: THREE.DoubleSide }); // walls show from both faces
-    both(track.mesh(asphalt, false)); both(wallI.mesh(wallM)); both(wallO.mesh(wallM));
-    col.add(new THREE.Mesh(fence.mesh(cm).geometry, cm)); // the catch fence stops cars; drawn below as posts and cables
-    for (let k = 0; k < N; k += 4) { const a = pts[k], x = a.x + a.nx * half, z = a.z + a.nz * half; const o = new THREE.Mesh(new THREE.BoxGeometry(0.12, TRK.fence - TRK.wallOut, 0.12), fenceM); o.position.set(x, a.ho + (TRK.fence + TRK.wallOut) / 2, z); draw.add(o); }
-    for (const hgt of [2.6, 3.8, 5.0, 5.9]) {
-      const cable = Geo();
-      for (let k = 0; k < N; k++) { const a = pts[k], b = pts[k + 1]; if (a.z > TRK.R - 1 && Math.abs((a.x + b.x) / 2) < TRK.door) continue; const A = [a.x + a.nx * half, a.ho + hgt, a.z + a.nz * half], B = [b.x + b.nx * half, b.ho + hgt, b.z + b.nz * half]; cable.q(A, B, [B[0], B[1] + 0.04, B[2]], [A[0], A[1] + 0.04, A[2]]); }
-      const cm2 = cable.mesh(fenceM, false); cm2.material = toonMat({ color: 0x5d646b, side: THREE.DoubleSide }); draw.add(cm2);
-    }
-    // The walkway's ends: concrete posts to the top of the fence
-    if (doorEnds.length) {
-      const xs = doorEnds.map(q => q[0]), z = doorEnds[0][2];
-      for (const x of [Math.min(...xs), Math.max(...xs)]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.5, TRK.fence + 0.3, 0.6), wallM); o.position.set(x, (TRK.fence - 0.3) / 2, z + 0.25); o.castShadow = o.receiveShadow = true; both(o); }
-    }
-    // Start and finish line, and the lane stripes
-    for (let k = 0; k < 8; k++) for (let j = 0; j < 2; j++) decal(0.8, TRK.W / 8, (k + j) % 2 ? paint : toonMat({ color: 0x1a1a1a }), 0.4 - j * 0.8, 0.03, -TRK.R - TRK.W / 2 + TRK.W / 16 + k * TRK.W / 8);
-    for (const z of [-TRK.R, TRK.R]) for (let x = -TRK.half + 6; x < TRK.half - 6; x += 10) decal(5, 0.25, paint, x, 0.03, z);
-    // Ramps: on the back straight one on the inside lane and one on the outside, and one on the outside of the front straight
-    const ramp = (x, z, ry, len, wid, rise) => {
-      const g = new THREE.BufferGeometry(), hw = wid / 2;
-      const v = [[-hw, 0, 0], [hw, 0, 0], [hw, 0, len], [-hw, 0, len], [hw, rise, len], [-hw, rise, len]];
-      const f = [[0, 1, 2, 3], [3, 2, 4, 5], [0, 5, 4, 1], [1, 4, 2], [0, 3, 5]];
-      const pos = [], uv = [];
-      for (const q of f) { const tri = q.length === 4 ? [[q[0], q[1], q[2]], [q[0], q[2], q[3]]] : [q]; for (const t of tri) for (const k of t) { pos.push(...v[k]); uv.push(v[k][0] / 2, (v[k][2] + v[k][1]) / 2); } }
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
-      const o = new THREE.Mesh(g, toonMat({ map: speckle('#c9b04a', ['#bfa543', '#d3ba52', '#b39b3d'], 3000) })); o.position.set(x, 0.02, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; both(o);
-      for (const s of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, len), red); st.position.set(s * (hw - 0.1), 0, len / 2); st.rotation.x = -Math.atan2(rise, len); st.position.y = rise / 2 + 0.01; o.add(st); }
-    };
-    ramp(-26, TRK.R - 4.2, Math.PI / 2, 10, 5.4, 1.5); ramp(14, TRK.R + 4.2, Math.PI / 2, 12, 5.4, 2.0); ramp(26, -TRK.R - 4.2, -Math.PI / 2, 11, 5.4, 1.7); // a clear 3 m lane down the middle
-    // Infield: the parking lot
-    decal(66, 30, asphalt, -2, 0.015, 0, 0, 6);
-    for (let x = -29.5; x <= 24.5; x += 9) decal(0.18, 6, paint, x, 0.025, -6);
-    for (let x = -9.5; x <= 4.5; x += 5) decal(0.18, 4, paint, x, 0.025, 6);
-    decal(TRK.gap * 2 - 2, 14, asphalt, 0, 0.016, -TRK.R + 9, 0, 6); // the lane out to the track
-    // Grandstand behind the back straight, through the walkway: rows low enough to climb (each a step up), seats on each row
-    const seat = [toonMat({ color: 0x3a6fd0 }), toonMat({ color: 0xc8302f }), toonMat({ color: 0xe3c02c })], conc = toonMat({ color: 0x9a978f });
-    const rowH = 0.45, rowD = 0.8, z0 = TRK.R + half + 3, rows = 12;
-    for (let k = 0; k < rows; k++) {
-      const o = new THREE.Mesh(new THREE.BoxGeometry(110, rowH * (k + 1), rowD), conc); o.position.set(0, rowH * (k + 1) / 2, z0 + rowD * (k + 0.5)); o.castShadow = o.receiveShadow = true; both(o);
-      for (const [x0, x1, m] of [[-54, -2, seat[k % 3]], [2, 54, seat[(k + 1) % 3]]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.12, 0.35), m); b.position.set((x0 + x1) / 2, rowH * (k + 1) + 0.06, z0 + rowD * (k + 0.75)); b.receiveShadow = true; draw.add(b); }
-    }
-    { const back = new THREE.Mesh(new THREE.BoxGeometry(110, rowH * rows + 1.6, 0.4), conc); back.position.set(0, (rowH * rows + 1.6) / 2, z0 + rowD * rows + 0.2); back.castShadow = back.receiveShadow = true; both(back); }
-    for (const x of [-55.2, 55.2]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.4, rowH * rows + 1.6, rowD * rows + 0.4), conc); o.position.set(x, (rowH * rows + 1.6) / 2, z0 + rowD * rows / 2); o.castShadow = o.receiveShadow = true; both(o); }
-    // Invisible walls round the outside, so nobody walks off the edge of the world
-    for (const [w, d, x, z] of [[300, 1, 0, -100], [300, 1, 0, 100], [1, 200, -150, 0], [1, 200, 150, 0]]) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, 6, d), cm); o.position.set(x, 3, z); col.add(o); }
-    for (const [x, z] of [[-90, -70], [90, -70], [-90, 70], [90, 70], [0, -75]]) {
-      const pole = new THREE.Mesh(new THREE.BoxGeometry(0.6, 26, 0.6), conc); pole.position.set(x, 13, z); draw.add(pole);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 0.8), toonMat({ color: 0xf2efe2 })); lamp.position.set(x, 26, z); lamp.lookAt(0, 0, 0); draw.add(lamp);
-    }
-    draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
-    LEVEL_SCENES.DriveFlat = draw; LEVEL_SCENES.DriveFlat_col = col;
-  }
-  buildStadium();
 
   // ---------------------------------------------------------------- HUD and the tuning panel
   const css = document.createElement('style');
@@ -1182,9 +1073,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     armorRay,
     inArmour: id => list.some(v => v.model && v.layout === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
-    lampBeams, // (?dev) the headlights: on or off, for items.js and its messages
-    lampsOff: () => list.filter(v => !v.lamp).map(v => v.i),
-    setLamps(off) { for (const v of list) if (v !== cur) v.lamp = !off.includes(v.i); },
+    lampBeams, // the headlights of everything being driven (headlights.js lights them at dusk and night)
     driving: () => cur,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
     lenOf,
@@ -1202,7 +1091,6 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       }
       if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
-      if (cur && code === 'KeyL' && typeof DEV !== 'undefined' && DEV) { cur.lamp = !cur.lamp; sBeep(cur.lamp ? 900 : 600); return true; } // (?dev) the headlights
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
     },

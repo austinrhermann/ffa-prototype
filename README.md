@@ -2,55 +2,22 @@
 
 Browser free-for-all shooter built with three.js. Characters, weapons and props come from the Blender asset library (exported to `models/*.glb`).
 
-## Title page
+## The game
 
-The game opens on a title page (`title.jpg`, a placeholder render of the fort; replace it with any image). Loading starts as soon as the page opens: the characters, the guns and the level you start on before **Play**, then the other levels behind the menu (a level picked before it's in shows **Loading level…** on Play). The **Fortress Free-For-All** is the game.
+One level, the fort (`levelFortress` in `index.html`), with the start flow below. There's no `?dev` mode, no other maps, no Test Drive and no Shooting Range any more (they're in the git history before the fort-only cleanup).
 
-### The new start flow (`?dev` only for now)
-
-With `?dev` the game opens on the new, streamlined start instead. It replaces the mode buttons; Test Drive and the Shooting Range aren't in it (`?dev&level=drive` and `?dev&level=range` still open them).
-
-- **Title page.** The splash (`splash.png`, cropped from `Images/splashscreen.png`) and a loading bar on black. Once the level is in, the black fades to a slow orbit of the fort (±5°; `TITLE_CAMS` sets the camera per level, and the swing shifts sideways, or moves in closer, until nothing blocks the view), and **host a new game** appears.
+- **Title page.** The splash (`splash.png`) and a loading bar on black. Once the fort is in, the black fades to a slow orbit of it (±5°; `TITLE_CAMS`), and the host gets **host a new game**.
 - **Host Options** (the host only, yellow card):
-  - **Level**: every arena map, the Fort first.
+  - **Time of Day**: Day, Dusk or Night (`TIMES` in `index.html`). Everyone in the game, and invited friends still on the start page, get the host's lighting. **Fine-tune lighting** opens the sun, shadow and sky sliders (also in Settings, host only). Every page load starts from Day.
   - **Game Type**: Team battle (Midas against the Rebels) or Free for all.
-  - **Bots**: No, or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle), and they leave or come back as people join and leave.
+  - **Bots**: No, or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle).
   - **Copy invite link.**
-- **Your character** (everyone, white card): your name (remembered in your browser) and the 8 characters, 4 a side. Midas has the four soldiers; the Rebels have the Master, two Apprentices and the Officer.
-  - A character someone else picked shows their name in a black bar and can't be taken, unless every character is taken.
-  - Invited friends connect as soon as the page opens, so they see the picks live and the host's level behind the card.
-  - **Go!** leaves the menu. It stays off until you have typed a name and picked a character.
-- **Pause** (Esc) shows the same two cards. **Go!** goes back in, and changes take effect then: a new level, game type or bot setting starts a new round, and a guest's new character shows for everyone straight away. The host also has **Start over** (a new round with the current settings). Under the buttons: How to play, Settings, Draw and Leave game.
+- **Your character** (everyone, white card): your name (remembered in your browser) and the 8 characters, 4 a side. A character someone else picked shows their name and can't be taken. **Go!** goes in once you have a name and a character.
+- **Pause** (Esc) shows the same two cards; changes take effect on **Go!** (a new game type or bot setting starts a new round).
+- **Headlights** (`headlights.js`): at Dusk and Night, every vehicle with someone aboard lights the way ahead (the truck two lamps, the motorcycle one). Each lamp's cone has its own little shadow map, so it stops at walls and people. In daylight they're off and cost nothing.
+- **Draw** (pause screen, or P): a pen and a spray can instead of your weapons. The tools are put away while you're in a vehicle.
 
-### In the game (`?dev` only for now)
-
-- **Your three hands** (1–3, the wheel) hold guns and spray cans. Walk over something to pick it up; Q drops what's in your hands.
-- **X is the knife and F the grenade.** Hold F to cook it and let go to throw. Right-click while holding F to make it a mine instead (its fuse stops); let go to set it down where you're looking. Either way you're back to what you had in your hands.
-- **Spray cans** (one per colour: red, yellow, blue, green, black, white): click sprays, right-click draws a fine line. There's no draw mode any more (P does nothing), and holding a can doesn't keep you safe.
-- **Flashlights** (4) don't take a hand: once you've found one, L turns it on or off, so it lights the way for whatever you're holding. Its cone shows what it falls on in its own colours, without the look's light and shadow. Each lit one draws a small shadow map (what it can see, from your eyes), so it stops at whatever is really in the way: walls, corners, posts, people.
-- **The fort's tunnel** (bunker to cellar) is dark: no bulbs, no light. You need a flashlight down there.
-- **Headlights**: the truck has two and the motorcycle one. They come on when someone drives (a bot too), pointing a little down, and L at the wheel turns them off and on. They work like the flashlights, shadow map and all; up to eight lights at once, the nearest ones to you if there are more.
-- **The shower**, in a shady corner of the fort's courtyard: stand in it and press E to wash all the paint off you (everyone sees you come out clean, and players who join later never see that paint).
-- **A mirror** on the wall beside the shower. It's a real reflection (three.js's Reflector: the scene drawn a second time, from the camera flipped across the glass), so you see yourself, paint and all. It only draws when it's on screen and you're within 16 m.
-- Whatever someone carries drops where they die, and a new round puts everything back. The host keeps track of all of it (`items.js`), and the items' places are worked out from the level's ammo, spawn and weapon spots.
-- **The computer** (E) takes your view to its screen, which fills 80% of the height. The map shows your side as green plus signs (you ringed in white), everyone else red, the spray cans as triangles in their colours and the flashlights as yellow dots. The gate is only worked at the gate now.
-
-Without `?dev`, the title page and the old modes are as before:
-
-- **Battle in the Arena**: free for all on Complex, Facility, Bunker or Creek.
-- **Test Drive**: a little stadium oval with cars and motorcycles to drive, tune and crash, with friends (see below). It's where the vehicle mechanics get worked out before they go into the other games.
-
-`?dev` also brings back the **Look** button in Settings. `?level=<name>` still opens a level directly.
-
-Every menu (start, join, pause and round results) looks like the title page: big white heading, solid black buttons, over the title picture (or over the game while paused). It fits on one screen, and on a phone it stacks and scrolls.
-
-- The fort's start screen: **Play**, **Copy invite link**, **How to play**, **Settings** and **‹ Back**, with your name, character and the chat beside them.
-- **How to play** has the rules and the controls.
-- **Settings** is all buttons: bots on each side, difficulty, mouse sensitivity (− / +), whether right click holds or toggles aim, god mode and proximity voice chat. Sensitivity and the aim setting are remembered in your browser.
-- The pause screen (Esc) has **Resume**, **Restart game**, the same **How to play** and **Settings**, and **Main menu**.
-- **Play again** on the title page starts the last game you hosted.
-
-Invited friends skip the title page. **Main menu** on the pause screen (every mode) goes back to the title page; a host leaving ends the game for everyone who joined.
+Invited friends skip the title page and connect straight away, so they see the picks live. **Main menu** on the pause screen goes back to the title page; a host leaving ends the game for everyone who joined.
 
 ## Characters
 
@@ -111,54 +78,11 @@ npx serve .
 
 Import the repo in Vercel, framework preset **Other**, no build command, output directory `.`. Every push to `main` redeploys.
 
-## Test Drive
-
-A little stadium oval (open it directly with `?level=drive`): two 120 m straights and banked turns, a tall outer wall with a catch fence so nobody leaves the track, a low inner wall with a gap onto the infield, and three ramps on the straights (each sits in one lane, leaving a clear lane down the middle). A walkway through the outer wall on the back straight leads to the grandstand, whose rows you can climb (people only: vehicles are held back). The infield parking lot has six open-chassis cars (Kart, two Roadsters, Muscle, Buggy, Hauler), the fort's Truck (the Cargo Truck model), and two motorcycles (Sport bike, Dirt bike). Nobody carries a gun, and on foot you're in third person. Walk up to a vehicle and press **E**: where you stand picks the seat. The left side drives, the right side **rides along** in the passenger seat, and the Truck's tailgate climbs into the back (six seats). Bikes seat one. E again gets you out.
-
-- **Cars** are bare chassis: frame, floor, two seats, a steering wheel and four wheels, so the driver's-seat view (**V**) has nothing in the way. The bikes lean into turns.
-- **Driving**: W/S throttle, brake and reverse; A/D steer; Space handbrake; R puts you back on your wheels where you are. Wheels follow the banking and ramps, you fly off ramp lips, W/S tip the nose in the air, and the body dives, squats, rolls and bounces on its suspension. A lap timer runs from the line on the front straight (last and best lap in the corner).
-- **Tuning (Tab in a vehicle)**: sliders for acceleration, top speed, brakes and reverse; steering lock, how it fades with speed and how fast the wheels turn, grip (how hard it can corner) and downforce (extra grip at speed), with a readout of the tightest turn and the speed where grip takes over from the steering; slide recovery, handbrake power and grip on the handbrake; weight, length, width, wheel size, suspension stiffness, damping and travel, lean (bikes), gravity, nose control in the air and how hard you bounce off walls. The ranges go well past realistic on purpose. Grip is what limits turning once you're moving (the front wheels are drawn at the angle the car is really turning, not the angle you asked for), and the banking adds a little. The handbrake locks the back wheels: it brakes hard, cuts the engine and swings the back round in a turn. Changes apply as you drag, to that vehicle, for everyone in the game. **Use these on every car** copies them across; **Copy settings** puts the numbers on the clipboard. Tab again (or Drive) goes back to driving.
-- **Multiplayer**: the normal invite link. Whoever drives a vehicle simulates it on their own machine and sends its state; the host simulates the parked ones and relays everything. In a crash each machine pushes the vehicles it simulates using the other's reported speed and weight, so both cars react. Other drivers are seen sitting in their seats.
-
-All of it lives in `vehicles.js` (the main game calls into it through `VEH`); the stadium is generated there too, not loaded from a file. The earlier truck and plane are in the git history (commit 7315060).
-
-## Creek
-
-An outdoor free-for-all map (open it directly with `?level=creek`): a canyon ringed by cliffs, a creek winding across the middle that you can wade through, a rock arch over it with the Master rifle on top, boulders and low barriers for cover, and a base at each end (orange and teal trim). Each base has a front room and a back room on the ground floor (shotgun in the back room), ramps up both outside walls to a roof with a parapet, and a raised platform at the back of the roof (carbine). The two halves mirror each other.
-
-It's an original map in the spirit of the classic two-base canyon maps; everything in it, textures included, is generated by `tools/build_creek.py` (run it in Blender; the command is at the top). It writes `models/Creek.glb` (what you see) and `models/Creek_col.glb` (what everything collides with). Bots get around on a walking map of every floor (rooms, ramps, roofs, the arch) that the host builds when the level loads, and keep moving along their route while they fight.
-
-## Sewer
-
-Mike's map, a test blockout for 2 to 8 players (dev only: open it with `?dev&level=sewer`, or pick **Sewer** on the `?dev` title page). A walled hall over a sewer channel, three floors high:
-
-- **Sewer (L1):** a walkway along each side of knee-deep water, with two crossings.
-- **Second floor (L2):** an open floor under the platform and an east floor with six crates, split by an opening down to the water with a bridge across.
-- **Top floor (L3):** a platform at the west end with two crates and two long ramps down. A short hallway leads to the rocket room, with a bazooka on its crate.
-- **Outside the hall:** a long enclosed curved stair from the platform corner down to L2; a square stairwell shaft from the sewer to the top, wrapped round an open well; and the perch tower.
-- **Perch tower:** a **lift** from the sewer up to L2, then a ladder up through a hatch to the perch, where the Master rifle is. The perch's window looks back over the hall.
-
-The lift waits at the bottom. Stand on it and it rides up, waits until it's been empty a moment, then goes back down (`lifts` in a level's definition, `updateLifts`).
-
-`tools/build_sewer.py` builds it (the command is at the top) into `models/Sewer.glb` and `models/Sewer_col.glb`. The game draws it like the arena levels. Its first argument scales the map across, keeping floor heights; `levelSewer`'s `SCALE` has to match it.
-
-## Minimal + tunnel
-
-Mike's third way into the fort, on a copy of the Minimal map (dev only while it's tried out: open it with `?dev&level=tunnel`, or pick **Minimal + tunnel** on the `?dev` title page; plain Minimal is unchanged). The fort now has three ways in: the front gate, James's back trail, and the tunnel.
-
-- **Shed:** a square hole in the shed's floor opens on a shaft. Drop down it, or climb the ladder back up. The Master rifle waits in the shed's corner (the tunnel makes a long hallway for it); the bazooka moved out to the top of the hill in the middle, between the fort and the shed.
-- **Tunnel:** about 52 m long, 2 m wide and 2.4 m tall, lit by bulbs on a wire. It runs level under the valley, then ramps up toward the fort.
-- **Cellar:** under the fort's west wall, with crates and barrels.
-- **Way in:** open stairs (nothing between the flights, so the two sides can shoot each other across the stairwell) wind up from the cellar to a wooden door in the back wall of the room left of the gate. E opens and shuts it from either side, and nobody can lock it. Bots open it (and the shed's doors) when their way goes through.
-- **Bots' ways in:** Midas bots head into the fort by one of three ways, taken in turn as they spawn: the front twice in every four, then James's back trail, then the tunnel, so over a game half go in the front and a quarter each by the trail and the tunnel. Rebel bots hold their ground behind the shed as before. Tunnel bots drop down the hole (they can't climb the ladder, so for them the tunnel only leads into the fort). `fortRoutes`, `drops` and `navLinks` in `levelMinimalTunnel`; the last joins the narrow squeeze from the back door's corridor into the room behind it, which the bots' 0.5 m walking map misses.
-
-It's built when the level loads (`TUNNEL_MINIMAL`, `buildTunnel`): `cutConvex` cuts the doorway, the stairwell, the cellar and the shaft out of the set (picture and collision alike), then the tunnel's pieces are added. To carry it over to the Fortress, the same description with Fortress's shed spot and ground heights should do.
-
 ## Fortress: the island to the south
 
 The Fortress level (`?level=fortress`, the default) has grown (Austin's drawing). The fort and the old island are as they were; the island now carries on south around its old southern half, out to a new coast, and the shed is gone.
 
-- **Spawns:** the Rebels start in clearing **A** (south-west) and Midas in clearing **B** (south-east), each reached by a road. Both sides' bots head for the fort from their clearings (`rebelsAdvance`; on Minimal + tunnel the Rebels hold their ground instead). The spawns behind the shed are gone; the road behind the hill (where Midas used to start) is a free-for-all spawn now. The jeep (the truck) is back where it always parked, on the road behind the hill, with the Master's rifle and a shotgun behind it. The valley is widened there (a level pad, `FORT_EXT.pads`, cut into the hillside by `regradeGround`) and the bots' walking map leaves out the spot the truck stands on, so they path round it instead of getting stuck.
+- **Spawns:** the Rebels start in clearing **A** (south-west) and Midas in clearing **B** (south-east), each reached by a road. Both sides' bots head for the fort from their clearings (`rebelsAdvance`). The spawns behind the shed are gone; the road behind the hill (where Midas used to start) is a free-for-all spawn now. The jeep (the truck) is back where it always parked, on the road behind the hill, with the Master's rifle and a shotgun behind it. The valley is widened there (a level pad, `FORT_EXT.pads`, cut into the hillside by `regradeGround`) and the bots' walking map leaves out the spot the truck stands on, so they path round it instead of getting stuck.
 - **Roads:** both branch off the road that runs from the fort's gate down the valley (A about 45 m down it, B at its end by the truck) and are levelled for vehicles: no steeper than 9%, 3.8 m wide, flat within 2.2 m of the middle. The old ground is cut and filled to them at load (`regradeGround`; the road profiles are `FORT_EXT`, printed by the build script), and the new ground is built to the same profile.
 - **Mountain divider:** the old south hill carries on south as a steep rock spine to the south coast, so the two clearings can't see or walk to each other except round the north end (over the old hill, or up the roads). The bazooka is on its crest.
 - **Bunker:** a small concrete door (the doorway and a little padding) in the west face of the hill west of the fort, tucked in beside the big tree and facing west (the room's floor is the ground by the door, 25.4). E opens and shuts the steel door from either side. From inside, hold E for 4 seconds at the shut door to lock it (a tap still opens it): it stays shut until someone inside taps E to unlock it, or it's shot open. While it's locked it has a health bar on both faces like the gate's (240 health, `FORT_BUNKER.lock`), anyone's bullets wear it down, and the bots whose way in is the tunnel, on any side but the one that locked it, walk up to it and shoot it (`siegeDoor`); the locker's own side go in by the front instead, and a bot out of ammo gives up and looks for some. Bots' paths treat a locked door as a wall. The host decides: guests send `blk` (lock done), `bhit` (a shot) and `sdoor` (E), and see the lock and its health in the snapshot (`bk`). Behind it is a small room (the Master rifle lies on its floor), and from the room a tunnel runs east, stays level under the hill, turns north and climbs and ends in the same cellar the shed's tunnel does on Minimal + tunnel, so the way up into the fort is the one there. Bots take it as their third way in (the front twice in every four, then the back trail, then the tunnel). Underground the Fortress's look is too dark, so the bunker, tunnel and cellar are unlit materials with the bulbs' light baked into their vertex colours (`bakeLight`).
@@ -180,7 +104,7 @@ The **Fortress** level (`?level=fortress`, the default) is James's hilltop fort 
 - **Look**: the fort is lit the way the Blender renders are, by their compositor's own rules (`tools/build_fortress.py` reads them out of the set):
   - **Where the sun reaches is baked.** Every surface of the set carries the render's lit-or-shadow mask (Cycles, from the render's sun lamp, with its threshold), so the fort's shadows are the render's: dark interiors, no light leaking through walls, no flickering edges. Real-time shadows are only for what moves (characters, trucks, doors), and what moves is lit by a grid of where the sun reaches (`models/Fortress_v5_sun.png`), so a soldier walking into the tower goes dark with it, and so does your gun.
   - **The renders' colours**: lit surfaces at the renders' exposure, shadowed ones much darker (a touch lighter than the renders', so attackers in shadow stay visible), a blue haze that grows with distance from 20 m to 550 m, and the renders' sky gradient, deep blue overhead.
-  - With `?dev`, Esc, then Settings, then **Look** changes the sun (for what moves; the fort's own shadows are baked), the lit and shadow colours, the edge and the sky live; **Copy settings** copies them for `LOOK_DEFAULT`. The other levels keep the original lighting.
+  - The host's **Fine-tune lighting** (Host Options, or Settings) changes the sun (for what moves; the fort's own shadows are baked), the lit and shadow colours, the edge and the sky live, for everyone; **Copy settings** copies them for `LOOK_DEFAULT` or `TIMES`.
 
 The level is built straight from the render set, `SE4_Asset Library/Sets/Fortress/RENDER_set_v05_sky.blend`, by `tools/build_fortress.py` (the command is at the top of the script):
 
@@ -252,7 +176,7 @@ Press **P** (or **Draw** on the pause screen) to put your weapons away and take 
 - **In hand**: in first person your hand holds the tool upright, low on the right, the forearm coming up from the corner (`HELD_HIP` in `index.html`, `ARM_TURN` and `FPV_UP` in `art.js`). Others see you holding it. The pen (a fat marker) and the can are drawn in code, like the knife, and their caps take the colour.
 - **Vehicles and characters by name**: paint on a vehicle part or a character's mesh is addressed by the mesh's name, not its place in the model, because a model's parts can load in a different order on each machine. If a vehicle or a character is rebuilt, its paint goes back on.
 - **On a phone**: Draw is on the pause screen. Fire paints, Swap switches tool, and you tap a colour in the column on the right.
-- **Where it works**: every game but Test Drive. You can't paint from a seat where you couldn't shoot.
+- **Where it works**: on foot only: in a vehicle (any seat) the tools are put away.
 
 ## Muzzle flash and smoke
 
@@ -302,7 +226,7 @@ Every action has a key, so a one-button Mac mouse or a trackpad can play everyth
 
 - **Grenade**: the thrown frag grenade (and the one in your hand while you cook it) now uses the model; it tumbles in flight.
 - **Bazooka** (key 6, `?give=bazooka` to test): one rocket in the tube, 2 spare (4 at most; an ammo box adds one), 4.5 s reload. The rocket flies at 38 m/s and blows up on the first wall, soldier or truck it touches: 11.5 m blast, up to 240 damage (you take half from your own). A bazooka waits inside the shed on each map (on Minimal + tunnel, on the middle hill instead); it comes back 60 s after someone takes it, and dropped ones expire like other guns. Bots don't pick it up or use it yet.
-- **Shed**: a 3.6 x 2.8 m hut you can walk into (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). E at the door opens and shuts it (a shut door blocks movement, bullets and sight); bots open a shut door when their way goes through it. `shedCut: true` cuts away ground that pokes up through the floor (Minimal has it). A bulb lights the inside, and there is a window in the front and one in the back. A level's `clearTrees: [[x, z, r]]` removes the trees standing within r metres of a spot (the Fortress shed needed one). One stands in the field outside the fort on both Fortress and Minimal.
+- **Shed** (no longer used: it was for the Minimal map, now gone): a 3.6 x 2.8 m hut you can walk into (`sheds: [[x, z, yaw], ...]` in a level's definition; the door faces +z at yaw 0). E at the door opens and shuts it (a shut door blocks movement, bullets and sight); bots open a shut door when their way goes through it. `shedCut: true` cuts away ground that pokes up through the floor (Minimal has it). A bulb lights the inside, and there is a window in the front and one in the back. A level's `clearTrees: [[x, z, r]]` removes the trees standing within r metres of a spot (the Fortress shed needed one). One stands in the field outside the fort on both Fortress and Minimal.
 
 ## Health and the dots over players' heads
 

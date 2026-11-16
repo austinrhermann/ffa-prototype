@@ -33,12 +33,6 @@
     { id: 'mine', name: 'Mine', kind: 'mine', ammo: 'F' },
     { id: 'tube', name: 'F Tube', kind: 'tube', model: 'bazooka', ammo: 'F' },
   ];
-  // ?dev: the knife is X and the grenade F (hold it to cook, right-click while holding for a mine, let go to throw or set it),
-  // so the hands are just your three. A spray can takes a hand too (one per colour, the colours in art.js's order). The
-  // flashlight rides along without taking one (items.js); L turns the flashlight on and off, whatever you hold
-  const HOTON = () => typeof DEV !== 'undefined' && !!DEV; // (a guest takes the host's ?dev when it joins)
-  const PAINT_NAMES = ['Red', 'Yellow', 'Blue', 'Green', 'Black', 'White'];
-  PAINT_NAMES.forEach((n, c) => SLOTS.push({ id: 'spray' + c, name: n + ' spray', kind: 'spray', c, ammo: '' }));
   const ITEM_KINDS = { spray: 1 };
   // The knife is always yours, in hand 4 and on F; you carry three weapons at most. The grenade isn't a weapon you pick up:
   // an F battery IS one (hand 5, there whenever you carry an F battery), and it's a mine if you hold right-click and click.
@@ -121,7 +115,7 @@
   const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw')][i - HANDS]); // hands 0-4
   const slot = () => handSlot(cur) || KNIFE;
   const has = t => S.ammo.infinite || bats[t] > 0;
-  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i === HANDS + 1 && has('F') && (!HOTON() || !!hot)));
+  const canPick = i => (i < HANDS ? !!held[i] : i === HANDS || (i === HANDS + 1 && has('F')));
   const mineMode = () => mouseRight || tAim; // the grenade, with right-click held: a mine
   const spend = t => { if (S.ammo.infinite) return true; if (bats[t] <= 0) return false; bats[t]--; return true; };
   const gunOf = s => S.guns[s.id];
@@ -145,45 +139,6 @@
     .map((sp, i) => Object.assign(sp, { x: 9 - i * 3, z: 6, t: 0 }));
   const weaponSpots = () => SPOTS.filter(sp => sp.id);
   const decals = [];
-  function buildYard() {
-    const draw = new THREE.Group(), col = new THREE.Group(), cm = new THREE.MeshBasicMaterial();
-    const both = o => { draw.add(o); const c = new THREE.Mesh(o.geometry, cm); c.position.copy(o.position); c.rotation.copy(o.rotation); col.add(c); };
-    const box = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; both(o); return o; };
-    const decal = (w, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), m); o.position.set(x, y, z); o.receiveShadow = true; draw.add(o); return o; };
-    const tiled = (tex, rep) => { tex.repeat.set(rep[0], rep[1]); return toonMat({ map: tex }); };
-    // A black world on a grey floor: nothing to look at but the dummies
-    const floor = tiled(speckle('#6c6c6c', ['#666666', '#727272', '#606060', '#787878'], 9000), [40, 40]);
-    const wallM = toonMat({ color: 0x0c0c0c }), dirt = wallM;
-    const paint = toonMat({ color: 0xece8dc }), sand = toonMat({ map: speckle('#4e4e4e', ['#484848', '#545454', '#444444'], 5000) });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300).rotateX(-Math.PI / 2), floor); ground.receiveShadow = true; both(ground);
-    // The firing area: a concrete pad, the line, and the lane stripes out to the berm
-    const pad = speckle('#8a8a8a', ['#848484', '#909090', '#7e7e7e'], 5000); pad.repeat.set(8, 3);
-    decal(34, 10, toonMat({ map: pad }), 0, 0.012, 4);
-    decal(30, 0.18, paint, 0, 0.022, 0);
-    for (const x of [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5]) decal(0.1, 52, paint, x, 0.018, -26);
-    // Each lane's distance, at the firing line and at the dummy's feet
-    for (const [x, d] of LANES) {
-      const m = () => new THREE.MeshBasicMaterial({ map: textTex(d + ' m'), transparent: true, depthWrite: false });
-      decal(2.2, 0.8, m(), x, 0.03, -1.1); decal(2.6, 1, m(), x, 0.03, -d + 1.2);
-    }
-    // Each weapon's name on the floor in front of it, the right way up when you turn round to the row
-    for (const sp of SPOTS) {
-      const o = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.95).rotateX(-Math.PI / 2).rotateY(Math.PI), new THREE.MeshBasicMaterial({ map: textTex(sp.label, '#1e1e1e'), transparent: true, depthWrite: false }));
-      o.position.set(sp.x, 0.03, sp.z - 1.3); draw.add(o);
-    }
-    // The berm behind the dummies, and walls round the rest
-    box(90, 7, 5, 0, 3.5, -63, dirt);
-    for (const x of [-40, 40]) box(0.6, 3.5, 80, x, 1.75, -25, wallM);
-    box(80, 3.5, 0.6, 0, 1.75, 15, wallM);
-    // The blast pit: sand, a mark in the middle, and a wall between the mark and its last dummy
-    const sandDisc = new THREE.Mesh(new THREE.CircleGeometry(9.5, 48).rotateX(-Math.PI / 2), sand); sandDisc.position.set(PIT.x, 0.01, PIT.z); sandDisc.receiveShadow = true; draw.add(sandDisc);
-    const mark = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.38, 24).rotateX(-Math.PI / 2), toonMat({ color: 0xc8302f })); mark.position.set(PIT.x, 0.035, PIT.z); draw.add(mark);
-    box(2.6, 2.4, 0.3, PIT.x, 1.2, PIT.z - 2, wallM);
-    decal(4, 1.3, new THREE.MeshBasicMaterial({ map: textTex('blast pit'), transparent: true, depthWrite: false }), PIT.x, 0.04, PIT.z + 8.2);
-    draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
-    LEVEL_SCENES.RangeYard = draw; LEVEL_SCENES.RangeYard_col = col;
-  }
-  buildYard();
 
   // The damage rings, as a picture: the centre damage in the middle band, 1 in the outer one (scaled to the ring width;
   // redrawn when the centre damage changes)
@@ -514,7 +469,7 @@
     }
     if (s.kind === 'knife') { if (clickQ && knifeCd <= 0) { clickQ = false; shotN++; knife(); } return; }
     // Grenade: hold to cook (it beeps faster as the fuse runs down), let go to throw. With right-click held, a click sets it as a mine.
-    if (HOTON() || hot) { clickQ = false; if (hot) cookHot(dt); return; } // ?dev: all on F (hotDown / hotUp); touch's Frag button uses it too
+    if (hot) { clickQ = false; cookHot(dt); return; } // touch's Frag button: a grenade straight from an F battery (hotDown / hotUp)
     const fresh = clickQ; clickQ = false;
     if (cooking < 0 && mineMode()) { if (fresh && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); return; } gun.cd = 0.5; throwT = 0.3; shotN++; placeMine(); } return; }
     if (cooking < 0) { if (fresh && mouseDown && gun.cd <= 0 && throwT <= 0) { if (!spend('F')) { outOf('F'); gun.cd = 0.5; return; } cooking = 0; beepT = 0.5; sPin(); } return; }
@@ -624,10 +579,6 @@
   // Q: throw the weapon in your hands a few metres ahead (with what's left in its clip), then take the next one
   function drop() {
     const s = slot(); if (cur >= HANDS || !held[cur] || cooking >= 0) return;
-    if (heldU[cur]) { // an item: items.js puts it down (the host keeps track of it)
-      const u = heldU[cur]; held[cur] = null; heldU[cur] = null; syncInv(); ITEMS.drop(u);
-      const next = held.findIndex(Boolean); pick(next < 0 ? HANDS : next); return;
-    }
     syncAmmo();
     const load = s.model ? P.ammoBy[s.model].mag : 0;
     const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
@@ -842,9 +793,9 @@
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
   function drawSlots() {
-    const hands = (HOTON() ? [0, 1, 2] : [0, 1, 2, 3, 4]).map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
+    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
     const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
-    const hk = HOTON() ? `<div class="${cur === HANDS ? 'on' : ''}">X&nbsp; Knife</div><div class="${cur === HANDS + 1 ? 'on' : has('F') ? '' : 'no'}">F&nbsp; ${hot && hotMine ? 'Mine' : 'Grenade'} <small>F ×${batsTxt('F')}</small></div>` + (myLight ? `<div class="${lightOn ? 'on' : ''}">L&nbsp; Flashlight <small>${lightOn ? 'on' : 'off'}</small></div>` : '') : '';
+    const hk = '';;
     slotsEl.innerHTML = hands.join('') + hk + `<div class="am">${am}</div>`;
   }
   drawSlots();
@@ -1018,7 +969,6 @@
   }
 
   Object.defineProperty(RANGE, 'on', { get: live, configurable: true }); // the new weapons are in charge
-  Object.defineProperty(RANGE, 'hot', { get: HOTON, configurable: true }); // ?dev: knife on X, grenade on F, items
   Object.defineProperty(RANGE, 'range', { get: on, configurable: true });
   Object.defineProperty(RANGE, 'life', { get: () => LIFE, configurable: true }); // the Shooting Range itself
   Object.defineProperty(RANGE, 'panelOpen', { get: () => panelOpen, configurable: true });
@@ -1063,7 +1013,7 @@
     zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
     next(dir) {
       if (!P.alive || hot) return;
-      const can = (HOTON() ? [0, 1, 2] : [0, 1, 2, 3, 4]).filter(canPick); if (!can.length) return;
+      const can = [0, 1, 2, 3, 4].filter(canPick); if (!can.length) return;
       const i = can.indexOf(cur); pick(can[i < 0 ? (dir > 0 ? 0 : can.length - 1) : (i + dir + can.length) % can.length]);
     },
     hotDown, hotUp, quickKnife, giveItem, loseItem,
@@ -1072,16 +1022,10 @@
     handsUsed: () => held.filter(Boolean).length,
     paint: () => (slot().kind === 'spray' && P.alive ? slot().c : -1), // the colour of the spray can in your hands
     lightOn: () => !!myLight && lightOn && P.alive,
-    keyUp(code) { if (live() && HOTON() && code === 'KeyF') { hotUp(); return true; } return false; },
+    keyUp() { return false; },
     key(code) {
       if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
-      if (HOTON()) {
-        if (n) { if (P.alive && !hot && +n[1] <= HANDS) pick(+n[1] - 1); return true; }
-        if (code === 'KeyF') { hotDown(); return true; }
-        if (code === 'KeyX') { quickKnife(); return true; }
-        if (code === 'KeyL') { if (myLight && P.alive) { lightOn = !lightOn; sBeep(lightOn ? 900 : 600); } else if (!myLight) note('No flashlight: find one first', 1.2); return true; }
-      }
       if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
       if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
