@@ -1997,7 +1997,6 @@ $('sprox').onchange = e => { PROX_VOICE = e.target.checked; };
 $('sdiff').oninput = e => $('odiff').textContent = DIFF_LABELS[e.target.value - 1];
 $('sglimit').oninput = e => $('oglimit').textContent = e.target.value;
 // The fort is the game. The start flow: the title page over the live level, Host Options and the character grid
-const NEWMENU = true; // (always: the old start menu is gone)
 document.body.classList.add('newmenu', 'pregame', 'titleon');
 let READY = false; // everything loaded
 const selLevel = 'fortress';
@@ -2109,7 +2108,6 @@ const GUN_FX = {
   bazooka: { flash: { img: null, style: 'bloom', color: '#ff9a2a', size: 1.1,  vmSize: 0.34, life: 0.08 },
              smoke: { img: null, style: 'puff',  color: 0xcfcac2, count: 10, size: 0.2, grow: 1.4,  life: 2.2, speed: 2.6, rise: 0.4, opacity: 0.5 } },
 };
-const PROPS = {};
 let NADE_MODEL = null; // Grenade.glb
 function principalAxis(pts, c) {
   let xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
@@ -2318,7 +2316,7 @@ function loadModels() {
       sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
     }
     return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
-  }))).then(ms => { MODELS.push(...ms); if (MODELS[4] && NEWMENU) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
+  }))).then(ms => { MODELS.push(...ms); if (MODELS[4]) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
     w.scene = sc; w.yaw = w.fixedYaw !== undefined ? w.fixedYaw : orientWeapon(sc);
@@ -2798,7 +2796,7 @@ function fpvFit(r) {
 // Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
 const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
 let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
-const teamsOn = () => NEWMENU ? !!LV && GAME_TEAMS && MODE !== 'drive' && MODE !== 'range' : !!(LV && LV.teams) && MODE !== 'drive';
+const teamsOn = () => !!LV && GAME_TEAMS;
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
 const teamKills = t => ents.reduce((n, e) => n + (e.team === t ? e.kills : 0), 0);
 let myTeam = 'midas';
@@ -2827,7 +2825,7 @@ let ents = [P];
 let botSig = '', botN = 0;
 const REBEL_MODELS = [5, 4];
 function buildBots(plan) {
-  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botN = 0; botSig = NEWMENU ? botKind() : plan.join();
+  bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botN = 0; botSig = botKind();
   for (let i = 0; i < plan.length; i++) bots.push(makeBot(plan[i]));
   ents = [P, ...bots, ...remotes];
 }
@@ -3317,12 +3315,11 @@ function resetMatch() {
   rockets.forEach(r => scene.remove(r.mesh)); rockets.length = 0;
   ammoBoxes.forEach(a => { a.active = true; a.mesh.visible = true; });
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
-  GASCANS.forEach(g => { g.alive = true; g.o.visible = true; }); pendingGas.length = 0;
   HEALS.forEach(h => setHeal(h, true));
   clearCorpses(); clearHoles();
   matchOver = false;
   ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
-  if (NET.role === 'host') broadcast(NEWMENU ? { t: 'reset', tg: GAME_TEAMS } : { t: 'reset' });
+  if (NET.role === 'host') broadcast({ t: 'reset', tg: GAME_TEAMS });
 }
 // w is the winner
 function endMatch(w) {
@@ -3372,53 +3369,10 @@ function throwNade(owner, origin, vel, fuse = NADE_FUSE, impact = false) {
   if (impact) m.scale.setScalar(1.5);
   nades.push({ owner, pos: origin.clone(), vel, t: fuse, mesh: m, impact, spin: new V3((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 14) });
 }
-const GASCANS = [], pendingGas = [];
-function boom(pos, owner, R, maxD, selfK = 1, src) { // selfK: share of the damage the thrower takes (the bazooka spares you a bit)
-  if (RANGE.on) return RANGE.boom(pos, owner, src); // the new weapons' blasts (?dev): damage in rings
-  addScorch(pos, R * 0.3);
-  _boomFx(pos, R * 0.6); sBoom(vol(pos, 90)); netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
-  const o = pos.clone(); o.y += 0.3;
-  for (const e of ents) {
-    if (!e.alive) continue;
-    const m = midPos(e), d = m.distanceTo(o);
-    if (d < R && losPts(o, m)) damage(e, Math.round(maxD * (1 - d / R) * (e === owner ? selfK : 1)), owner, 'frag', false);
-  }
-  if (gateSiegeOn()) { const dr = LV.gate.doors, dd = new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5; if (dd < R) damageGate(maxD * (1 - Math.max(0, dd) / R) * 0.6); } // blasts wear the gate down too
-  for (const g of GASCANS) if (g.alive && g.pos.distanceTo(pos) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
-  const pd = P.pos.distanceTo(pos);
-  if (pd < 14) punch += 0.06 * (1 - pd / 14);
-}
+function boom(pos, owner, R, maxD, selfK = 1, src) { return RANGE.boom(pos, owner, src); } // blasts: damage in rings (range.js)
 function explode(n) {
   if (NET.role === 'guest') { if (n.owner === P && NET.conn && NET.conn.open) NET.conn.send({ t: 'nade', o: arr(n.pos), v: [0, 0, 0], f: 0.01 }); return; }
   boom(n.pos, n.owner, 8.05, 130, 1, n.impact ? 'tube' : 'throw');
-}
-function registerGas(o) {
-  if (!o || !PROPS.Gas_Can) return;
-  const sz = PROPS.Gas_Can.size, g = { o, pos: o.position.clone(), alive: true };
-  g.px = new THREE.Mesh(new THREE.BoxGeometry(sz.x * 1.15, sz.y, sz.z * 1.15), new THREE.MeshBasicMaterial({ visible: false }));
-  g.px.position.y = sz.y / 2; g.px.userData = { gas: g }; o.add(g.px); GASCANS.push(g);
-}
-function shootGas(g, owner) { if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gas', i: GASCANS.indexOf(g) }); return; } if (!g.alive) return; g.alive = false; g.t = 90; g.o.visible = false; boom(g.pos.clone().setY(g.pos.y + 0.25), owner, 9, 200); }
-function updateGas(dt) {
-  for (const g of GASCANS) if (!g.alive) { g.t -= dt; if (g.t <= 0) { g.alive = true; g.o.visible = true; } } for (let i = pendingGas.length - 1; i >= 0; i--) { const q = pendingGas[i]; q.t -= dt; if (q.t <= 0) { pendingGas.splice(i, 1); shootGas(q.g, q.owner); } } }
-// Health pickups: each pile of white bottles or yellow crab cans restores full health, then comes back after a while
-const HEALS = [];
-const HEAL_MAT = toonMat({ color: 0xf2f0ea }), CROSS_MAT = toonMat({ color: 0xc8302f });
-function registerHeal(objs, pos) { objs = objs.filter(Boolean); if (objs.length) HEALS.push({ objs, pos, active: true, t: 0 }); }
-function setHeal(h, on) { h.active = on; h.objs.forEach(o => { o.visible = on; }); }
-function updateHeals(dt) {
-  for (const h of HEALS) {
-    if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
-    for (const e of ents) {
-      if (!e.alive || e.health >= maxHp(e)) continue;
-      if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
-        e.health = maxHp(e); setHeal(h, false); h.t = 30;
-        if (e.isRemote) sendTo(e, { t: 'heal' });
-        if (e.isPlayer) note('Health restored', 1);
-        break;
-      }
-    }
-  }
 }
 const NADE_BOUNCE = 0.2, NADE_SCRUB = 0.6, NADE_ROLL = 6; // share of speed kept bouncing off a surface, along it on impact, and rolling friction (/s)
 function updateNades(dt) {
@@ -3469,7 +3423,6 @@ function launchRocket(owner, origin, dir, w, ghost) {
 function rocketHits(r) {
   const p = r.pos;
   if (solidPt(p.x, p.y, p.z, 0.06)) return true;
-  if (RANGE.on && RANGE.solid(p)) return true; // the range's dummies
   for (const e of ents) {
     if (!e.alive || (e === r.owner && r.t < 0.3)) continue;
     if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 0.55 && p.y > e.pos.y - 0.1 && p.y < e.pos.y + e.h + 0.1) return true;
@@ -3579,68 +3532,40 @@ function updatePickups(dt, now) {
     }
   }
 }
-// Decorative props along walls (no collision)
+// Health pickups: a health box restores full health, then comes back after a while
+const HEALS = [];
+const HEAL_MAT = toonMat({ color: 0xf2f0ea }), CROSS_MAT = toonMat({ color: 0xc8302f });
+function registerHeal(objs, pos) { objs = objs.filter(Boolean); if (objs.length) HEALS.push({ objs, pos, active: true, t: 0 }); }
+function setHeal(h, on) { h.active = on; h.objs.forEach(o => { o.visible = on; }); }
+function updateHeals(dt) {
+  for (const h of HEALS) {
+    if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
+    for (const e of ents) {
+      if (!e.alive || e.health >= maxHp(e)) continue;
+      if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
+        e.health = maxHp(e); setHeal(h, false); h.t = 30;
+        if (e.isRemote) sendTo(e, { t: 'heal' });
+        if (e.isPlayer) note('Health restored', 1);
+        break;
+      }
+    }
+  }
+}
+// The fort's health boxes (no collision)
 let propGroup = null;
 function placeProps() {
   if (propGroup) scene.remove(propGroup);
   propGroup = new THREE.Group(); scene.add(propGroup);
-  GASCANS.length = 0; pendingGas.length = 0; HEALS.length = 0;
+  HEALS.length = 0;
   // Mesh levels (Fortress): white health boxes with a red cross at the level's listed spots
   if (!(LV.gate && LV.gate.doors)) DOORS = null;
-  if (TG) {
-    for (const spot of LV.heals || []) {
-      const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
-      const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
-      bar1.position.y = bar2.position.y = 0.18; box.castShadow = box.receiveShadow = bar1.receiveShadow = bar2.receiveShadow = true; g.add(box, bar1, bar2);
-      g.position.set(p.x, p.y + 0.18, p.z); propGroup.add(g);
-      registerHeal([g], p);
-    }
-    return;
-  }
-  let seed = 1337; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const keep = [...SPAWNS, ...ammoBoxes.map(a => a.pos), ...PICKUPS.map(pk => pk.pos)];
-  const flatH = n => { const h = nodeH(n); return h === 0 || h === BASE || n >= N; };
-  const same = (n, c, r) => { if (c < 0 || r < 0 || c >= GW || r >= GD) return false; const j = idx(c, r); return n >= N ? U[j] === 1 : (walk0(j) && Math.abs(H[j] - H[n]) < 0.01); };
-  const blocked = (n, c, r) => { if (c < 0 || r < 0 || c >= GW || r >= GD) return true; const j = idx(c, r); return n >= N ? !U[j] && !STAIR[j] : !walk0(j); };
-  const cand = [];
-  for (const n of WALK) {
-    if (!flatH(n)) continue;
-    const i = n % N, c = i % GW, r = (i / GW) | 0;
-    if (n < N && STAIR[i]) continue;
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dc, dr]) => blocked(n, c + dc, r + dr));
-    const open = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dc, dr]) => same(n, c + dc, r + dr)).length;
-    if (dirs.length && dirs.length <= 2 && open >= 2) cand.push({ n, dirs });
-  }
-  for (let i = cand.length - 1; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
-  const used = [];
-  const put = (name, x, y, z, yaw) => { const P0 = PROPS[name]; if (!P0) return null; const o = P0.proto.clone(true); o.position.set(x, y, z); o.rotation.y = yaw; propGroup.add(o); return o; };
-  for (const cd of cand) {
-    if (used.length >= 36) break;
-    const p = cellPos(cd.n);
-    if (used.some(u => u.distanceTo(p) < 6) || keep.some(k => k.distanceTo(p) < 2)) continue;
-    used.push(p);
-    const wx = cd.dirs.reduce((a, d) => a + d[0], 0), wz = cd.dirs.reduce((a, d) => a + d[1], 0);
-    const bx = p.x + wx * 0.28, bz = p.z + wz * 0.28, tx = -wz || 1, tz = wx;
-    const t = rnd();
-    if (t < 0.33) {
-      const k = 3 + ((rnd() * 3) | 0);
-      for (let q = 0; q < k; q++) {
-        const along = ((q % 3) - 1) * 0.32, out = ((q / 3) | 0) * 0.3;
-        registerGas(put('Gas_Can', bx + tx * along - wx * out, p.y, bz + tz * along - wz * out, Math.atan2(wx, wz) + (rnd() - 0.5) * 0.5));
-      }
-    } else if (t < 0.6) {
-      const k = 1 + ((rnd() * 3) | 0), objs = [];
-      for (let q = 0; q < k; q++) objs.push(put('Officer_Bottle', bx + tx * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, p.y, bz + tz * (q - (k - 1) / 2) * 0.2 + (rnd() - 0.5) * 0.08, rnd() * 6.28));
-      registerHeal(objs, new V3(bx, p.y, bz));
-    } else {
-      const objs = [], cs = PROPS.Midas_Crab ? PROPS.Midas_Crab.size : new V3(0.19, 0.15, 0.19), w = cs.x + 0.01, h = cs.y;
-      const rows = rnd() < 0.6 ? 3 : 1;
-      for (let row = 0; row < rows; row++) for (let q = 0; q < (rows === 3 ? 3 - row : 1 + ((rnd() * 2) | 0)); q++) {
-        const n = rows === 3 ? 3 - row : 2, off = (q - (n - 1) / 2) * w;
-        objs.push(put('Midas_Crab', bx + tx * off, p.y + row * h, bz + tz * off, rnd() * 6.28));
-      }
-      registerHeal(objs, new V3(bx, p.y, bz));
-    }
+  if (!TG) return; // (the boot room has none)
+  for (const spot of LV.heals || []) {
+    const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
+    const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
+    bar1.position.y = bar2.position.y = 0.18; box.castShadow = box.receiveShadow = bar1.receiveShadow = bar2.receiveShadow = true; g.add(box, bar1, bar2);
+    g.position.set(p.x, p.y + 0.18, p.z); propGroup.add(g);
+    registerHeal([g], p);
   }
 }
 // Player gun
@@ -3767,7 +3692,6 @@ function fire() {
   spread *= 1 - 0.55 * adsK;
   const targets = [...W.meshes, ...W.floors];
   for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
-  for (const g of GASCANS) if (g.alive) targets.push(g.px);
   if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit); // a shut gate takes damage from anyone's bullets
   const bdh = lockedDoorHit(); if (bdh) targets.push(bdh); // and so does the bunker's door while it's locked
   const start = vmMuzzleWorld();
@@ -3795,8 +3719,7 @@ function fire() {
       // the rifle: the head, or a shot into the torso that goes through the middle of the upper chest, kills; anything else takes half
       if (w.zones && !head && !(hit.object === ud.ent.hit[1] && ud.ent.core && shotRay.intersectObject(ud.ent.core, false).length)) d = Math.ceil(maxHp(ud.ent) / 2);
       dmgBy.set(ud.ent, (dmgBy.get(ud.ent) || 0) + d); anyHead = anyHead || head;
-    } else if (ud.gas) shootGas(ud.gas, P);
-    else if (ud.gate) { shootGate(w); impact(hit.point, hit.object); }
+    } else if (ud.gate) { shootGate(w); impact(hit.point, hit.object); }
     else if (ud.bdoor) { shootBunker(doorShotAmt(w)); impact(hit.point, hit.object); }
     else { const h = holeFromHit(hit, dir); if (h) { newHoles.push(h); if (w.holes > 1) newHoles.push(...scatterHoles(h, w.holes - 1)); } else impact(hit.point, hit.object); }
   }
@@ -4727,8 +4650,7 @@ function applySettings() {
   if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); return; }
   if (selLevel !== curLevel && levelReady(selLevel)) { switchLevel(selLevel); resetMatch(); }
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
-  if (!NEWMENU) { const plan = botPlan(); if (plan.join() !== botSig) { buildBots(plan); resetMatch(); } }
-  else if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
+  if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
 }
 // Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (four a side in a team battle)
 let BOT_LEVEL = 3;
@@ -4753,13 +4675,13 @@ function setPlaying(on) {
     mouseDown = mouseRight = false; for (const k in keys) keys[k] = false; boardOpen = false;
     joy.x = joy.y = 0; joy.id = look.id = fireId = useId = brakeId = null; jumpT = 0;
     $('joy').style.display = 'none';
-    if (NEWMENU) syncPause();
+    syncPause();
   }
 }
 $('play').onclick = () => {
   if (NET.role === 'host') try { localStorage.setItem('tse.last', JSON.stringify({ level: selLevel })); } catch (e) {}
   initAudio(); if (NET.role === 'guest' || remotes.length) getMic();
-  if (NET.role === 'guest') { NET.go = true; P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); else if (NEWMENU && !NET.joined && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); }
+  if (NET.role === 'guest') { NET.go = true; P.name = ($('pname').value.trim() || 'Guest').slice(0, 16); if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value); if (!NET.peer) startGuest(); else if (!NET.joined && NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam }); }
   if (!isTouch) { renderer.domElement.requestPointerLock(); return; }
   const el = document.documentElement;
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {}); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // (iPhones have neither: see the home-screen hint)
@@ -4863,15 +4785,12 @@ function initPreview() {
   $('schar').onchange = () => refreshPreview();
   if (params.has('posecheck')) chooseMode('arena');
 }
-// On a team level you pick from your own side's characters (the Rebels are the Master and the Apprentice, Midas everyone
-// else), so it's clear at a glance who's on which side
-const TEAM_CHARS = { rebels: [5, 4], midas: [0, 1, 2, 3, 6] };
-// ?dev's character grid: Midas the four soldiers; Rebels the Master, two Apprentices (index 7 is the second) and the Officer
+// The character grid: Midas the four soldiers; Rebels the Master, two Apprentices (index 7 is the second) and the Officer.
+// In a team battle you pick from your own side's
 const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], rebels: [5, 4, 7, 6] };
-const TEAM_CHARS_NOW = () => NEWMENU ? TEAM_CHARS_NEW : TEAM_CHARS;
 function syncChars() {
-  const sel = $('schar'), lv = NET.role === 'host' ? LEVEL_DEFS[selLevel]() : LV || {};
-  const teams = TEAM_CHARS_NOW(), ok = (NEWMENU ? GAME_TEAMS : lv.teams) && teams[myTeam] ? teams[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i).filter(i => NEWMENU || i < 7);
+  const sel = $('schar'), teams = TEAM_CHARS_NEW;
+  const ok = GAME_TEAMS && teams[myTeam] ? teams[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
   const want = ok.includes(+sel.value) ? +sel.value : ok[0];
   if (sel.options.length === ok.length && [...sel.options].every((o, k) => +o.value === ok[k])) { sel.value = want; return; }
   sel.length = 0; ok.forEach(i => sel.add(new Option(MODELS[i].label, i))); sel.value = want;
@@ -4880,7 +4799,7 @@ function syncChars() {
 function refreshPreview() {
   if (MODELS.length) syncChars();
   setPreview(+$('schar').value);
-  if (NEWMENU) pickerChanged();
+  pickerChanged();
 }
 function setPreview(i) {
   if (!prev) return;
@@ -4958,10 +4877,10 @@ function chooseMode() { updateGoal(); refreshPreview(); showTitle(false); showSc
 // Page 1, the title: the splash and a loading bar on black; once the level is in, the black fades away to a slow orbit of it
 // and (for the host) "host a new game" appears. Page 2: Host Options (host only) and the character grid, then Go!
 // Guests connect as soon as the page opens, so the grid shows who has taken what before they join ('lobby' / 'picks').
-var PREGAME = NEWMENU, LOBBY = new Map(), PICKS = [], PICKED = false, lastLobby = 0, titleShown = 0, titleReadyAt = 0;
+var PREGAME = true, LOBBY = new Map(), PICKS = [], PICKED = false, lastLobby = 0, titleShown = 0, titleReadyAt = 0;
 const TITLE_CAMS = { fortress: { p: [-9.5, 31.8, 36], t: [1.5, 39.5, 0] } }; // camera and the point it orbits, per level
 const TITLE_SWAY = 5 * Math.PI / 180, TITLE_PERIOD = 26; // ±5° around the level, once every TITLE_PERIOD seconds
-function showTitle(on) { $('title').style.display = on ? '' : 'none'; document.body.classList.toggle('titleon', !!on && NEWMENU); }
+function showTitle(on) { $('title').style.display = on ? '' : 'none'; document.body.classList.toggle('titleon', !!on); }
 // Keep the view clear: the first time a level shows, find the swing nearest the set angle where nothing (a tree, a wall)
 // comes between the camera and the point it looks at, with room to spare round the lens; failing that, move in closer.
 // Only the triangles near the camera's possible paths are tested (the terrain alone is ~190k), so this takes a moment
@@ -5017,7 +4936,7 @@ function titleCam(now) {
 // Loading bar, then the fade (a few frames after the level is in, so its first draw happens behind the black)
 let tbarK = 0;
 function titleTick() {
-  if (!NEWMENU || !PREGAME) return;
+  if (!PREGAME) return;
   const want = NET.role === 'host' ? selLevel : NET.lobbyLevel;
   const ready = READY && (want ? curLevel === want : performance.now() - READY_T > 6000);
   tbarK = Math.max(tbarK, ready ? 1 : READY ? 0.95 : 0.9 * LOADP.d / Math.max(1, LOADP.n));
@@ -5033,7 +4952,7 @@ function titleTick() {
 let READY_T = 0;
 $('hostgo').onclick = () => { if (!$('hostgo').classList.contains('on')) return; showTitle(false); chooseMode('level'); renderHost(); };
 // Host Options: Time of Day, Game Type, Bots
-if (NEWMENU) {
+{
   $('htime').querySelectorAll('button').forEach(b => b.onclick = () => setTimeOfDay(b.dataset.v));
   $('hlook').onclick = () => $('looklink').onclick();
   $('hgame').querySelectorAll('button').forEach(b => b.onclick = () => { GAME_TEAMS = b.dataset.v === 'teams'; updateGoal(); refreshPreview(); renderHost(); sendPicks(); });
@@ -5064,7 +4983,6 @@ function renderHost() {
 // Go! leaves the menu: it needs a name and a character (and the level loaded)
 const canGo = () => READY && PICKED && !!$('pname').value.trim() && !$('play').disabled;
 function syncGo() {
-  if (!NEWMENU) return;
   const b = $('joingo'), loading = !READY || $('play').disabled;
   b.disabled = !canGo();
   b.textContent = loading && READY ? $('play').textContent : 'Go!';
@@ -5084,7 +5002,7 @@ const takenBy = (i, key) => PICKS.find(e => e[0] === i && e[2] !== key);
 const allTaken = key => MODELS.every((m, i) => takenBy(i, key));
 const blocked = (i, key) => !!takenBy(i, key) && !allTaken(key); // once every character is taken, later players double up
 function buildPicker() {
-  if (!NEWMENU || params.has('posecheck') || !prev) return;
+  if (params.has('posecheck') || !prev) return;
   const was = +$('schar').value, thumbs = [];
   for (let i = 0; i < MODELS.length; i++) { // portraits from the preview renderer
     setPreview(i); prev.rig.wrap.rotation.y = 0.35; animRig(prev.rig, 0, 0, false, 0);
@@ -5115,7 +5033,7 @@ function pick(i) {
   else if (NET.role === 'guest') lobbySend(true);
 }
 function pickerChanged() {
-  if (!NEWMENU || !LOBBY) return;
+  if (!LOBBY) return;
   if (NET.role === 'host') sendPicks(); else renderPicker();
 }
 function renderPicker() {
@@ -5131,7 +5049,7 @@ function renderPicker() {
 }
 // Host: tell every connection (players and the ones still on the start page) who has which character
 function sendPicks() {
-  if (!NEWMENU || NET.role !== 'host') return;
+  if (NET.role !== 'host') return;
   PICKS = hostPicks(); renderPicker();
   const m = { t: 'picks', l: PICKS, lv: selLevel, tg: GAME_TEAMS, look: LOOK }; // (the look: guests on the start page see the host's time of day)
   for (const c of [...remotes.map(r => r.conn), ...LOBBY.keys()]) if (c && c.open) try { c.send(m); } catch (e) {}
@@ -5145,7 +5063,7 @@ function onLobby(conn, m) { // a guest on the start page: its name and the chara
 }
 // Guest
 function lobbySend(force) {
-  if (!NEWMENU || NET.role !== 'guest' || NET.go || NET.joined || !NET.conn || !NET.conn.open) return;
+  if (NET.role !== 'guest' || NET.go || NET.joined || !NET.conn || !NET.conn.open) return;
   if (!force && performance.now() - lastLobby < 1500) return;
   lastLobby = performance.now();
   NET.conn.send({ t: 'lobby', name: myPickName(), model: PICKED ? +$('schar').value : -1 });
@@ -5205,7 +5123,7 @@ document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
   if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
   document.querySelectorAll('#teams button').forEach(x => x.classList.toggle('on', x === b));
   refreshPreview(); // your side's characters
-  if (NET.role === 'guest' && NET.conn && NET.conn.open && (!NEWMENU || NET.joined)) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
+  if (NET.role === 'guest' && NET.conn && NET.conn.open && NET.joined) NET.conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
 });
 // Look panel: opens over the paused game with the scene showing through
 const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lklit: ['lit', v => v], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v], lktop: ['top', v => v] };
@@ -5623,7 +5541,7 @@ function applyFx(m) {
 function updateRoster() {
   const el = $('roster'); if (!el) return;
   el.textContent = remotes.length ? `In game: ${remotes.map(r => r.name).join(', ')}` : 'Send this link to friends. They join with their own name and character.';
-  if (NEWMENU && LOBBY) { sendPicks(); fitBots(); } // the grid's names, and bots make room for people (or fill in for them)
+  if (LOBBY) { sendPicks(); fitBots(); } // the grid's names, and bots make room for people (or fill in for them)
 }
 
 // ----- Host -----
@@ -5652,7 +5570,7 @@ function onGuestMsg(conn, m) {
   if (r) r.seen = performance.now();
   if (m.t === 'bye') { removeRemote(conn); try { conn.close(); } catch (e) {} return; }
   if (m.t === 'ping') { const l = LOBBY.get(conn); if (l) l.seen = performance.now(); return; }
-  if (m.t === 'lobby') { if (!r && NEWMENU) onLobby(conn, m); return; }
+  if (m.t === 'lobby') { if (!r) onLobby(conn, m); return; }
   if (m.t === 'hello') {
     if (!MODELS.length) return;
     LOBBY.delete(conn);
@@ -5698,7 +5616,6 @@ function onGuestMsg(conn, m) {
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'cam': r.camOn = !!m.on; break;
-    case 'gas': if (GASCANS[m.i]) shootGas(GASCANS[m.i], r); break;
     case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: 30 }); break; // a guest threw down a weapon
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
@@ -5758,7 +5675,6 @@ function snapshot() {
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
-    gs: GASCANS.map(g => (g.alive ? 1 : 0)),
     hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
     vh: VEH.netSnapshot(),
@@ -5776,8 +5692,8 @@ function startGuest() {
   peer.on('open', () => {
     const conn = peer.connect(NET.hostId, { reliable: true, serialization: 'json' }); NET.conn = conn;
     conn.on('open', () => {
-      $('netstat').textContent = NEWMENU && !NET.go ? '' : 'Connected';
-      if (NEWMENU && !NET.go) lobbySend(true); else conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
+      $('netstat').textContent = !NET.go ? '' : 'Connected';
+      if (!NET.go) lobbySend(true); else conn.send({ t: 'hello', name: P.name, model: playerModelIdx, tm: myTeam });
       NET.beat = setInterval(() => { if (conn.open) conn.send({ t: 'ping' }); }, 2000); // a timer, not the frame loop, so a backgrounded tab still counts as here
     });
     conn.on('data', onHostMsg);
@@ -5794,7 +5710,7 @@ function onHostMsg(m) {
   if (!m || typeof m !== 'object') return;
   switch (m.t) {
     case 'welcome':
-      NET.myId = m.id; P.id = m.id; NET.joined = true; if (NEWMENU && typeof m.tg === 'boolean') GAME_TEAMS = m.tg; KILL_LIMIT = m.lim; matchOver = !!m.over;
+      NET.myId = m.id; P.id = m.id; NET.joined = true; if (typeof m.tg === 'boolean') GAME_TEAMS = m.tg; KILL_LIMIT = m.lim; matchOver = !!m.over;
       if (m.ws) RANGE.fx({ t: 'wset', s: m.ws }); // the host's weapon settings
       if (m.look) useLook(m.look); // and sky
       NET.wantLevel = m.level; NET.holeQ = []; ART.hold(); // the holes and paint that come after the welcome ('hl', 'pl') wait here until the level is in
@@ -5828,10 +5744,10 @@ function onHostMsg(m) {
     case 'end': showGuestResults(m); break;
     case 'reset': // the host started a new round: the round's end let go of the mouse, so offer it back
       $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
-      if (NEWMENU && typeof m.tg === 'boolean' && m.tg !== GAME_TEAMS) { GAME_TEAMS = m.tg; updateGoal(); refreshPreview(); } // the host may have changed the game type
+      if (typeof m.tg === 'boolean' && m.tg !== GAME_TEAMS) { GAME_TEAMS = m.tg; updateGoal(); refreshPreview(); } // the host may have changed the game type
       if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
       break;
-    case 'picks': if (NEWMENU) onPicks(m); break; // ?dev start page: who has which character, the host's level and game type
+    case 'picks': onPicks(m); break; // the start page: who has which character, the host's level and game type
     default: if (!VEH.onHostMsg(m)) applyFx(m);
   }
 }
@@ -5876,7 +5792,6 @@ function applySnapshot(s) {
   }
   for (let i = PICKUPS.length - 1; i >= 0; i--) if (!keys.has(PICKUPS[i].key)) { scene.remove(PICKUPS[i].mesh); PICKUPS.splice(i, 1); }
   s.am.forEach((a, i) => { if (ammoBoxes[i]) { ammoBoxes[i].active = !!a; ammoBoxes[i].mesh.visible = !!a; } });
-  s.gs.forEach((a, i) => { if (GASCANS[i]) { GASCANS[i].alive = !!a; GASCANS[i].o.visible = !!a; } });
   (s.hl || []).forEach((a, i) => { if (HEALS[i] && HEALS[i].active !== !!a) setHeal(HEALS[i], !!a); });
   while (gNades.length < s.nd.length) { const m = new THREE.Mesh(nadeGeo, nadeMat); scene.add(m); gNades.push(m); }
   gNades.forEach((m, i) => { m.visible = i < s.nd.length; if (m.visible) m.position.set(s.nd[i][0], s.nd[i][1], s.nd[i][2]); });
@@ -6068,7 +5983,7 @@ function updateCamGrid() {
   }
 }
 if (NET.role === 'host') { startHost(); setInterval(dropSilentRemotes, 1000); }
-else if (NEWMENU) startGuest(); // ?dev: connect straight away, to see who has which character
+else startGuest(); // a guest connects straight away, to see who has which character
 // Leaving (closing the tab, navigating away): say goodbye and close the connections, so nobody is left looking at a frozen
 // avatar and camera tile. If the goodbye never makes it out, the host's silence check catches it.
 addEventListener('pagehide', () => {
@@ -6095,7 +6010,7 @@ loadModels().then(() => ensureLevel(selLevel)).then(() => {
   $('play').disabled = false; $('play').textContent = NET.role === 'guest' ? 'Join game' : 'Play'; READY = true;
   initPreview();
   READY_T = performance.now();
-  if (NEWMENU) { buildPicker(); renderHost(); lobbyLevel(); syncGo(); }
+  buildPicker(); renderHost(); lobbyLevel(); syncGo();
 }).catch(e => { console.error(e); $('play').textContent = 'Characters failed to load'; });
 let last = performance.now();
 function loop(now) {
@@ -6120,7 +6035,6 @@ function loop(now) {
     updateSheds(dt);
     updateAmmo(dt, now);
     updatePickups(dt, now);
-    updateGas(dt);
     updateHeals(dt);
     updateCook(dt);
     updateCorpses(dt); fadeCorpses(dt);
@@ -6155,7 +6069,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=27"></script>
-<script src="range.js?v=23"></script>
+<script src="range.js?v=24"></script>
 <script src="art.js?v=9"></script>
 <script src="headlights.js?v=1"></script>
 </body>

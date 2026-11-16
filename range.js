@@ -33,7 +33,6 @@
     { id: 'mine', name: 'Mine', kind: 'mine', ammo: 'F' },
     { id: 'tube', name: 'F Tube', kind: 'tube', model: 'bazooka', ammo: 'F' },
   ];
-  const ITEM_KINDS = { spray: 1 };
   // The knife is always yours, in hand 4 and on F; you carry three weapons at most. The grenade isn't a weapon you pick up:
   // an F battery IS one (hand 5, there whenever you carry an F battery), and it's a mine if you hold right-click and click.
   // The F tube just launches it further.
@@ -93,7 +92,7 @@
     const mine = S.cross; // the crosshair is yours
     for (const k in DEFAULTS) S[k] = merge(clone(DEFAULTS[k]), o[k]);
     S.cross = mine; setLife(S.game.life);
-    drawRings(); if (pitRings) pitRings.scale.setScalar(blastR());
+    drawRings();
   }
 
   // Everyone's health: changing it keeps each one's share of it
@@ -101,11 +100,9 @@
     n = Math.max(4, Math.min(MAXLIFE, Math.round(+n) || LIFE0)); const was = LIFE; S.game.life = n; if (n === was) return;
     LIFE = n; const f = n / was;
     for (const e of ents) if (e.health > 0) e.health = Math.min(n, e.health * f);
-    myHp = Math.min(n, myHp * f);
     for (const g of Object.values(S.guns)) for (const k of ['body', 'head']) g[k] = Math.min(g[k], n);
   }
   const fallK = (g, d) => (g.fall > 0 ? 1 - (1 - g.fallMin) * Math.min(1, d / g.fall) : 1); // damage left at distance d
-  const on = () => MODE === 'range'; // the Shooting Range itself
   const live = () => MODE !== 'drive'; // the new weapons: the range and every game (since 2026-11-02; ?dev first)
   const K = () => (live() ? 1 : maxHp(P) / LIFE); // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
@@ -123,22 +120,8 @@
   const blastR = () => S.blast.max * S.blast.ring; // how far a blast reaches
   const ringDmg = d => d >= blastR() ? 0 : S.blast.max - Math.floor(d / S.blast.ring);
 
-  // ---------------------------------------------------------------- the yard (built once, like Test Drive's stadium)
+  // ---------------------------------------------------------------- the blast rings
   function canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; }
-  function speckle(base, spots, n) { const t = canvasTex(256, 256, (g, s) => { g.fillStyle = base; g.fillRect(0, 0, s, s); for (let i = 0; i < n; i++) { g.fillStyle = spots[i % spots.length]; const r = 1 + Math.random() * 1.5; g.fillRect(Math.random() * s, Math.random() * s, r, r); } }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
-  const textTex = (txt, color = '#f4f1e6') => canvasTex(256, 96, (g, w, h) => { let fs = 64; g.font = `700 ${fs}px system-ui,sans-serif`; while (g.measureText(txt).width > w - 12 && fs > 24) g.font = `700 ${fs -= 4}px system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = color; g.fillText(txt, w / 2, h / 2); });
-  // Lanes: [x, distance from the firing line (m)]; the line is z = 0 and the dummies stand down -z. Mixed up so that,
-  // from the middle of the line, every dummy is in view and none stands in front of another.
-  const LANES = [[-6, 30], [-3, 5], [0, 20], [3, 10], [6, 45]];
-  // The blast pit: dummies set round a mark, measured to the nearest face of each; the last one stands behind a wall
-  const PIT = { x: -26, z: -16 };
-  const PIT_DUMMIES = [[0, 1.5, '1.5 m'], [3.5, 0, '3.5 m'], [-5.5, 0, '5.5 m'], [0, -3.5, 'behind a wall']];
-  // Where the weapons lie: a row behind the firing line (Pistol on the left as you turn round to it), each with its ammo pack
-  // just past it, and one more F pack on its own for grenades and mines
-  const SPOTS = [...SLOTS.filter(sl => sl.kind !== 'throw' && sl.kind !== 'mine' && !ITEM_KINDS[sl.kind]).map(sl => ({ id: sl.id, pack: sl.ammo, label: sl.name })), { id: null, pack: 'F', label: 'F batteries' }]
-    .map((sp, i) => Object.assign(sp, { x: 9 - i * 3, z: 6, t: 0 }));
-  const weaponSpots = () => SPOTS.filter(sp => sp.id);
-  const decals = [];
 
   // The damage rings, as a picture: the centre damage in the middle band, 1 in the outer one (scaled to the ring width;
   // redrawn when the centre damage changes)
@@ -154,71 +137,11 @@
   drawRings();
   const ringGeo = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
   const ringMesh = () => new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, opacity: 0.9 }));
-  let pitRings = null;
   const flashes = []; // rings drawn where a blast went off, fading out
   function showRings(p) {
     if (!S.blast.show) return;
     const m = ringMesh(), g = groundAt(p.x, p.z, p.y + 0.5);
     m.position.set(p.x, (g === null ? p.y : g) + 0.05, p.z); m.scale.setScalar(blastR()); scene.add(m); flashes.push({ m, t: 2.5 });
-  }
-
-  // ---------------------------------------------------------------- dummies
-  // Same hit zones as a player (makeBotMesh): legs and torso are body, the cube on top is the head. What you see is what you hit.
-  const DUMMY = { body: 0xcdb991, head: 0xe0743c, hit: 0xffffff, dead: 0x4ccf5a };
-  const dummies = [];
-  function makeDummy(x, z, label, lane) {
-    const t = { lane, label, home: new V3(x, 0, z), dmg: 0, dead: 0, lastT: 0, firstT: 0, shot0: 0, hits: 0, heads: 0, flashT: 0, last: '', dir: 1 };
-    const g = new THREE.Group(), y0 = groundAt(x, z, 5); t.home.y = y0 === null ? 0 : y0; g.position.copy(t.home); t.g = g;
-    t.mats = { body: toonMat({ color: DUMMY.body }), head: toonMat({ color: DUMMY.head }) };
-    t.parts = [];
-    const part = (w, h, d, y, p) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), t.mats[p]); o.position.y = y; o.castShadow = o.receiveShadow = true; o.userData = { rangeT: t, part: p, half: new V3(w / 2, h / 2, d / 2) }; g.add(o); t.parts.push(o); return o; };
-    part(0.6, 0.8, 0.4, 0.4, 'body'); part(0.7, 0.72, 0.45, 1.16, 'body'); part(0.4, 0.4, 0.4, 1.72, 'head');
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.6), toonMat({ color: 0x3e4247 })); base.position.y = 0.025; base.receiveShadow = true; g.add(base);
-    // Health over its head: a circle in the health colour (as over a player's name), the last hit written under it
-    const c = document.createElement('canvas'); c.width = 192; c.height = 192; t.ctx = c.getContext('2d'); t.tex = new THREE.CanvasTexture(c);
-    t.pips = new THREE.Sprite(new THREE.SpriteMaterial({ map: t.tex, transparent: true, depthWrite: false })); t.pips.scale.set(0.9, 0.9, 1); t.pips.position.y = 2.45; g.add(t.pips);
-    drawPips(t); scene.add(g); dummies.push(t);
-    return t;
-  }
-  function drawPips(t) {
-    const g = t.ctx, w = 192; g.clearRect(0, 0, w, w);
-    g.beginPath(); g.arc(w / 2, 54, 40, 0, Math.PI * 2); g.fillStyle = hpColour(t.dead > 0 ? 0 : LIFE - t.dmg); g.fill();
-    if (t.last) { g.font = '700 34px system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 6; g.strokeText(t.last, w / 2, 150); g.fillText(t.last, w / 2, 150); }
-    t.tex.needsUpdate = true;
-  }
-  const tint = (t, k) => { for (const p of ['body', 'head']) t.mats[p].color.setHex(k || DUMMY[p]); };
-  // Nearest distance from a point to the dummy's boxes (0 inside)
-  function distTo(t, p) {
-    let best = Infinity;
-    for (const o of t.parts) { const h = o.userData.half, cx = t.g.position.x, cy = t.g.position.y + o.position.y, cz = t.g.position.z;
-      const dx = Math.max(Math.abs(p.x - cx) - h.x, 0), dy = Math.max(Math.abs(p.y - cy) - h.y, 0), dz = Math.max(Math.abs(p.z - cz) - h.z, 0); best = Math.min(best, Math.hypot(dx, dy, dz)); }
-    return best;
-  }
-  const centres = t => t.parts.map(o => new V3(t.g.position.x, t.g.position.y + o.position.y, t.g.position.z));
-  let lastKill = '', history = [];
-  // n, nh: how many hits (pellets) and head hits this was; unit: what one use of the weapon is called
-  function hitDummy(t, dmg, head, src, n = 1, nh = head ? 1 : 0, unit = 'shot') {
-    if (t.dead > 0 || dmg <= 0) return false;
-    const now = performance.now() / 1000;
-    if (!t.dmg) { t.firstT = now; t.shot0 = shotN; t.hits = 0; t.heads = 0; }
-    t.dmg = Math.min(LIFE, t.dmg + dmg); t.hits += n; t.heads += nh; t.lastT = now; t.flashT = 0.07;
-    t.last = `+${dmg}${head ? ' head' : ''}`;
-    if (t.dmg >= LIFE) {
-      t.dead = 1.1; tint(t, DUMMY.dead);
-      const shots = shotN - t.shot0 + 1, secs = now - t.firstT;
-      lastKill = `<b>${t.label}</b> down with the ${src}: ${plural(shots, unit)}, ${plural(t.hits, n > 1 ? 'pellet' : 'hit')}${n > 1 ? ' on it' : ''}${t.heads ? ` (${t.heads} head)` : ''}, ${secs < 0.005 ? 'instant' : secs.toFixed(2) + ' s'}`;
-      history.unshift(lastKill); history = history.slice(0, 4);
-    } else tint(t, DUMMY.hit);
-    drawPips(t);
-    return t.dead > 0; // a kill
-  }
-  function resetDummy(t) { t.dmg = 0; t.dead = 0; t.last = ''; t.hits = t.heads = 0; tint(t); drawPips(t); }
-  function buildDummies() {
-    for (const [x, d] of LANES) makeDummy(x, -d, `${d} m dummy`, true);
-    for (const [dx, dz, label] of PIT_DUMMIES) { // placed so the gap from the mark to the nearest face is the label's distance
-      const x = PIT.x + (dx ? dx + Math.sign(dx) * 0.35 : 0), z = PIT.z + (dz ? dz + Math.sign(dz) * 0.225 : 0);
-      makeDummy(x, z, `Pit dummy (${label})`, false);
-    }
   }
 
   // ---------------------------------------------------------------- mines
@@ -259,7 +182,7 @@
         m.light.visible = m.blink % 1.2 < 0.12;
         if (m.rep) continue;
         const close = e => Math.hypot(e.x - m.pos.x, e.z - m.pos.z) < S.mine.radius && Math.abs(e.y - m.pos.y) < 2;
-        if ((on() ? close(P.pos) : ents.some(e => e.alive && close(e.pos))) || dummies.some(t => t.dead <= 0 && close(t.g.position))) setMine(m, 'warn', S.mine.warn);
+        if (ents.some(e => e.alive && close(e.pos))) setMine(m, 'warn', S.mine.warn);
         continue;
       }
       // Warning: beeps faster and faster, then the blast
@@ -286,16 +209,9 @@
     const o = pos.clone(); o.y += 0.3;
     showRings(o);
     const name = { throw: 'grenade', mine: 'mine', tube: 'F tube' }[src] || 'blast';
-    for (const t of dummies) {
-      const d = distTo(t, o), dmg = ringDmg(d);
-      if (dmg > 0 && centres(t).some(c => losPts(o, c))) hitFeedback(false, hitDummy(t, dmg, false, name, 1, 0, 'blast'));
-    }
     const gap = e => Math.hypot(Math.max(0, Math.abs(o.x - e.pos.x) - 0.3), Math.max(0, e.pos.y - o.y, o.y - (e.pos.y + e.h)), Math.max(0, Math.abs(o.z - e.pos.z) - 0.3));
     const seen = e => losPts(o, new V3(e.pos.x, e.pos.y + e.h * 0.6, e.pos.z));
-    if (on()) { // You: blasts hurt you too (your health circle shows it); the range doesn't kill you, it just fills you back up
-      const mine = ringDmg(gap(P));
-      if (mine > 0 && seen(P)) hurtMe(mine, name);
-    } else {
+    {
       for (const e of ents) {
         const d = e.alive ? ringDmg(gap(e)) : 0;
         if (d <= 0 || !seen(e)) continue;
@@ -303,8 +219,6 @@
         damage(e, d * K(), owner, 'frag', false);
         if (owner === P && e !== P) hitFeedback(false, kill);
       }
-      // gas cans, as the game's blasts did
-      for (const g of GASCANS) if (g.alive && g.pos.distanceTo(o) < R * 0.6 && !pendingGas.some(q => q.g === g)) pendingGas.push({ g, owner, t: 0.12 + Math.random() * 0.15 });
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
       if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too
         if (gateSiegeOn()) { const dr = LV.gate.doors, dd = Math.max(0, new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5), dm = ringDmg(dd); if (dm > 0) damageGate(dm * K() * DOOR_BLAST_K); }
@@ -320,18 +234,9 @@
     const pd = P.pos.distanceTo(pos); if (pd < 14) punch += 0.06 * (1 - pd / 14);
   }
 
-  let myHp = LIFE, myLastT = 0, myDownT = 0;
-  function hurtMe(d, name) {
-    if (myDownT > 0) return;
-    myHp = Math.max(0, myHp - d); myLastT = performance.now() / 1000;
-    if (myHp <= 0) { myDownT = 1.5; note(`Your own ${name} would have killed you`, 2); }
-    else note(`Your own ${name} hit you for ${d}`, 1.5);
-  }
-
   // ---------------------------------------------------------------- shooting
   const ray = new THREE.Raycaster(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _q = new THREE.Quaternion();
   const aimQ = () => _q.setFromEuler(_e.set(P.pitch, P.yaw, 0, 'YXZ')); // where you're aiming (the camera's kick is just for show)
-  const dummyParts = () => dummies.flatMap(t => t.parts);
   // A shot leaves your eyes. In 3rd person the camera is behind your shoulder, so first find what the crosshair is on from
   // there (starting level with you, not behind you), then shoot your eyes at that.
   function shotLine(dir, targets) {
@@ -350,11 +255,8 @@
   }
   function fireGun(s) {
     const g = gunOf(s), w = WEAPONS[s.model], q = aimQ(), half = spreadNow(g) * 0.005; // spread N: N × 0.01 rad across
-    const targets = [...W.meshes, ...W.floors, ...dummyParts()], start = vmMuzzleWorld(), byT = new Map(), byE = new Map(), holes = [];
-    if (!on()) {
-      for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
-      for (const gc of GASCANS) if (gc.alive) targets.push(gc.px);
-    }
+    const targets = [...W.meshes, ...W.floors], start = vmMuzzleWorld(), byE = new Map(), holes = [];
+    for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
     // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
     if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
     const bdh = lockedDoorHit(); if (bdh) targets.push(bdh);
@@ -368,18 +270,16 @@
       if (!hit) continue;
       const ud = hit.object.userData;
       const fk = fallK(g, hit.distance);
-      if (ud.rangeT) { const head = ud.part === 'head', a = byT.get(ud.rangeT) || { d: 0, n: 0, nh: 0 }; a.d += (head ? g.head : g.body) * fk; a.n++; if (head) a.nh++; byT.set(ud.rangeT, a); }
-      else if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += (head ? g.head : g.body) * fk; a.head = a.head || head; byE.set(ud.ent, a); }
-      else if (ud.gas) shootGas(ud.gas, P);
+      if (ud.ent) { const head = ud.part === 'head', a = byE.get(ud.ent) || { d: 0, head: false }; a.d += (head ? g.head : g.body) * fk; a.head = a.head || head; byE.set(ud.ent, a); }
       else if (ud.gate) { gateDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bdoor) { bdoorDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
     if (gateDmg) shootGateAmt(gateDmg); if (bdoorDmg) shootBunker(bdoorDmg);
-    let kill = false; for (const [t, a] of byT) kill = hitDummy(t, a.d, a.nh > 0, s.name, a.n, a.nh) || kill;
+    let kill = false;
     for (const [e, a] of byE) { kill = e.health - a.d * K() <= 0 || kill; damage(e, a.d * K(), P, 'gun', a.head); }
-    if (byT.size || byE.size) hitFeedback([...byT.values()].some(a => a.nh > 0) || [...byE.values()].some(a => a.head), kill);
+    if (byE.size) hitFeedback([...byE.values()].some(a => a.head), kill);
     if (g.grow > 0) heat = Math.min(1, heat + 1 / 8);
     const k = (P.h < STAND_H ? 0.7 : 1) * (1 - 0.3 * adsK);
     punch += w.kick * 0.6 * k; vmKick = 1; flashT = GUN_FX[s.model] ? GUN_FX[s.model].flash.life : 0.04;
@@ -395,35 +295,19 @@
     punch += WEAPONS.bazooka.kick * 0.8; vmKick = 1; flashT = GUN_FX.bazooka.flash.life;
     muzzleFx('bazooka', start, dir, true, P.id); sfx('bazooka', 1); netFx({ t: 'sf', k: 'bazooka', p: arr(P.pos), r: 90, g: 1 });
   }
-  // A point touching a dummy
-  function onDummy(p) {
-    for (const t of dummies) for (const o of t.parts) { const h = o.userData.half; if (Math.abs(p.x - t.g.position.x) < h.x + 0.05 && Math.abs(p.y - t.g.position.y - o.position.y) < h.y + 0.05 && Math.abs(p.z - t.g.position.z) < h.z + 0.05) return true; }
-    return false;
-  }
   function knife() {
     knifeCd = 0.75; knifeT = 0.6;
     const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw);
-    let best = null, bd = S.knife.reach + 0.3;
-    for (const t of dummies) {
-      if (t.dead > 0 || Math.abs(t.g.position.y - P.pos.y) > 1.2) continue;
-      const dx = t.g.position.x - P.pos.x, dz = t.g.position.z - P.pos.z, d = Math.hypot(dx, dz);
-      if (d < bd && (dx * fx + dz * fz) / Math.max(d, 1e-3) > 0.7) { best = t; bd = d; }
-    }
-    let ent = null;
-    if (!on()) for (const e of ents) {
+    let bd = S.knife.reach + 0.3, ent = null;
+    for (const e of ents) {
       if (e === P || !e.alive || Math.abs(e.pos.y - P.pos.y) > 1.2) continue;
       const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
-      if (d < bd && (dx * fx + dz * fz) / Math.max(d, 1e-3) > 0.7) { ent = e; best = null; bd = d; }
+      if (d < bd && (dx * fx + dz * fz) / Math.max(d, 1e-3) > 0.7) { ent = e; bd = d; }
     }
     if (ent) { // behind them: they face the way you're stabbing
       const back = fwdOf(ent).dot(new V3(ent.pos.x - P.pos.x, 0, ent.pos.z - P.pos.z).normalize()) > 0.5, d = knifeDmg(back);
       const kill = ent.health - d <= 0; damage(ent, d, P, 'knife', false); hitFeedback(false, kill);
-      return;
     }
-    if (!best) return;
-    // The dummies face the firing line (+z): you're behind one when you're on its -z side
-    const back = (best.g.position.z - P.pos.z) / Math.max(bd, 1e-3) > 0.5;
-    hitFeedback(false, hitDummy(best, back ? S.knife.back : S.knife.front, false, back ? 'knife (from behind)' : 'knife', 1, 0, 'stab'));
   }
   // F: a quick stab with whatever you're holding
   function quickKnife() {
@@ -549,8 +433,8 @@
     held.fill(null); heldU.fill(null); myLight = null; hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
     curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
-    if (!on()) { held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA); }
-    syncInv(); pick(on() ? HANDS : 0, true);
+    held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA);
+    syncInv(); pick(0, true);
   }
   // A weapon from a pickup in a game (model: the game's weapon id; ammo: rounds it carries, or none for a full clip)
   const BY_MODEL = { pistol: 'pistol', carbine: 'carbine', uzi: 'izu', shotgun: 'battery', rifle: 'rifle', bazooka: 'tube' };
@@ -604,7 +488,6 @@
     const it = { id, pos: pos.clone(), mesh, load, vel: null, armed: true }; items.push(it); return it;
   }
   const fresh = sl => (sl.model ? clipOf(sl) : 0); // a weapon from its spot comes with its clip full
-  const spotPos = sp => { const y = groundAt(sp.x, sp.z, 5); return new V3(sp.x, y === null ? 0 : y, sp.z); };
   function packMesh(t) {
     const g = new THREE.Group(), m = toonMat({ color: new THREE.Color(COL[t]).getHex() });
     for (let k = 0; k < (t === 'F' || t === 'R' ? 2 : 4); k++) { // the batteries themselves, side by side
@@ -615,18 +498,6 @@
     x.font = '800 92px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = COL[t]; x.fillText(t, 64, 68);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false })); sp.scale.set(0.45, 0.45, 1); sp.position.y = 0.55; g.add(sp);
     return g;
-  }
-  function buildGround() {
-    for (const sp of SPOTS) {
-      const mesh = packMesh(sp.pack), p = spotPos(sp); p.z += 1.6;
-      mesh.position.copy(p); scene.add(mesh); packs.push({ t: sp.pack, pos: p, mesh, active: true, wait: 0 });
-    }
-  }
-  // Every weapon back on its spot (any you're not holding) and every pack back
-  function resetGround() {
-    for (const it of items) scene.remove(it.mesh); items.length = 0;
-    for (const sp of weaponSpots()) { sp.t = 0; if (!held.some(h => h && h.id === sp.id)) makeItem(sp.id, spotPos(sp), fresh(byId(sp.id))); }
-    for (const pk of packs) { pk.active = true; pk.mesh.visible = true; }
   }
   // A dropped weapon flies, lands and slides to a stop (in a game it then becomes one of the game's pickups)
   function fly(it, dt) {
@@ -640,10 +511,10 @@
         else it.pos[ax] = p[ax];
       }
     }
-    if (it.pos.y < -20) { if (!on()) { it.gone = true; return; } const sp = SPOTS.find(q => q.id === it.id); it.pos.copy(spotPos(sp)); it.vel = null; return; } // off the world: back to its spot
+    if (it.pos.y < -20) { it.gone = true; return; } // off the world
     if (ground && Math.hypot(it.vel.x, it.vel.z) < 0.4) {
       it.vel = null; it.pos.y -= 0.12;
-      if (!on()) { // the host keeps the pickups, so a guest's dropped weapon is handed to it
+      { // the host keeps the pickups, so a guest's dropped weapon is handed to it
         const sl = byId(it.id);
         if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'drop', id: sl.model, p: arr(it.pos), a: it.load }); }
         else addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: 30 });
@@ -657,27 +528,6 @@
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.vel) { fly(it, dt); it.mesh.position.set(it.pos.x, it.pos.y + 0.12, it.pos.z); it.mesh.rotation.y += dt * 7; if (it.gone) { scene.remove(it.mesh); items.splice(i, 1); } continue; }
-      if (!on()) continue;
-      it.mesh.rotation.y += dt * 1.5; it.mesh.position.set(it.pos.x, it.pos.y + 0.45 + Math.sin(now / 350) * 0.06, it.pos.z);
-      if (!near(it.pos, 1.1)) { it.armed = true; continue; } // one you dropped waits until you've stepped off it
-      if (!it.armed || !P.alive || VEH.riding) continue;
-      if (take(it)) { scene.remove(it.mesh); items.splice(i, 1); }
-      else if (fullT <= 0) { fullT = 2; note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); }
-    }
-    if (!on()) return;
-    // A weapon nobody has, held or on the ground, comes back to its spot
-    for (const sp of weaponSpots()) {
-      if (items.some(it => it.id === sp.id) || held.some(h => h && h.id === sp.id)) { sp.t = S.ammo.respawn; continue; }
-      if ((sp.t -= dt) <= 0) makeItem(sp.id, spotPos(sp), fresh(byId(sp.id)));
-    }
-    for (const pk of packs) {
-      if (!pk.active) { if ((pk.wait -= dt) <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
-      pk.mesh.rotation.y += dt; pk.mesh.position.y = pk.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
-      const a = S.ammo[pk.t], room = a.max - bats[pk.t];
-      if (!P.alive || VEH.riding || room <= 0 || !near(pk.pos, 1)) continue;
-      const n = Math.min(a.pack, room); bats[pk.t] += n;
-      pk.active = false; pk.wait = S.ammo.respawn; pk.mesh.visible = false;
-      note(`+${n} ${n === 1 ? AMMO[pk.t] : AMMOS[pk.t]}`, 1);
     }
   }
 
@@ -691,8 +541,6 @@
   #rslots small{opacity:.6;font-weight:500}
   #rhp{position:fixed;left:14px;top:14px;z-index:6;width:46px;height:46px;border-radius:50%;display:none;transition:background-color .15s;pointer-events:none}
   body.range-on #hpbar{visibility:hidden}
-  #rcard{position:fixed;left:72px;top:14px;z-index:6;display:none;max-width:min(430px,calc(100vw - 86px));background:rgba(0,0,0,.55);border-radius:4px;padding:8px 12px;font:13px/1.4 system-ui,sans-serif;color:#e8ece6;pointer-events:none}
-  #rcard .w{font:700 15px system-ui,sans-serif;color:#fff}#rcard .k{color:#9aa5b1}#rcard .h{margin-top:4px;color:#cfd6dd}#rcard .h div:first-child{color:#8fe39a}
   #rpanel{position:fixed;top:0;right:0;bottom:0;width:min(400px,100vw);z-index:40;background:rgba(18,22,27,.95);color:#e8ece6;font:14px/1.35 system-ui,sans-serif;overflow-y:auto;padding:16px 16px 28px;box-sizing:border-box;display:none;border-left:1px solid #2f3742}
   #rpanel h2{margin:0 0 2px;font-size:20px}#rpanel .sub{color:#9aa5b1;margin:0 0 10px;font-size:13px}
   #rpanel details{border-top:1px solid #2f3742;padding:6px 0}
@@ -713,14 +561,14 @@
   #rcross i{position:absolute;left:50%;top:50%;width:2px;height:20px;margin:-10px 0 0 -1px;background:#e51c1c;display:none}#rcross i:first-child{transform:rotate(45deg)}#rcross i:last-child{transform:rotate(-45deg)}
   #rcross.kill i{display:block}
   body.range-on .ch{display:none}
-  body.touch #rslots,body.touch #rcard,body.touch #rhp{display:none!important}`;
+  body.touch #rslots,body.touch #rhp{display:none!important}`;
   document.head.append(css);
   const slotsEl = document.createElement('div'); slotsEl.id = 'rslots';
-  const card = document.createElement('div'); card.id = 'rcard';
+
   const panel = document.createElement('div'); panel.id = 'rpanel';
   const cross = document.createElement('div'); cross.id = 'rcross';
   const hpEl = document.createElement('div'); hpEl.id = 'rhp';
-  document.body.append(slotsEl, card, panel, hpEl); ($('hud') || document.body).append(cross);
+  document.body.append(slotsEl, panel, hpEl); ($('hud') || document.body).append(cross);
   let crossR = 0, crossV = 0, hitT = 0, hitCol = '#fff', killT = 0, crossCss = '';
   cross.innerHTML = '<i></i><i></i>'; // the kill X's two strokes
   // A health circle over each player's head (and over their name when it shows), so you can see who's hurt
@@ -730,7 +578,7 @@
       e.hpDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), sizeAttenuation: false, transparent: true, depthWrite: false }));
       e.hpDot.scale.set(0.024, 0.024, 1); e.hpDot.center.set(0.5, -0.8); e.hpDot.renderOrder = 11; e.hpDot.userData.c = c; e.hpDot.userData.k = -1; // (the circle fills 56 of the 64 pixels: about the height of the name's letters)
     }
-    const d = e.hpDot, shown = live() && !on() && e.mesh && e.alive && e.tagA > 0.01;   // only while the name shows: after the crosshair has rested on them a moment
+    const d = e.hpDot, shown = live() && e.mesh && e.alive && e.tagA > 0.01;   // only while the name shows: after the crosshair has rested on them a moment
     if (e.mesh && d.parent !== e.mesh) e.mesh.add(d);
     d.visible = !!shown; if (!shown) return;
     d.material.opacity = Math.min(1, e.tagA / TAG_MAX * 0.9); // and it fades in and out with the name
@@ -812,17 +660,6 @@
     return `Body: ${plural(nb, 'shot')} to kill (${t(nb)}). Head: ${plural(nh, 'shot')} (${t(nh)}).`;
   }
   function blastMath() { const r = S.blast.ring, n = S.blast.max, h = Math.ceil(n / 2); return n === 1 ? `1 within ${fmt(r, 0.1)} m, nothing past that.` : `${n} within ${fmt(r, 0.1)} m, then one less every ${fmt(r, 0.1)} m: ${h} at ${fmt((n - h) * r, 0.1)} m, 1 at ${fmt((n - 1) * r, 0.1)} m, nothing past ${fmt(n * r, 0.1)} m.`; }
-  let aimT = null, cardT = 0;
-  function drawCard() {
-    const s = slot();
-    let line = '';
-    if (s.kind === 'gun') { const g = gunOf(s); line = `<span class="k">Body</span> ${g.body} · <span class="k">Head</span> ${g.head} · <span class="k">Spread</span> ${fmt(spreadNow(g), 0.1)}${g.count > 1 ? ` · ${g.count} pellets` : ''} · <span class="k">Clip</span> ${g.clip}<br>${killMath(g)}`; }
-    else if (s.kind === 'knife') line = `${S.knife.front} from the front, ${S.knife.back} from behind, ${fmt(S.knife.reach, 0.1)} m reach`;
-    else if (s.kind === 'tube') line = `Lobs an F battery in an arc; it goes off where it lands. You move at ${fmt(S.tube.slow, 0.05)}× speed while you carry it. ${blastMath()}`;
-    else line = `${s.kind === 'throw' ? 'Hold to cook, let go to throw. Hold right-click and click to set it as a mine. ' : ''}${blastMath()}`;
-    const aim = aimT ? `<div class="k">On the crosshair: ${aimT.label}, ${aimT.d.toFixed(1)} m away</div>` : '';
-    card.innerHTML = `<div class="w">${cur + 1} · ${s.name}${s.ammo ? ` <span class="k">(${AMMOS[s.ammo]}: ${S.ammo.infinite ? 'infinite' : bats[s.ammo]})</span>` : ''}</div>${line}${aim}${history.length ? `<div class="h">${history.map(h => `<div>${h}</div>`).join('')}</div>` : ''}<div class="k" style="margin-top:4px">Walk over a weapon to pick it up (3 at most) · Q: drop · Tab: weapon settings</div>`;
-  }
 
   // ---------------------------------------------------------------- the Tab panel
   // Projectile rows: [key, label, min, max, step, unit, help, only this gun]
@@ -889,17 +726,13 @@
       ['game.rifle', 'Rifle rounds come back after', 5, 180, 5, 's', ''],
       ['game.weapons', 'Weapons come back to their spot after', 5, 120, 5, 's', 'Weapons people drop lie there for 30 s.'],
     ]],
-    ['Dummies', [
-      ['targets.strafe', 'Lane dummies strafe at', 0, 7, 0.5, 'm/s', 'Side to side, 1.5 m each way. 0 stands still; 4.2 is walking pace, 6.8 running.'],
-      ['targets.heal', 'Your health comes back after', 0.5, 10, 0.5, 's', 'With no new hits, you go back to full health. Dummies keep their damage until they go down.'],
-    ]],
   ];
   const getP = p => p.split('.').reduce((o, k) => o[k], S);
   const setP = (p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k], S)[last] = v; };
   function buildPanel() {
     const s = slot();
     let html = `<h2>Weapon settings</h2><p class="sub">${NET.role === 'guest' ? 'The host\'s settings apply to everyone in this game; only the crosshair is yours to change.' : 'Changes take effect as you drag, and are saved in this browser' + (NET.role === 'host' && remotes.length ? '; everyone in the game plays by them' : '') + '.'} Damage is out of ${LIFE} health.${on() ? '' : ' The game carries on while this is open.'}</p>`;
-    if (!on()) html += `<div class="math">${[...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => `${e === P ? '<b>' : ''}${esc(e.name)}${e === P ? '</b>' : ''} ${e.kills}/${e.deaths}`).join(' · ')}</div>`;
+    html += `<div class="math">${[...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(e => `${e === P ? '<b>' : ''}${esc(e.name)}${e === P ? '</b>' : ''} ${e.kills}/${e.deaths}`).join(' · ')}</div>`;
     for (const sl of SLOTS) if (sl.kind === 'gun') {
       const g = gunOf(sl);
       html += `<details data-sec="${sl.id}"${sl === s ? ' open' : ''}><summary>${sl.name}<small>${AMMOS[sl.ammo]}</small></summary><div class="math" id="rm-${sl.id}">${killMath(g)}</div>`;
@@ -908,14 +741,13 @@
       html += `<label class="chk"><input type="checkbox" data-g="${sl.id}" data-k="auto"${g.auto ? ' checked' : ''}> Full auto (hold to keep firing)</label><button type="button" class="sm" data-reset="${sl.id}">Reset ${sl.name}</button></details>`;
     }
     for (const [title, rows, math] of OTHER) {
-      if (title === 'Dummies' && !on()) continue; // (the range's)
       const open = (math === 'blast' && !s.model) || (math === 'blast' && s.kind === 'tube') || (title === 'Knife' && s.kind === 'knife');
       html += `<details${open ? ' open' : ''}><summary>${title}</summary>${math === 'blast' ? `<div class="math" id="rm-blast">${blastMath()}</div><label class="chk"><input type="checkbox" data-p="blast.show"${S.blast.show ? ' checked' : ''}> Show the rings where a blast goes off</label>` : ''}${math === 'ammo' ? `<label class="chk"><input type="checkbox" data-p="ammo.infinite"${S.ammo.infinite ? ' checked' : ''}> Infinite ammo (to test a gun on its own)</label>` : ''}`;
       for (const [p, label, min, max0, step, unit, help] of rows) { const max = max0 === 'life' ? LIFE : max0;
         html += `<div class="row"><label for="rp-${p}">${label}</label><output id="rq-${p}">${fmt(getP(p), step)} ${unit}</output><input type="range" id="rp-${p}" data-p="${p}" min="${min}" max="${max}" step="${step}" value="${getP(p)}">${help ? `<div class="help">${help}</div>` : ''}</div>`; }
       html += '</details>';
     }
-    html += `<div class="btns"><button type="button" class="go" id="r-go">Back to shooting (Tab)</button>${on() ? '<button type="button" id="r-items">Put the weapons back</button>' : ''}<button type="button" id="r-mines">Clear mines</button><button type="button" id="r-reset">Reset everything</button><button type="button" id="r-copy">Copy settings</button></div>
+    html += `<div class="btns"><button type="button" class="go" id="r-go">Back to shooting (Tab)</button><button type="button" id="r-mines">Clear mines</button><button type="button" id="r-reset">Reset everything</button><button type="button" id="r-copy">Copy settings</button></div>
       <p class="info">Copy settings puts every number on your clipboard, to paste to Claude or a friend.</p>`;
     panel.innerHTML = html;
     panel.querySelectorAll('input[data-g]').forEach(el => el.oninput = el.onchange = () => {
@@ -933,7 +765,7 @@
       else { setP(p, +el.value); const row = OTHER.flatMap(o => o[1]).find(r => r[0] === p); panel.querySelector(`#rq-${CSS.escape(p)}`).textContent = `${fmt(getP(p), row[4])} ${row[5]}`; }
       if (p === 'game.life') { setLife(S.game.life); buildPanel(); panel.querySelector('[data-p="game.life"]').focus(); }
       const bm = panel.querySelector('#rm-blast'); if (bm) bm.textContent = blastMath();
-      if ((p === 'blast.ring' || p === 'blast.max') && pitRings) { drawRings(); pitRings.scale.setScalar(blastR()); }
+      if (p === 'blast.ring' || p === 'blast.max') drawRings();
       save();
     });
     panel.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => { S.guns[b.dataset.reset] = clone(DEFAULTS.guns[b.dataset.reset]); save(); buildPanel(); });
@@ -941,7 +773,6 @@
       panel.querySelectorAll('input,button.sm,#r-reset').forEach(el => { if (!(el.dataset.p || '').startsWith('cross.')) el.disabled = true; });
     }
     panel.querySelector('#r-go').onclick = () => setPanel(false, true);
-    if (on()) panel.querySelector('#r-items').onclick = e => { resetGround(); e.target.textContent = 'Weapons back'; };
     panel.querySelector('#r-mines').onclick = e => { clearMines(true); e.target.textContent = 'Mines cleared'; };
     panel.querySelector('#r-reset').onclick = () => { if (!confirm('Put every weapon setting back to the starting numbers?')) return; for (const k in DEFAULTS) S[k] = clone(DEFAULTS[k]); save(); drawRings(); if (pitRings) pitRings.scale.setScalar(blastR()); buildPanel(); };
     panel.querySelector('#r-copy').onclick = e => {
@@ -960,33 +791,19 @@
   // ---------------------------------------------------------------- level changes
   const realReload = {}; for (const k in WEAPONS) realReload[k] = WEAPONS[k].reload;
   function teardown() {
-    for (const t of dummies) scene.remove(t.g); dummies.length = 0;
     clearMines(); for (const f of flashes) scene.remove(f.m); flashes.length = 0;
     for (const it of items) scene.remove(it.mesh); items.length = 0; for (const pk of packs) scene.remove(pk.mesh); packs.length = 0;
-    if (pitRings) { scene.remove(pitRings); pitRings = null; }
     for (const k in realReload) WEAPONS[k].reload = realReload[k]; // the reload animation's length goes back to the game's
-    setPanel(false); built = false; history = []; lastKill = '';
+    setPanel(false); built = false;
   }
 
   Object.defineProperty(RANGE, 'on', { get: live, configurable: true }); // the new weapons are in charge
-  Object.defineProperty(RANGE, 'range', { get: on, configurable: true });
   Object.defineProperty(RANGE, 'life', { get: () => LIFE, configurable: true }); // the Shooting Range itself
   Object.defineProperty(RANGE, 'panelOpen', { get: () => panelOpen, configurable: true });
   Object.assign(RANGE, {
     onLevel() {
-      if (!on()) {
-        if (built) teardown();
-        clearMines(); for (const it of items) scene.remove(it.mesh); items.length = 0; setPanel(false);
-        if (!live()) for (const k in realReload) WEAPONS[k].reload = realReload[k];
-        return;
-      }
-      if (!built) {
-        buildDummies();
-        buildGround();
-        pitRings = ringMesh(); pitRings.position.set(PIT.x, 0.045, PIT.z); pitRings.scale.setScalar(blastR()); pitRings.material.opacity = 0.55; scene.add(pitRings);
-        built = true;
-      }
-      dummies.forEach(resetDummy); clearMines(); resetGround(); myHp = LIFE; myDownT = 0;
+      if (built) teardown();
+      clearMines(); for (const it of items) scene.remove(it.mesh); items.length = 0; setPanel(false);
     },
     kit() { if (live()) kit(); },
     doorHp: (kind, base) => (live() ? (kind === 'gate' ? S.game.gateHp : S.game.doorHp) : base), give, addBats, packMesh, knifeDmg,
@@ -1030,42 +847,27 @@
       if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
       if (code === 'KeyF') { quickKnife(); return true; }
-      return (on() && code === 'KeyE') || code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
+      return code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
     },
     tab() { if (!live() || NET.role === 'guest' || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; }, // only the host tunes the weapons
     // The game's blasts (grenades and the tube's rockets) land here in the range
     boom(pos, owner, src) { blast(pos, owner || P, src || 'throw'); }, // grenades and F tube shells (the game's), gas cans
-    solid(p) { return onDummy(p); },
+    solid() { return false; },
     speedK() { return live() && held.some(h => h && h.kind === 'tube') ? S.tube.slow : 1; },
     update(dt) {
       if (!live()) return;
       const now = performance.now() / 1000;
-      if (!on()) { updateMines(dt); updateGround(dt, now * 1000); return; }
-      for (const t of dummies) {
-        if (t.flashT > 0 && (t.flashT -= dt) <= 0 && t.dead <= 0) tint(t);
-        if (t.dead > 0) { if ((t.dead -= dt) <= 0) resetDummy(t); }
-        // Strafing: lane dummies pace 1.5 m each side of their spot
-        const sp = t.lane ? S.targets.strafe : 0;
-        if (sp > 0) { t.g.position.x += t.dir * sp * dt; if (Math.abs(t.g.position.x - t.home.x) > 1.5) { t.g.position.x = t.home.x + Math.sign(t.g.position.x - t.home.x) * 1.5; t.dir = -t.dir; } }
-        else if (t.g.position.x !== t.home.x) t.g.position.x += (t.home.x - t.g.position.x) * Math.min(1, dt * 4);
-        // You can't walk through them
-        const dx = P.pos.x - t.g.position.x, dz = P.pos.z - t.g.position.z, d = Math.hypot(dx, dz);
-        if (d < 0.6 && d > 1e-4 && P.pos.y < t.g.position.y + 2) { P.pos.x = t.g.position.x + dx / d * 0.6; P.pos.z = t.g.position.z + dz / d * 0.6; }
-      }
       updateMines(dt); updateGround(dt, now * 1000);
-      if (myDownT > 0) { if ((myDownT -= dt) <= 0) myHp = LIFE; }
-      else if (myHp < LIFE && now - myLastT > S.targets.heal) myHp = LIFE;
     },
     after(dt) {
       const show = live() && (locked || panelOpen) && P.alive;
-      slotsEl.style.display = show && !VEH.noGuns ? 'flex' : 'none'; // (no weapon slots while you drive) card.style.display = show && on() ? 'block' : 'none'; // the card is the range's
+      slotsEl.style.display = show && !VEH.noGuns ? 'flex' : 'none'; // (no weapon slots while you drive)
       document.body.classList.toggle('range-on', live());
       cross.style.display = show && !VEH.noGuns ? 'block' : 'none'; hpEl.style.display = show ? 'block' : 'none'; // no crosshair while you can't shoot (driving)
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
-      hpEl.style.backgroundColor = hpColour(on() ? myHp : Math.ceil(P.health / K() - 1e-6));
+      hpEl.style.backgroundColor = hpColour(Math.ceil(P.health / K() - 1e-6));
       const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine + myLight + lightOn; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
-      if (on()) { scene.background.setHex(0x000000); scene.fog.color.setHex(0x000000); } // (each level load sets the sky back)
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;
       const half = g ? spreadNow(g) * 0.005 : 0, h = renderer.domElement.clientHeight || innerHeight;
@@ -1094,14 +896,6 @@
       if (nadeVM && s.kind === 'throw' && P.alive && throwT <= 0.2) {
         nadeVM.visible = switchT <= 0.15 && gun.cd <= 0.25;
         nadeVM.position.set(0.15, -0.17 + (cooking >= 0 ? 0.04 : 0), -0.4); nadeVM.rotation.set(mineMode() && cooking < 0 ? 1.2 : 0.5, 0.4, -0.3);
-      }
-      // What the crosshair is on, for the card
-      if (show && on() && (cardT -= dt) <= 0) {
-        cardT = 0.1; aimT = null;
-        ray.set(camera.position, new V3(0, 0, -1).applyQuaternion(aimQ())); ray.far = 250;
-        const hit = castShot(ray, [...W.meshes, ...dummyParts()]);
-        if (hit && hit.object.userData.rangeT) aimT = { label: hit.object.userData.rangeT.label, d: hit.distance };
-        drawCard();
       }
     },
   });
