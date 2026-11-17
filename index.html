@@ -1394,14 +1394,14 @@ function addTrees(L, draw, col, cm) {
     let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
     if (kind === 1) pine(x, z, y, low, i); else round(x, z, y, low, i);
   });
-  // The spiky plant (a thin stem, long blades leaning out from it and a brown bud on top), in clumps on the ground round each tree: like grass, nothing to collide with
+  // The spiky plant (long blades leaning out from the ground round a short stem with a brown bud), in clumps round each tree: like grass, nothing to collide with
   const clump = (x, z, seed) => {
     const y = groundAt(x, z); if (y === null) return;
     const n = 1 + (rnd(seed + 1) * 2.4 | 0);
     for (let p = 0; p < n; p++) {
-      const px = x + (rnd(seed + 2 + p) - 0.5) * 0.9, pz = z + (rnd(seed + 5 + p) - 0.5) * 0.9, sh = 0.9 + 0.9 * rnd(seed + 8 + p), nb = 6 + (rnd(seed + 11 + p) * 3 | 0), ln = 0.75 + 0.5 * rnd(seed + 14 + p);
+      const px = x + (rnd(seed + 2 + p) - 0.5) * 0.9, pz = z + (rnd(seed + 5 + p) - 0.5) * 0.9, sh = 0.15 + 0.2 * rnd(seed + 8 + p), nb = 6 + (rnd(seed + 11 + p) * 3 | 0), ln = 0.65 + 0.4 * rnd(seed + 14 + p);
       emit('plant', plantMat, new THREE.CylinderGeometry(0.022, 0.03, sh + 0.05, 5), new THREE.Matrix4().makeTranslation(px, y + sh / 2 - 0.05, pz), STEM);
-      const tri = [], B = new V3(px, y + sh * 0.5, pz);
+      const tri = [], B = new V3(px, y + 0.04, pz); // (the blades start at the ground)
       for (let b = 0; b < nb; b++) {
         const ang = (b / nb + 0.08 * rnd(seed + 20 + b)) * Math.PI * 2, lean = 0.7 + 0.4 * rnd(seed + 30 + b), ca = Math.cos(ang), sa = Math.sin(ang), sl = Math.sin(lean), cl = Math.cos(lean), l = ln * (0.85 + 0.3 * rnd(seed + 40 + b));
         const d = new V3(sl * ca, cl, sl * sa), M = B.clone().addScaledVector(d, l * 0.5), T = B.clone().addScaledVector(d, l).add(new V3(ca * 0.12 * l, -0.16 * l, sa * 0.12 * l));
