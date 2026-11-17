@@ -78,6 +78,30 @@ npx serve .
 
 Import the repo in Vercel, framework preset **Other**, no build command, output directory `.`. Every push to `main` redeploys.
 
+### Sharing and iPhone checks
+
+Start at the public production URL, [ffa-prototype.vercel.app](https://ffa-prototype.vercel.app). Generated deployment/preview URLs may require Vercel sign-in; a host being able to open one does not mean a friend can. Check a URL in a private browser before sharing it. Vercel protection is controlled in the project's dashboard, not `vercel.json`.
+
+Use **Share invite link** (the device's share sheet, when supported) or **Copy invite link** inside Host Options. These include `?join=<hostId>`; sharing the browser address bar from a host's page shares the base game instead. The invite field can also be selected and copied manually. If clipboard access is unavailable or denied, Copy opens selectable text. Invites preserve `test` and Vercel share-link access parameters, but omit pose/debug switches.
+
+Keep the host's tab open and in the foreground while friends join and play. Reloading the host starts a new session and needs a fresh invite. An unavailable host or failed connection shows **Retry connection**; guests cannot enter gameplay until their connection opens. Returning through browser Back/Forward reloads the session because leaving the page closes its network connections.
+
+Run the dependency-free regression checks with Node.js:
+
+```sh
+node --test tools/check_browser_compat.cjs
+```
+
+Before releasing, test on physical iPhones in Safari, Firefox, Chrome and Edge, using two devices and both Wi-Fi and cellular:
+
+1. Open the production URL in a private tab with no Vercel login. Confirm the title, character picker and fort load, in portrait and landscape.
+2. Host in Firefox, use the in-game Share/Copy action, and open the invite in Safari. Repeat with Safari as host and the other browsers as guests. Confirm names/character selections sync, then join and test movement and firing.
+3. Cancel the share sheet, and test copying with clipboard access denied. The visible invite must remain available to copy.
+4. Close the host and open the stale invite. Confirm a useful error and Retry; then use a fresh host invite. Also test losing the guest's connection and retrying.
+5. Navigate away and Back, rotate the phone, and switch apps. Confirm the game recovers or offers a clear reload/retry rather than a frozen loading screen. Fullscreen is optional; test browser mode and Add to Home Screen separately.
+
+The Node checks cover code paths, not actual iOS browser behavior or connectivity across networks. Multiplayer still depends on public PeerJS signaling and a public TURN fallback; cross-network reliability requires verifying those services and, for production guarantees, operating a supported relay.
+
 ## Fortress: the island to the south
 
 The Fortress level (`?level=fortress`, the default) has grown (Austin's drawing). The fort and the old island are as they were; the island now carries on south around its old southern half, out to a new coast, and the shed is gone.
