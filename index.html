@@ -133,7 +133,6 @@ body.guest .hostonly{display:none!important}
 #overlay.looking .menu>.card{display:none}
 #overlay.looking #lookcard{display:block}
 #overlay.looking #hostcard,#overlay.looking #charcard{display:none!important}
-#hostcard .hlink{display:block;margin-top:8px;padding:2px 0;background:none;color:#111;font:500 13px/1.2 system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 #lookcard .set{margin:0 0 12px}
 #lookcard .set label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
 #lookcard .set input{width:100%;accent-color:#fff}
@@ -357,7 +356,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
 </div>
 <div id="overlay"><div class="menu"><div class="card" id="hostcard">
   <h2>Host Options</h2>
-  <div class="hopt"><h3>Time of Day</h3><div class="hseg" id="htime"><button type="button" data-v="day">Day</button><button type="button" data-v="dusk">Dusk</button><button type="button" data-v="night">Night</button></div><button type="button" class="hlink" id="hlook">Fine-tune lighting</button></div>
+  <div class="hopt"><h3>Time of Day</h3><div class="hseg" id="htime"><button type="button" data-v="day">Day</button><button type="button" data-v="dusk">Dusk</button><button type="button" data-v="night">Night</button></div></div>
   <div class="hopt"><h3>Game Type</h3><div class="hseg" id="hgame"><button type="button" data-v="teams">Team battle</button><button type="button" data-v="ffa">Free for all</button></div></div>
   <div class="hopt"><h3>Bots</h3><div class="hseg" id="hbots"><button type="button" data-v="0">No</button><button type="button" data-v="2">Easy</button><button type="button" data-v="3">Medium</button><button type="button" data-v="4">Hard</button></div><small id="hbotnote"></small></div>
   <button type="button" id="hinvite" class="invite">Copy invite link</button>
@@ -542,7 +541,7 @@ scene.add(camera);
 // renders' exposure (lit), shadowed ones far darker (shadow, a touch lighter than the renders' so attackers in shadow stay
 // visible); a blue haze over distance in the sky's horizon colour (sky), the sky darkening to top overhead.
 const LOOK_DEFAULT = { az: 20.8, el: 43.5, lit: '#bababa', shadow: '#34333b', edge: 0.54, soft: 0.07, sky: '#567a9b', top: '#214882' };
-let LOOK = { ...LOOK_DEFAULT }; // every load starts from these (the host's Time of Day and Fine-tune lighting change them for this game; a guest takes the host's)
+let LOOK = { ...LOOK_DEFAULT }; // every load starts from these (the host's Time of Day and the Lighting settings change them for this game; a guest takes the host's)
 try { localStorage.removeItem('fortressLook3'); } catch (e) {} // (the look used to be saved, and an old one could leave the fort nearly black)
 // Time of day (the host's Host Options; everyone gets the host's look): the same sun, other colours. Dusk and night light the
 // vehicles' headlights (headlights.js)
@@ -2686,6 +2685,10 @@ function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife,
 }
 const corpses = [];
 function spawnCorpse(e) {
+  if (e.isPlayer) { // the host's own body: guests see it fall (the host is looking out of it, so no copy here)
+    if (playerModelIdx >= 0) netFx({ t: 'co', id: e.id, m: playerModelIdx, p: arr(e.pos), y: +(e.yaw + Math.PI).toFixed(3) });
+    return;
+  }
   if (!e.rig) return;
   const mi = MODELS.indexOf(e.rig.model);
   ART.toCorpse(e.id, spawnCorpseAt(mi, e.pos, e.yaw)); // the paint on them goes down with them
@@ -3724,7 +3727,7 @@ function damage(t, amt, attacker, weapon, head) {
     if (t.isPlayer) $('msg').textContent = attacker === t ? (weapon === 'fall' ? 'You fell out of the map' : 'You blew yourself up') : `Killed by ${attacker.name}`;
     if (t.isRemote) sendTo(t, { t: 'died', by: attacker.name, self: attacker === t, w: weapon });
     if (attacker.isRemote && attacker !== t) sendTo(attacker, { t: 'kill' });
-    if (t.isPlayer) sDeath(); else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
+    if (t.isPlayer) { sDeath(); spawnCorpse(t); } else { spawnCorpse(t); t.mesh.visible = false; if (attacker.isPlayer) sKill(); }
     sGrunt(t.isPlayer ? 1 : vol(t.pos, 85)); netFx({ t: 'gr', id: t.id, p: arr(t.pos) });
     if (attacker !== t && (teamsOn() && attacker.team ? teamKills(attacker.team) >= KILL_LIMIT : attacker.kills >= KILL_LIMIT)) endMatch(attacker);
   }
@@ -5276,7 +5279,6 @@ $('hostgo').onclick = () => { if (!$('hostgo').classList.contains('on')) return;
 // Host Options: Time of Day, Game Type, Bots
 {
   $('htime').querySelectorAll('button').forEach(b => b.onclick = () => setTimeOfDay(b.dataset.v));
-  $('hlook').onclick = () => $('looklink').onclick();
   $('hgame').querySelectorAll('button').forEach(b => b.onclick = () => { GAME_TEAMS = b.dataset.v === 'teams'; updateGoal(); refreshPreview(); renderHost(); sendPicks(); });
   $('hbots').querySelectorAll('button').forEach(b => b.onclick = () => { BOT_LEVEL = +b.dataset.v; if (BOT_LEVEL) { $('sdiff').value = BOT_LEVEL; setDiff(BOT_LEVEL); } renderHost(); });
   $('hinvite').onclick = () => $('copyinv').onclick();
