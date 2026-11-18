@@ -5582,6 +5582,7 @@ function sFoot(v, run, pan) {
 // Footsteps: louder and quicker when running, quiet when crouched, heard from nearby soldiers
 function stepSound(e, dt) {
   if (!AC || !e.onGround) return;
+  if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) { e.stepD = 0; return; } // sitting in a vehicle: it carries them at its speed, but nobody's feet touch the ground
   const sp = Math.hypot(e.vel.x, e.vel.z); if (sp < 0.8) { e.stepD = 0; return; }
   const run = sp > 5.2, crouch = e.h < STAND_H;
   e.stepD = (e.stepD || 0) + sp * dt;

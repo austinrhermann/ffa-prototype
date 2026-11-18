@@ -647,9 +647,10 @@
     if (!isFinite(v.speed) || !isFinite(v.slip)) return;
     const base = v.kind === 'bike' ? [70, 150, 14] : v.p.mass > 2500 ? [38, 60, 9] : [55, 95, 12];
     const sp = Math.abs(v.speed), gear = Math.min(5, Math.floor(sp / base[2])), frac = (sp - gear * base[2]) / base[2];
-    const fr = base[0] + (gear ? 0.35 : 0) * base[1] + frac * base[1] * 0.65 + (keys.KeyW ? 6 : 0);
+    const gas = v === cur && keys.KeyW; // (a passenger hears the engine, but it's not their foot on the pedal)
+    const fr = base[0] + (gear ? 0.35 : 0) * base[1] + frac * base[1] * 0.65 + (gas ? 6 : 0);
     S.o.frequency.setTargetAtTime(fr, t, 0.05); S.o2.frequency.setTargetAtTime(fr * 0.5, t, 0.05);
-    S.gn.gain.setTargetAtTime(0.055 + (keys.KeyW ? 0.03 : 0), t, 0.08);
+    S.gn.gain.setTargetAtTime(0.055 + (gas ? 0.03 : 0), t, 0.08);
     S.ng.gain.setTargetAtTime(v.onGround ? Math.min(0.12, Math.max(0, (v.slip - 3) / 40)) : 0, t, 0.05);
   }
   function thud(v, hit) { if (AC && hit > 4) sBoom(vol(v.pos, 60) * Math.min(0.5, hit / 40)); }
@@ -717,7 +718,6 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     v.owner = me(); v.net = null; v.npc = null; cur = v; view = 'chase'; camYaw = 0; camPitch = CAM_PITCH; lookIdle = 9;
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
-    soundStart(v);
     note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
   }
   function leave(force) {
@@ -886,7 +886,9 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     for (const side of ['L', 'R']) legPose(rig, side, legs[lk][side], _bq);
     // A passenger turns at the waist (everything above the hips, about the spine's base) toward the aim
     if (pass && rig.upper.length) {
-      const yaw = Math.max(-2.6, Math.min(2.6, wrapA(who.yaw + Math.PI - v.yaw)));
+      // (your own yaw is the way you look; everyone else's is stored half a circle round, the way their body is drawn)
+      const look = who.isPlayer ? who.yaw + Math.PI : who.yawV !== undefined ? who.yawV : who.yaw;
+      const yaw = Math.max(-2.6, Math.min(2.6, wrapA(look - v.yaw)));
       wrap.updateMatrixWorld(true);
       const up = _b1.copy(_UP).applyQuaternion(_bq).applyQuaternion(rig.upper[0].b.parent.getWorldQuaternion(_bq2).invert());
       _bq3.setFromAxisAngle(up, yaw);
@@ -1039,6 +1041,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
         if (ride.occ[rideSeat] !== me()) { ride = null; note('You were let out', 1.5); }
         else { const p = seatWorld(ride, rideSeat); P.pos.set(p.x, p.y - 0.5, p.z); P.vel.copy(ride.vel); P.onGround = true; }
       }
+      const mine = cur || ride; // the engine plays for everyone aboard, whichever seat (and stops when you're let out, killed, or it's wrecked)
+      if (mine !== S.want) { S.want = mine; if (mine) soundStart(mine); else soundStop(); }
       soundTick();
     },
     block: blockBody,
