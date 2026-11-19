@@ -2204,6 +2204,7 @@ function prepScene(sc) {
   sc.traverse(o => {
     if (!o.isMesh) return;
     const m = o.material;
+    shrinkTex(m.map); shrinkTex(m.emissiveMap); shrinkTex(m.aoMap);
     if (m.map) m.map.encoding = THREE.LinearEncoding;
     if (m.emissiveMap) m.emissiveMap.encoding = THREE.LinearEncoding;
     if (m.aoMap) m.aoMap.encoding = THREE.LinearEncoding;
@@ -2255,13 +2256,38 @@ function liftPart(sc, B, name) {
   gm.add(bat);
 }
 const DRACO = new THREE.DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
+// Phones and tablets (the same test as isTouch): iOS Safari closes the tab once the page uses more memory than it allows ("Graphics
+// were interrupted", then "A problem repeatedly occurred"), and textures were most of it. three's GLTF loader keeps every picture
+// as a fully decoded ImageBitmap for good (about 260 MB, mostly the fort) on top of its copy on the graphics chip (350 MB at full
+// size). On these devices, pictures load as plain images instead (the browser can let their decoded pixels go), any wider or taller
+// than TEX_MAX are drawn at TEX_MAX (a quarter of the memory for the fort's 2048s), and the set lets go of its pictures once they
+// are on the graphics chip (loadSet). Desktops load exactly as before.
+const SMALL_TEX = matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0, TEX_MAX = 1024;
+const shrunk = new WeakMap(); // full-size picture -> its TEX_MAX copy (textures that share a picture share the copy)
+function shrinkTex(t) {
+  const im = t && t.image; if (!SMALL_TEX || !im || Math.max(im.width, im.height) <= TEX_MAX) return;
+  let c = shrunk.get(im);
+  if (!c) {
+    const k = TEX_MAX / Math.max(im.width, im.height);
+    c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+    shrunk.set(im, c);
+  }
+  t.image = c;
+}
+const dropImage = t => { t.image = { width: t.image.width, height: t.image.height }; t.onUpdate = null; }; // (three calls onUpdate once it has uploaded the picture)
+const gltfLoader = () => {
+  const l = new THREE.GLTFLoader().setDRACOLoader(DRACO);
+  if (SMALL_TEX) l.register(p => { p.textureLoader = new THREE.TextureLoader(p.options.manager); return { name: 'small_tex' }; });
+  return l;
+};
 // Model URLs stay the same across exports. Revalidate even entries cached under the old 24-hour policy.
 const parseGLB = key => fetch('models/' + key + '.glb', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('Missing model ' + key); return r.arrayBuffer(); })
-  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', g => res(prepScene(g.scene)), rej)));
+  .then(buf => new Promise((res, rej) => gltfLoader().parse(buf, '', g => res(prepScene(g.scene)), rej)));
 // Authored pose kit (models/poses/<key>.glb): the whole gltf (scene + clips), not just the scene. A 404 or parse error
 // just means this character has no authored poses yet, so it resolves to null instead of rejecting.
 const parsePoses = key => fetch('models/poses/' + key + '.glb', { cache: 'no-cache' }).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
-  .then(buf => new Promise((res, rej) => new THREE.GLTFLoader().setDRACOLoader(DRACO).parse(buf, '', res, rej)))
+  .then(buf => new Promise((res, rej) => gltfLoader().parse(buf, '', res, rej)))
   .catch(() => null);
 // Weapon muzzle direction: the end with the smaller vertical profile (grips and stocks are tall)
 function orientWeapon(sc) {
@@ -2583,6 +2609,7 @@ function loadSet(d) {
       if (o.material.map) o.material.map.anisotropy = 8;
       if (o.material.aoMap) o.castShadow = false; // its shadows are baked in (the sun mask); real-time ones are for what moves
       if (isWater(o)) { o.userData.water = true; o.castShadow = false; o.receiveShadow = false; }
+      if (SMALL_TEX) for (const t of [o.material.map, o.material.emissiveMap, o.material.aoMap]) if (t) t.onUpdate = dropImage; // (only the game's own renderer draws the set)
     });
     col.traverse(o => { if (o.isMesh && isWater(o)) o.userData.water = true; });
     LEVEL_SCENES[d] = sc; LEVEL_SCENES[c] = col;
