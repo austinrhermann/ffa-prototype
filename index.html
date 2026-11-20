@@ -157,11 +157,26 @@ body.guest .hostonly{display:none!important}
 #chatlog .me b{color:#fff}
 #chatbox input{padding:8px 10px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:14px system-ui,sans-serif;outline:none}
 #chatbox input:focus{border-color:#fff}
-#results{position:fixed;inset:0;display:none;overflow:auto;background:rgba(0,0,0,.55)}
-#results>.card{margin:auto;width:min(560px,100%);padding:28px 16px}
-.rt{width:100%;border-collapse:collapse;font-size:15px}
-.rt th{text-align:left;opacity:.7;font-weight:500;padding:4px 8px}
-.rt td{padding:5px 8px;font-variant-numeric:tabular-nums}
+#results{position:fixed;inset:0;display:none;background:linear-gradient(90deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.35))}
+#results>.card{position:absolute;top:0;right:0;bottom:0;width:min(440px,46vw);overflow:auto;padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px));background:rgba(12,16,20,.82);box-sizing:border-box}
+#vtop{position:absolute;left:0;top:0;right:min(440px,46vw);padding:calc(18px + env(safe-area-inset-top,0px)) 16px 0;text-align:center;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#vtop h1{margin:0;font-size:clamp(28px,5vw,54px);letter-spacing:.02em}
+#vtop p{margin:4px 0 0;opacity:.9}
+#vtags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.vtag{position:absolute;left:0;top:0;white-space:nowrap;padding:3px 10px;border-radius:12px;background:rgba(15,19,24,.7);border:2px solid rgba(238,243,234,.5);font-weight:600;font-size:clamp(12px,1.6vw,17px)}
+.vtag.me{color:var(--accent)}
+#trophies{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px}
+.troph{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,.07);border-left:3px solid var(--accent);min-width:0}
+.troph b{font-size:12px;text-transform:uppercase;letter-spacing:.06em;opacity:.8}
+.troph .tw{font-weight:600;overflow-wrap:anywhere}
+.troph .tv{font-size:13px;opacity:.75}
+.tdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+#results #next{font-size:20px;padding:14px;font-weight:700}
+@media (max-aspect-ratio:1/1){#results>.card{top:50%;width:100%}#vtop{right:0}#results{background:none}}
+body.victory #hud,body.victory #touch{display:none!important}
+.rt{width:100%;border-collapse:collapse;font-size:14px}
+.rt th{text-align:left;opacity:.7;font-weight:500;padding:4px 6px}
+.rt td{padding:5px 6px;font-variant-numeric:tabular-nums}
 .rt tr.me td{color:var(--accent)}
 #touch{position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
 body.touch #touch{display:block}
@@ -459,13 +474,12 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="clinks"><button type="button" id="howgo" class="clink" data-go="howto">How to play</button><button type="button" class="clink" data-go="settings">Settings</button><button type="button" id="pdraw" class="clink" hidden>Draw</button><button type="button" id="leavego" class="clink">Leave game</button></div>
 </div>
 </div></div>
-<div id="results"><div class="card">
-  <h1 id="rtitle">You win</h1>
-  <p id="rsub"></p>
+<div id="results"><div id="vtop"><h1 id="rtitle">You win</h1><p id="rsub"></p></div><div id="vtags"></div><div class="card">
+  <div id="trophies"></div>
   <div class="panel"><table class="rt" id="rtable"></table></div>
   <div class="setrow hostonly" id="setnext" style="margin-top:16px"><span>Score limit for next round</span><div class="step" data-for="slimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="olimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="slimit" min="5" max="100" step="5" value="20" hidden></div>
-  <div class="mbtns"><button type="button" id="next" class="hostonly wide">Next round</button><button type="button" id="rmic" class="wide" hidden></button></div>
-  <p class="guestonly" style="margin-top:14px">Waiting for the host to start the next round…</p>
+  <div class="mbtns"><button type="button" id="next" class="hostonly wide">New game</button><button type="button" id="rmic" class="wide" hidden></button></div>
+  <p class="guestonly" style="margin-top:14px">Waiting for the host to start a new game…</p>
 </div></div>
 
 <div id="chatbox"><label for="chatin2">Chat</label><div id="chatlog" aria-live="polite"></div><input id="chatin2" type="text" maxlength="120" placeholder="Chat with everyone (Enter to send)" autocomplete="off" spellcheck="false" aria-label="Chat message"></div>
@@ -3742,6 +3756,7 @@ function damage(t, amt, attacker, weapon, head) {
   if (!t.alive || matchOver) return;
   if (GOD && t === P && weapon !== 'fall') return; // host's god mode (guests never get here)
   if (isArtist(t) && weapon !== 'fall') return; // in draw mode, with the pen or the can out
+  if (attacker && attacker !== t && weapon !== 'fall') { attacker.dmg = (attacker.dmg || 0) + Math.min(amt, t.health); if (weapon === 'gun') attacker.hits = (attacker.hits || 0) + 1; } // for the end-of-match stats
   t.health -= amt;
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -3749,7 +3764,8 @@ function damage(t, amt, attacker, weapon, head) {
   if (t.health <= 0) {
     t.health = 0; t.alive = false; t.deaths++; t.respawnT = 3;
     dropWeapons(t);
-    if (attacker === t) t.kills = Math.max(0, t.kills - 1); else attacker.kills++;
+    if (attacker === t) t.kills = Math.max(0, t.kills - 1); else { attacker.kills++; attacker.streak = (attacker.streak || 0) + 1; attacker.best = Math.max(attacker.best || 0, attacker.streak); if (head) attacker.hk = (attacker.hk || 0) + 1; if (weapon === 'knife') attacker.kk = (attacker.kk || 0) + 1; }
+    t.streak = 0;
     feed(attacker.name, t.name, head ? ICON.head : ICON[weapon]);
     if (t.isPlayer) $('msg').textContent = attacker === t ? (weapon === 'fall' ? 'You fell out of the map' : 'You blew yourself up') : `Killed by ${attacker.name}`;
     if (t.isRemote) sendTo(t, { t: 'died', by: attacker.name, self: attacker === t, w: weapon });
@@ -3760,36 +3776,151 @@ function damage(t, amt, attacker, weapon, head) {
   }
 }
 function resetMatch() {
-  ents.forEach(e => { e.kills = 0; e.deaths = 0; e.alive = false; if (e.mesh) e.mesh.visible = false; });
+  ents.forEach(e => { e.kills = 0; e.deaths = 0; resetStats(e); e.alive = false; if (e.mesh) e.mesh.visible = false; });
   nades.forEach(n => scene.remove(n.mesh)); nades.length = 0;
   rockets.forEach(r => scene.remove(r.mesh)); rockets.length = 0;
   ammoBoxes.forEach(a => { a.active = true; a.mesh.visible = true; });
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   HEALS.forEach(h => setHeal(h, true));
   clearCorpses(); clearHoles();
-  matchOver = false;
+  matchOver = false; endVictory();
   ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast({ t: 'reset', tg: GAME_TEAMS });
+}
+// ---------- The end of a match: the winners on the tower roof, the stats and the trophies ----------
+// Stats each soldier gathers over a match (the host keeps everyone's; a guest counts its own trigger pulls and sends them)
+function resetStats(e) { e.shots = e.hits = e.hk = e.kk = e.streak = e.best = e.dmg = 0; }
+function statShot(e) { if (!matchOver) e.shots = (e.shots || 0) + 1; }
+const statName = e => (e.name || 'Player') + (e.bot ? ' (bot)' : '');
+const statModel = e => e.isPlayer ? playerModelIdx : (e.modelIdx !== undefined ? e.modelIdx : MODELS.indexOf(e.rig.model));
+const statGun = e => { const w = e.isPlayer ? curW : e.wpn; return w && WEAPONS[w] && WEAPONS[w].scene ? w : 'carbine'; };
+// rows: [id, name, kills, deaths, shots, hits, headshot kills, best streak, damage, team, knife kills]
+const statRow = e => [e.id, statName(e), e.kills | 0, e.deaths | 0, e.shots | 0, e.hits | 0, e.hk | 0, e.best | 0, Math.round(e.dmg || 0), teamsOn() && e.team ? e.team : '', e.kk | 0];
+const accOf = r => r[4] ? Math.min(1, r[5] / r[4]) : 0;
+// The trophies: who did best at what (ties share it). Each: [title, what it's for, the winning value shown, names]
+function trophies(rows) {
+  const out = [], many = rows.length > 1;
+  const give = (title, why, pool, val, fmt, low) => {
+    if (!pool.length) return;
+    const best = pool.reduce((m, r) => low ? Math.min(m, val(r)) : Math.max(m, val(r)), low ? Infinity : -Infinity);
+    const who = pool.filter(r => val(r) === best); if (who.length > 3 || (many && who.length === pool.length && pool.length > 1)) return; // everyone tied: no trophy
+    out.push([title, why, fmt(best), who.map(r => r[1])]);
+  };
+  give('Top gun', 'most kills', rows, r => r[2], v => v + (v === 1 ? ' kill' : ' kills'));
+  give('Survivor', 'fewest times killed', rows, r => r[3], v => v + (v === 1 ? ' death' : ' deaths'), true);
+  give('Sharpshooter', 'best accuracy (20+ shots)', rows.filter(r => r[4] >= 20), accOf, v => Math.round(v * 100) + '%');
+  give('Headhunter', 'most headshot kills', rows.filter(r => r[6] > 0), r => r[6], v => v + (v === 1 ? ' headshot' : ' headshots'));
+  give('On a roll', 'longest run of kills without dying', rows.filter(r => r[7] > 2), r => r[7], v => v + ' in a row');
+  give('Heavy hitter', 'most damage dealt', rows.filter(r => r[8] > 0), r => r[8], v => v + ' damage');
+  give('Up close', 'most knife kills', rows.filter(r => r[10] > 0), r => r[10], v => v + (v === 1 ? ' knife kill' : ' knife kills'));
+  give('Fearless', 'most times killed', rows.filter(r => r[3] > 0), r => r[3], v => v + (v === 1 ? ' death' : ' deaths'));
+  if (many) give('Pacifist', 'fewest kills', rows, r => r[2] * 1e4 + r[4], v => { const k = Math.floor(v / 1e4); return k + (k === 1 ? ' kill' : ' kills'); }, true);
+  return out;
 }
 // w is the winner
 function endMatch(w) {
   matchOver = true;
   sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const tm = teamsOn() && w.team ? w.team : null;
-  const title = tm ? `${TEAMS[tm].name} win` : w.isPlayer ? 'You win' : `${w.name} wins`;
-  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : '';
-  const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
-  showResults(title, sub, list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]), P.id);
+  const title = tm ? `${TEAMS[tm].name} win` : `${statName(w)} wins`; // (the winner's own screen says "You win")
+  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : `First to ${KILL_LIMIT} kills`;
+  const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), rows = list.map(statRow);
+  // On the roof: the winner, or the whole winning team (top scorer in the middle)
+  const champs = (tm ? list.filter(e => e.team === tm) : [w]).slice(0, 8).map(e => [e.id, statName(e), statModel(e), statGun(e), tm || '']);
+  const m = { t: 'end', ttl: title, sub, wid: w.id, wn: statName(w), tm, rows, champs };
+  broadcast(m);
+  if (!tm && w.isPlayer) m.ttl = 'You win';
   $('slimit').value = KILL_LIMIT; $('olimit').textContent = KILL_LIMIT;
-  $('setnext').style.display = ''; $('next').textContent = 'Next round';
-  broadcast({ t: 'end', ttl: title, sub, wid: w ? w.id : null, wn: w ? w.name : '', rows: list.map(e => [e.id, e.name + (e.team && teamsOn() ? ' · ' + TEAMS[e.team].name : ''), e.kills, e.deaths]) });
+  $('setnext').style.display = '';
+  showVictory(m, P.id);
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
-function showResults(title, sub, rows, me) {
-  $('rtitle').textContent = title; $('rsub').textContent = sub;
-  $('rtable').innerHTML = `<tr><th>#</th><th>Player</th><th>Kills</th><th>Deaths</th><th>K/D</th></tr>` + rows.map((r, i) =>
-    `<tr class="${r[0] === me ? 'me' : ''}"><td>${i + 1}</td><td>${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${(r[2] / Math.max(1, r[3])).toFixed(2)}</td></tr>`).join('');
+function showResults(m, me) {
+  const rows = m.rows;
+  $('rtitle').textContent = m.ttl; $('rsub').textContent = m.sub || '';
+  $('rtable').innerHTML = `<tr><th>Player</th><th title="Kills">K</th><th title="Deaths">D</th><th title="Kills per death">K/D</th><th title="Accuracy: shots that hit">Acc</th><th title="Headshot kills">HS</th><th title="Longest run of kills without dying">Run</th></tr>` + rows.map(r =>
+    `<tr class="${r[0] === me ? 'me' : ''}"><td>${r[9] ? `<i class="tdot" style="background:${TEAMS[r[9]].color}"></i>` : ''}${esc(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${(r[2] / Math.max(1, r[3])).toFixed(1)}</td><td>${r[4] ? Math.round(accOf(r) * 100) + '%' : '–'}</td><td>${r[6]}</td><td>${r[7]}</td></tr>`).join('');
+  $('trophies').innerHTML = trophies(rows).map(([t, why, v, who]) =>
+    `<div class="troph" title="${esc(why)}"><b>${esc(t)}</b><span class="tw">${who.map(esc).join(' & ')}</span><span class="tv">${esc(v)}</span></div>`).join('');
   $('results').style.display = 'flex';
+}
+// The roof scene: the winners stand along the tower roof's front edge (the one facing the truck, along the gate), turned out
+// to the valley, and the camera swings slowly round in front of them from a little below, so they look up into the sky.
+// It starts a moment after the last kill, so everyone sees it land. Fresh copies of the winners' bodies stand there; everyone
+// else (the real bodies, wherever they are) is hidden until the next round
+const VIC = { on: false, t: 0, at: 0, rigs: [], tags: [], m: null, wait: 0 };
+const VIC_ROOF = { fortress: { x0: 3.1, x1: 7.6, z: 5.85, y: 47.64, back: 0.95 } }; // the roof's floor, its usable width, and the line just in from its front edge (z ≈ 6.45)
+const VIC_FOV = 45, VIC_SWAY = 22 * Math.PI / 180, VIC_PERIOD = 28, VIC_DELAY = 1.4;
+function showVictory(m, me) {
+  endVictory();
+  VIC.m = m; VIC.me = me; VIC.wait = VIC_DELAY; // the freeze on the last kill, then the roof
+}
+function startVictory() {
+  const m = VIC.m, roof = VIC_ROOF[curLevel];
+  if (!roof || !MODELS.length) { showResults(m, VIC.me); return; } // (no roof on this level: just the table)
+  VIC.on = true; VIC.t = 0; document.body.classList.add('victory');
+  const champs = (m.champs || []).filter(c => MODELS[c[2]]);
+  // One row of up to five along the edge; more go in a second row behind, between the front ones
+  const front = champs.length > 5 ? Math.ceil(champs.length / 2) : champs.length;
+  const order = []; champs.forEach((c, i) => order.push(c)); // (the top scorer first: placed in the middle)
+  const slots = n => { const out = [], gap = Math.min(1.0, (roof.x1 - roof.x0) / Math.max(1, n)); for (let i = 0; i < n; i++) out.push((i - (n - 1) / 2) * gap); return out; };
+  const mid = (roof.x0 + roof.x1) / 2, fs = slots(front), bs = slots(champs.length - front);
+  const byMid = a => a.map((x, i) => [x, i]).sort((p, q) => Math.abs(p[0]) - Math.abs(q[0]) || p[0] - q[0]).map(p => p[0]); // middle out
+  const pos = [...byMid(fs).map(x => [mid + x, roof.z]), ...byMid(bs).map(x => [mid + x, roof.z - roof.back])];
+  VIC.rigs = order.map((c, i) => {
+    const rig = makeRig(c[2]); setRigWeapon(rig, c[3]);
+    const [x, z] = pos[i]; rig.wrap.position.set(x, roof.y, z);
+    rig.wrap.rotation.y = -(x - mid) * 0.12 + (i % 2 ? 0.08 : -0.08); // out to the valley, the ends turned in a touch
+    rig.wrap.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    scene.add(rig.wrap);
+    const tag = document.createElement('div'); tag.className = 'vtag' + (c[0] === VIC.me ? ' me' : '');
+    tag.textContent = c[1]; if (c[4] && TEAMS[c[4]]) tag.style.borderColor = TEAMS[c[4]].color;
+    $('vtags').append(tag); VIC.tags.push(tag);
+    return rig;
+  });
+  VIC.c = new V3(mid, roof.y, champs.length > front ? roof.z - roof.back / 2 : roof.z);
+  VIC.w = Math.max(1, ...pos.map(p => Math.abs(p[0] - mid) * 2)) + 0.9;
+  VIC.h = Math.max(1.7, ...VIC.rigs.map(r => r.model.headY)) + 0.3;
+  showResults(m, VIC.me);
+}
+function endVictory() {
+  VIC.m = null; VIC.wait = 0;
+  if (!VIC.on) return;
+  VIC.on = false; document.body.classList.remove('victory');
+  for (const r of VIC.rigs) scene.remove(r.wrap);
+  VIC.rigs = []; VIC.tags.forEach(t => t.remove()); VIC.tags = [];
+  camera.clearViewOffset(); camera.fov = 75; camera.updateProjectionMatrix();
+  if (P.rig) P.rig.wrap.visible = true;
+}
+const _vD = new V3(), _vT = new V3();
+// Just before the frame is drawn: the real bodies out of sight (they'd stand about the fort, or on the roof itself; your own arms hang in front of where the camera was)
+function victoryHide() { for (const e of ents) if (e.mesh) e.mesh.visible = false; if (P.rig) P.rig.wrap.visible = false; }
+// Each frame, after the usual camera: the swing round the winners, and their name tags over their heads
+function updateVictory(dt) {
+  if (VIC.wait > 0 && (VIC.wait -= dt) <= 0 && VIC.m) startVictory();
+  if (!VIC.on) return;
+  VIC.t += dt;
+  for (const r of VIC.rigs) animRig(r, dt, 0, false, 0.12);
+  // Where the panel leaves room: beside it on a wide screen, above it on a tall one
+  const W = innerWidth, H = innerHeight, side = W > H, pw = side ? Math.min(440, W * 0.46) : 0, ph = side ? 0 : H * 0.5;
+  const aw = W - pw, ah = H - ph, cx = aw / 2;
+  // Their full height: about half the screen, with their heads (and name tags) clear of the title over them
+  const top = $('vtop').getBoundingClientRect().bottom + 30, frac = Math.max(0.2, Math.min(side ? 0.5 : 0.4, (ah - 6 - top) / H));
+  const cy = Math.max(top + frac * H / 2, side ? H * 0.52 : ah * 0.58);
+  camera.fov = VIC_FOV;
+  const T = Math.tan(VIC_FOV * Math.PI / 360);
+  const dist = Math.max(VIC.h / (frac * 2 * T), VIC.w / (0.85 * aw / H * 2 * T));
+  const a = VIC_SWAY * Math.sin(VIC.t * 2 * Math.PI / VIC_PERIOD) - 0.18;
+  _vD.set(Math.sin(a), 0, Math.cos(a)); // out in front of the roof (+z, toward the truck), swinging side to side
+  _vT.copy(VIC.c); _vT.y += VIC.h * 0.5;
+  camera.position.copy(VIC.c).addScaledVector(_vD, dist); camera.position.y = VIC.c.y + 0.25 + 0.1 * Math.sin(VIC.t * 0.7); // low: looking up at them
+  camera.lookAt(_vT);
+  camera.setViewOffset(W, H, W / 2 - cx, H / 2 - cy, W, H); // the middle of the view where the room is
+  camera.updateMatrixWorld();
+  VIC.rigs.forEach((r, i) => {
+    const tag = VIC.tags[i]; _vT.copy(r.wrap.position); _vT.y += r.model.headY + 0.42; _vT.project(camera);
+    tag.style.transform = `translate(-50%,-100%) translate(${((_vT.x + 1) / 2 * W).toFixed(1)}px,${((1 - _vT.y) / 2 * H).toFixed(1)}px)`;
+  });
 }
 
 function knifeAttack(att) {
@@ -4154,7 +4285,7 @@ function botMuzzle(b, w) {
 }
 function botShoot(b, t, dist) {
   const seen = b.ammo > 0 && seenAt(b, t); if (!seen) return;
-  const w = BW(b.wpn), m = b.rig.model; b.ammo--;
+  const w = BW(b.wpn), m = b.rig.model; b.ammo--; statShot(b);
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
   muzzleFx(b.wpn, start, seen.p.clone().sub(start).normalize(), false, b.id);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
@@ -5956,6 +6087,7 @@ function onGuestMsg(conn, m) {
   if (!r) return;
   switch (m.t) {
     case 'st':
+      if (m.sh !== undefined) r.shots = Math.max(0, m.sh | 0); // the trigger pulls it counts itself (for its accuracy at the end)
       if (m.s !== r.spawnSeq || !r.alive) break;
       r.target.set(m.p[0], m.p[1], m.p[2]); r.vel.set(m.v[0], m.v[1], m.v[2]);
       r.yaw = m.yaw + Math.PI; r.pitch = m.pitch; r.h = m.h === CROUCH_H ? CROUCH_H : STAND_H;
@@ -6134,7 +6266,7 @@ function onHostMsg(m) {
     case 'chat': chatLine(String(m.n || '?').slice(0, 16), String(m.x || '').slice(0, 120), false); break;
     case 'end': showGuestResults(m); break;
     case 'reset': // the host started a new round: the round's end let go of the mouse, so offer it back
-      $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles();
+      $('results').style.display = 'none'; matchOver = false; clearCorpses(); clearHoles(); endVictory(); resetStats(P);
       if (typeof m.tg === 'boolean' && m.tg !== GAME_TEAMS) { GAME_TEAMS = m.tg; updateGoal(); refreshPreview(); } // the host may have changed the game type
       if (!locked && $('overlay').style.display === 'none') { if (isTouch) setPlaying(true); else setAway(true); }
       break;
@@ -6202,8 +6334,10 @@ function updateReplicas(dt, now) {
 function showGuestResults(m) {
   matchOver = true;
   sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
-  const title = m.wid === NET.myId ? 'You win' : `${m.wn} wins`;
-  showResults(title, String(m.sub || ''), (m.rows || []).map(r => [r[0], String(r[1]), r[2] | 0, r[3] | 0]), NET.myId);
+  const wid = String(m.wid || ''), rows = (m.rows || []).map(r => [r[0], String(r[1]), r[2] | 0, r[3] | 0, r[4] | 0, r[5] | 0, r[6] | 0, r[7] | 0, r[8] | 0, TEAMS[r[9]] ? r[9] : '', r[10] | 0]);
+  const ttl = !m.tm && wid === String(NET.myId) ? 'You win' : String(m.ttl || '');
+  const champs = (m.champs || []).map(c => [c[0], String(c[1]), c[2] | 0, WEAPONS[c[3]] && WEAPONS[c[3]].scene ? c[3] : 'carbine', TEAMS[c[4]] ? c[4] : '']);
+  showVictory({ ttl, sub: String(m.sub || ''), rows, champs }, NET.myId);
   if (document.pointerLockElement) document.exitPointerLock(); else setPlaying(false);
 }
 function netTick(dt) {
@@ -6212,7 +6346,7 @@ function netTick(dt) {
   else if (NET.conn && NET.conn.open && NET.joined) {
     syncAmmo();
     NET.conn.send({
-      t: 'st', s: NET.spawnSeq, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(), ar: ART.state(), ac: ART.colour(),
+      t: 'st', s: NET.spawnSeq, sh: P.shots | 0, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(), ar: ART.state(), ac: ART.colour(),
       inv: Object.fromEntries((P.inv || []).map(id => [id, [P.ammoBy[id].mag, P.ammoBy[id].res]])), vs: VEH.myState(),
     });
   }
@@ -6470,7 +6604,7 @@ function loop(now) {
   }
   netTick(dt);
   updateCamera(dt);
-  titleCam(now); titleTick();
+  titleCam(now); titleTick(); updateVictory(dt);
   updateHoverTags(dt);
   updatePlayerRig(dt);
   renderPreview(dt);
@@ -6491,15 +6625,16 @@ function loop(now) {
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
+  if (VIC.on) victoryHide();
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
-  if (!bodyOn && !tpOn && !PREGAME && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  if (!bodyOn && !tpOn && !PREGAME && !VIC.on && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
 }
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=30"></script>
-<script src="range.js?v=26"></script>
+<script src="range.js?v=27"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=2"></script>
 </body>
