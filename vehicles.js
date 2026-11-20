@@ -1057,7 +1057,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     boxesOf: v => v.model ? v.model.boxes : [{ c: new V3(0, 1.1, 0), h: new V3((v.p.track + 0.1) / 2, 1, (v.p.wheelbase + 1) / 2) }],
     mouse(dx, dy) {
       if (!cur && !ride) return false;
-      camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - dy * SENS * CTL.sens)); lookIdle = 0; return true;
+      const inv = view === 'chase' ? -1 : 1; // the chase camera swings round you: mouse up takes it down (looking up past the vehicle); in the seat, up looks up
+      camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - inv * dy * SENS * CTL.sens)); lookIdle = 0; return true;
     },
     key(code) {
       if (!list.length) return false;

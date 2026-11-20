@@ -65,7 +65,7 @@
     cross: { ease: 0.2, opacity: 45 },       // ease: how long the crosshair circle takes to catch up with the spread (s); opacity: 0-100 (yours alone: the host's value isn't sent on)
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
     ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: false },
-    // In a game: you spawn with the Pistol loaded and startA spare A batteries; packs come back after packs seconds (rifle
+    // In a game: you spawn with the Pistol and the Carbine loaded and startA spare A batteries; packs come back after packs seconds (rifle
     // rounds after rifle), weapons on their spots after weapons seconds
     game: { startA: 1, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
   };
@@ -373,7 +373,7 @@
     if (!has('F')) { outOf('F'); return; }
     hot = { back: cur }; hotPrev = cur; pick(HANDS + 1, true); spend('F');
     cooking = 0; beepT = 0.5; hotMine = false; sPin();
-    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4);
+    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4, 6);
   }
   function cookHot(dt) {
     if (hotMine) return;
@@ -436,7 +436,8 @@
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
     curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
     held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA);
-    syncInv(); pick(0, true);
+    held[1] = byId('carbine'); P.ammoBy.carbine.mag = clipOf(held[1]); // everyone starts with the Pistol and the Carbine, both loaded (the rest are found on the map)
+    syncInv(); pick(1, true);
   }
   // A weapon from a pickup in a game (model: the game's weapon id; ammo: rounds it carries, or none for a full clip)
   const BY_MODEL = { pistol: 'pistol', carbine: 'carbine', uzi: 'izu', shotgun: 'battery', rifle: 'rifle', bazooka: 'tube' };
@@ -640,7 +641,8 @@
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
   function drawSlots() {
-    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
+    const keyOf = i => (i < HANDS ? i + 1 : i === HANDS ? 'X' : 'F');
+    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${keyOf(i)}&nbsp; ${s.kind === 'throw' && i === cur && (hot ? hotMine : mineMode()) ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
     const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
     const hk = '';;
     slotsEl.innerHTML = hands.join('') + hk + `<div class="am">${am}</div>`;
@@ -829,7 +831,7 @@
     zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
     next(dir) {
       if (!P.alive || hot) return;
-      const can = [0, 1, 2, 3, 4].filter(canPick); if (!can.length) return;
+      const can = [0, 1, 2].filter(canPick); if (!can.length) return; // just your weapons: the knife is X, the grenade F
       const i = can.indexOf(cur); pick(can[i < 0 ? (dir > 0 ? 0 : can.length - 1) : (i + dir + can.length) % can.length]);
     },
     hotDown, hotUp, quickKnife, giveItem, loseItem,
@@ -842,11 +844,12 @@
     key(code) {
       if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
-      if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
+      if (n) { if (P.alive && +n[1] <= HANDS) pick(+n[1] - 1); return true; } // 1-3: your weapons (the knife and the grenade have their own keys)
       if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
-      if (code === 'KeyF') { quickKnife(); return true; }
-      return code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
+      if (code === 'KeyX') { quickKnife(); return true; } // a stab, without putting the gun away
+      if (code === 'KeyF') { hotDown(); return true; } // out comes a grenade, pin pulled: let go to throw; right-click while it's out makes it a mine (keyup: releaseCook)
+      return code === 'KeyG';
     },
     tab() { if (!live() || NET.role === 'guest' || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; }, // only the host tunes the weapons
     // The game's blasts (grenades and the tube's rockets) land here in the range

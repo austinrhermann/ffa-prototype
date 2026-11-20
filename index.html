@@ -391,10 +391,13 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>Shift</dt><dd>Run</dd>
       <dt>C</dt><dd>Crouch</dd>
       <dt>Space</dt><dd>Jump</dd>
-      <dt>Left click</dt><dd>Use the weapon in your hands (hold to cook a grenade)</dd>
-      <dt>X, right click</dt><dd>Aim down sights (X toggles; Ctrl-click works as right click)</dd>
+      <dt>Left click</dt><dd>Fire the weapon in your hands</dd>
+      <dt>Right click</dt><dd>Aim down sights (Ctrl-click works as right click)</dd>
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
-      <dt>1–6, wheel</dt><dd>Pick a weapon: your three, the knife, then grenade and mine (an F battery is both)</dd>
+      <dt>1–3, wheel</dt><dd>Pick one of your three weapons</dd>
+      <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
+      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery)</dd>
+      <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
@@ -799,14 +802,13 @@ function levelFortress() {
       [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55],
       [-36, 26.8, 99], [-43, 26.9, 92.5], [-39.5, 26.8, 89.5], [-34.5, 26.9, 95.4, 1], [50, 24.9, 100], [42, 24.9, 92], [47, 25.0, 89.5], [52, 24.9, 97, 1], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9]],
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5]],
-    // A shotgun in the courtyard, the rifle on the tower roof, carbines out in the valley and on the hill, the Uzi in
-    // the back corridor (an SMG for the tight indoor fights, not the open ground outside)
-    pickups: [['shotgun', -1.0, 34, 2.3], ['rifle', 5.3, 48, 2.6], ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['shotgun', 2, 23.5, 56], ['uzi', 0.3, 37.5, -5.3],
-      ['uzi', -8, 30, 16], ['uzi', -22, 26, 26], ['uzi', 10, 32.5, 40], ['uzi', 2.2, 37.5, 3.9],
-      ['bazooka', -2, 37.5, -5.3], ['carbine', 0.9, 37.5, 4.4], // in the fort, a bazooka and a carbine on the wall walk
-      ['rifle', 19.5, 23.6, 58.6], ['shotgun', 18.6, 23.6, 60.4], // behind the jeep: the Master's rifle and a shotgun
-      ['rifle', -18.8, 26.5, 9.0], ['bazooka', -2.0, 46.3, 106.5], // the Master's rifle in the bunker; the bazooka up on the divider's crest
-      ['shotgun', -37, 26.9, 93.5], ['uzi', -42, 26.9, 98], ['carbine', -29.0, 27.0, 76.0], ['shotgun', 48.5, 24.9, 93.8], ['uzi', 44, 24.9, 99], ['carbine', 26.1, 24.6, 76.7]], // clearings A and B and their roads
+    // Everyone starts with the Pistol and the Carbine, so the rest are the prizes, few of each (and a spot doesn't fill again while its weapon is still
+    // about: PICKUP_LIMIT): the Master Rifle beside the Computer in the tower room, the F tube on the hilltop beside the truck, two Izus (the back
+    // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). Carbines out in the open for anyone who lost theirs
+    pickups: [['rifle', 4.4, 44.3, 2.6], ['bazooka', 28, 33.9, 50],
+      ['uzi', 0.3, 37.5, -5.3], ['uzi', 10, 32.5, 40],
+      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 23.5, 56],
+      ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['carbine', 0.9, 37.5, 4.4], ['carbine', -29.0, 27.0, 76.0], ['carbine', 26.1, 24.6, 76.7]],
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
     // (the walking map leaves out the spot it stands on: buildFortNav)
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
@@ -3955,12 +3957,16 @@ function centeredClone(sc, yaw) {
   const g = new THREE.Group(), m = sc.clone(true); m.rotation.y = yaw || 0; g.add(m); g.updateMatrixWorld(true);
   const c = new THREE.Box3().setFromObject(g).getCenter(new V3()); m.position.sub(c); return g;
 }
+// The power weapons: a spot fills again only once fewer of its weapon are about (carried, or dropped and not yet gone) than the level has spots for it
+const PICKUP_LIMIT = new Set(['rifle', 'bazooka', 'uzi', 'shotgun']);
+const pickupSpots = id => (PICKUP_LIMIT.has(id) ? PICKUPS.filter(p => !p.dropped && p.id === id).length : Infinity);
+const pickupOut = id => ents.filter(e => e.alive && e.inv && e.inv.includes(id)).length + PICKUPS.filter(p => p.id === id && p.active).length;
 function buildPickups() { for (const [id, p] of STATIC_PICKUPS) addPickup(id, p); }
 function updatePickups(dt, now) {
   for (let i = PICKUPS.length - 1; i >= 0; i--) {
     const pk = PICKUPS[i];
     if (pk.dropped) { pk.life -= dt; if (pk.life <= 0) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); continue; } }
-    if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { pk.active = true; pk.mesh.visible = true; } continue; }
+    if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { if (pickupOut(pk.id) >= pickupSpots(pk.id)) { pk.t = 1; continue; } pk.active = true; pk.mesh.visible = true; } continue; }
     pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
       if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // no picking up weapons from a seat
@@ -4065,8 +4071,8 @@ function botSelect(b, id) {
 }
 function botInitWeapons(b) {
   b.ammo = WEAPONS.pistol.mag; b.reserve = WEAPONS.pistol.startRes;
-  b.inv = ['pistol']; b.ammoBy = { pistol: { mag: b.ammo, res: b.reserve } }; b.wpn = 'pistol';
-  botSelect(b, 'pistol');
+  b.inv = ['pistol', 'carbine']; b.ammoBy = { pistol: { mag: b.ammo, res: b.reserve }, carbine: { mag: WEAPONS.carbine.mag, res: WEAPONS.carbine.startRes } }; b.wpn = 'pistol';
+  botSelect(b, 'carbine'); // the Pistol and the Carbine, like everyone
 }
 function botChooseWeapon(b, dist) {
   const left = id => { if (!b.inv.includes(id)) return 0; if (id === b.wpn) return b.ammo + b.reserve; return b.ammoBy[id].mag + b.ammoBy[id].res; };
@@ -4681,8 +4687,9 @@ addEventListener('keydown', e => {
   if (!locked || e.repeat) return;
   if (e.code === 'KeyP') { ART.toggle(); return; } // draw mode on and off
   if (VEH.key(e.code)) return; // getting in and out, and the controls you use at the wheel
+  if (e.code === 'KeyV') { CTL.third = !CTL.third; $('sthird').checked = CTL.third; saveCtl(); syncMenu(); return; } // first or third person (in a vehicle, V is its own two views)
   if (ART.key(e.code)) return; // draw mode: 1-6 colours, Q pen or spray
-  if (RANGE.key(e.code)) return; // the range's weapon keys (F is the knife; right-click with the grenade for a mine)
+  if (RANGE.key(e.code)) return; // the range's weapon keys (X the knife; F a grenade, right-click while it's out for a mine)
   if (e.code === 'KeyN') toggleCam();
   if (e.code === 'KeyF' || e.code === 'KeyG') playerNade();
   if (e.code === 'KeyQ') nextWeapon(1);
@@ -6498,8 +6505,8 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=30"></script>
-<script src="range.js?v=26"></script>
+<script src="vehicles.js?v=31"></script>
+<script src="range.js?v=28"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=2"></script>
 </body>
