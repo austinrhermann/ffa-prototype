@@ -1,7 +1,7 @@
 // The weapon system, and the Shooting Range to dial it in. Every game uses it (not Test Drive or the fort's waves, which keep the old one):
 //   - Everyone has 32 health (was 40 until 2026-11-03), shown as a colour from blue (full) to red (1 left). Every hit does a whole number of damage.
 //     The game keeps its own health numbers (HP), so damage is scaled by HP / LIFE on the way in.
-//   - Five guns (Pistol and Carbine take A batteries, Izu and Battery Gun D batteries, the Master Rifle its own rounds),
+//   - Five guns (Pistol, Carbine, Izu and Battery Gun all take D batteries, the Master Rifle clips of 5 rounds; A batteries are gone since 2026-11-20),
 //     each set by the same few numbers: body and head damage, spread, spread growth (the only recoil), rate, clip, pellets.
 //   - An F battery is a grenade or a mine, or a shell for the F tube (a mortar). A blast does its centre damage in the middle
 //     ring and one less in each ring out; walls block it, and it hurts anyone in reach (you too).
@@ -24,8 +24,8 @@
   // Every weapon, as it lies on the ground. model: which gun the game draws and plays the sounds of (sound: different sounds,
   // played together). ammo: the batteries it takes (AMMO).
   const SLOTS = [
-    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', sound: ['gun', 'laser'], ammo: 'A' },
-    { id: 'carbine', name: 'Carbine', kind: 'gun', model: 'carbine', sound: ['gun', 'laser'], ammo: 'A' },
+    { id: 'pistol', name: 'Pistol', kind: 'gun', model: 'pistol', sound: ['gun', 'laser'], ammo: 'D' },
+    { id: 'carbine', name: 'Carbine', kind: 'gun', model: 'carbine', sound: ['gun', 'laser'], ammo: 'D' },
     { id: 'izu', name: 'Izu', kind: 'gun', model: 'uzi', ammo: 'D' },
     { id: 'battery', name: 'Battery Gun', kind: 'gun', model: 'shotgun', ammo: 'D' },
     { id: 'rifle', name: 'Master Rifle', kind: 'gun', model: 'rifle', ammo: 'R' },
@@ -39,9 +39,9 @@
   const KNIFE = { id: 'knife', name: 'Knife', kind: 'knife', ammo: '' }, HANDS = 3;
   // Ammo is carried apart from the weapons. A reload takes one battery and fills the clip (what was left in the old one is
   // thrown away); the rifle takes a round; a grenade, a mine or an F tube shot takes one F battery.
-  const AMMO = { A: 'A battery', D: 'D battery', F: 'F battery', R: 'rifle round' };
-  const AMMOS = { A: 'A batteries', D: 'D batteries', F: 'F batteries', R: 'rifle rounds' };
-  const COL = { A: '#e8c33a', D: '#3a8ee8', F: '#e8553a', R: '#d9d9d9' };
+  const AMMO = { A: 'A battery', D: 'D battery', F: 'F battery', R: 'rifle clip' };
+  const AMMOS = { A: 'A batteries', D: 'D batteries', F: 'F batteries', R: 'rifle clips' };
+  const COL = { A: '#e8c33a', D: '#ffb703', F: '#d9261c', R: '#d9d9d9' }; // D: construction-vehicle yellow; F: red
   // Spread is how wide the shots land: spread N covers a circle N × 10 cm across at 10 m (twice that at 20 m).
   // grow: extra spread built up by holding the trigger (all of it after 8 shots in a row); it settles once you let go.
   // aim: aiming down the sights multiplies the spread by this (1: no help). moving: how much of the walk/run/jump spread the gun takes.
@@ -53,7 +53,7 @@
       carbine: { body: 6,  head: 7,  spread: 4,  grow: 0,  rate: 5,   clip: 18, count: 1,  reload: 2,   aim: 0.15, moving: 3,    aimMove: 1,   auto: false, fall: 140, fallMin: 0.55 },
       izu:     { body: 6,  head: 5,  spread: 6,  grow: 20, rate: 12,  clip: 20, count: 1,  reload: 2,   aim: 1,    moving: 5,    aimMove: 1,   auto: true,  fall: 0,   fallMin: 0.4 },
       battery: { body: 5,  head: 6,  spread: 30, grow: 20, rate: 3,   clip: 1,  count: 20, reload: 1.7, aim: 1,    moving: 0.3,  aimMove: 1,   auto: false, fall: 60,  fallMin: 0.1 },
-      rifle:   { body: 12, head: 18, spread: 2,  grow: 0,  rate: 2,   clip: 1,  count: 1,  reload: 1,   aim: 0.1,  moving: 4.05, aimMove: 1,   auto: false, fall: 0,   fallMin: 0.25 },
+      rifle:   { body: 12, head: 18, spread: 2,  grow: 0,  rate: 1,   clip: 5,  count: 1,  reload: 3,   aim: 0.1,  moving: 4.05, aimMove: 1,   auto: false, fall: 0,   fallMin: 0.25 },
     },
     blast: { max: 25, ring: 0.5, show: false }, // max: damage in the centre ring; ring: width of each ring (m); show: draw them where a blast goes off
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
@@ -64,15 +64,15 @@
     targets: { strafe: 0.5, heal: 3 },       // strafe: lane dummies pace side to side at this speed (m/s); heal: your damage wears off after this long
     cross: { ease: 0.2, opacity: 45 },       // ease: how long the crosshair circle takes to catch up with the spread (s); opacity: 0-100 (yours alone: the host's value isn't sent on)
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
-    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 4 }, F: { pack: 2, max: 4 }, R: { pack: 4, max: 4 }, respawn: 5, infinite: false },
-    // In a game: you spawn with the Pistol loaded and startA spare A batteries; packs come back after packs seconds (rifle
+    ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 8 }, F: { pack: 2, max: 4 }, R: { pack: 1, max: 2 }, respawn: 5, infinite: false }, // (A: no longer used; R: rifle clips of 5, and only the rifle itself brings them)
+    // In a game: you spawn with the Pistol and the Carbine loaded, startD D batteries and startF F batteries; packs come back after packs seconds (rifle
     // rounds after rifle), weapons on their spots after weapons seconds
-    game: { startA: 1, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
+    game: { startD: 4, startF: 2, dropLife: 20, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
   };
   const MAXLIFE = 200;
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
-  const SAVE = 'tse.range.v4', SAVE_X = 'tse.range.cross';
+  const SAVE = 'tse.range.v5', SAVE_X = 'tse.range.cross';
   const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
   try { merge(S.cross, JSON.parse(localStorage.getItem(SAVE_X) || 'null')); } catch (e) {} // (a guest's own crosshair, kept apart from the host's numbers)
   if (S.knife.back === 20) S.knife.back = LIFE0; // a knife from behind saved at the old full health still kills
@@ -107,7 +107,7 @@
   const K = () => (live() ? 1 : maxHp(P) / LIFE); // our damage in the game's health (1 when everyone has LIFE, as in every game but Test Drive)
   let cur = HANDS, heat = 0, cooking = -1, beepT = 0, shotN = 0, panelOpen = false, built = false;
   const held = [null, null, null], heldU = [null, null, null], bats = { A: 0, D: 0, F: 0, R: 0 };
-  let myLight = null, hot = null, hotPrev = 0, hotMine = false, hotBack = 0, lightOn = true; // hot: the F grenade in hand (and the hand to go back to) // your three hands (cur === HANDS is the knife), and your batteries
+  let hot = null, hotPrev = 0, hotMine = false, hotBack = 0, lightOn = false; // hot: the F grenade in hand (and the hand to go back to) // your three hands (cur === HANDS is the knife), and your batteries
   const byId = id => SLOTS.find(x => x.id === id);
   const handSlot = i => (i < HANDS ? held[i] : [KNIFE, byId('throw')][i - HANDS]); // hands 0-4
   const slot = () => handSlot(cur) || KNIFE;
@@ -374,7 +374,7 @@
     if (!has('F')) { outOf('F'); return; }
     hot = { back: cur }; hotPrev = cur; pick(HANDS + 1, true); spend('F');
     cooking = 0; beepT = 0.5; hotMine = false; sPin();
-    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4);
+    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4, 6);
   }
   function cookHot(dt) {
     if (hotMine) return;
@@ -399,7 +399,6 @@
   const itemSlot = u => (u[0] === 's' ? byId('spray' + u.slice(1)) : null);
   // Something off the ground (the host says it's yours): into a free hand, or the flashlight
   function giveItem(u) {
-    if (u[0] === 'f') { if (myLight) return false; myLight = u; lightOn = true; note('Picked up a flashlight: L turns it on or off', 2.5); return true; }
     const sl = itemSlot(u); if (!sl) return false;
     if (held.includes(sl) || heldU.includes(u)) return false;
     const i = held.indexOf(null); if (i < 0) { if (fullT <= 0) { fullT = 2; note('Your hands are full (3 things): Q drops the one you hold', 1.8); } return false; }
@@ -410,7 +409,6 @@
   }
   // The host took it back (you died, the round started again, or it went to someone else first)
   function loseItem(u) {
-    if (myLight === u) { myLight = null; return; }
     const i = heldU.indexOf(u); if (i < 0) return;
     held[i] = null; heldU[i] = null; syncInv();
     if (i === cur) { const next = held.findIndex(Boolean); pick(next < 0 ? HANDS : next, true); } else drawSlots();
@@ -431,13 +429,16 @@
     drawSlots();
   }
   const syncInv = () => { P.inv = held.filter(h => h && h.model).map(h => h.model); };
-  // In the range you start with the knife and nothing else; in a game with the Pistol loaded and a spare A battery or so
+  // In the range you start with the knife and nothing else; in a game with the Pistol and Carbine loaded, D and F batteries and your flashlight
   function kit() {
-    held.fill(null); heldU.fill(null); myLight = null; hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
+    held.fill(null); heldU.fill(null); hot = null; lightOn = nightOn(); // everyone has a flashlight: on to start at dusk and night (L)
+    if (lightOn) hint('flashlight', 'L turns your flashlight on or off', 3);
+    hot = null; hotMine = false; hotBack = 0; for (const k in bats) bats[k] = 0; P.nades = 0; cooking = -1;
     P.ammoBy = {}; for (const sl of SLOTS) if (sl.model) P.ammoBy[sl.model] = { mag: 0, res: 0 };
     curW = 'pistol'; P.ammo = 0; P.reserve = 0; cur = HANDS;
-    held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.A = Math.min(S.ammo.A.max, S.game.startA);
-    syncInv(); pick(0, true);
+    held[0] = byId('pistol'); P.ammoBy.pistol.mag = clipOf(held[0]); bats.D = Math.min(S.ammo.D.max, S.game.startD); bats.F = Math.min(S.ammo.F.max, S.game.startF);
+    held[1] = byId('carbine'); P.ammoBy.carbine.mag = clipOf(held[1]); // everyone starts with the Pistol and the Carbine, both loaded (the rest are found on the map)
+    syncInv(); pick(1, true);
   }
   // A weapon from a pickup in a game (model: the game's weapon id; ammo: rounds it carries, or none for a full clip)
   const BY_MODEL = { pistol: 'pistol', carbine: 'carbine', uzi: 'izu', shotgun: 'battery', rifle: 'rifle', bazooka: 'tube' };
@@ -445,12 +446,17 @@
     const sl = byId(BY_MODEL[model]); if (!sl) return false;
     if (held.some(h => h === sl)) return false;
     if (held.indexOf(null) < 0) { if (fullT <= 0) { fullT = 2; note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); } return false; }
-    return take({ id: sl.id, load: ammo === undefined ? clipOf(sl) : Math.min(clipOf(sl), ammo) });
+    // ammo: rounds that come with it (none given: from its spot, a full clip, and the rifle a spare clip as well). The rifle's
+    // rounds past the clip in it are spare clips
+    const c = clipOf(sl), total = ammo === undefined ? (sl.ammo === 'R' ? 2 * c : c) : Math.max(0, ammo);
+    if (!take({ id: sl.id, load: Math.min(c, total) })) return false;
+    if (sl.ammo === 'R' && c > 0) { const spare = Math.round((total - Math.min(c, total)) / c); if (spare > 0) { bats.R = Math.min(S.ammo.R.max, bats.R + spare); note(`Picked up the ${sl.name}, with ${spare + (total >= c ? 1 : 0)} clips of ${c}`, 2); } }
+    return true;
   }
-  // A pack of batteries (k: A, D, F or R); returns how many you could carry
-  function addBats(k) {
+  // A pack of batteries (k: D, F or R; size: how many are in it, a full pack if not given); returns how many you could carry
+  function addBats(k, size) {
     const a = S.ammo[k]; if (!a) return 0;
-    const n = Math.min(a.pack, a.max - bats[k]); if (n <= 0) return 0;
+    const n = Math.min(size === undefined ? a.pack : size, a.max - bats[k]); if (n <= 0) return 0;
     bats[k] += n; note(`+${n} ${n === 1 ? AMMO[k] : AMMOS[k]}`, 1);
     return n;
   }
@@ -517,7 +523,7 @@
       { // the host keeps the pickups, so a guest's dropped weapon is handed to it
         const sl = byId(it.id);
         if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'drop', id: sl.model, p: arr(it.pos), a: it.load }); }
-        else addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: 30 });
+        else addPickup(sl.model, it.pos, { dropped: true, ammo: it.load, life: S.game.dropLife });
         it.gone = true;
       }
     }
@@ -641,8 +647,9 @@
   const batsTxt = t => (S.ammo.infinite ? '∞' : bats[t]);
   let slotsKey = '';
   function drawSlots() {
-    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${i + 1}&nbsp; ${s.kind === 'throw' && i === cur && mineMode() ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'rounds' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
-    const am = ['A', 'D', 'F', 'R'].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle' : t}</b> ${batsTxt(t)}`).join(' · ');
+    const keyOf = i => (i < HANDS ? i + 1 : i === HANDS ? 'X' : 'F');
+    const hands = [0, 1, 2, 3, 4].map(i => { const s = handSlot(i); return s ? `<div class="${i === cur ? 'on' : canPick(i) ? '' : 'no'}">${keyOf(i)}&nbsp; ${s.kind === 'throw' && i === cur && (hot ? hotMine : mineMode()) ? 'Mine' : s.name}${s.ammo ? ` <small>${s.ammo === 'R' ? 'clips' : s.ammo} ×${batsTxt(s.ammo)}</small>` : ''}</div>` : `<div class="no">${i + 1}&nbsp; —</div>`; });
+    const am = ['D', 'F', ...(bats.R || held.some(h => h && h.ammo === 'R') ? ['R'] : [])].map(t => `<b style="color:${COL[t]}">${t === 'R' ? 'Rifle clips' : t}</b> ${batsTxt(t)}`).join(' · ');
     const hk = '';;
     slotsEl.innerHTML = hands.join('') + hk + `<div class="am">${am}</div>`;
   }
@@ -703,14 +710,11 @@
       ['move.crouch', 'Crouching multiplies by', 0.1, 1, 0.05, '×', ''],
     ]],
     ['Ammo', [
-      ['ammo.A.pack', 'A batteries in a pack', 1, 10, 1, '', 'Pistol and Carbine: one battery fills the clip.'],
-      ['ammo.A.max', 'Most A batteries you can carry', 1, 30, 1, '', ''],
-      ['ammo.D.pack', 'D batteries in a pack', 1, 10, 1, '', 'Izu and Battery Gun.'],
+      ['ammo.D.pack', 'D batteries in a pack', 1, 10, 1, '', 'Every gun but the Master Rifle: one battery fills the clip.'],
       ['ammo.D.max', 'Most D batteries you can carry', 1, 30, 1, '', ''],
       ['ammo.F.pack', 'F batteries in a pack', 1, 10, 1, '', 'Each one is a grenade or a mine (hands 5 and 6), or an F tube shot.'],
       ['ammo.F.max', 'Most F batteries you can carry', 1, 30, 1, '', ''],
-      ['ammo.R.pack', 'Rifle rounds in a pack', 1, 10, 1, '', ''],
-      ['ammo.R.max', 'Most rifle rounds you can carry', 1, 30, 1, '', ''],
+      ['ammo.R.max', 'Most spare rifle clips you can carry', 1, 10, 1, '', 'The rifle comes with one in it and one spare.'],
       ['ammo.respawn', 'Packs come back after', 1, 60, 1, 's', 'And a weapon nobody has, held or lying around, comes back to its spot.'],
     ], 'ammo'],
     ['Crosshair', [
@@ -721,10 +725,10 @@
       ['game.life', 'Everyone\'s health', 4, MAXLIFE, 1, '', 'The same for everyone, you, the bots and anyone who joins (the host\'s number). Damage above is out of this.'],
       ['game.gateHp', 'Fort gate health', 50, 5000, 50, '', 'How much the gate takes to break (a gun\'s body damage counts five times, a blast ten). Takes effect the next time it\'s shut.'],
       ['game.doorHp', 'Bunker door health', 20, 2000, 20, '', 'The same for the locked bunker door, from the next time it\'s locked.'],
-      ['game.startA', 'Spare A batteries you spawn with', 0, 4, 1, '', 'Besides the Pistol, loaded.'],
-      ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'Every weapon spot has its pack, and the level\'s ammo boxes are A or D packs (F where the grenades were).'],
-      ['game.rifle', 'Rifle rounds come back after', 5, 180, 5, 's', ''],
-      ['game.weapons', 'Weapons come back to their spot after', 5, 120, 5, 's', 'Weapons people drop lie there for 30 s.'],
+      ['game.startD', 'D batteries you spawn with', 0, 8, 1, '', 'Besides the Pistol and the Carbine, loaded.'],
+      ['game.startF', 'F batteries you spawn with', 0, 4, 1, '', 'Grenades and mines.'],
+      ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'The level\'s ammo spots are D packs (F where the grenades were). What falls from the dead never goes away.'],
+      ['game.dropLife', 'Dropped weapons lie there for', 5, 120, 5, 's', 'Then a Pistol or Carbine is gone, and anything else goes back to its spot on the map.'],
     ]],
   ];
   const getP = p => p.split('.').reduce((o, k) => o[k], S);
@@ -811,10 +815,12 @@
     fx(m) { if (m.t === 'wset') useSettings(m.s); else mineFx(m); }, // the host's settings and mines, on a guest
     cfg: () => S,
     bats: () => [bats.A, bats.D, bats.F, bats.R],
-    // What a box gives: the pack for a weapon spot's gun (rifle rounds by the rifle), and how long it takes to come back
+    // What a box gives, and how long it takes to come back
     ammoOf: model => { const sl = byId(BY_MODEL[model]); return sl ? sl.ammo : null; },
+    batMax: k => (S.ammo[k] ? S.ammo[k].max : 0),
+    clipOf: model => { const sl = byId(BY_MODEL[model]); return sl ? clipOf(sl) : 0; },
     packWait: k => (k === 'R' ? S.game.rifle : S.game.packs),
-    weaponWait: () => S.game.weapons,
+    weaponWait: () => S.game.weapons, dropLife: () => (live() ? S.game.dropLife : 30),
     // A bot's gun under the new numbers (the game's own aim and timing, these damages, rates and clips)
     botW(model) {
       const w = WEAPONS[model], sl = byId(BY_MODEL[model]); if (!sl || sl.kind !== 'gun') return w;
@@ -830,24 +836,27 @@
     zooms: () => slot().id === 'carbine' || slot().id === 'rifle', // aiming goes down the barrel (the others just aim)
     next(dir) {
       if (!P.alive || hot) return;
-      const can = [0, 1, 2, 3, 4].filter(canPick); if (!can.length) return;
+      const can = [0, 1, 2].filter(canPick); if (!can.length) return; // just your weapons: the knife is X, the grenade F
       const i = can.indexOf(cur); pick(can[i < 0 ? (dir > 0 ? 0 : can.length - 1) : (i + dir + can.length) % can.length]);
     },
     hotDown, hotUp, quickKnife, giveItem, loseItem,
-    items: () => [...heldU.filter(Boolean), ...(myLight ? [myLight] : [])], // what you carry of items.js's things
+    items: () => heldU.filter(Boolean), // what you carry of items.js's things
     handItem: () => (cur < HANDS ? heldU[cur] : null),
     handsUsed: () => held.filter(Boolean).length,
     paint: () => (slot().kind === 'spray' && P.alive ? slot().c : -1), // the colour of the spray can in your hands
-    lightOn: () => !!myLight && lightOn && P.alive,
+    lightOn: () => lightOn && P.alive && live(), // your flashlight (everyone has one: L)
+    toggleLight() { if (!P.alive || !live()) return; lightOn = !lightOn; sBeep(lightOn ? 1500 : 1100); },
     keyUp() { return false; },
     key(code) {
       if (!live()) return false;
       const n = /^Digit([1-9])$/.exec(code);
-      if (n) { if (P.alive && +n[1] <= HANDS + 2) pick(+n[1] - 1); return true; }
+      if (n) { if (P.alive && +n[1] <= HANDS) pick(+n[1] - 1); return true; } // 1-3: your weapons (the knife and the grenade have their own keys)
       if (code === 'KeyQ') { if (P.alive && !hot) drop(); return true; }
       if (code === 'KeyR') { startReload(); return true; }
-      if (code === 'KeyF') { quickKnife(); return true; }
-      return code === 'KeyG'; // no grenade hotkey: it's a weapon you switch to
+      if (code === 'KeyX') { quickKnife(); return true; }
+      if (code === 'KeyL') { this.toggleLight(); return true; } // the flashlight // a stab, without putting the gun away
+      if (code === 'KeyF') { hotDown(); return true; } // out comes a grenade, pin pulled: let go to throw; right-click while it's out makes it a mine (keyup: releaseCook)
+      return code === 'KeyG';
     },
     tab() { if (!live() || NET.role === 'guest' || !(locked || panelOpen)) return false; setPanel(!panelOpen, true); return true; }, // only the host tunes the weapons
     // The game's blasts (grenades and the tube's rockets) land here in the range
@@ -867,7 +876,7 @@
       for (const e of ents) { if (e !== P && (e.hpDot || live())) hpDot(e); if (e.rig && (e.rig.gearKey || live())) gear(e); }
       if (!live()) return;
       hpEl.style.backgroundColor = hpColour(Math.ceil(P.health / K() - 1e-6));
-      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine + myLight + lightOn; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
+      const k = held.map(h => h && h.id).join() + cur + Object.values(bats).join() + S.ammo.infinite + mineMode() + hotMine; if (k !== slotsKey) { slotsKey = k; drawSlots(); }
       // The crosshair: the spread cone as it lands on screen, which is the same at any distance. Eased, so it breathes.
       const g = slot().kind === 'gun' ? gunOf(slot()) : null;
       const half = g ? spreadNow(g) * 0.005 : 0, h = renderer.domElement.clientHeight || innerHeight;
