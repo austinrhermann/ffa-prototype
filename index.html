@@ -398,6 +398,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
       <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery)</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
+      <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
@@ -767,7 +768,25 @@ let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
 const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
-const LAMPS = { after() {} }; // the headlights (headlights.js fills it in)
+const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
+// Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
+// and where they look. Off in a vehicle (the headlights do that job) and while dead
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82);
+function flashBeam(e) {
+  const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn(); // (the host's bots: on whenever it's dark)
+  if (!e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
+  const o = new V3(), d = new V3();
+  if (e.isPlayer) {
+    d.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
+  } else {
+    const f = fwdOf(e), p = e.pitch || 0, c = Math.cos(p);
+    d.set(f.x * c, Math.sin(p), f.z * c).normalize();
+    const head = e.rig ? e.rig.model.headY : 1.6;
+    o.set(e.pos.x, e.pos.y + head - 0.1, e.pos.z).addScaledVector(d, 0.3);
+  }
+  return { o, d, far: 30, fov: 46, cone: 0.94, col: FLASHLIGHT_COL, e };
+}
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
@@ -804,11 +823,10 @@ function levelFortress() {
     heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5]],
     // Everyone starts with the Pistol and the Carbine, so the rest are the prizes, few of each (and a spot doesn't fill again while its weapon is still
     // about: PICKUP_LIMIT): the Master Rifle beside the Computer in the tower room, the F tube on the hilltop beside the truck, two Izus (the back
-    // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). Carbines out in the open for anyone who lost theirs
+    // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). No Pistols or Carbines lie about: you scavenge the dead's
     pickups: [['rifle', 4.4, 44.3, 2.6], ['bazooka', 28, 33.9, 50],
       ['uzi', 0.3, 37.5, -5.3], ['uzi', 10, 32.5, 40],
-      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 23.5, 56],
-      ['carbine', -8, 30, 20], ['carbine', 24, 34.5, 46], ['carbine', 0.9, 37.5, 4.4], ['carbine', -29.0, 27.0, 76.0], ['carbine', 26.1, 24.6, 76.7]],
+      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 23.5, 56]],
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
     // (the walking map leaves out the spot it stands on: buildFortNav)
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
@@ -3768,7 +3786,7 @@ function resetMatch() {
   ammoBoxes.forEach(a => { a.active = true; a.mesh.visible = true; });
   for (let i = PICKUPS.length - 1; i >= 0; i--) { const pk = PICKUPS[i]; if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); } else { pk.active = true; pk.mesh.visible = true; } }
   HEALS.forEach(h => setHeal(h, true));
-  clearCorpses(); clearHoles();
+  clearCorpses(); clearHoles(); clearBags();
   matchOver = false;
   ents.forEach(respawn); VEH.onLevel(); RANGE.onLevel(); if (LV && LV.gate) { GATE.hp = 100; gateLock = 0; setGate(true); } if (LV && LV.towerDoor) resetTowerDoor(); for (const sh of SHEDS) if (sh.lock) { sh.locked = false; sh.lockHp = 0; } // the vehicles go back to the lot; the fort's gate starts whole (and open in the new weapon system)
   if (NET.role === 'host') broadcast({ t: 'reset', tg: GAME_TEAMS });
@@ -3901,11 +3919,10 @@ function updateRockets(dt) {
 const ammoBoxes = [];
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
-  // Battery packs: A and D in turn, F where the grenades were, and each weapon's own pack on its spot (range.js draws them;
+  // Battery packs: D, and F where the grenades were (range.js draws them;
   // before it has loaded there are none: the fort's switch builds them)
   if (RANGE.on) {
-    let i = 0; const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : i++ % 2 ? 'D' : 'A' }));
-    for (const [id, p] of STATIC_PICKUPS) { const kind = RANGE.ammoOf(id); if (kind) spots.push({ pos: p, kind }); }
+    const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D' })); // (no packs on the weapon spots: just the two kinds, D and F)
     for (const { pos: p, cell, kind } of spots) {
       const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
@@ -3957,7 +3974,8 @@ function centeredClone(sc, yaw) {
   const g = new THREE.Group(), m = sc.clone(true); m.rotation.y = yaw || 0; g.add(m); g.updateMatrixWorld(true);
   const c = new THREE.Box3().setFromObject(g).getCenter(new V3()); m.position.sub(c); return g;
 }
-// The power weapons: a spot fills again only once fewer of its weapon are about (carried, or dropped and not yet gone) than the level has spots for it
+// The power weapons: a spot fills again only once fewer of its weapon are about (carried, or dropped and not yet gone) than the level has spots for it,
+// so when one lying where its carrier died runs out its time, it's back on its spot
 const PICKUP_LIMIT = new Set(['rifle', 'bazooka', 'uzi', 'shotgun']);
 const pickupSpots = id => (PICKUP_LIMIT.has(id) ? PICKUPS.filter(p => !p.dropped && p.id === id).length : Infinity);
 const pickupOut = id => ents.filter(e => e.alive && e.inv && e.inv.includes(id)).length + PICKUPS.filter(p => p.id === id && p.active).length;
@@ -3973,7 +3991,7 @@ function updatePickups(dt, now) {
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
       if (Math.hypot(e.pos.x - pk.pos.x, e.pos.z - pk.pos.z) < 1.1 && Math.abs(e.pos.y - pk.pos.y) < 1.3 && giveWeapon(e, pk.id, pk.ammo)) {
         if (pk.dropped) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); }
-        else { pk.active = false; pk.t = RANGE.on ? RANGE.weaponWait() : WEAPONS[pk.id].respawn || 25; pk.mesh.visible = false; }
+        else { pk.active = false; pk.t = PICKUP_LIMIT.has(pk.id) ? 0.5 : RANGE.on ? RANGE.weaponWait() : WEAPONS[pk.id].respawn || 25; pk.mesh.visible = false; } // (a power weapon is back the moment its copy is gone: pickupOut)
         break;
       }
     }
@@ -4101,17 +4119,69 @@ function giveWeapon(e, id, ammo) {
   if (e.isRemote) sendTo(e, { t: 'give', id, ammo });
   return true;
 }
+// Everything a soldier carried falls where they die: their weapons (each lies there for RANGE.dropLife() seconds, then a Pistol or Carbine
+// is gone and anything else is back on its spot: PICKUP_LIMIT) and their batteries (BAGS: they never go away)
 function dropWeapons(e) {
   if (!e.inv) return; syncE(e);
   let k = 0;
+  const spareR = e.isPlayer ? RANGE.bats()[3] : e.isRemote && e.gBats ? e.gBats[3] | 0 : 0; // the rifle's spare clips go with it
   for (const id of e.inv) {
-    if (id === 'pistol') continue;
-    const a = e.ammoBy[id], ammo = a.mag + a.res; if (ammo <= 0) continue;
+    if (!RANGE.on && id === 'pistol') continue;
+    const a = e.ammoBy[id] || { mag: 0, res: 0 };
+    const ammo = RANGE.on ? (e.bot ? RANGE.clipOf(id) : a.mag + (RANGE.ammoOf(id) === 'R' ? spareR * RANGE.clipOf(id) : 0)) : a.mag + a.res; // (a bot's gun: a full clip)
+    if (!RANGE.on && ammo <= 0) continue;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
     pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
-    addPickup(id, pos, { dropped: true, ammo, life: 30 });
+    addPickup(id, pos, { dropped: true, ammo, life: RANGE.dropLife() });
   }
   e.inv = ['pistol'];
+  if (RANGE.on) dropBats(e, k);
+}
+// Batteries that fell from the dead: a pack of D and one of F (as many as they had), there until someone takes them all. The host keeps them
+// and sends them in its snapshot (bg); the oldest go if there get to be too many
+const BAGS = [], BAG_MAX = 60; let BAG_KEY = 0;
+function addBag(kind, n, pos, key) {
+  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.3, pos.z); scene.add(g);
+  const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g }; BAGS.push(b); return b;
+}
+function removeBag(i) { scene.remove(BAGS[i].mesh); BAGS.splice(i, 1); }
+function clearBags() { while (BAGS.length) removeBag(0); }
+function dropBats(e, k) {
+  const b = e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 2, e.nades | 0, 0]; // [A, D, F, R] (a bot: two D and its grenades)
+  [['D', b[1] | 0], ['F', b[2] | 0]].forEach(([kind, n]) => {
+    if (n <= 0) return;
+    const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
+    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
+    addBag(kind, n, pos);
+  });
+  while (BAGS.length > BAG_MAX) removeBag(0);
+}
+// Walk over one and take what you can carry (the rest stays). Host only; a guest is sent what it took
+function updateBags(dt, now) {
+  for (let i = BAGS.length - 1; i >= 0; i--) {
+    const a = BAGS[i];
+    a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
+    for (const e of ents) {
+      if (!e.alive || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) continue;
+      if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
+      let took = 0;
+      if (e.isPlayer) took = RANGE.addBats(a.kind, a.n);
+      else if (e.isRemote) { const have = e.gBats ? e.gBats[a.kind === 'D' ? 1 : 2] | 0 : 0; took = Math.min(a.n, Math.max(0, RANGE.batMax(a.kind) - have)); if (took) { sendTo(e, { t: 'bat', k: a.kind, n: took }); if (e.gBats) e.gBats[a.kind === 'D' ? 1 : 2] += took; } }
+      else if (a.kind === 'F') { took = Math.min(a.n, Math.max(0, maxNades(e) - e.nades)); e.nades += took; }
+      else if (needsAmmo(e)) { giveAmmoAll(e); took = a.n; }
+      if (!took) continue;
+      if ((a.n -= took) <= 0) { removeBag(i); break; }
+    }
+  }
+}
+function syncBags(list) { // a guest: as the host's snapshot says
+  const keys = new Set();
+  for (const [key, kind, n, x, y, z] of list) {
+    keys.add(key);
+    const b = BAGS.find(q => q.key === key);
+    if (!b && (kind === 'D' || kind === 'F')) addBag(kind, n, new V3(x, y, z), key); else if (b) b.n = n;
+  }
+  for (let i = BAGS.length - 1; i >= 0; i--) if (!keys.has(BAGS[i].key)) removeBag(i);
 }
 const shotRay = new THREE.Raycaster();
 // The viewmodel is drawn by its own camera with a different field of view, so find where its muzzle lands on screen
@@ -5963,6 +6033,7 @@ function onGuestMsg(conn, m) {
   if (!r) return;
   switch (m.t) {
     case 'st':
+      r.lit = !!m.fl; // their flashlight
       if (m.s !== r.spawnSeq || !r.alive) break;
       r.target.set(m.p[0], m.p[1], m.p[2]); r.vel.set(m.v[0], m.v[1], m.v[2]);
       r.yaw = m.yaw + Math.PI; r.pitch = m.pitch; r.h = m.h === CROUCH_H ? CROUCH_H : STAND_H;
@@ -5980,7 +6051,7 @@ function onGuestMsg(conn, m) {
     case 'hit': { const t = ents.find(e => e.id === m.id); if (t && (r.alive || t === r)) damage(t, Math.min(999, Math.max(0, +m.amt || 0)), r, ICON[m.w] ? m.w : 'gun', !!m.head); break; }
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'cam': r.camOn = !!m.on; break;
-    case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: 30 }); break; // a guest threw down a weapon
+    case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: RANGE.dropLife() }); break; // a guest threw down a weapon
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
@@ -6035,10 +6106,12 @@ function snapshot() {
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths, tm: e.team || null,
       cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
       ar: e.isPlayer ? ART.state() : e.art | 0, ac: e.isPlayer ? ART.colour() : e.artC | 0, // drawing: the pen (1) or the spray can (2), and its colour
+      fl: (e.isPlayer ? RANGE.lightOn() : e.isRemote ? e.lit : e.alive && nightOn()) ? 1 : 0, // flashlights (the bots' are on at dusk and night)
       iv: (e.isPlayer ? P.inv : e.inv) || [], bt: e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0], // what they carry, to show on them
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
+    bg: BAGS.map(b => [b.key, b.kind, b.n, +b.pos.x.toFixed(2), +b.pos.y.toFixed(2), +b.pos.z.toFixed(2)]), // batteries the dead dropped
     hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
     vh: VEH.netSnapshot(),
@@ -6134,7 +6207,7 @@ function onHostMsg(m) {
     case 'kill': sKill(); break;
     case 'give': if (WEAPONS[m.id]) giveWeapon(P, m.id, m.ammo); break;
     case 'ammo': giveAmmoAll(P); note('Ammo restocked', 1); break;
-    case 'bat': RANGE.addBats(String(m.k)); break; // a battery pack
+    case 'bat': RANGE.addBats(String(m.k), m.n === undefined ? undefined : Math.max(0, m.n | 0)); break; // a battery pack (n: how many, from a pack the dead dropped)
     case 'full': note('Your hands are full (3 weapons): Q drops the one you hold', 1.8); break; // a weapon you walked over
     case 'nade': P.nades = Math.min(maxNades(P), P.nades + 1); note('+1 grenade', 1); break;
     case 'heal': note('Health restored', 1); break;
@@ -6174,7 +6247,7 @@ function applySnapshot(s) {
     Object.assign(r, { name: d.n, yaw: d.y, pitch: +d.pt || 0, h: d.c ? CROUCH_H : STAND_H, kills: d.k, deaths: d.d, health: d.hp, alive: d.a, team: d.tm || undefined, camOn: !!d.cm, art: Math.max(0, Math.min(3, d.ar | 0)), artC: Math.max(0, Math.min(5, d.ac | 0)) });
     r.mesh.visible = d.a;
     if (d.w && d.w !== r.wpn && WEAPONS[d.w]) { r.wpn = d.w; setRigWeapon(r.rig, d.w); }
-    r.gInv = Array.isArray(d.iv) ? d.iv.filter(k => WEAPONS[k]) : []; r.gBats = Array.isArray(d.bt) ? d.bt : null;
+    r.lit = !!d.fl; r.gInv = Array.isArray(d.iv) ? d.iv.filter(k => WEAPONS[k]) : []; r.gBats = Array.isArray(d.bt) ? d.bt : null;
   }
   for (const [id, r] of replicas) if (!seen.has(id)) { scene.remove(r.mesh); ents.splice(ents.indexOf(r), 1); replicas.delete(id); if (VOICE.entityPeer[id]) closeVoice(VOICE.entityPeer[id]); }
   VEH.applyNet(s.vh);
@@ -6190,6 +6263,7 @@ function applySnapshot(s) {
   }
   for (let i = PICKUPS.length - 1; i >= 0; i--) if (!keys.has(PICKUPS[i].key)) { scene.remove(PICKUPS[i].mesh); PICKUPS.splice(i, 1); }
   s.am.forEach((a, i) => { if (ammoBoxes[i]) { ammoBoxes[i].active = !!a; ammoBoxes[i].mesh.visible = !!a; } });
+  if (Array.isArray(s.bg)) syncBags(s.bg);
   (s.hl || []).forEach((a, i) => { if (HEALS[i] && HEALS[i].active !== !!a) setHeal(HEALS[i], !!a); });
   while (gNades.length < s.nd.length) { const m = new THREE.Mesh(nadeGeo, nadeMat); scene.add(m); gNades.push(m); }
   gNades.forEach((m, i) => { m.visible = i < s.nd.length; if (m.visible) m.position.set(s.nd[i][0], s.nd[i][1], s.nd[i][2]); });
@@ -6219,7 +6293,7 @@ function netTick(dt) {
   else if (NET.conn && NET.conn.open && NET.joined) {
     syncAmmo();
     NET.conn.send({
-      t: 'st', s: NET.spawnSeq, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(), ar: ART.state(), ac: ART.colour(),
+      t: 'st', s: NET.spawnSeq, fl: RANGE.lightOn() ? 1 : 0, p: arr(P.pos), v: arr(P.vel), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), h: P.h, w: curW, n: P.nades, bt: RANGE.bats(), ar: ART.state(), ac: ART.colour(),
       inv: Object.fromEntries((P.inv || []).map(id => [id, [P.ammoBy[id].mag, P.ammoBy[id].res]])), vs: VEH.myState(),
     });
   }
@@ -6470,7 +6544,7 @@ function loop(now) {
     updateNades(dt);
     updateRockets(dt);
     updateSheds(dt);
-    updateAmmo(dt, now);
+    updateAmmo(dt, now); updateBags(dt, now);
     updatePickups(dt, now);
     updateHeals(dt);
     updateCorpses(dt); fadeCorpses(dt);
@@ -6506,8 +6580,8 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=31"></script>
-<script src="range.js?v=28"></script>
+<script src="range.js?v=29"></script>
 <script src="art.js?v=11"></script>
-<script src="headlights.js?v=2"></script>
+<script src="headlights.js?v=3"></script>
 </body>
 </html>

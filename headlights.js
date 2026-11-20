@@ -1,5 +1,5 @@
 // Headlights and tail lights: when the host's lighting is dark (dusk or night, index.html's nightOn()), every vehicle with
-// someone aboard lights the way ahead. Each lamp is a cone (vehicles.js's lampBeams: where,
+// someone aboard lights the way ahead. Flashlights (index.html's flashBeam: everyone has one, L) are lamps the same way. Each lamp is a cone (vehicles.js's lampBeams: where,
 // which way, how far, how wide and its colour). Inside a cone a surface shows its own colour times the lamp's, without the
 // look's light and shadow (index.html's flashAt, in every toon material's shader).
 // What a lamp can see is drawn from there, depth only, into one tile of a small target (FLASH.depth, four tiles across, two
@@ -42,7 +42,10 @@
   const beams = [];
   function after() {
     beams.length = 0;
-    if (nightOn()) for (const b of VEH.lampBeams()) beams.push(b);
+    if (nightOn()) {
+      for (const b of VEH.lampBeams()) beams.push(b);
+      for (const e of ents) { const b = flashBeam(e); if (b) beams.push(b); } // flashlights
+    }
     if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
     FLASH.n.value = 0; if (!beams.length) return; // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
@@ -56,7 +59,7 @@
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
         drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
         for (const v of VEH.list || []) if (v !== b.v && v.g) drawBody(v.g, cam);
-        for (const o of ents) if (o.alive) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam);
+        for (const o of ents) if (o.alive && o !== b.e) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
         FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
         FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = far;
         FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935;
