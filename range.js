@@ -256,6 +256,7 @@
   }
   function fireGun(s) {
     const g = gunOf(s), w = WEAPONS[s.model], q = aimQ(), half = spreadNow(g) * 0.005; // spread N: N × 0.01 rad across
+    statShot(P); // (one trigger pull, however many pellets: the end-of-match accuracy)
     const targets = [...W.meshes, ...W.floors], start = vmMuzzleWorld(), byE = new Map(), holes = [];
     for (const e of ents) if (e !== P && e.alive && e.hit) targets.push(...e.hit);
     // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
