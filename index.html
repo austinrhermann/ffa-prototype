@@ -774,7 +774,7 @@ const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js f
 const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82);
 function flashBeam(e) {
   const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn(); // (the host's bots: on whenever it's dark)
-  if (!e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
+  if ((typeof VIC === 'object' && VIC.on) || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
   const o = new V3(), d = new V3();
   if (e.isPlayer) {
     d.set(0, 0, -1).applyQuaternion(camera.quaternion);
