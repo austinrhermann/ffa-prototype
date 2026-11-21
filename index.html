@@ -870,7 +870,7 @@ function levelFortress() {
     // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). No Pistols or Carbines lie about: you scavenge the dead's
     pickups: [['rifle', 4.4, 44.3, 2.6], ['bazooka', 28, 33.9, 50],
       ['uzi', 0.3, 37.5, -5.3], ['uzi', 10, 32.5, 40],
-      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 23.5, 56]],
+      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 24.5, 56]], // (the valley floor's at 24.07 there: at 23.5 the gun lay under it once it stopped hovering)
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
     // (the walking map leaves out the spot it stands on: buildFortNav)
     vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
@@ -1809,6 +1809,7 @@ function loadLevel(id) {
     L.spawns.forEach((p, i) => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else { SPAWNS.push(s); for (const t in SPAWN_SETS) if (L.teamSpawns && L.teamSpawns[t].includes(i)) SPAWN_SETS[t].push(s); } });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
+    pileUp();
     if (navDefer) deferFortNav(); else buildFortNav();
     return;
   }
@@ -2129,6 +2130,7 @@ function meshBlocked(x, y, z, h) {
   return hit;
 }
 function meshSolidPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, () => { hit = true; }); return hit; }
+function meshWallPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, t => { if (Math.abs(TG.NR[t * 3 + 1]) < FLOOR_NY) hit = true; }); return hit; } // a wall (not a floor) within m
 // Nearest triangle hit along a ray (d normalised) within far, walking the columns it crosses
 // shot: only what bullets hit (castShot), and the nearest triangle is left in TG.hitTri
 function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru, shot) { // seeThru: sight lines pass shed windows (walking and paths still don't)
@@ -2190,6 +2192,25 @@ function castShotLevel(ray, targets) {
 function tgClear(a, b) { const d = b.clone().sub(a), l = d.length(); if (l < 1e-3) return true; d.divideScalar(l); return tgRay(a.x, a.y, a.z, d.x, d.y, d.z, l) >= l; }
 // Drop a listed position onto the floor below it
 function settle([x, y, z]) { const g = groundAt(x, z, y + 0.5); return new V3(x, g === null ? y : g, z); }
+// Weapons and ammo in little piles: each weapon's spot draws the nearest ammo spot (within PILE_REACH, on the same floor) in beside it, PILE_GAP away on the side the
+// pack came from (open floor, as it got there). The level's numbers stay where they were drawn; this is the same on every machine
+const PILE_REACH = 8, PILE_GAP = 0.6;
+function pileUp() {
+  const used = new Set();
+  for (const [, w] of STATIC_PICKUPS) {
+    let best = -1, bd = PILE_REACH;
+    AMMO_SPOTS.forEach((a, i) => { const d = Math.hypot(a.pos.x - w.x, a.pos.z - w.z); if (!used.has(i) && Math.abs(a.pos.y - w.y) < 1.5 && d < bd) { bd = d; best = i; } });
+    if (best < 0) continue;
+    used.add(best);
+    const a = AMMO_SPOTS[best], d = Math.hypot(a.pos.x - w.x, a.pos.z - w.z), a0 = d > 0.05 ? Math.atan2(a.pos.z - w.z, a.pos.x - w.x) : 0;
+    // the first side clear of walls (the pack's middle and both its ends), from the pack's own side round either way; it lies alongside the weapon
+    const place = ang => { const q = settle([w.x + Math.cos(ang) * PILE_GAP, w.y + 0.3, w.z + Math.sin(ang) * PILE_GAP]), tx = -Math.sin(ang) * 0.3, tz = Math.cos(ang) * 0.3;
+      return { q, yaw: -(ang + Math.PI / 2), ok: Math.abs(q.y - w.y) < 0.3 && !meshWallPt(q.x, q.y + 0.15, q.z, 0.15) && !meshWallPt(q.x + tx, q.y + 0.15, q.z + tz, 0.1) && !meshWallPt(q.x - tx, q.y + 0.15, q.z - tz, 0.1) }; };
+    let at = null;
+    for (let k = 0; k < 12 && !at; k++) { const c = place(a0 + Math.ceil(k / 2) * (k % 2 ? 1 : -1) * Math.PI / 6); if (c.ok) at = c; }
+    at = at || place(a0); a.pos = at.q; a.yaw = at.yaw;
+  }
+}
 // Terrain nav: each cell is the highest floor in its column; neighbours connect when the slope is walkable,
 // the ground between them holds, and nothing blocks the way at knee and chest height
 function buildTerrainNav() {
@@ -4126,16 +4147,16 @@ function updateRockets(dt) {
   }
 }
 
-// Ammo boxes (battery packs sit still where they lie: they spun and bobbed until 2026-11-21; weapons still do)
+// Ammo boxes (battery packs sit still where they lie, turned lieYaw: they spun and bobbed until 2026-11-21)
 const ammoBoxes = [];
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
   // Battery packs: D, and F where the grenades were (range.js draws them;
   // before it has loaded there are none: the fort's switch builds them)
   if (RANGE.on) {
-    const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D' })); // (no packs on the weapon spots: just the two kinds, D and F)
-    for (const { pos: p, cell, kind } of spots) {
-      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); scene.add(g); // (on the ground)
+    const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D', yaw: a.yaw })); // (just the two kinds, D and F; the ones by a weapon lie alongside it: pileUp)
+    for (const { pos: p, cell, kind, yaw } of spots) {
+      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); g.rotation.y = yaw ?? lieYaw(p); scene.add(g); // (on the ground)
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
     }
   }
@@ -4171,8 +4192,22 @@ function updateAmmo(dt, now) {
 let PICKUP_KEY = 0;
 function clearPickups() { PICKUPS.forEach(pk => scene.remove(pk.mesh)); PICKUPS.length = 0; PICKUP_KEY = 0; }
 const PICKUPS = [];
+// Where something lying on the ground points: a turn from where it lies, so it's the same on every machine and every round
+const lieYaw = p => { const h = Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453; return (h - Math.floor(h)) * Math.PI * 2; };
+// A weapon on the ground, as if someone set it down: on its side (its thinnest way up), resting on the floor, turned lieYaw, or the next way round from there
+// (a twelfth of a turn at a time) that keeps both its ends out of the walls. (They stood up, spun and bobbed until 2026-11-21)
+function lyingGun(id, pos) {
+  const g = new THREE.Group(), m = centeredClone(WEAPONS[id].scene, WEAPONS[id].yaw); m.scale.setScalar(1.2); g.add(m);
+  const sz = new THREE.Box3().setFromObject(m).getSize(new V3());
+  if (sz.x <= sz.y && sz.x <= sz.z) m.rotation.z = Math.PI / 2; else if (sz.z < sz.y) m.rotation.x = Math.PI / 2; // (already flat if it's thinnest up and down)
+  const b = new THREE.Box3().setFromObject(m), alongX = b.max.x - b.min.x >= b.max.z - b.min.z, hl = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * 0.45;
+  m.position.y -= b.min.y - 0.01; // its lowest point on the floor
+  const y0 = lieYaw(pos), clear = yaw => { const dx = alongX ? Math.cos(yaw) : Math.sin(yaw), dz = alongX ? -Math.sin(yaw) : Math.cos(yaw); return [1, -1].every(sg => !meshWallPt(pos.x + dx * hl * sg, pos.y + 0.08, pos.z + dz * hl * sg, 0.07)); };
+  let yaw = y0; if (TG) for (let k = 0; k < 12; k++) if (clear(y0 + k * Math.PI / 6)) { yaw = y0 + k * Math.PI / 6; break; }
+  g.rotation.y = yaw; g.position.copy(pos); return g;
+}
 function addPickup(id, pos, opt) {
-  const mesh = centeredClone(WEAPONS[id].scene, WEAPONS[id].yaw); mesh.scale.setScalar(1.2); mesh.position.copy(pos); scene.add(mesh);
+  const mesh = lyingGun(id, pos); scene.add(mesh);
   PICKUPS.push(Object.assign({ id, pos: pos.clone(), active: true, t: 0, mesh, key: PICKUP_KEY++ }, opt || {}));
 }
 function nearestPickup(b) {
@@ -4195,7 +4230,6 @@ function updatePickups(dt, now) {
     const pk = PICKUPS[i];
     if (pk.dropped) { pk.life -= dt; if (pk.life <= 0) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); continue; } }
     if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { if (pickupOut(pk.id) >= pickupSpots(pk.id)) { pk.t = 1; continue; } pk.active = true; pk.mesh.visible = true; } continue; }
-    pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
       if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // no picking up weapons from a seat
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
@@ -4341,7 +4375,7 @@ function dropWeapons(e) {
     const ammo = RANGE.on ? (e.bot ? RANGE.clipOf(id) : a.mag + (RANGE.ammoOf(id) === 'R' ? spareR * RANGE.clipOf(id) : 0)) : a.mag + a.res; // (a bot's gun: a full clip)
     if (!RANGE.on && ammo <= 0) continue;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
-    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
+    pos.y = TG ? groundAt(pos.x, pos.z, e.pos.y + 0.6) ?? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos))); // (on the ground where it lands, a slope or a step from their feet)
     addPickup(id, pos, { dropped: true, ammo, life: RANGE.dropLife() });
   }
   e.inv = ['pistol'];
@@ -4351,7 +4385,7 @@ function dropWeapons(e) {
 // and sends them in its snapshot (bg); the oldest go if there get to be too many
 const BAGS = [], BAG_MAX = 60; let BAG_KEY = 0;
 function addBag(kind, n, pos, key) {
-  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.01, pos.z); scene.add(g); // (on the ground)
+  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.01, pos.z); g.rotation.y = lieYaw(pos); scene.add(g); // (on the ground)
   const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g }; BAGS.push(b); return b;
 }
 function removeBag(i) { scene.remove(BAGS[i].mesh); BAGS.splice(i, 1); }
@@ -4361,7 +4395,7 @@ function dropBats(e, k) {
   [['D', b[1] | 0], ['F', b[2] | 0]].forEach(([kind, n]) => {
     n = RANGE.dropBats(kind, n); if (n <= 0) return;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
-    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
+    pos.y = TG ? groundAt(pos.x, pos.z, e.pos.y + 0.6) ?? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos))); // (on the ground where it lands, a slope or a step from their feet)
     addBag(kind, n, pos);
   });
   while (BAGS.length > BAG_MAX) removeBag(0);
@@ -6490,7 +6524,6 @@ function updateReplicas(dt, now) {
     animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
     updateNameTag(r);
   }
-  for (const pk of PICKUPS) if (pk.active) { pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06; }
 }
 function showGuestResults(m) {
   matchOver = true;
