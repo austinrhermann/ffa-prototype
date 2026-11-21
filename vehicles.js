@@ -466,11 +466,20 @@
       const res = (0.5 + (inp.hand ? p.hand : 0)) * dt; vf -= Math.sign(vf) * Math.min(Math.abs(vf), res);
       vr *= Math.exp(-(inp.hand ? p.slide : p.grip) * dt);
     }
+    // A burnout: the handbrake and the gas together from (nearly) a standstill. It stays put while the back tyre(s) spin; let go of the handbrake with the gas
+    // still on and it launches, laying rubber for the next few metres (burnT: how long it's been burning; launch: the kick off the line; trail: metres of marks left)
+    const burn = touching && !!inp.hand && inp.thr > 0 && Math.abs(vf) < BURN_V;
+    if (burn) v.burnT = Math.min(2, (v.burnT || 0) + dt);
+    else if (v.burnT) { if (inp.thr > 0 && !inp.hand && v.burnT > 0.25) { v.launch = LAUNCH_T; v.trail = BURN_TRAIL; } v.burnT = 0; }
+    v.burning = burn;
+    if (v.launch > 0) { v.launch -= dt; if (touching && inp.thr > 0) vf += p.power * 0.9 * inp.thr * dt; }
+    if (v.trail > 0) v.trail -= Math.abs(vf) * dt;
     vf -= 0.0009 * vf * Math.abs(vf) * dt;
     if (v.kind === 'bike' && vf > BIKE_MAX) vf = BIKE_MAX;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
-    v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0); v.speed = vf; // locked wheels squeal too
+    v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0, burn ? 14 : 0); v.speed = vf; // locked wheels squeal too, and a burnout's spinning ones
+    v.skidIn = { brake: inp.thr < 0 && vf > SKID_V, hand: !!inp.hand && Math.abs(vf) > SKID_V, slide: Math.abs(vr) > SLIDE_V }; // (for tyreMarks, once it's moved)
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
     const L = p.wheelbase / 2, W = (v.kind === 'bike' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5, fb = v.pos.y - 3; // wheels climb ramps, banking and hills, never up a wall
     const rh = Math.max(L, W) * 2.2; // up the island's hillsides the wheels find ground as steep as ~65° (steeper is a cliff: hitWalls)
@@ -605,6 +614,38 @@
     }
   }
 
+  // ---------------------------------------------------------------- tyre marks and burnouts
+  // A wheel that skids leaves a black line on the ground (art.js's spray in black, as wide as the tyre: everyone sees it, like paint): every wheel braking hard
+  // on S or sliding sideways, the back ones on the handbrake (they lock). A burnout (drive) lays a fat streak under the back tyre(s), and the next few metres
+  // after its launch keep laying one. Only the machine that runs the vehicle draws them; its smoke and spinning wheels everyone works out (burnOf)
+  const BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
+  const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'bike' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
+  const rearFrom = v => (v.kind === 'bike' ? 1 : 2);
+  const tyreHalf = v => (v.kind === 'bike' ? 0.065 : Math.max(0.1, v.p.wheelR * 0.28)); // half the tyre's width
+  const burnOf = v => (simulated(v) ? !!v.burning : !!v.netBurn);
+  const _cp = new V3();
+  function contact(v, lx, lz) { // the ground under a wheel ([lx, lz] across and along the vehicle)
+    const x = v.pos.x + _r.x * lx + _f.x * lz, z = v.pos.z + _r.z * lx + _f.z * lz, g = groundAt(x, z, v.pos.y + 1);
+    return g === null ? null : _cp.set(x, g, z);
+  }
+  function tyreMarks(v) {
+    const k = v.skidIn; if (!k) return;
+    axes(v); const r0 = rearFrom(v), half = tyreHalf(v), any = v.onGround && !v.dead;
+    wheelSpots(v).forEach(([lx, lz], i) => {
+      const rear = i >= r0, key = v.i + ':' + i, fat = rear && (v.burning || v.trail > 0);
+      if (!any || !(k.brake || k.slide || (rear && k.hand) || fat)) { ART.skidEnd(key); return; }
+      const p = contact(v, lx, lz); if (!p) { ART.skidEnd(key); return; }
+      ART.skid(key, p, fat ? half * BURN_FAT : half, rear && v.burning ? _f : null);
+    });
+  }
+  function burnSmoke(v) { // a few puffs off the back tyre(s), drifting back and up
+    v.smokeT = 0.05; axes(v); const tex = GUN_FX.shotgun && GUN_FX.shotgun.smoke.tex; if (!tex) return;
+    wheelSpots(v).forEach(([lx, lz], i) => {
+      if (i < rearFrom(v)) return; const p = contact(v, lx, lz); if (!p) return;
+      _puff(tex, p.clone().setY(p.y + 0.25), 0.5 + Math.random() * 0.5, 1.4 + Math.random() * 0.8, { color: 0xdedad2, grow: 2.4, rise: 0.8, opacity: 0.5, spin: 1, vel: new V3(-_f.x * 1.8 + (Math.random() - 0.5), 0.5, -_f.z * 1.8 + (Math.random() - 0.5)) });
+    });
+  }
+
   // ---------------------------------------------------------------- drawing
   // The body's world matrix (and its inverse) for this frame, worked out straight away rather than at the next render: shots
   // and sight lines test against it
@@ -615,9 +656,11 @@
   function pose(v, dt) {
     v.g.position.copy(v.pos); v.g.rotation.set(-v.pitch, v.yaw, v.roll, 'YXZ');
     const s = v.susp; v.body.position.y = s.h; v.body.rotation.set(-s.p, 0, s.r);
-    v.spin += (v.speed || 0) / v.p.wheelR * dt;
+    const burn = burnOf(v), r0 = rearFrom(v);
+    v.spin += (v.speed || 0) / v.p.wheelR * dt; v.spinR = (v.spinR === undefined ? v.spin : v.spinR) + (burn ? BURN_SPIN : v.speed || 0) / v.p.wheelR * dt;
     const sv = v.steerVis === undefined ? v.steer : v.steerVis;
-    v.wheels.forEach((w, i) => { w.spin.rotation.x = v.spin; if (i < v.steerN) w.piv.rotation.y = -sv; });
+    v.wheels.forEach((w, i) => { w.spin.rotation.x = i >= r0 ? v.spinR : v.spin; if (i < v.steerN) w.piv.rotation.y = -sv; });
+    if (burn && !v.dead && (v.smokeT = (v.smokeT || 0) - dt) <= 0) burnSmoke(v);
     if (v.fork) v.fork.rotation.y = -sv;
     if (v.steerWheel) v.steerWheel.rotation.z = sv * 9;
   }
@@ -832,7 +875,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   function setNet(v, s) {
     const [, x, y, z, yaw, pitch, roll, vx, vy, vz, steer] = s.map(Number);
     if (![x, y, z, yaw].every(Number.isFinite)) return;
-    if (s.length > 11) v.netBrake = s[11] === 1; // (a driver's own state message: its brake lights)
+    if (s.length > 11) v.netBrake = s[11] === 1; // (a driver's own state message: its brake lights, and whether it's doing a burnout)
+    if (s.length > 12) v.netBurn = s[12] === 1;
     v.net = { x, y, z, yaw, pitch: pitch || 0, roll: roll || 0, vx: vx || 0, vy: vy || 0, vz: vz || 0, steer: steer || 0, t: performance.now() };
   }
   function applyParams(v, p) {
@@ -1029,7 +1073,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
           v.wet = v.pos.y < waterAt(v.pos.x, v.pos.z) - 0.6 ? (v.wet || 0) + dt : 0;
           if (v.pos.y < KILL_Y || v.wet > 2) { console.warn('Vehicle fell out of the world; last on the ground at [x, y, z]:', v.lastGround, v.name); v.wet = 0; respawn(v); }
         }
-        if (simulated(v)) { drive(v, dt, v.dead ? parked : v === cur && locked ? Object.assign(input(), { reset: resetQ }) : v.npc || (v === cur ? idle : parked)); hitWalls(v); }
+        if (simulated(v)) { drive(v, dt, v.dead ? parked : v === cur && locked ? Object.assign(input(), { reset: resetQ }) : v.npc || (v === cur ? idle : parked)); hitWalls(v); tyreMarks(v); }
         else follow(v, dt);
       }
       resetQ = false;
@@ -1125,9 +1169,9 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     },
     exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked, 2 an NPC has it; + 4 brake lights on), who's in seat 1, seat 2, ...]
-    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : v.npcBusy ? 2 : 0) + (v.brakeOn ? 4 : 0), ...v.occ.slice(1).map(o => o || 0)]),
-    myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0] : null),
+    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked, 2 an NPC has it; + 4 brake lights on, + 8 a burnout), who's in seat 1, seat 2, ...]
+    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : v.npcBusy ? 2 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0), ...v.occ.slice(1).map(o => o || 0)]),
+    myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0, cur.burning ? 1 : 0] : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
       // Match the host's vehicles: rebuild from the first one that differs
@@ -1139,7 +1183,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
         const st = s[12] | 0;
         if ((st & 3) === 1 && !v.dead) VEH.wreck(v);
         v.npcBusy = (st & 3) === 2;
-        if (v !== cur) v.netBrake = !!(st & 4);
+        if (v !== cur) { v.netBrake = !!(st & 4); v.netBurn = !!(st & 8); }
         for (let q = 1; q < v.seats.length; q++) if (!(v === ride && q === rideSeat)) v.occ[q] = s[12 + q] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
         v.owner = s[1] || null; setNet(v, [i, ...s.slice(2, 12)]);

@@ -860,7 +860,7 @@ function flashBeam(e) {
   // your own, in first person, fades all the way to the very middle (band 0.117): brightest dead ahead, half bright at 20°
   return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e };
 }
-const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
+const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, skid() {}, skidEnd() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 // Boot: a small room to stand in for the moment before the fort has loaded (the grid needs a level from the start; the host
@@ -6827,9 +6827,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=35"></script>
+<script src="vehicles.js?v=36"></script>
 <script src="range.js?v=33"></script>
-<script src="art.js?v=11"></script>
+<script src="art.js?v=12"></script>
 <script src="headlights.js?v=5"></script>
 </body>
 </html>

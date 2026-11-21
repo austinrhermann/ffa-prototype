@@ -771,8 +771,33 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
 
   Object.defineProperty(ART, 'on', { get: () => on, configurable: true });
   Object.defineProperty(ART, 'safe', { get: () => on && safe && !VEH.riding, configurable: true }); // (in a vehicle you're fair game, as everyone sees: state 0)
+  // ---------------------------------------------------------------- tyre marks (vehicles.js)
+  // A skidding wheel lays a black line on the ground: the spray (so it drapes over the slope), in the palette's black, as wide as the tyre (r: half its width).
+  // One layer per wheel per skid, sent and kept like anyone's paint. smear: a direction to lay a short fat streak along when a new mark starts (a burnout's
+  // spinning tyre); a tyre that doesn't move adds nothing more
+  const BLACK = 4, skids = new Map(); // key (vehicle:wheel) -> { rec, L, sent, last }
+  function skidFlush(sk) { const q = sk.rec.q; if (q.length > sk.sent) { netFx({ t: 'pa', i: sk.rec.i, q: q.slice(sk.sent) }); sk.sent = q.length; } }
+  function skidEnd(key) { const sk = skids.get(key); if (!sk) return; skidFlush(sk); skids.delete(key); }
+  function skidPush(sk, p) { sk.rec.q.push(r3(p.x), r3(p.y), r3(p.z), 0, 1, 0, 0); sk.last = sk.last ? sk.last.copy(p) : p.clone(); }
+  function skid(key, p, r, smear) {
+    let sk = skids.get(key);
+    if (sk && (sk.last.distanceTo(p) > 1.2 || sk.rec.q.length >= STROKE_MAX * 7 || Math.abs(sk.rec.pr - r3(r)) > 1e-3 || byId.get(sk.rec.i) !== sk.L)) { skidEnd(key); sk = null; } // jumped, long enough, another width, or its layer's gone (a new round, trimmed): a new layer
+    if (!sk) {
+      const rec = { i: newId(), a: ['w'], s: SPRAY, c: BLACK, pr: r3(r), q: [] };
+      sk = { rec, sent: 0, last: null };
+      if (smear) { skidPush(sk, p.clone().addScaledVector(smear, -0.35)); skidPush(sk, p.clone().addScaledVector(smear, 0.35)); } else skidPush(sk, p);
+      sk.L = startLayer(rec); if (!sk.L) return;
+      netFx(Object.assign({ t: 'pt' }, rec)); sk.sent = rec.q.length; skids.set(key, sk);
+      return;
+    }
+    if (sk.last.distanceTo(p) < r * 0.6) return;
+    const k = sk.rec.q.length / 7; skidPush(sk, p);
+    if (sk.L && byId.get(sk.rec.i) === sk.L) drawPoints(sk.L, sk.L.A, sk.rec, k);
+    if (sk.rec.q.length - sk.sent >= 7 * 6) skidFlush(sk);
+  }
+
   Object.assign(ART, {
-    toggle, update, after, key, pose, armTurn, fpvTool, heldObject, net, welcome, joinLog, toCorpse, clear,
+    toggle, update, after, key, pose, armTurn, fpvTool, heldObject, net, welcome, joinLog, toCorpse, clear, skid, skidEnd,
     wash(e, id) { if (e) clearEnt(e); dropLog(id); }, // (?dev) the shower: the paint off a character, for good
     swap() { if (on) setTool(tool === 'pen' ? 'spray' : 'pen'); },
     held: () => (on && drawT <= 0.15 && P.alive && !VEH.riding ? tool : null), // what your body holds (nothing in a vehicle)
