@@ -760,18 +760,22 @@ function applyLook() {
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
 skyDome.renderOrder = -1; skyDome.frustumCulled = false; skyDome.visible = false; scene.add(skyDome);
 skyDome.onBeforeRender = (r, sc, cam) => skyDome.position.copy(cam.position);
-// The sun and the moon: a yellow disc and a blue one on the sky (with the dome, so with the look). By day the sun is where the light comes from (SUN_DIR) and the moon
-// is up across the sky from it; at dusk the sun is low in the same quarter; at night the light is the moon's, so it's the moon up there and the sun is down. Drawn after
-// the dome and before everything else, so the hills and the fort hide them
-const skyDisc = (r, c) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: c, fog: false, depthWrite: false })); m.renderOrder = -0.5; m.frustumCulled = false; m.visible = false; scene.add(m); return m; };
-const SUN_DISC = skyDisc(16, 0xffdf5e), MOON_DISC = skyDisc(12, 0x8fb6ff), _skyD = new THREE.Vector3();
+// The sun or the moon, exactly where the level's light comes from (SUN_DIR: the directional light shines from there, and the look's az and el are the renders' sun
+// lamp, which the fort's baked shadows came from too). By day and at dusk a yellow sun; at night, when that light is the moon's, a smaller blue crescent. One at a
+// time (both were up at once, and away from the light, until 2026-11-21). With the dome, so with the look; drawn after the dome and before everything else, so the
+// hills and the fort hide it
+const SKY_DIST = 560, SUN_DISC = new THREE.Mesh(new THREE.CircleGeometry(24, 56), new THREE.MeshBasicMaterial({ color: 0xffdf5e, fog: false, depthWrite: false }));
+const MOON_DISC = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), new THREE.MeshBasicMaterial({ fog: false, depthWrite: false, transparent: true, map: (() => {
+  const c = document.createElement('canvas'), n = 256, r = n * 0.44; c.width = c.height = n; const g = c.getContext('2d');
+  g.fillStyle = '#8fb6ff'; g.beginPath(); g.arc(n / 2, n / 2, r, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(n / 2 - r * 0.45, n / 2 - r * 0.38, r * 0.92, 0, Math.PI * 2); g.fill(); // the dark part bitten out: a crescent lit low on its right
+  return new THREE.CanvasTexture(c);
+})() }));
+for (const m of [SUN_DISC, MOON_DISC]) { m.renderOrder = -0.5; m.frustumCulled = false; m.visible = false; scene.add(m); }
 function updateSkyDiscs() {
   SUN_DISC.visible = MOON_DISC.visible = false; if (!skyDome.visible) return;
-  const c = new THREE.Color(LOOK.lit), lum = c.r * 0.3 + c.g * 0.59 + c.b * 0.11, az = Math.atan2(SUN_DIR.x, SUN_DIR.z), el = Math.asin(Math.max(-1, Math.min(1, SUN_DIR.y)));
-  const put = (m, a, e) => { m.visible = true; m.position.copy(camera.position).add(_skyD.set(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a)).multiplyScalar(560)); m.lookAt(camera.position); };
-  if (lum >= 0.65) { put(SUN_DISC, az, el); put(MOON_DISC, az + Math.PI, 0.6); } // day
-  else if (lum >= 0.45) { put(SUN_DISC, az, 0.1); put(MOON_DISC, az + Math.PI, 0.45); } // dusk
-  else put(MOON_DISC, az, el); // night
+  const c = new THREE.Color(LOOK.lit), m = c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.45 ? MOON_DISC : SUN_DISC; // (night's light is far dimmer than dusk's)
+  m.visible = true; m.position.copy(camera.position).addScaledVector(SUN_DIR, SKY_DIST); m.lookAt(camera.position);
 }
 function setSky(on) {
   skyDome.visible = on; if (!on) return;
@@ -6823,7 +6827,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=33"></script>
+<script src="vehicles.js?v=34"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=5"></script>

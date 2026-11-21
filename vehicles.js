@@ -667,10 +667,11 @@
     }
     return best;
   }
-  // Where you're standing picks the seat: the left side is the driver's, the right side rides along, the back climbs in
+  // Where you're standing picks the seat: the left side is the driver's, the right side rides along, the back climbs in. A bike has one button from any side: the
+  // front seat if nobody's riding it, the back once someone is (until 2026-11-21 coming up behind it always took the back seat)
   function zoneOf(v) {
     if (v.seats.length < 2) return 'driver';
-    if (v.kind === 'bike') { axes(v); const lz = (P.pos.x - v.pos.x) * _f.x + (P.pos.z - v.pos.z) * _f.z; return (v.owner && v.owner !== me()) || lz < -0.5 ? 'passenger' : 'driver'; } // a bike: the back seat from behind, or once someone's riding it
+    if (v.kind === 'bike') return v.owner && v.owner !== me() ? 'passenger' : 'driver';
     axes(v); const dx = P.pos.x - v.pos.x, dz = P.pos.z - v.pos.z, lz = dx * _f.x + dz * _f.z, lx = dx * _r.x + dz * _r.z;
     if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
