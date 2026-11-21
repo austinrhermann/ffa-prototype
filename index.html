@@ -414,7 +414,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt>1–3, wheel</dt><dd>Pick one of your three weapons</dd>
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
-      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery). Shoot a mine to set it off</dd>
+      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, stuck to the floor, wall or ceiling you're looking at when you let go (each takes an F battery). Shoot a mine to set it off</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
       <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
@@ -6298,7 +6298,7 @@ function onGuestMsg(conn, m) {
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'cam': r.camOn = !!m.on; break;
     case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: RANGE.dropLife() }); break; // a guest threw down a weapon
-    case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
+    case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r, m.n); break; // a guest set a mine, on the surface m.n faces out of
     case 'mshot': if (r.alive && Number.isInteger(m.i)) RANGE.mineShot(m.i, r); break; // a guest shot a mine: it goes off
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
@@ -6832,7 +6832,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=33"></script>
-<script src="range.js?v=31"></script>
+<script src="range.js?v=32"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=4"></script>
 </body>

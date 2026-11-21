@@ -146,21 +146,29 @@
 
   // ---------------------------------------------------------------- mines
   const mines = [];
+  // A mine sticks to whatever you're looking at within reach: a floor, a wall or a ceiling (only floors until 2026-11-21), facing out of it (n). Nothing in
+  // reach (or a vehicle): on the ground in front of you
+  const MINE_REACH = 3.5, UP = new V3(0, 1, 0);
   function placeMine() {
     const q = aimQ(), dir = new V3(0, 0, -1).applyQuaternion(q);
-    ray.set(myEye, dir); ray.far = 3.5;
+    ray.set(myEye, dir); ray.far = MINE_REACH;
     const hit = castShot(ray, [...W.meshes, ...W.floors]);
-    let p;
-    if (hit && hit.face && hit.face.normal.y > 0.5) p = hit.point.clone();
-    else { const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), x = P.pos.x + fx * 1.2, z = P.pos.z + fz * 1.2, gy = groundAt(x, z, P.pos.y + 1); p = new V3(x, gy === null ? P.pos.y : gy, z); }
+    let p, n = UP.clone();
+    if (hit && hit.face && hit.object !== ARMOR_HIT) {
+      p = hit.point.clone(); n.copy(hit.face.normal);
+      if (!hit.object.userData.tgShot) n.transformDirection(hit.object.matrixWorld); // (the level's own hits come in world terms already)
+      if (n.dot(dir) > 0) n.negate(); // the side you're looking at
+    } else { const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), x = P.pos.x + fx * 1.2, z = P.pos.z + fz * 1.2, gy = groundAt(x, z, P.pos.y + 1); p = new V3(x, gy === null ? P.pos.y : gy, z); }
     // The host runs every mine, so everyone sees them and they hurt everyone: a guest asks the host to set it
-    if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'mine', p: arr(p) }); }
-    else addMine(p, P);
+    if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'mine', p: arr(p), n: arr(n) }); }
+    else addMine(p, P, n);
     note('Mine set: it arms in ' + S.mine.arm + ' s', 1.2);
   }
+  const mineN3 = a => { const v = Array.isArray(a) && a.length === 3 && a.every(Number.isFinite) ? v3(a) : UP.clone(); return v.lengthSq() > 0.01 ? v.normalize() : UP.clone(); }; // a surface's way out, from the net
+  const minePt = (m, d) => m.pos.clone().addScaledVector(m.n, d); // a point d out from the mine's surface
   let mineN = 0;
-  function mineMesh(p) {
-    const g = new THREE.Group(); g.position.copy(p);
+  function mineMesh(p, n) { // n: the surface's way out (its top points along it)
+    const g = new THREE.Group(); g.position.copy(p).addScaledVector(n, 0.005); g.quaternion.setFromUnitVectors(UP, n);
     if (NADE_MODEL) { const c = NADE_MODEL.clone(true); c.rotation.z = Math.PI / 2; c.position.y = 0.09; g.add(c); }
     else { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 14), toonMat({ color: 0x3d4a2a })); c.position.y = 0.03; g.add(c); }
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); light.position.y = 0.2; g.add(light);
@@ -169,9 +177,9 @@
   }
   const MINE_HIT_GEO = new THREE.BoxGeometry(0.4, 0.3, 0.4), MINE_HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
   // owner: who set it (the kill is theirs)
-  function addMine(p, owner) {
-    const id = ++mineN, m = Object.assign(mineMesh(p), { pos: p, state: 'arming', t: S.mine.arm, blink: 0, owner, id }); m.hit.userData.mine = id; mines.push(m);
-    netFx({ t: 'mn', i: id, p: arr(p) });
+  function addMine(p, owner, n = UP.clone()) {
+    const id = ++mineN, m = Object.assign(mineMesh(p, n), { pos: p, n, state: 'arming', t: S.mine.arm, blink: 0, owner, id }); m.hit.userData.mine = id; mines.push(m);
+    netFx({ t: 'mn', i: id, p: arr(p), n: arr(n) });
   }
   // A shot hit a mine (any time after it's set): it goes off at once, and the kill is the shooter's. The host runs the mines, so a guest's shot asks the host
   function shootMine(id, by) {
@@ -190,21 +198,24 @@
       if (m.state === 'armed') {
         m.light.visible = m.blink % 1.2 < 0.12;
         if (m.rep) continue;
-        const close = e => Math.hypot(e.x - m.pos.x, e.z - m.pos.z) < S.mine.radius && Math.abs(e.y - m.pos.y) < 2;
-        if (ents.some(e => e.alive && close(e.pos))) setMine(m, 'warn', S.mine.warn);
+        // anyone whose body (feet to head) comes within its trigger distance, and that it can see: one on a ceiling or a wall goes off for whoever passes
+        // under or by it, not for someone on the far side
+        const close = e => { const y = Math.max(e.pos.y, Math.min(e.pos.y + e.h, m.pos.y)); return Math.hypot(e.pos.x - m.pos.x, y - m.pos.y, e.pos.z - m.pos.z) < S.mine.radius && losPts(minePt(m, 0.15), new V3(e.pos.x, y, e.pos.z)); };
+        if (ents.some(e => e.alive && close(e))) setMine(m, 'warn', S.mine.warn);
         continue;
       }
       // Warning: beeps faster and faster, then the blast
       m.light.visible = m.blink % 0.12 < 0.06; m.beep = (m.beep || 0) - dt;
       if (m.beep <= 0) { if (m.t > 0) sBeep(2200, vol(m.pos, MINE_HEAR.warn)); m.beep = Math.max(0.07, 0.25 * m.t / Math.max(0.2, S.mine.warn)); }
-      if (m.t <= 0 && !m.rep) { scene.remove(m.g); mines.splice(i, 1); netFx({ t: 'mx', i: m.id }); blast(m.pos.clone().setY(m.pos.y + 0.1), m.owner && (m.owner === P || ents.includes(m.owner)) ? m.owner : P, 'mine'); }
+      // (the blast starts out from the surface: blast() looks from 0.3 above where it's given, which must still be on the mine's side of a ceiling)
+      if (m.t <= 0 && !m.rep) { scene.remove(m.g); mines.splice(i, 1); netFx({ t: 'mx', i: m.id }); blast(minePt(m, m.n.y > 0.5 ? 0.1 : m.n.y < -0.5 ? 0.5 : 0.25), m.owner && (m.owner === P || ents.includes(m.owner)) ? m.owner : P, 'mine'); }
     }
   }
   function clearMines(tell) { for (const m of mines) scene.remove(m.g); mines.length = 0; if (tell && NET.role === 'host') netFx({ t: 'mc' }); }
   // The host's word on its mines, on a guest
   function mineFx(m) {
     const i = mines.findIndex(x => x.rep && x.id === m.i);
-    if (m.t === 'mn' && i < 0 && Array.isArray(m.p)) { const r = Object.assign(mineMesh(v3(m.p)), { pos: v3(m.p), state: 'arming', t: 99, blink: 0, rep: true, id: m.i }); r.hit.userData.mine = m.i; mines.push(r); }
+    if (m.t === 'mn' && i < 0 && Array.isArray(m.p)) { const n = mineN3(m.n), r = Object.assign(mineMesh(v3(m.p), n), { pos: v3(m.p), n, state: 'arming', t: 99, blink: 0, rep: true, id: m.i }); r.hit.userData.mine = m.i; mines.push(r); }
     else if (m.t === 'ms' && i >= 0) { const r = mines[i], was = r.state; r.state = MINE_STATES[m.s] || 'armed'; r.t = r.state === 'warn' ? S.mine.warn : 99; if (r.state === 'armed' && was === 'arming') sBeep(1800, vol(r.pos, MINE_HEAR.arm)); }
     else if (m.t === 'mx' && i >= 0) { scene.remove(mines[i].g); mines.splice(i, 1); }
     else if (m.t === 'mc') clearMines();
@@ -240,7 +251,7 @@
       }
     }
     // Other mines in reach go off too
-    for (const m of mines) if (!m.rep && m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, m.pos.clone().setY(m.pos.y + 0.2))) setMine(m, 'warn', 0.15);
+    for (const m of mines) if (!m.rep && m.state !== 'warn' && m.pos.distanceTo(o) < R * 0.6 && losPts(o, minePt(m, 0.2))) setMine(m, 'warn', 0.15);
     const pd = P.pos.distanceTo(pos); if (pd < 14) punch += 0.06 * (1 - pd / 14);
   }
 
@@ -386,7 +397,7 @@
     if (!has('F')) { outOf('F'); return; }
     hot = { back: cur }; hotPrev = cur; pick(HANDS + 1, true); spend('F');
     cooking = 0; beepT = 0.5; hotMine = false; sPin();
-    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine', 4, 6);
+    hint('hotnade', typeof isTouch !== 'undefined' && isTouch ? 'Let go of Frag to throw' : 'Let go of F to throw. Right-click while holding F to make it a mine: it sticks to the floor, wall or ceiling you look at', 4, 6);
   }
   function cookHot(dt) {
     if (hotMine) return;
@@ -826,7 +837,7 @@
     },
     kit() { if (live()) kit(); },
     doorHp: (kind, base) => (live() ? (kind === 'gate' ? S.game.gateHp : S.game.doorHp) : base), give, addBats, packMesh, knifeDmg,
-    mine(p, owner) { if (live() && p.distanceTo(owner.pos) < 5) addMine(p, owner); }, // a guest set one (host)
+    mine(p, owner, n) { if (live() && p.distanceTo(owner.pos) < MINE_REACH + 2.5) addMine(p, owner, mineN3(n)); }, // a guest set one (host): within reach of their eyes, on whatever surface (n)
     mineShot(id, by) { if (live()) shootMine(id, by); }, // a guest shot one (host)
     fx(m) { if (m.t === 'wset') useSettings(m.s); else mineFx(m); }, // the host's settings and mines, on a guest
     cfg: () => S,
