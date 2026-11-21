@@ -66,8 +66,8 @@
     // Batteries in a pack and the most you can carry, by type; packs (and weapons nobody has) come back after respawn seconds
     ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 8 }, F: { pack: 2, max: 4 }, R: { pack: 1, max: 2 }, respawn: 5, infinite: false }, // (A: no longer used; R: rifle clips of 5, and only the rifle itself brings them)
     // In a game: you spawn with the Pistol and the Carbine loaded, startD D batteries and startF F batteries; packs come back after packs seconds (rifle
-    // rounds after rifle), weapons on their spots after weapons seconds
-    game: { startD: 4, startF: 2, dropLife: 20, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
+    // rounds after rifle), weapons on their spots after weapons seconds. dropD, dropF: the most of each the dead drop (half what they carried, rounded up; all of it until 2026-11-21)
+    game: { startD: 4, startF: 2, dropD: 2, dropF: 1, dropLife: 20, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
   };
   const MAXLIFE = 200;
   const clone = o => JSON.parse(JSON.stringify(o));
@@ -164,20 +164,29 @@
     if (NADE_MODEL) { const c = NADE_MODEL.clone(true); c.rotation.z = Math.PI / 2; c.position.y = 0.09; g.add(c); }
     else { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.06, 14), toonMat({ color: 0x3d4a2a })); c.position.y = 0.03; g.add(c); }
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a })); light.position.y = 0.2; g.add(light);
-    scene.add(g); return { g, light };
+    const hit = new THREE.Mesh(MINE_HIT_GEO, MINE_HIT_MAT); hit.position.y = 0.1; hit.userData.noHole = true; g.add(hit); // what a shot lands on (a little bigger than the mine)
+    scene.add(g); g.updateMatrixWorld(true); return { g, light, hit };
   }
+  const MINE_HIT_GEO = new THREE.BoxGeometry(0.4, 0.3, 0.4), MINE_HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
   // owner: who set it (the kill is theirs)
   function addMine(p, owner) {
-    const id = ++mineN; mines.push(Object.assign(mineMesh(p), { pos: p, state: 'arming', t: S.mine.arm, blink: 0, owner, id }));
+    const id = ++mineN, m = Object.assign(mineMesh(p), { pos: p, state: 'arming', t: S.mine.arm, blink: 0, owner, id }); m.hit.userData.mine = id; mines.push(m);
     netFx({ t: 'mn', i: id, p: arr(p) });
+  }
+  // A shot hit a mine (any time after it's set): it goes off at once, and the kill is the shooter's. The host runs the mines, so a guest's shot asks the host
+  function shootMine(id, by) {
+    if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'mshot', i: id }); return; }
+    const m = mines.find(x => !x.rep && x.id === id); if (!m || (m.state === 'warn' && m.t <= 0.05)) return;
+    m.owner = by; setMine(m, 'warn', 0);
   }
   // A guest's copy of the host's mine: it only blinks and beeps (rep); the host says when it arms, warns and goes off
   const MINE_STATES = ['arming', 'armed', 'warn'];
+  const MINE_HEAR = { arm: 15, warn: 30 }; // how far off (m) a mine's beeps carry: it arming, and the warning once it's set off
   function setMine(m, state, t) { m.state = state; m.t = t; if (!m.rep) netFx({ t: 'ms', i: m.id, s: MINE_STATES.indexOf(state) }); }
   function updateMines(dt) {
     for (let i = mines.length - 1; i >= 0; i--) {
       const m = mines[i]; m.t -= dt; m.blink += dt;
-      if (m.state === 'arming') { m.light.visible = m.blink % 0.5 < 0.1; if (m.t <= 0 && !m.rep) { setMine(m, 'armed', 0); sBeep(1800); } continue; }
+      if (m.state === 'arming') { m.light.visible = m.blink % 0.5 < 0.1; if (m.t <= 0 && !m.rep) { setMine(m, 'armed', 0); sBeep(1800, vol(m.pos, MINE_HEAR.arm)); } continue; }
       if (m.state === 'armed') {
         m.light.visible = m.blink % 1.2 < 0.12;
         if (m.rep) continue;
@@ -187,7 +196,7 @@
       }
       // Warning: beeps faster and faster, then the blast
       m.light.visible = m.blink % 0.12 < 0.06; m.beep = (m.beep || 0) - dt;
-      if (m.beep <= 0) { sBeep(2200); m.beep = Math.max(0.07, 0.25 * m.t / Math.max(0.2, S.mine.warn)); }
+      if (m.beep <= 0) { if (m.t > 0) sBeep(2200, vol(m.pos, MINE_HEAR.warn)); m.beep = Math.max(0.07, 0.25 * m.t / Math.max(0.2, S.mine.warn)); }
       if (m.t <= 0 && !m.rep) { scene.remove(m.g); mines.splice(i, 1); netFx({ t: 'mx', i: m.id }); blast(m.pos.clone().setY(m.pos.y + 0.1), m.owner && (m.owner === P || ents.includes(m.owner)) ? m.owner : P, 'mine'); }
     }
   }
@@ -195,8 +204,8 @@
   // The host's word on its mines, on a guest
   function mineFx(m) {
     const i = mines.findIndex(x => x.rep && x.id === m.i);
-    if (m.t === 'mn' && i < 0 && Array.isArray(m.p)) mines.push(Object.assign(mineMesh(v3(m.p)), { pos: v3(m.p), state: 'arming', t: 99, blink: 0, rep: true, id: m.i }));
-    else if (m.t === 'ms' && i >= 0) { mines[i].state = MINE_STATES[m.s] || 'armed'; mines[i].t = mines[i].state === 'warn' ? S.mine.warn : 99; }
+    if (m.t === 'mn' && i < 0 && Array.isArray(m.p)) { const r = Object.assign(mineMesh(v3(m.p)), { pos: v3(m.p), state: 'arming', t: 99, blink: 0, rep: true, id: m.i }); r.hit.userData.mine = m.i; mines.push(r); }
+    else if (m.t === 'ms' && i >= 0) { const r = mines[i], was = r.state; r.state = MINE_STATES[m.s] || 'armed'; r.t = r.state === 'warn' ? S.mine.warn : 99; if (r.state === 'armed' && was === 'arming') sBeep(1800, vol(r.pos, MINE_HEAR.arm)); }
     else if (m.t === 'mx' && i >= 0) { scene.remove(mines[i].g); mines.splice(i, 1); }
     else if (m.t === 'mc') clearMines();
   }
@@ -262,7 +271,8 @@
     // A shut gate and the bunker's door (while it's locked) take damage from anyone's bullets: each pellet's body damage times DOOR_K, as one hit on the door per shot
     if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
     const bdh = lockedDoorHit(); if (bdh) targets.push(bdh);
-    let gateDmg = 0, bdoorDmg = 0;
+    for (const m of mines) targets.push(m.hit); // a shot sets a mine off
+    let gateDmg = 0, bdoorDmg = 0; const minesHit = new Set();
     for (let i = 0; i < g.count; i++) {
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
       const [o, dir] = shotLine(new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q), targets);
@@ -276,10 +286,12 @@
       else if (ud.gate) { gateDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bdoor) { bdoorDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bulb) { bulbShot(hit); }
+      else if (ud.mine) { minesHit.add(ud.mine); impact(hit.point, hit.object); }
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
     if (gateDmg) shootGateAmt(gateDmg); if (bdoorDmg) shootBunker(bdoorDmg);
+    for (const id of minesHit) shootMine(id, P);
     let kill = false;
     for (const [e, a] of byE) { kill = e.health - a.d * K() <= 0 || kill; damage(e, a.d * K(), P, 'gun', a.head); }
     if (byE.size) hitFeedback([...byE.values()].some(a => a.head), kill);
@@ -499,9 +511,10 @@
   const fresh = sl => (sl.model ? clipOf(sl) : 0); // a weapon from its spot comes with its clip full
   function packMesh(t) {
     const g = new THREE.Group(), m = toonMat({ color: new THREE.Color(COL[t]).getHex() });
-    for (let k = 0; k < (t === 'F' || t === 'R' ? 2 : 4); k++) { // the batteries themselves, side by side
-      const b = new THREE.Mesh(t === 'R' ? new THREE.CylinderGeometry(0.035, 0.035, 0.32, 10) : new THREE.CylinderGeometry(0.08, 0.08, t === 'F' ? 0.36 : 0.26, 14), m);
-      b.position.x = (k - (t === 'F' || t === 'R' ? 0.5 : 1.5)) * (t === 'R' ? 0.1 : 0.19); b.castShadow = true; g.add(b);
+    const len = t === 'R' ? 0.32 : t === 'F' ? 0.36 : 0.26;
+    for (let k = 0; k < (t === 'F' || t === 'R' ? 2 : 4); k++) { // the batteries themselves, side by side, standing on the group's origin (it sits on the ground)
+      const b = new THREE.Mesh(t === 'R' ? new THREE.CylinderGeometry(0.035, 0.035, len, 10) : new THREE.CylinderGeometry(0.08, 0.08, len, 14), m);
+      b.position.set((k - (t === 'F' || t === 'R' ? 0.5 : 1.5)) * (t === 'R' ? 0.1 : 0.19), len / 2, 0); b.castShadow = true; g.add(b);
     }
     return g;
   }
@@ -728,6 +741,8 @@
       ['game.startD', 'D batteries you spawn with', 0, 8, 1, '', 'Besides the Pistol and the Carbine, loaded.'],
       ['game.startF', 'F batteries you spawn with', 0, 4, 1, '', 'Grenades and mines.'],
       ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'The level\'s ammo spots are D packs (F where the grenades were). What falls from the dead never goes away.'],
+      ['game.dropD', 'Most D batteries the dead drop', 0, 8, 1, '', 'They drop half of what they carried (rounded up), up to this many.'],
+      ['game.dropF', 'Most F batteries the dead drop', 0, 4, 1, '', 'The same for F batteries.'],
       ['game.dropLife', 'Dropped weapons lie there for', 5, 120, 5, 's', 'Then a Pistol or Carbine is gone, and anything else goes back to its spot on the map.'],
     ]],
   ];
@@ -812,12 +827,14 @@
     kit() { if (live()) kit(); },
     doorHp: (kind, base) => (live() ? (kind === 'gate' ? S.game.gateHp : S.game.doorHp) : base), give, addBats, packMesh, knifeDmg,
     mine(p, owner) { if (live() && p.distanceTo(owner.pos) < 5) addMine(p, owner); }, // a guest set one (host)
+    mineShot(id, by) { if (live()) shootMine(id, by); }, // a guest shot one (host)
     fx(m) { if (m.t === 'wset') useSettings(m.s); else mineFx(m); }, // the host's settings and mines, on a guest
     cfg: () => S,
     bats: () => [bats.A, bats.D, bats.F, bats.R],
     // What a box gives, and how long it takes to come back
     ammoOf: model => { const sl = byId(BY_MODEL[model]); return sl ? sl.ammo : null; },
     batMax: k => (S.ammo[k] ? S.ammo[k].max : 0),
+    dropBats: (k, n) => Math.min(Math.ceil(n / 2), k === 'D' ? S.game.dropD : k === 'F' ? S.game.dropF : 0), // what the dead leave of the n they carried
     clipOf: model => { const sl = byId(BY_MODEL[model]); return sl ? clipOf(sl) : 0; },
     packWait: k => (k === 'R' ? S.game.rifle : S.game.packs),
     weaponWait: () => S.game.weapons, dropLife: () => (live() ? S.game.dropLife : 30),

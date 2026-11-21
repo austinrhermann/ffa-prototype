@@ -411,7 +411,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt>1–3, wheel</dt><dd>Pick one of your three weapons</dd>
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
-      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery)</dd>
+      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery). Shoot a mine to set it off</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
       <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
@@ -780,7 +780,7 @@ let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, mineShot() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
@@ -1258,7 +1258,7 @@ const FORT_BUNKER = {
   lock: { hp: 240, hold: 4 },                                                 // the door locks from inside (hold E for `hold` seconds) and then has hp to be shot down
 };
 function buildBunker(B, C, col, draw, cm) {
-  const K = tunnelKit(draw, col, cm), { g, cg, box, prism, bulb, wireM } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
+  const K = tunnelKit(draw, col, cm), { g, cg, box, prism } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
   const floorAt = s => { const P = B.profile; for (let i = 0; i + 1 < P.length; i++) if (s <= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * Math.max(0, s - P[i][0]) / (P[i + 1][0] - P[i][0]); return P[P.length - 1][1]; };
   // the tunnel: straight runs, with a square cell at each corner (open on the two sides the runs join it by)
   const runs = []; let at = 0;
@@ -1313,7 +1313,7 @@ function buildBunker(B, C, col, draw, cm) {
   box('stone', [rx0 - t, rx1 + t, yt, yt + t, rz0 - t, rz1]);                                                       // ceiling
   box('stone', [rx0 - t, rx1 + t, F0, yt + t, rz1, rz1 + 0.5]);                                                     // the south wall (buried in the hill)
   // The door: only the doorway and a little round it, a concrete frame standing out of the hill's west face, with the passage through it to the room. The passage inside the hill
-  // is lit by the bulbs like the room; the frame out in the open is the sun's (open = true); the floor runs on past it as a doorstep, down to the ground
+  // is dark like the room; the frame out in the open is the sun's (open = true); the floor runs on past it as a doorstep, down to the ground
   const fz0 = D.z0 - D.pad, fz1 = D.z1 + D.pad, ft = F0 + D.h + D.pad, xo = rx0 - t, xi = xo - 1.5;
   box('stone', [xi, xo, F0 - 0.4, ft, fz0, D.z0]); box('stone', [xi, xo, F0 - 0.4, ft, D.z1, fz1]); box('stone', [xi, xo, F0 + D.h, ft, D.z0, D.z1]); box('stone', [xi, xo, F0 - 0.4, F0, D.z0, D.z1]);
   box('stone', [D.front, xi, F0 - 0.4, ft, fz0, D.z0], true, true); box('stone', [D.front, xi, F0 - 0.4, ft, D.z1, fz1], true, true);                             // jambs
@@ -1335,10 +1335,8 @@ function buildBunker(B, C, col, draw, cm) {
   const bars = [[dx - 0.15, -Math.PI / 2], [dx + 0.08, Math.PI / 2]].map(([x, ry]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 40 / 256), bmat); m.position.set(x, F0 + D.h - 0.3, zc); m.rotation.y = ry; m.renderOrder = 10; m.visible = false; g.add(m); return m; });
   const hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, D.h, dw), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(dx - 0.1, F0 + D.h / 2, zc); hit.userData.bdoor = true; g.add(hit);
   sh.lockUI = { canvas: bc, tex, bars, hit, shown: -1 };
-  // 4. Light: a bulb in the room and one every few metres along the tunnel; the cellar (and its door) are the shed tunnel's, with its own bulbs
-  const bulbAt = (x, y, z) => { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.45, z)]), wireM)); };
-  bulbAt((rx0 + rx1) / 2, yt - 0.35, (rz0 + rz1) / 2);
-  for (const s of [1.6, 4.4, 7.4, 9.6, 12.2]) { const r = runs.find(q => s <= q.s0 + q.len) || runs[last], p = pt(r, s - r.s0, 0, 0); bulbAt(p[0], floorAt(s) + th - 0.35, p[2]); }
+  // 4. No light: the room and the tunnel are pitch black, so you need your flashlight (L) to get through (they had bulbs until 2026-11-21). The cellar (and its door)
+  // are the shed tunnel's, with its own bulbs
   buildCellar(C, draw, K);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
@@ -2339,7 +2337,8 @@ const WEAPONS = {
   // A headshot kills outright (players' shots; a bot's headshot does botHead, so a lucky bot burst doesn't one-shot a player)
   carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: false, burst: 3, burstGap: 0.072, rate: 0.4, dmg: 22, head: 999, botHead: 58, mag: 24, startRes: 30, maxRes: 90, spread: 0.006, hip: 0.008, sprayAdd: 0.07, kick: 0.03, reload: 2.2, fov: 45, tracer: 0xffe08a, sound: 'gun', trW: 0.02, trLife: 0.14, rangeSpread: 0.012, botAcc: 0.5, fpvFwd: 0.2 },
   // The Master Rifle (zones): the head, or the middle of the upper chest (makeBotMesh's core), kills; anywhere else takes half your health
-  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, zones: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
+  // Aimed, it zooms 4× (fov 21.7: 40% more than the 2.9× it had at fov 30 until 2026-11-21)
+  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 21.7, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, zones: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   // holes = bullet holes left per pellet that hits a wall
   shotgun: { key: 'Battery_Gun',   name: 'Battery Gun',   auto: false, holes: 10, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.35,  kick: 0.22, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1, fixedYaw: Math.PI },
   // Mike's machine pistol, an SMG (draft numbers): 16 shots/s for less per hit than the carbine, so it wins up close, but it sprays
@@ -4046,7 +4045,7 @@ function updateRockets(dt) {
   }
 }
 
-// Ammo boxes
+// Ammo boxes (battery packs sit still where they lie: they spun and bobbed until 2026-11-21; weapons still do)
 const ammoBoxes = [];
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
@@ -4055,7 +4054,7 @@ function buildAmmoBoxes() {
   if (RANGE.on) {
     const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D' })); // (no packs on the weapon spots: just the two kinds, D and F)
     for (const { pos: p, cell, kind } of spots) {
-      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
+      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); scene.add(g); // (on the ground)
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
     }
   }
@@ -4064,7 +4063,6 @@ buildAmmoBoxes();
 function updateAmmo(dt, now) {
   for (const a of ammoBoxes) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
-    a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
       if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // nor ammo
       if (a.kind) { // a battery pack: you take what you can carry; a guest is sent it; a bot refills the old way
@@ -4251,7 +4249,7 @@ function giveWeapon(e, id, ammo) {
   return true;
 }
 // Everything a soldier carried falls where they die: their weapons (each lies there for RANGE.dropLife() seconds, then a Pistol or Carbine
-// is gone and anything else is back on its spot: PICKUP_LIMIT) and their batteries (BAGS: they never go away)
+// is gone and anything else is back on its spot: PICKUP_LIMIT) and some of their batteries (BAGS: they never go away)
 function dropWeapons(e) {
   if (!e.inv) return; syncE(e);
   let k = 0;
@@ -4268,11 +4266,11 @@ function dropWeapons(e) {
   e.inv = ['pistol'];
   if (RANGE.on) dropBats(e, k);
 }
-// Batteries that fell from the dead: a pack of D and one of F (as many as they had), there until someone takes them all. The host keeps them
+// Batteries that fell from the dead: a pack of D and one of F (half what they had, and no more than the host's dropD and dropF: RANGE.dropBats), there until someone takes them all. The host keeps them
 // and sends them in its snapshot (bg); the oldest go if there get to be too many
 const BAGS = [], BAG_MAX = 60; let BAG_KEY = 0;
 function addBag(kind, n, pos, key) {
-  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.3, pos.z); scene.add(g);
+  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.01, pos.z); scene.add(g); // (on the ground)
   const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g }; BAGS.push(b); return b;
 }
 function removeBag(i) { scene.remove(BAGS[i].mesh); BAGS.splice(i, 1); }
@@ -4280,7 +4278,7 @@ function clearBags() { while (BAGS.length) removeBag(0); }
 function dropBats(e, k) {
   const b = e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 2, e.nades | 0, 0]; // [A, D, F, R] (a bot: two D and its grenades)
   [['D', b[1] | 0], ['F', b[2] | 0]].forEach(([kind, n]) => {
-    if (n <= 0) return;
+    n = RANGE.dropBats(kind, n); if (n <= 0) return;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
     pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
     addBag(kind, n, pos);
@@ -4291,7 +4289,6 @@ function dropBats(e, k) {
 function updateBags(dt, now) {
   for (let i = BAGS.length - 1; i >= 0; i--) {
     const a = BAGS[i];
-    a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
       if (!e.alive || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) continue;
       if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
@@ -5799,10 +5796,10 @@ function sPin() {
   g.gain.setValueAtTime(0, t); env(g, t + 0.05, 0.12, 0.3); o.connect(g); g.connect(master); o.start(t + 0.05); o.stop(t + 0.4);
   noise(t + 0.12, 0.03, 0.25, 5000, 2000);
 }
-function sBeep(f) {
-  if (!AC) return; const t = AC.currentTime;
+function sBeep(f, v = 1) { // v: how loud (vol() for a beep out in the world, like a mine's)
+  if (!AC || v < 0.02) return; const t = AC.currentTime;
   const o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; o.frequency.value = f;
-  env(g, t, 0.12, 0.06); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.08);
+  env(g, t, 0.12 * v, 0.06); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.08);
 }
 function sFoot(v, run, pan) {
   if (v < 0.01) return; const t = AC.currentTime;
@@ -6185,6 +6182,7 @@ function onGuestMsg(conn, m) {
     case 'cam': r.camOn = !!m.on; break;
     case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: RANGE.dropLife() }); break; // a guest threw down a weapon
     case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
+    case 'mshot': if (r.alive && Number.isInteger(m.i)) RANGE.mineShot(m.i, r); break; // a guest shot a mine: it goes off
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'wa' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
@@ -6409,7 +6407,6 @@ function updateReplicas(dt, now) {
     animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
     updateNameTag(r);
   }
-  for (const a of ammoBoxes) if (a.active) { a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05; }
   for (const pk of PICKUPS) if (pk.active) { pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06; }
 }
 function showGuestResults(m) {
