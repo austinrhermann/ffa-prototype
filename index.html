@@ -876,7 +876,7 @@ function levelBoot() {
 function levelFortress() {
   return {
     mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true, teams: true,
-    cs: 2.4, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], far: 700, top: 0, wall: 0, // (the grid's cells are a little bigger than they were, to take in the new ground to the south)
+    cs: 3.0, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], far: 700, top: 0, wall: 0, // (the grid's cells are bigger than they were, to take in the new ground to the south: 3 m since the southern lobe, 2.4 before)
     // Where the sun reaches over the play area, for what moves: tools/build_fortress.py (SUN_GRID) writes it with these numbers
     sun: { file: 'Fortress_v5_sun', lo: [-56, 18, -12], n: [197, 81, 177], cell: 0.5, cols: 9 },
     // Inside: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room). Outside: the valley in
@@ -907,6 +907,8 @@ function levelFortress() {
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
     window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
     balcony: { x0: 4.2, x1: 7.1, z0: -2.9, z1: -1.6, y: 44.95 },
+    // The dock at the end of the southern lobe (the second drawing): a deck of planks from a (on the beach) out to b, w wide, its top at y (the sea is at about 6 there)
+    dock: { a: [-6.2, 157.5], b: [-10.35, 177.8], w: 8, y: 7.3 },
     // An invisible fence along the rim of the valley between the fort and the hill (soldiers kept falling in): [x, z, top]
     fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
@@ -921,7 +923,7 @@ function levelFortress() {
     core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the radar, a map with everyone on it)
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
-    fortNav: { box: [-66, -10, 76, 124], cell: 0.5, top: 52, bottom: 18 }, // (the whole island now, new ground and all)
+    fortNav: { box: [-66, -10, 76, 182], cell: 0.5, top: 52, bottom: 4 }, // (the whole island now, new ground and all: to z 182 and down to the beach since the southern lobe; it was z 124, y 18)
     // The new ground to the south has two roads, levelled for vehicles (FORT_EXT); the bunker is a concrete door in the hill west of the fort, beside the big tree and facing west, with
     // a tunnel to the cellar under the fort's west wall (the one Minimal + tunnel has)
     roads: FORT_EXT, bunker: FORT_BUNKER, cellar: TUNNEL_MINIMAL,
@@ -938,7 +940,10 @@ function levelFortress() {
     // Drawn things with no collision of their own (the roads sit a hand above the ground, and the rocks, bushes and trees are only pictures): the paint goes on these
     // Trees for cover, where Austin drew them on the top-down map (docs/map): [x, z]. Heights and girths vary tree to tree (addTrees)
     trees: [[-60.4, 44.3], [-33.1, 52.8], [-29.1, 54.4], [-20.1, 70.2], [-39.2, 71.4], [40.6, 72.7], [-46.8, 74.9], [47.3, 75.8], [-35.6, 77.6], [0.7, 78.0], [-41.3, 78.1], [37.1, 80.3],
-      [-47.8, 81.4], [55.0, 84.8], [-56.4, 87.8], [26.6, 91.1], [-54.1, 91.8], [60.4, 92.1], [-57.3, 94.5], [63.6, 98.1], [24.5, 99.7], [28.0, 103.4], [-25.4, 107.0], [-52.9, 107.4], [-28.3, 110.4]],
+      [-47.8, 81.4], [55.0, 84.8], [-56.4, 87.8], [26.6, 91.1], [-54.1, 91.8], [60.4, 92.1], [-57.3, 94.5], [63.6, 98.1], [24.5, 99.7], [28.0, 103.4], [-25.4, 107.0], [-52.9, 107.4], [-28.3, 110.4],
+      // the southern lobe (the second drawing)
+      [-24.4, 119.3], [-21.0, 123.0], [-11.4, 122.7], [11.4, 105.9], [13.9, 115.0], [12.8, 123.4], [22.7, 115.6], [27.0, 116.2], [34.7, 112.7], [41.5, 116.7],
+      [20.5, 120.7], [25.6, 121.8], [31.8, 121.3], [36.4, 120.1], [53.4, 122.4], [52.3, 129.2], [56.8, 130.3], [49.4, 135.5], [20.5, 135.2], [24.4, 134.3]],
     paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
@@ -1434,9 +1439,10 @@ function buildBunker(B, C, col, draw, cm) {
 // The Fortress's new roads (tools/build_fortress_ext.py builds the new ground, and prints these): each branches off the road from the gate and runs to a spawn clearing,
 // [x, z, height] every 2 m. The ground is levelled to them: the new ground by the build script, the old ground by regradeGround, here, at load, to the same profile
 // (flat is level within `flat` metres of a road's centre, easing back to the land over `blend` more). pads: [x, z, radius, blend, height], level ground that widens the valley where the truck parks.
-const FORT_EXT = { flat: 2.2, blend: 4.0, pads: [[15.5, 58.5, 7.0, 4.5, 23.0]], roads: [
+const FORT_EXT = { flat: 2.2, blend: 4.0, pads: [[15.5, 58.5, 7.0, 4.5, 23.0]], roads: [ // (roadA, roadB, and since the southern lobe roadC: tools/build_fortress_ext.py prints them)
   [[-7.5,45.5,23.2],[-9.24,46.49,23.3],[-10.97,47.48,23.45],[-12.75,48.4,23.61],[-14.53,49.32,23.77],[-16.3,50.25,23.93],[-18.07,51.18,24.09],[-19.77,52.23,24.25],[-21.47,53.28,24.41],[-23.1,54.45,24.57],[-24.72,55.62,24.73],[-26.23,56.93,24.89],[-27.74,58.24,25.05],[-29.08,59.73,25.21],[-30.41,61.22,25.37],[-31.36,62.98,25.53],[-32.3,64.74,25.69],[-32.4,66.74,25.85],[-32.44,68.74,26.01],[-31.69,70.59,26.17],[-30.93,72.44,26.33],[-29.97,74.19,26.49],[-29.03,75.96,26.65],[-28.24,77.8,26.81],[-27.47,79.64,26.65],[-27.12,81.61,26.49],[-26.83,83.59,26.33],[-27.13,85.57,26.17],[-27.58,87.51,26.01],[-28.88,89.02,26.02],[-30.25,90.48,26.18],[-31.84,91.67,26.34],[-33.63,92.57,26.5],[-35.42,93.46,26.5],[-37.21,94.36,26.5],[-39,95.25,26.5]],
-  [[23.5,61.5,22.93],[23.1,63.46,23.09],[22.7,65.42,23.25],[22.85,67.41,23.41],[23,69.41,23.57],[23.6,71.32,23.73],[24.21,73.22,23.89],[25.17,74.98,24.05],[26.12,76.73,24.21],[27.29,78.36,24.37],[28.47,79.98,24.53],[29.78,81.48,24.69],[31.09,82.99,24.85],[32.48,84.43,25.01],[33.87,85.87,25.17],[35.29,87.29,25.06],[36.7,88.7,24.9],[38.11,90.11,24.74],[39.66,91.37,24.58],[41.26,92.57,24.5],[42.86,93.77,24.5],[44.46,94.97,24.5],[46.06,96.17,24.5]]] };
+  [[23.5,61.5,22.93],[23.1,63.46,23.09],[22.7,65.42,23.25],[22.85,67.41,23.41],[23,69.41,23.57],[23.6,71.32,23.73],[24.21,73.22,23.89],[25.17,74.98,24.05],[26.12,76.73,24.21],[27.29,78.36,24.37],[28.47,79.98,24.53],[29.78,81.48,24.69],[31.09,82.99,24.85],[32.48,84.43,25.01],[33.87,85.87,25.17],[35.29,87.29,25.06],[36.7,88.7,24.9],[38.11,90.11,24.74],[39.66,91.37,24.58],[41.26,92.57,24.5],[42.86,93.77,24.5],[44.46,94.97,24.5],[46.06,96.17,24.5]],
+  [[-39.3,95.4,26.5],[-40.64,96.88,26.5],[-41.98,98.37,26.5],[-43.12,99.99,26.5],[-43.6,101.94,26.47],[-44.07,103.88,26.41],[-43.91,105.78,26.3],[-43.16,107.63,26.14],[-42.41,109.49,25.92],[-41.5,111.26,25.62],[-40.39,112.93,25.23],[-39.29,114.59,24.77],[-38.19,116.26,24.23],[-36.96,117.84,23.63],[-35.55,119.25,23.03],[-34.13,120.67,22.43],[-32.72,122.08,21.83],[-31.31,123.49,21.23],[-29.7,124.66,20.63],[-27.96,125.64,20.03],[-26.21,126.62,19.43],[-24.47,127.6,18.83],[-22.74,128.6,18.23],[-21.45,130.12,17.63],[-20.19,131.67,17.03],[-19.71,133.6,16.43],[-19.48,135.58,15.83],[-19.25,137.57,15.23],[-19.12,139.56,14.63],[-19.2,141.56,14.03],[-19.27,143.56,13.43],[-18.93,145.5,12.83],[-18.24,147.37,12.23],[-17.47,149.21,11.63],[-15.97,150.53,11.03],[-14.46,151.84,10.43],[-12.78,152.89,9.83],[-10.9,153.55,9.23],[-9.01,154.22,8.63],[-7.12,154.87,8.03],[-5.14,155.15,7.92],[-3.15,155.32,7.98],[-1.16,155.5,8.08],[0.8,155.29,8.22],[2.67,154.57,8.4],[4.53,153.85,8.63],[6.07,152.68,8.92],[6.99,150.9,9.26],[7.9,149.12,9.67],[8.81,147.34,10.14],[9.59,145.5,10.67],[10.29,143.63,11.25],[10.99,141.75,11.85],[11.69,139.88,12.45],[12.4,138.01,13.05],[13.36,136.26,13.65],[14.38,134.54,14.25],[15.41,132.83,14.85],[16.8,131.45,15.45],[18.51,130.41,15.98],[20.24,129.41,16.34],[22.18,128.98,16.63],[24.16,128.71,16.85],[26.14,128.75,17],[28.13,129.02,17.11],[30.1,129.36,17.18],[32.03,129.87,17.24],[33.96,130.37,17.31],[35.92,130.8,17.42],[37.9,131.08,17.59],[39.88,131.36,17.82],[41.84,131.17,18.13],[43.71,130.48,18.53],[44.97,129.06,19.01],[45.92,127.3,19.55],[46.51,125.41,20.14],[46.75,123.42,20.74],[46.98,121.44,21.34],[47.19,119.45,21.94],[47.27,117.45,22.52],[47.33,115.45,23.01],[47.4,113.45,23.43],[47.47,111.45,23.77],[47.36,109.46,24.04],[47.11,107.48,24.24],[46.85,105.49,24.37],[46.6,103.51,24.5],[46.46,101.51,24.5],[46.32,99.52,24.5],[46.19,97.52,24.5],[46.1,96.2,24.5]]] };
 // Level the old ground along the new roads, and heap the hill over the bunker: the vertices of the ground as drawn and as collided with move (both by the same rule, so
 // they stay together), with the normals of what moved made again. Done once, before the level's triangles are read.
 function regradeGround(L, draw, col) {
@@ -1603,6 +1609,18 @@ function addSetExtras(L) {
   // which swings with the door, so only a shut door stops them
 
   if (L.towerDoor) { const d = L.towerDoor, o = box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06); o.userData.toggle = 'door'; o.userData.noShot = true; }
+  if (L.dock) { // planks across a frame of beams, on posts down into the sea; one box to walk on
+    const D = L.dock, [ax, az] = D.a, [bx, bz] = D.b, len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(bx - ax, bz - az), hw = D.w / 2;
+    const frame = (g0) => { const g = new THREE.Group(); g.position.set(ax, D.y, az); g.rotation.y = yaw; g0.add(g); return g; }, g = frame(draw), cg = frame(col); // (local z runs out along the dock)
+    const planks = [0x7a5a38, 0x6e5032, 0x846240].map(c => toonMat({ color: c })), beam = toonMat({ color: 0x3e2a1a });
+    const put = (m, sx, sy, sz, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+    for (let z = 0, k = 0; z < len - 0.05; z += 0.62, k++) put(planks[(k * 7) % 3], D.w - 0.1 * (k % 2), 0.12, 0.56, 0.04 * ((k % 3) - 1), -0.06, z + 0.31); // the planks, with dark gaps between
+    for (const x of [-hw + 0.35, 0, hw - 0.35]) put(beam, 0.24, 0.26, len, x, -0.25, len / 2);                                                  // the beams under them
+    for (let z = 1.5; z < len; z += 3.2) for (const x of [-hw + 0.2, hw - 0.2]) put(beam, 0.3, 4.6, 0.3, x, -2.2, z);                           // posts down into the sea
+    for (const x of [-hw + 0.2, hw - 0.2]) put(beam, 0.32, 0.55, 0.32, x, 0.2, len - 0.25);                                                     // and two bollards at the end
+    const c = new THREE.Mesh(new THREE.BoxGeometry(D.w, 0.3, len), cm); c.position.set(0, -0.15, len / 2); cg.add(c);
+    g.updateMatrixWorld(true); cg.updateMatrixWorld(true);
+  }
   if (L.balcony) {
     const b = L.balcony, y = b.y;
     both(b.x0, b.x1, y - 0.18, y, b.z0, b.z1); // the deck
