@@ -600,9 +600,9 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -617,7 +617,8 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
   for (int i = 0; i < ${FLASH_MAX}; i++) {
     if (float(i) >= flN) break;
     vec3 v = p - flPos[i]; float d = length(v);
-    float c = smoothstep(flCone[i], flCone[i] + 0.035, dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
+    // (band: how far in from its edge, as a cosine, a lamp fades up to full)
+    float c = smoothstep(flCone[i], flCone[i] + flBand[i], dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (c > 0.0) { float s = c * flSeen(i, p, flFar[i]); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
@@ -665,7 +666,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -822,14 +823,22 @@ function flashBeam(e) {
   const o = new V3(), d = new V3();
   if (e.isPlayer) {
     d.set(0, 0, -1).applyQuaternion(camera.quaternion);
-    o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
+    if (tpOn) { // third person: the camera's behind your shoulder, so the beam starts at your character (by its right shoulder, a little out in front; from the camera until
+      // 2026-11-21) and goes to what the crosshair is on (or 30 m out along it)
+      const c = camera.position; let far = 30;
+      if (TG) { TG.hitTri = -1; const t = tgRay(c.x, c.y, c.z, d.x, d.y, d.z, 30, false, true); if (TG.hitTri >= 0) far = Math.max(1, t); }
+      o.copy(myEye).add(_flO.set(0.2, -0.25, -0.25).applyQuaternion(camera.quaternion));
+      _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
+    } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
     const f = fwdOf(e), p = e.pitch || 0, c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
     const head = e.rig ? e.rig.model.headY : 1.6;
     o.set(e.pos.x, e.pos.y + head - 0.1, e.pos.z).addScaledVector(d, 0.3);
   }
-  return { o, d, far: 30, fov: 53, cone: 0.921, col: FLASHLIGHT_COL, e }; // cone: the cosine of its half angle, 23° (15% wider than the 20° it was until 2026-11-21); fov: its shadow map's view, a little over the cone
+  // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
+  // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
+  return { o, d, far: 30, fov: 60, cone: 0.883, band: 0.102, col: FLASHLIGHT_COL, e };
 }
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
@@ -1193,7 +1202,7 @@ function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit di
 // in the tunnel take it too, and it goes dark where a bulb has been shot out)
 // The tunnels' walls, floors and stairs wear the truck's grey paint (its scuffs and drips, made stronger: grungeTex) under their own colours, so a flashlight shows a
 // worn surface rather than a flat colour. It comes with the truck's model (skinTunnels: the truck's Mat_plastic_utility); until then, or without it, they're plain
-const TUNNEL_SKIN = { tex: null, mats: [] }, TUNNEL_TILE = 2.2, GRUNGE_MID = 200; // metres per repeat; the texture's average, of 255
+const TUNNEL_SKIN = { tex: null, mats: [] }, TUNNEL_TILE = 22, GRUNGE_MID = 200; // metres per repeat (2.2 until 2026-11-21: tiles ten times the size now); the texture's average, of 255
 function grungeTex(img) {
   const n = Math.min(512, img.width || 512), c = document.createElement('canvas'); c.width = c.height = n;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0, n, n);
@@ -6834,6 +6843,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=33"></script>
 <script src="range.js?v=32"></script>
 <script src="art.js?v=11"></script>
-<script src="headlights.js?v=4"></script>
+<script src="headlights.js?v=5"></script>
 </body>
 </html>
