@@ -350,7 +350,8 @@
 
   const list = [];
   // The chase camera starts a little above and behind (CAM_PITCH, Austin's angle: 2026-11-03) and stays wherever the mouse leaves it
-  const CAM_PITCH = 0.25;
+  const CAM_PITCH = 0.25, BIKE_PITCH = -0.3; // BIKE_PITCH: riding a bike, the seat view looks this far down, so the handlebars sit across the bottom of the screen
+  const seatPitch = () => (cur && cur.kind === 'bike' ? BIKE_PITCH : 0);
   let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = CAM_PITCH, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
   const camPos = new V3(), camLook = new V3();
   const me = () => (NET.role === 'guest' ? NET.myId : P.id);
@@ -719,7 +720,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
   function enter(v) {
     if (v.owner && v.owner !== me()) { note(`Someone is already in the ${v.name.toLowerCase()}`, 1.5); return; }
-    v.owner = me(); v.net = null; v.npc = null; cur = v; view = 'chase'; camYaw = 0; camPitch = CAM_PITCH; lookIdle = 9;
+    // a bike starts in the rider's own eyes, the handlebars across the bottom of the screen (it started in the chase view until 2026-11-21); the truck behind it
+    v.owner = me(); v.net = null; v.npc = null; cur = v; view = v.kind === 'bike' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch(); lookIdle = 9;
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
     note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
@@ -1070,7 +1072,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
         if (cur) { leave(false); return true; } if (ride) { unride(false); return true; }
         const v = P.alive ? nearest() : null; if (v) { use(v); return true; } return false;
       }
-      if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; return true; } // (each view starts from its own default)
+      if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch(); return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
