@@ -66,6 +66,8 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #mic:empty{display:none}
 #tmic{left:calc(84px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
+#tlight{left:calc(146px + env(safe-area-inset-left,0px))}
+#tlight.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #camgrid{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:50vw}
 .camtile{position:relative;width:120px;height:90px;border-radius:6px;overflow:hidden;background:#000;border:2px solid rgba(238,243,234,.35);transition:border-color .15s,box-shadow .15s}
@@ -359,6 +361,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="tb drv" id="tview" data-act="view">View</div>
   <div class="tt" id="tpause" data-act="pause">Pause</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
+  <div class="tt" id="tlight" data-act="light">Light</div>
 </div>
 <div id="curtain"></div>
 <div id="fshint" role="note"><span>Full screen: Share › <b>Add to Home Screen</b>, then play from the icon</span><button type="button" id="fshintx" aria-label="Dismiss">×</button></div>
@@ -637,21 +640,47 @@ vec3 bulbLight(vec3 p, vec3 n) { // the warm glow on a surface at p that faces n
   return vec3(1.0, 0.8, 0.5) * k * 1.3;
 }
 `;
+// Dark places (the bunker, its tunnel, the cellar and the stairs up to the fort): boxes in which every toon surface is pitch black, whatever the time of day, so only
+// a flashlight (or a bulb) shows anything there. A box takes in the inside faces of its walls, floor and roof, not their outsides. DARK.all is every box the sets have
+// built, DARK.live the ones in the level being played (darkSync); the shaders skip the lot outside DARK.bounds
+const DARK_MAX = 24, DARK_GLOW = 0.03, DARK_VM = 0.08, DARK = { n: { value: 0 }, lo: { value: [...Array(DARK_MAX)].map(() => new THREE.Vector3()) }, hi: { value: [...Array(DARK_MAX)].map(() => new THREE.Vector3()) },
+  bLo: { value: new THREE.Vector3() }, bHi: { value: new THREE.Vector3() }, all: [], live: [] };
+const DARK_GLSL = `
+uniform float dkN; uniform vec3 dkLo[${DARK_MAX}]; uniform vec3 dkHi[${DARK_MAX}]; uniform vec3 dkBLo; uniform vec3 dkBHi;
+bool inDark(vec3 p) {
+  if (any(lessThan(p, dkBLo)) || any(greaterThan(p, dkBHi))) return false;
+  for (int i = 0; i < ${DARK_MAX}; i++) {
+    if (float(i) >= dkN) break;
+    if (all(greaterThan(p, dkLo[i])) && all(lessThan(p, dkHi[i]))) return true;
+  }
+  return false;
+}
+`;
+function darkSync() {
+  const sc = LV && LV.mesh ? LEVEL_SCENES[LV.mesh] : null;
+  DARK.live = DARK.all.filter(b => b.scene === sc).slice(0, DARK_MAX);
+  DARK.bLo.value.set(Infinity, Infinity, Infinity); DARK.bHi.value.set(-Infinity, -Infinity, -Infinity);
+  DARK.live.forEach((b, i) => { DARK.lo.value[i].copy(b.lo); DARK.hi.value[i].copy(b.hi); DARK.bLo.value.min(b.lo); DARK.bHi.value.max(b.hi); });
+  DARK.n.value = DARK.live.length;
+}
+const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
+const inDarkCPU = p => darkNear(p);
 const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, ...FLASH_UNIFORMS() });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
       reflectedLight.directDiffuse *= sunAt(vSunPos);
     #endif`).replace('#include <tonemapping_fragment>', `
+    if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC, flK); }
     #include <tonemapping_fragment>`);
@@ -710,6 +739,7 @@ function applyLook() {
     f.color.copy(sh); f.intensity = on ? 1 : 0;
     d.color.copy(on ? lit : new THREE.Color(0xffffff)); d.intensity = on ? 1 : dk; d.userData.lit = d.color.clone();
     k.intensity = on ? 0 : kk;
+    f.userData.k = f.intensity; k.userData.k = k.intensity; // (what a dark place scales the gun's light from)
   }
   if (on) { const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180; SUN_DIR.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)); }
   else SUN_DIR.set(25, 50, 15).normalize();
@@ -787,7 +817,7 @@ const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js f
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
 const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82);
 function flashBeam(e) {
-  const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn(); // (the host's bots: on whenever it's dark)
+  const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn() || darkNear(e.pos, 0.5); // (the host's bots: on whenever it's dark, and in a dark place)
   if (VIC.on || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
   const o = new V3(), d = new V3();
   if (e.isPlayer) {
@@ -799,7 +829,7 @@ function flashBeam(e) {
     const head = e.rig ? e.rig.model.headY : 1.6;
     o.set(e.pos.x, e.pos.y + head - 0.1, e.pos.z).addScaledVector(d, 0.3);
   }
-  return { o, d, far: 30, fov: 46, cone: 0.94, col: FLASHLIGHT_COL, e };
+  return { o, d, far: 30, fov: 53, cone: 0.921, col: FLASHLIGHT_COL, e }; // cone: the cosine of its half angle, 23° (15% wider than the 20° it was until 2026-11-21); fov: its shadow map's view, a little over the cone
 }
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
@@ -916,8 +946,9 @@ const TUNNEL_MINIMAL = {
     ['crate', [-12.45, -11.45, 28.0, 29.0, -5.85, -4.85]], ['crate', [-11.35, -10.35, 28.0, 29.0, -5.85, -4.85]], ['crate', [-12.3, -11.5, 29.0, 29.8, -5.7, -4.9]],
   ],
   barrels: [[-12.05, -3.6], [-12.05, -2.85], [-11.3, -3.25]],
-  bulbs: [[-10.9, 30.15, -1.5], [-7.0, 30.15, 1.4], [-8.2, 36.5, -2.6]],
-  lamp: [-9.6, 30.0, -1.0],
+  // inside the cellar and the stairwell (for DARK: they're pitch black; they had three bulbs and a lamp until 2026-11-21). The stairwell stops short of the door's wall,
+  // whose far face is the fort room's
+  dark: [[-12.5, -5.14, 28.0, 30.6, -5.9, 2.65], [-9.15, -5.14, 28.0, 37.0, -5.9, -0.12]],
 };
 const LEVEL_DEFS = { boot: levelBoot, fortress: levelFortress }; // (boot: only until the fort is in)
 function buildGrid(id) {
@@ -926,7 +957,7 @@ function buildGrid(id) {
   MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
   if (L.mesh) addSetExtras(L);
-  bulbSync();
+  bulbSync(); darkSync();
   TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
   if (TG) resetSheds();
   if (TG && L.towerDoor) setSolid('door', true); // the door starts open
@@ -1160,15 +1191,55 @@ function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit di
 // of 4 corners at each end) and box, and the bulbs that hang on a wire. The faces of every solid point outward (into the tunnel, from the walls round it), so what
 // is lit, shot and painted from inside is the face you see; the light is the bulbs' (BULB: the shader adds the glow of the ones near a surface, so people and guns
 // in the tunnel take it too, and it goes dark where a bulb has been shot out)
+// The tunnels' walls, floors and stairs wear the truck's grey paint (its scuffs and drips, made stronger: grungeTex) under their own colours, so a flashlight shows a
+// worn surface rather than a flat colour. It comes with the truck's model (skinTunnels: the truck's Mat_plastic_utility); until then, or without it, they're plain
+const TUNNEL_SKIN = { tex: null, mats: [] }, TUNNEL_TILE = 2.2, GRUNGE_MID = 200; // metres per repeat; the texture's average, of 255
+function grungeTex(img) {
+  const n = Math.min(512, img.width || 512), c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, n, n);
+  const d = x.getImageData(0, 0, n, n), a = d.data, lum = i => a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
+  let sum = 0; for (let i = 0; i < a.length; i += 4) sum += lum(i);
+  const mean = sum / (a.length / 4);
+  let L = new Float32Array(n * n); for (let i = 0; i < L.length; i++) L[i] = GRUNGE_MID + (lum(i * 4) - mean) * 4; // grey, light, and four times the contrast
+  // Made to tile without a seam: each way in turn, the picture fades into a copy of itself shifted half its size, whose middle is the original's edges (so it
+  // carries on across them), from nothing in the middle to all of it at the edges
+  const w = k => { const e = Math.abs(k / (n - 1) - 0.5) * 2; return e * e * (3 - 2 * e); };
+  for (const ax of [0, 1]) {
+    const o = new Float32Array(n * n);
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) {
+      const sx = ax ? xx : (xx + (n >> 1)) % n, sy = ax ? (yy + (n >> 1)) % n : yy, k = w(ax ? yy : xx);
+      o[yy * n + xx] = L[yy * n + xx] * (1 - k) + L[sy * n + sx] * k;
+    }
+    L = o;
+  }
+  for (let i = 0; i < L.length; i++) a[i * 4] = a[i * 4 + 1] = a[i * 4 + 2] = Math.max(0, Math.min(255, L[i]));
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+}
+function skinMat(m) { if (!TUNNEL_SKIN.tex || m.map) return; m.map = TUNNEL_SKIN.tex; m.color.multiplyScalar(255 / GRUNGE_MID); m.needsUpdate = true; } // (the colour brightened by as much as the texture darkens it)
+function skinTunnels(sc) {
+  let map = null; sc.traverse(o => { if (!map && o.isMesh && o.material.map && /^Mat_plastic_utility/.test(o.material.name)) map = o.material.map; });
+  if (!map || !map.image || TUNNEL_SKIN.tex) return;
+  TUNNEL_SKIN.tex = grungeTex(map.image); TUNNEL_SKIN.mats.forEach(skinMat);
+}
 function tunnelKit(draw, col, cm) {
   const M = { stone: toonMat({ color: 0x8b887f, side: THREE.DoubleSide }), wood: toonMat({ color: 0x7a5636, side: THREE.DoubleSide }), earth: toonMat({ color: 0x5c4b3c, side: THREE.DoubleSide }),
     roof: toonMat({ color: 0x40352b, side: THREE.DoubleSide }), crate: MAT.crate, barrel: toonMat({ color: 0x6e4a2c }) };
+  for (const k of ['stone', 'wood', 'earth', 'roof']) { TUNNEL_SKIN.mats.push(M[k]); skinMat(M[k]); }
   const g = new THREE.Group(); g.name = 'Tunnel'; draw.add(g); const cg = new THREE.Group(); col.add(cg);
   const prism = (kind, ring0, ring1, solid = true) => { // two rings of 4 corners ([x, y, z]), bottom and top
     const P = [], q = (a, b, c) => P.push(...a, ...b, ...c), quad = (a, b, c, d) => { q(a, c, b); q(a, d, c); };
     quad(ring0[3], ring0[2], ring0[1], ring0[0]); quad(ring1[0], ring1[1], ring1[2], ring1[3]);
     for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(ring0[i], ring0[j], ring1[j], ring1[i]); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals();
+    // texture coordinates from where each face is in the world, seen along the axis it faces most (walls stand the texture upright, floors and roofs lie it flat)
+    const U = [];
+    for (let i = 0; i < P.length; i += 9) {
+      const ax = P[i + 3] - P[i], ay = P[i + 4] - P[i + 1], az = P[i + 5] - P[i + 2], bx = P[i + 6] - P[i], by = P[i + 7] - P[i + 1], bz = P[i + 8] - P[i + 2];
+      const nx = Math.abs(ay * bz - az * by), ny = Math.abs(az * bx - ax * bz), nz = Math.abs(ax * by - ay * bx);
+      for (let k = i; k < i + 9; k += 3) { const [u, v] = ny >= nx && ny >= nz ? [P[k], P[k + 2]] : nx >= nz ? [P[k + 2], P[k + 1]] : [P[k], P[k + 1]]; U.push(u / TUNNEL_TILE, v / TUNNEL_TILE); }
+    }
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
     const o = new THREE.Mesh(geo, M[kind]); o.castShadow = o.receiveShadow = true; g.add(o);
     if (solid) cg.add(new THREE.Mesh(geo, cm));
     return o;
@@ -1181,7 +1252,9 @@ function tunnelKit(draw, col, cm) {
     BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 7, mesh: o, lit: bulbLit, dead: bulbDead, alive: true, hit }); hit.userData.bulb = BULB.all[BULB.all.length - 1];
   };
   const lamp = (x, y, z) => BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 9, mesh: null, alive: true }); // a light with no bulb to shoot
-  return { M, X: M, g, cg, cm, prism, box, bulb, lamp, wireM };
+  // a dark place (DARK): the inside of a room or a stretch of tunnel, [x0, x1, y0, y1, z0, z1] to its walls' inside faces; m takes those faces in, and stops well short of the outsides
+  const dark = ([x0, x1, y0, y1, z0, z1], m = 0.08) => DARK.all.push({ scene: draw, lo: new V3(x0 - m, y0 - m, z0 - m), hi: new V3(x1 + m, y1 + m, z1 + m) });
+  return { M, X: M, g, cg, cm, prism, box, bulb, lamp, wireM, dark };
 }
 // The bulbs in play. bulbSync hands the shaders the ones still lit; a shot (castShot finds them: bulbRay) or a blast puts one out (bulbBreak), the same bulb on every machine
 // (netFx 'bb'; the host's welcome lists the broken ones), and a new round puts them all back (clearHoles)
@@ -1221,7 +1294,7 @@ function bulbAtCPU(p) { let k = 0; for (const b of BULB.live) { if (!b.alive) co
 // The cellar under the fort's west wall, the stairs up from it and the door in the room's back wall (T.pieces, barrels, door, bulbs, lamp): the end of
 // the tunnel under the shed and of the bunker's tunnel
 function buildCellar(T, draw, K) {
-  const { M, g, cg, cm, box, bulb, wireM } = K;
+  const { M, g, cg, cm, box } = K;
   for (const [kind, b, solid] of T.pieces) box(kind, b, solid !== false);
   for (const [x, z] of T.barrels) {
     const o = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 14), M.barrel); o.position.set(x, T.cellarFloor + 0.475, z); o.castShadow = o.receiveShadow = true; g.add(o);
@@ -1238,9 +1311,8 @@ function buildCellar(T, draw, K) {
   const tog = 'cellar' + SHEDS.length, slabC = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, 0.1), cm);
   slabC.position.set((D.x0 + D.x1) / 2, D.y + dh / 2, D.z); slabC.userData.toggle = tog; cg.add(slabC);
   SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3((D.x0 + D.x1) / 2, 0, D.z), y: D.y, rot: 0 });
-  // a few bulbs in the cellar, and one warm light down there
-  for (const [x, y, z] of T.bulbs) { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.55, z)]), wireM)); }
-  K.lamp(...T.lamp);
+  // no light: it's dark down there (DARK)
+  for (const b of T.dark) K.dark(b);
 }
 // The bunker on the Fortress (Austin's drawing): a concrete door built into the hillside west of the fort, tucked in beside the big tree and facing west, and a tunnel from
 // the room behind it to the same cellar the shed's tunnel (Minimal + tunnel) ends in. World metres [x, y, z]; boxes [x0, x1, y0, y1, z0, z1].
@@ -1335,8 +1407,17 @@ function buildBunker(B, C, col, draw, cm) {
   const bars = [[dx - 0.15, -Math.PI / 2], [dx + 0.08, Math.PI / 2]].map(([x, ry]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 40 / 256), bmat); m.position.set(x, F0 + D.h - 0.3, zc); m.rotation.y = ry; m.renderOrder = 10; m.visible = false; g.add(m); return m; });
   const hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, D.h, dw), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(dx - 0.1, F0 + D.h / 2, zc); hit.userData.bdoor = true; g.add(hit);
   sh.lockUI = { canvas: bc, tex, bars, hit, shown: -1 };
-  // 4. No light: the room and the tunnel are pitch black, so you need your flashlight (L) to get through (they had bulbs until 2026-11-21). The cellar (and its door)
-  // are the shed tunnel's, with its own bulbs
+  // 4. No light: the room, the passage in from the door and the tunnel are pitch black whatever the time of day (DARK), so you need your flashlight (L) to get through
+  // (they had bulbs until 2026-11-21). The tunnel goes a stretch at a time: a level one in one box, a slope in half-metre slices, so no box reaches out past its roof.
+  // The cellar and the stairs up (buildCellar) are dark too
+  K.dark([rx0, rx1, F0, yt, rz0, rz1]); K.dark([dx + 0.1, rx0, F0, F0 + D.h, D.z0, D.z1]);
+  runs.forEach((r, i) => {
+    const sa = i ? hw : -t, sb = r.len - (i < last ? hw : -0.3), sl = []; // (from the room's east wall; the last run on into the cellar's south wall)
+    for (let s = sa; s < sb - 1e-6; s += 0.5) { const e = Math.min(sb, s + 0.5), f0 = floorAt(r.s0 + s), f1 = floorAt(r.s0 + e), p = sl[sl.length - 1], y0 = Math.min(f0, f1), y1 = Math.max(f0, f1) + th;
+      if (p && Math.abs(p[2] - y0) < 1e-3 && Math.abs(p[3] - y1) < 1e-3) p[1] = e; else sl.push([s, e, y0, y1]); }
+    for (const [s, e, y0, y1] of sl) { const a = pt(r, s, -hw, 0), b = pt(r, e, hw, 0); K.dark([Math.min(a[0], b[0]), Math.max(a[0], b[0]), y0, y1, Math.min(a[2], b[2]), Math.max(a[2], b[2])]); }
+  });
+  for (let i = 0; i < last; i++) { const c = runs[i + 1].a, f = floorAt(runs[i + 1].s0); K.dark([c[0] - hw, c[0] + hw, f, f + th, c[1] - hw, c[1] + hw]); } // the corner cells
   buildCellar(C, draw, K);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
@@ -2615,7 +2696,7 @@ function loadModels() {
   // The Cargo Truck (vehicles.js draws the truck with it) and the motorcycle (the fort's, and the Sport bike in Test Drive).
   // Without one, that vehicle is built from boxes, so a download or decode that fails tries again in the background (a few
   // times, further apart each time) and the vehicles already out are rebuilt from the model when it comes (VEH.setModel)
-  const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => VEH.setModel(key, sc)).catch(e => {
+  const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => { if (key === 'truck') skinTunnels(sc); VEH.setModel(key, sc); }).catch(e => {
     console.warn(file + ' model:', e);
     if (n < 4) setTimeout(() => vehModel(file, key, n + 1), 3000 * (n + 1));
   });
@@ -5169,6 +5250,7 @@ function updateHUD(dt) {
 
 // ---------- Touch ----------
 const isTouch = matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+const TLIGHT = document.getElementById('tlight');
 if (isTouch) document.body.classList.add('touch');
 // iOS (Safari, Chrome and Firefox there are all WebKit) has no full screen for pages; from the home screen it opens without browser bars
 {
@@ -5301,6 +5383,7 @@ function touchEnd(e) {
     const act = el ? el.dataset.act : null;
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
+    if (e.type === 'touchend' && act === 'light') RANGE.toggleLight(); // the flashlight (L)
     if (act === 'nade') releaseCook();
   }
 }
@@ -6236,7 +6319,7 @@ function snapshot() {
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths, tm: e.team || null,
       cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
       ar: e.isPlayer ? ART.state() : e.art | 0, ac: e.isPlayer ? ART.colour() : e.artC | 0, // drawing: the pen (1) or the spray can (2), and its colour
-      fl: (e.isPlayer ? RANGE.lightOn() : e.isRemote ? e.lit : e.alive && nightOn()) ? 1 : 0, // flashlights (the bots' are on at dusk and night)
+      fl: (e.isPlayer ? RANGE.lightOn() : e.isRemote ? e.lit : e.alive && (nightOn() || darkNear(e.pos, 0.5))) ? 1 : 0, // flashlights (the bots' are on at dusk and night, and in a dark place)
       iv: (e.isPlayer ? P.inv : e.inv) || [], bt: e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0], // what they carry, to show on them
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
@@ -6701,7 +6784,11 @@ function loop(now) {
   updateChatbox();
   if (isTouch) touchTick(dt);
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
-  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
+  const dk = inDarkCPU(camera.position) ? DARK_VM : 1; // and in the dark with you
+  if (isTouch) TLIGHT.classList.toggle('on', RANGE.lightOn()); // (the touch Light button shows it's on)
+  if (dk < 1 && P.alive && !RANGE.lightOn()) hint('dark', isTouch ? 'It\'s pitch black in here: Light (top left) turns your flashlight on' : 'It\'s pitch black in here: L turns your flashlight on', 4);
+  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
+  vmFill.intensity = (vmFill.userData.k ?? 1) * dk; vmSky.intensity = (vmSky.userData.k ?? 0.9) * dk;
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
   if (VIC.on) victoryHide();
   renderer.clear();
@@ -6711,9 +6798,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=32"></script>
-<script src="range.js?v=30"></script>
+<script src="vehicles.js?v=33"></script>
+<script src="range.js?v=31"></script>
 <script src="art.js?v=11"></script>
-<script src="headlights.js?v=3"></script>
+<script src="headlights.js?v=4"></script>
 </body>
 </html>

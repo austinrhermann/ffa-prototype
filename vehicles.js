@@ -52,11 +52,13 @@
   const BASE_BIKE = { power: 13, top: 190, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 2.0, mass: 230,
     wheelbase: 1.45, track: 0.3, wheelR: 0.33, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.3, steerRate: 7, downforce: 0 };
   const PRESETS = {
-    sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } }, // James's tuning
+    // James's tuning; top speed cut from 190 km/h to 70 (2026-11-21), and it never goes faster than BIKE_MAX (42 mph), downhill included
+    sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { top: 70, steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } },
     // The truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
     // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
     truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
   };
+  const BIKE_MAX = 42 / 2.23694; // a bike's hard top speed, m/s (42 mph)
   const defaults = key => Object.assign({}, PRESETS[key].kind === 'bike' ? BASE_BIKE : BASE_CAR, PRESETS[key].p);
 
   // ---------------------------------------------------------------- models from the asset library
@@ -464,6 +466,7 @@
       vr *= Math.exp(-(inp.hand ? p.slide : p.grip) * dt);
     }
     vf -= 0.0009 * vf * Math.abs(vf) * dt;
+    if (v.kind === 'bike' && vf > BIKE_MAX) vf = BIKE_MAX;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
     v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0); v.speed = vf; // locked wheels squeal too
