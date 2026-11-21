@@ -54,6 +54,8 @@
   }
   const matOpts = { gradientMap: RAMP, map: DOT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 };
   const MAT = new PaintMat(matOpts), MAT_SKIN = new PaintMat(Object.assign({ skinning: true }, matOpts));
+  // Tyre marks have their own: each pixel takes them once a frame however many of their dots overlap there (the stencil), so they're evenly see-through
+  const MAT_SKID = new PaintMat(Object.assign({}, matOpts, { stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp }));
 
   // ---------------------------------------------------------------- paint meshes
   // One mesh per thing painted (the level, a door, a vehicle part, a character's mesh), its triangles added in order:
@@ -61,6 +63,7 @@
   const SIZE = { position: 3, normal: 3, uv: 2, pcol: 4, skinIndex: 4, skinWeight: 4 };
   const ARR = { position: Float32Array, normal: Float32Array, uv: Float32Array, pcol: Uint8Array, skinIndex: Uint16Array, skinWeight: Float32Array };
   const world = new THREE.Group(); world.name = 'paint'; scene.add(world);
+  const skidWorld = new THREE.Group(); skidWorld.name = 'tyre marks'; scene.add(skidWorld); // (the level too, for the tyre marks' own paint meshes: anchor ['k'])
   const chains = new Map(); // the object painted -> its paint meshes, oldest first
   let order = 0; // render order 2 + a little more per paint mesh: after the scorches (1), before the bullet holes (3)
   let vertTotal = 0;
@@ -68,8 +71,8 @@
     constructor(A, ro) {
       this.A = A; this.skin = A.skin || null; this.n = 0; this.cap = 0; this.parts = []; this.d0 = Infinity; this.d1 = -1;
       this.grow(this.skin ? 256 : 1024);
-      const m = this.skin ? new THREE.SkinnedMesh(this.g, MAT_SKIN) : new THREE.Mesh(this.g, MAT);
-      m.frustumCulled = false; m.renderOrder = ro; m.castShadow = false; m.receiveShadow = !this.skin; m.matrixAutoUpdate = A.obj !== world;
+      const m = this.skin ? new THREE.SkinnedMesh(this.g, MAT_SKIN) : new THREE.Mesh(this.g, A.mat || MAT);
+      m.frustumCulled = false; m.renderOrder = ro; m.castShadow = false; m.receiveShadow = !this.skin; m.matrixAutoUpdate = A.obj !== world && A.obj !== skidWorld;
       paintOnly(m);
       if (this.skin) { const s = this.skin; m.bind(s.skeleton, s.bindMatrix); m.position.copy(s.position); m.quaternion.copy(s.quaternion); m.scale.copy(s.scale); s.parent.add(m); m.updateMatrixWorld(true); }
       else A.obj.add(m);
@@ -122,7 +125,21 @@
   // ---------------------------------------------------------------- layers
   // A layer is one click (one line, held down). parts: where its vertices are, per paint mesh.
   const layers = [], byId = new Map();
-  function newLayer(rec) { const L = { id: rec.i, rec, parts: [], verts: 0 }; layers.push(L); byId.set(rec.i, L); return L; }
+  const temps = []; // layers that go after a while (rec.ttl seconds after their last point: the tyre marks), fading out over their last SKID_FADE seconds
+  const SKID_FADE = 4;
+  function newLayer(rec) { const L = { id: rec.i, rec, parts: [], verts: 0 }; layers.push(L); byId.set(rec.i, L); if (rec.ttl) { L.until = performance.now() + rec.ttl * 1000; temps.push(L); } return L; }
+  function fadeLayer(L, a) { // every vertex of layer L to alpha a
+    if (L.alpha === a) return; L.alpha = a;
+    for (const pt of L.parts) { const b = pt.b, arr = b.g.attributes.pcol.array; for (let i = pt.s; i < pt.s + pt.c; i++) arr[i * 4 + 3] = a; b.d0 = Math.min(b.d0, pt.s); b.d1 = Math.max(b.d1, pt.s + pt.c); b.commit(); }
+  }
+  function ageTemps() {
+    const now = performance.now();
+    for (let i = temps.length - 1; i >= 0; i--) {
+      const L = temps[i]; if (byId.get(L.id) !== L) { temps.splice(i, 1); continue; }
+      const left = (L.until - now) / 1000;
+      if (left <= 0) { dropLayer(L); temps.splice(i, 1); } else if (left < SKID_FADE) fadeLayer(L, Math.round((L.rec.o >= 0 ? L.rec.o : 255) * left / SKID_FADE));
+    }
+  }
   // Start writing k vertices of layer L onto anchor A
   let cur = null;
   function begin(L, A, k) {
@@ -176,6 +193,7 @@
   function resolve(a) {
     if (!Array.isArray(a)) return null;
     if (a[0] === 'w') return { obj: world, kind: 'w' };
+    if (a[0] === 'k') return { obj: skidWorld, kind: 'w', mat: MAT_SKID }; // the tyre marks' own
     if (a[0] === 'd') { const h = hinges()[a[1]]; return h ? { obj: h, kind: 'd' } : null; }
     if (a[0] === 'v') { const v = VEH.list[a[1]], m = v && v.g && byName(vehInfo(v).meshes, a[2], a[3]); return m ? { obj: m, kind: 'v' } : null; }
     if (a[0] === 'e') { const e = entById(a[1]), s = e && e.rig && byName(rigSkins(e.rig), a[2], a[3]); return s ? { obj: s, kind: 'e', skin: s, rig: e.rig, e } : null; }
@@ -330,6 +348,7 @@
   // Points from index k0 on: a dot at each, with dots every half radius along the line from the point before
   function drawPoints(L, A, rec, k0) {
     const q = rec.q, S = A.kind === 'e' ? 8 : 7, rgba = rgbaOf(rec.c), r = rec.pr, tool = rec.s;
+    if (rec.o >= 0) rgba[3] = rec.o; // (a see-through layer: the tyre marks)
     const g = A.skin && A.skin.geometry, si = [0, 0, 0, 0], sw = [0, 0, 0, 0], pen = tool === PEN && g;
     for (let k = k0; k * S + S <= q.length; k++) {
       const o = k * S; _p.set(q[o], q[o + 1], q[o + 2]); _n.set(q[o + 3], q[o + 4], q[o + 5]).normalize();
@@ -572,12 +591,13 @@
   function validRec(m) {
     if (typeof m.i !== 'string' || m.i.length > 24 || !Array.isArray(m.a) || !(m.c >= 0 && m.c < 6 && (m.c | 0) === m.c)) return false;
     const a = m.a;
-    if (!(a[0] === 'w' && a.length === 1 || a[0] === 'd' && a.length === 2 && (a[1] | 0) === a[1] && a[1] >= 0 && a[1] < 64
+    if (m.o !== undefined && !((m.o | 0) === m.o && m.o >= 0 && m.o <= 255) || m.ttl !== undefined && !(m.ttl >= 1 && m.ttl <= 120)) return false;
+    if (!(a[0] === 'w' && a.length === 1 || a[0] === 'k' && a.length === 1 || a[0] === 'd' && a.length === 2 && (a[1] | 0) === a[1] && a[1] >= 0 && a[1] < 64
       || a[0] === 'v' && a.length === 4 && (a[1] | 0) === a[1] && a[1] >= 0 && a[1] < 256 && typeof a[2] === 'string' && a[2].length <= 80 && (a[3] | 0) === a[3] && a[3] >= 0 && a[3] < 64
       || a[0] === 'e' && a.length === 4 && typeof a[1] === 'string' && a[1].length <= 12 && typeof a[2] === 'string' && a[2].length <= 80 && (a[3] | 0) === a[3] && a[3] >= 0 && a[3] < 64)) return false;
     return (m.s === PEN || m.s === SPRAY) && m.pr > 0 && m.pr < 100 && validPts(m.q, a[0] === 'e' ? 8 : 7);
   }
-  const clean = m => ({ i: m.i, a: m.a, s: m.s, c: m.c, pr: m.pr, q: m.q.slice() });
+  const clean = m => Object.assign({ i: m.i, a: m.a, s: m.s, c: m.c, pr: m.pr, q: m.q.slice() }, m.o !== undefined ? { o: m.o } : {}, m.ttl !== undefined ? { ttl: m.ttl } : {});
   function take(rec) {
     if (byId.has(rec.i)) return null;
     if (NET.role === 'host') log.push(rec);
@@ -587,12 +607,12 @@
   function net(m) {
     if (m.t === 'pt') {
       if (!validRec(m)) return;
-      const L = take(clean(m)); if (L && m.s === SPRAY) remoteFx(L);
+      const L = take(clean(m)); if (L && m.s === SPRAY && !m.ttl) remoteFx(L); // (a tyre mark comes with no hiss or mist)
     } else if (m.t === 'pa') {
       const L = byId.get(m.i), pd = !L && pending.find(x => x.rec.i === m.i), rec = L ? L.rec : pd ? pd.rec : null; if (!rec) return;
       const S = rec.a[0] === 'e' ? 8 : 7; if (!validPts(m.q, S) || rec.q.length + m.q.length > STROKE_MAX * S) return;
       const k = rec.q.length / S; rec.q.push(...m.q);
-      if (L && L.A) { drawPoints(L, L.A, rec, k); if (rec.s === SPRAY) remoteFx(L); }
+      if (L && L.A) { drawPoints(L, L.A, rec, k); if (rec.s === SPRAY && !rec.ttl) remoteFx(L); if (rec.ttl) L.until = performance.now() + rec.ttl * 1000; }
     }
   }
   // The host: the paint so far to a guest who just joined, in pieces (one message over 64 KB closes the connection)
@@ -656,7 +676,7 @@
   function clearEnt(e) { if (e.rig) { const s = rigSkins(e.rig); dropBatches(obj => s.includes(obj)); } }
   function clear() {
     for (const ch of chains.values()) for (const b of ch) b.dispose();
-    chains.clear(); layers.length = 0; byId.clear(); log.length = 0; pending.length = 0; vertTotal = 0; stroke = null; order = 0;
+    chains.clear(); layers.length = 0; byId.clear(); log.length = 0; pending.length = 0; vertTotal = 0; stroke = null; order = 0; temps.length = 0;
     for (const c of corpsePaint) c.g.dispose(); corpsePaint.length = 0;
   }
   const alive = new Map();
@@ -696,6 +716,7 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
   btn.onclick = () => { if (!P.alive) return; toggle(); $('play').click(); };
 
   function after(dt) {
+    ageTemps();
     if (on && !RANGE.on) leave();
     const seated = !!VEH.riding; // in a vehicle the tools are put away: no colours, no pen or can in your hands
     document.body.classList.toggle('art-on', on && !seated);
@@ -775,7 +796,7 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
   // A skidding wheel lays a black line on the ground: the spray (so it drapes over the slope), in the palette's black, as wide as the tyre (r: half its width).
   // One layer per wheel per skid, sent and kept like anyone's paint. smear: a direction to lay a short fat streak along when a new mark starts (a burnout's
   // spinning tyre); a tyre that doesn't move adds nothing more
-  const BLACK = 4, skids = new Map(); // key (vehicle:wheel) -> { rec, L, sent, last }
+  const BLACK = 4, SKID_ALPHA = 128, SKID_TTL = 20, skids = new Map(); // half see-through, gone 20 s after the wheel stops laying it; key (vehicle:wheel) -> { rec, L, sent, last }
   function skidFlush(sk) { const q = sk.rec.q; if (q.length > sk.sent) { netFx({ t: 'pa', i: sk.rec.i, q: q.slice(sk.sent) }); sk.sent = q.length; } }
   function skidEnd(key) { const sk = skids.get(key); if (!sk) return; skidFlush(sk); skids.delete(key); }
   function skidPush(sk, p) { sk.rec.q.push(r3(p.x), r3(p.y), r3(p.z), 0, 1, 0, 0); sk.last = sk.last ? sk.last.copy(p) : p.clone(); }
@@ -783,7 +804,7 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
     let sk = skids.get(key);
     if (sk && (sk.last.distanceTo(p) > 1.2 || sk.rec.q.length >= STROKE_MAX * 7 || Math.abs(sk.rec.pr - r3(r)) > 1e-3 || byId.get(sk.rec.i) !== sk.L)) { skidEnd(key); sk = null; } // jumped, long enough, another width, or its layer's gone (a new round, trimmed): a new layer
     if (!sk) {
-      const rec = { i: newId(), a: ['w'], s: SPRAY, c: BLACK, pr: r3(r), q: [] };
+      const rec = { i: newId(), a: ['k'], s: SPRAY, c: BLACK, pr: r3(r), q: [], o: SKID_ALPHA, ttl: SKID_TTL };
       sk = { rec, sent: 0, last: null };
       if (smear) { skidPush(sk, p.clone().addScaledVector(smear, -0.35)); skidPush(sk, p.clone().addScaledVector(smear, 0.35)); } else skidPush(sk, p);
       sk.L = startLayer(rec); if (!sk.L) return;
@@ -792,7 +813,7 @@ body.touch.art-on #touch .tb{translate:-52px 0} /* (the buttons step in from the
     }
     if (sk.last.distanceTo(p) < r * 0.6) return;
     const k = sk.rec.q.length / 7; skidPush(sk, p);
-    if (sk.L && byId.get(sk.rec.i) === sk.L) drawPoints(sk.L, sk.L.A, sk.rec, k);
+    if (sk.L && byId.get(sk.rec.i) === sk.L) { drawPoints(sk.L, sk.L.A, sk.rec, k); sk.L.until = performance.now() + SKID_TTL * 1000; }
     if (sk.rec.q.length - sk.sent >= 7 * 6) skidFlush(sk);
   }
 

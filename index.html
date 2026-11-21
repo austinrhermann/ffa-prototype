@@ -1522,11 +1522,15 @@ function addTrees(L, draw, col, cm) {
   // the sites: Austin's trees, then a companion for each (kind 0 round, 1 pine), well clear of the trees, spawns, weapons and roads
   const spawns = (L.spawns || []).map(p => [p[0], p[2]]), picks = (L.pickups || []).filter(p => typeof p[1] === 'number' && typeof p[3] === 'number').map(p => [p[1], p[3]]);
   const near = (x, z, list, r) => list.some(p => Math.hypot(p[0] - x, p[1] - z) < r);
-  const sites = L.trees.map(([x, z]) => [x, z, 0]), own = sites.length;
+  // and off the roads: a trunk's middle at least ROAD_CLEAR from a road's centre line (L.roads: FORT_EXT). The check on the drawn road alone, a ray at the
+  // trunk's middle, let a few stand at the road's edge with their trunks out over it (one by the Midas clearing on road C) until 2026-11-21
+  const ROAD_CLEAR = 3.6, segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
+  const onRoad = (x, z) => !!(L.roads && L.roads.roads.some(pts => pts.some((p, k) => k + 1 < pts.length && segD(x, z, p, pts[k + 1]) < ROAD_CLEAR)));
+  const sites = L.trees.filter(([x, z]) => !onRoad(x, z)).map(([x, z]) => [x, z, 0]), own = sites.length;
   for (let i = 0; i < own; i++) {
     for (let t = 0; t < 8; t++) {
-      const a = rnd(i * 9 + 21 + t) * Math.PI * 2, d = 4.5 + 4 * rnd(i * 9 + 22 + t), x = L.trees[i][0] + Math.cos(a) * d, z = L.trees[i][1] + Math.sin(a) * d;
-      if (near(x, z, sites, 3.6) || near(x, z, spawns, 4.5) || near(x, z, picks, 3)) continue;
+      const a = rnd(i * 9 + 21 + t) * Math.PI * 2, d = 4.5 + 4 * rnd(i * 9 + 22 + t), x = sites[i][0] + Math.cos(a) * d, z = sites[i][1] + Math.sin(a) * d; // (sites: the drawn trees that are off the roads)
+      if (near(x, z, sites, 3.6) || near(x, z, spawns, 4.5) || near(x, z, picks, 3) || onRoad(x, z)) continue;
       const y = groundAt(x, z); if (y === null) continue;
       let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
       if (y - low > 1.2) continue; // too steep
@@ -6847,7 +6851,7 @@ requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=36"></script>
 <script src="range.js?v=33"></script>
-<script src="art.js?v=12"></script>
+<script src="art.js?v=13"></script>
 <script src="headlights.js?v=5"></script>
 </body>
 </html>
