@@ -829,7 +829,7 @@ const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82);
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
 function flashBeam(e) {
   const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn() || darkNear(e.pos, 0.5); // (the host's bots: on whenever it's dark, and in a dark place)
   if (VIC.on || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
@@ -844,7 +844,9 @@ function flashBeam(e) {
       _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
     } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
-    const f = fwdOf(e), p = e.pitch || 0, c = Math.cos(p);
+    // held low, FL_LOW below where they look: looking level, the light lands on the ground just in front of them (its middle about 2 m out) rather than metres
+    // ahead (it pointed along their aim until 2026-11-21, so a level beam only reached the ground far off)
+    const f = fwdOf(e), p = Math.max(-1.35, (e.pitch || 0) - FL_LOW), c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
     const head = e.rig ? e.rig.model.headY : 1.6;
     o.set(e.pos.x, e.pos.y + head - 0.35, e.pos.z); // from their chest, in the middle of them (it was 0.3 m out in front of their head until 2026-11-21)
