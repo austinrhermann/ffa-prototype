@@ -747,8 +747,6 @@
     ]],
     ['In a game', [
       ['game.life', 'Everyone\'s health', 4, MAXLIFE, 1, '', 'The same for everyone, you, the bots and anyone who joins (the host\'s number). Damage above is out of this.'],
-      ['game.gateHp', 'Fort gate health', 50, 5000, 50, '', 'How much the gate takes to break (a gun\'s body damage counts five times, a blast ten). Takes effect the next time it\'s shut.'],
-      ['game.doorHp', 'Bunker door health', 20, 2000, 20, '', 'The same for the locked bunker door, from the next time it\'s locked.'],
       ['game.startD', 'D batteries you spawn with', 0, 8, 1, '', 'Besides the Pistol and the Carbine, loaded.'],
       ['game.startF', 'F batteries you spawn with', 0, 4, 1, '', 'Grenades and mines.'],
       ['game.packs', 'Packs come back after', 5, 120, 5, 's', 'The level\'s ammo spots are D packs (F where the grenades were). What falls from the dead never goes away.'],

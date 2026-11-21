@@ -340,7 +340,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div id="ammo"><div id="hpbar" aria-label="Health"><div id="hp"></div></div><div id="nades"></div><div id="bullets"></div></div>
   <div id="msg"></div>
   <div id="cprompt" style="display:none">E: use the computer</div>
-  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div id="cpuhelp">Space: open or close the gate &middot; E: step away</div></div>
+  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div id="cpuhelp">E: step away</div></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
   <div id="camgrid"></div>
@@ -760,6 +760,19 @@ function applyLook() {
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
 skyDome.renderOrder = -1; skyDome.frustumCulled = false; skyDome.visible = false; scene.add(skyDome);
 skyDome.onBeforeRender = (r, sc, cam) => skyDome.position.copy(cam.position);
+// The sun and the moon: a yellow disc and a blue one on the sky (with the dome, so with the look). By day the sun is where the light comes from (SUN_DIR) and the moon
+// is up across the sky from it; at dusk the sun is low in the same quarter; at night the light is the moon's, so it's the moon up there and the sun is down. Drawn after
+// the dome and before everything else, so the hills and the fort hide them
+const skyDisc = (r, c) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: c, fog: false, depthWrite: false })); m.renderOrder = -0.5; m.frustumCulled = false; m.visible = false; scene.add(m); return m; };
+const SUN_DISC = skyDisc(16, 0xffdf5e), MOON_DISC = skyDisc(12, 0x8fb6ff), _skyD = new THREE.Vector3();
+function updateSkyDiscs() {
+  SUN_DISC.visible = MOON_DISC.visible = false; if (!skyDome.visible) return;
+  const c = new THREE.Color(LOOK.lit), lum = c.r * 0.3 + c.g * 0.59 + c.b * 0.11, az = Math.atan2(SUN_DIR.x, SUN_DIR.z), el = Math.asin(Math.max(-1, Math.min(1, SUN_DIR.y)));
+  const put = (m, a, e) => { m.visible = true; m.position.copy(camera.position).add(_skyD.set(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a)).multiplyScalar(560)); m.lookAt(camera.position); };
+  if (lum >= 0.65) { put(SUN_DISC, az, el); put(MOON_DISC, az + Math.PI, 0.6); } // day
+  else if (lum >= 0.45) { put(SUN_DISC, az, 0.1); put(MOON_DISC, az + Math.PI, 0.45); } // dusk
+  else put(MOON_DISC, az, el); // night
+}
 function setSky(on) {
   skyDome.visible = on; if (!on) return;
   const g = skyDome.geometry, pos = g.attributes.position, col = new Float32Array(pos.count * 3);
@@ -823,22 +836,23 @@ function flashBeam(e) {
   const o = new V3(), d = new V3();
   if (e.isPlayer) {
     d.set(0, 0, -1).applyQuaternion(camera.quaternion);
-    if (tpOn) { // third person: the camera's behind your shoulder, so the beam starts at your character (by its right shoulder, a little out in front; from the camera until
+    if (tpOn) { // third person: the camera's behind your shoulder, so the beam starts at your character (its chest, by the right shoulder; from the camera until
       // 2026-11-21) and goes to what the crosshair is on (or 30 m out along it)
       const c = camera.position; let far = 30;
       if (TG) { TG.hitTri = -1; const t = tgRay(c.x, c.y, c.z, d.x, d.y, d.z, 30, false, true); if (TG.hitTri >= 0) far = Math.max(1, t); }
-      o.copy(myEye).add(_flO.set(0.2, -0.25, -0.25).applyQuaternion(camera.quaternion));
+      o.copy(myEye).add(_flO.set(0.15, -0.35, 0).applyQuaternion(camera.quaternion)); // (at the chest, by the right shoulder: not out in front of it)
       _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
     } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
     const f = fwdOf(e), p = e.pitch || 0, c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
     const head = e.rig ? e.rig.model.headY : 1.6;
-    o.set(e.pos.x, e.pos.y + head - 0.1, e.pos.z).addScaledVector(d, 0.3);
+    o.set(e.pos.x, e.pos.y + head - 0.35, e.pos.z); // from their chest, in the middle of them (it was 0.3 m out in front of their head until 2026-11-21)
   }
   // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
   // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
-  return { o, d, far: 30, fov: 60, cone: 0.883, band: 0.102, col: FLASHLIGHT_COL, e };
+  // your own, in first person, fades all the way to the very middle (band 0.117): brightest dead ahead, half bright at 20°
+  return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e };
 }
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
@@ -891,12 +905,14 @@ function levelFortress() {
     fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
     // A door at the tower's entrance from the back corridor: open until someone locks it (E); bots break it down
-    towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
+    // (no towerDoor: since 2026-11-21 the doorway from the back corridor into the tower is open. It was { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 })
     // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts shut with a
     // health pool (hp); Midas bots shoot it from the road (siege: [x, z] spots) until it gives way. Once open, E at the door
     // (or the computer in the tower room) shuts it again, and a shut gate is whole again. (hp was 1000: twice as tough now)
-    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 800, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
-    core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the map and the gate switch)
+    // The gate: its shape in the set (Front_Gate) is out of play for good (setGate(true) every round, and nothing shuts it). Since 2026-11-21 it has no doors (doors:
+    // { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 }), so no health (hp: 800) and no siege by the bots either
+    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0 },
+    core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the radar, a map with everyone on it)
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
     fortNav: { box: [-66, -10, 76, 124], cell: 0.5, top: 52, bottom: 18 }, // (the whole island now, new ground and all)
@@ -1309,17 +1325,10 @@ function buildCellar(T, draw, K) {
     const o = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 14), M.barrel); o.position.set(x, T.cellarFloor + 0.475, z); o.castShadow = o.receiveShadow = true; g.add(o);
     const c = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.62), cm); c.position.set(x, T.cellarFloor + 0.475, z); cg.add(c);
   }
-  const D = T.door, hinge = new THREE.Group(), dw = D.x1 - D.x0, dh = D.h;
-  hinge.position.set(D.x0, D.y, D.z); g.add(hinge);
-  const dp = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); };
-  dp(DOOR_WOOD, dw / 2, dh / 2, 0, dw - 0.04, dh - 0.03, 0.08);
-  for (const y of [0.35, dh / 2, dh - 0.35]) dp(DOOR_IRON, dw / 2, y, 0.05, dw - 0.1, 0.09, 0.02);
-  dp(DOOR_IRON, dw - 0.15, dh * 0.48, 0.07, 0.05, 0.16, 0.05);
+  // the doorway into the room: a wooden frame round it, and no door (it had one until 2026-11-21)
+  const D = T.door, dh = D.h;
   box('wood', [D.x0 - 0.1, D.x0, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false); box('wood', [D.x1, D.x1 + 0.1, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false);
   box('wood', [D.x0 - 0.1, D.x1 + 0.1, D.y + dh, D.y + dh + 0.12, D.z - 0.08, D.z + 0.08], false);
-  const tog = 'cellar' + SHEDS.length, slabC = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, 0.1), cm);
-  slabC.position.set((D.x0 + D.x1) / 2, D.y + dh / 2, D.z); slabC.userData.toggle = tog; cg.add(slabC);
-  SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3((D.x0 + D.x1) / 2, 0, D.z), y: D.y, rot: 0 });
   // no light: it's dark down there (DARK)
   for (const b of T.dark) K.dark(b);
 }
@@ -1336,7 +1345,6 @@ const FORT_BUNKER = {
   // the hill over the room: the ground within box is raised to top, with a steep bank on the west side, the door's (steep: 'w'; regradeGround does it, to the drawn ground and the collision)
   mound: { box: [-21.4, -14.4, 7.8, 12.4], top: 32.2, side: 3.5, bank: 1.2, steep: 'w',
     apron: [-25.0, 10.0, 2.3, 2.6, 25.4] }, // level ground in front of the door (x, z, flat radius, blend, height = the doorstep's): the door is cut into a cross slope, a metre higher on its right, and this evens both sides out
-  lock: { hp: 240, hold: 4 },                                                 // the door locks from inside (hold E for `hold` seconds) and then has hp to be shot down
 };
 function buildBunker(B, C, col, draw, cm) {
   const K = tunnelKit(draw, col, cm), { g, cg, box, prism } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
@@ -1401,21 +1409,8 @@ function buildBunker(B, C, col, draw, cm) {
   box('stone', [D.front, xi, F0 + D.h, ft, D.z0, D.z1], true, true); box('stone', [D.front, xi, F0 - 0.4, F0, D.z0, D.z1], true, true);                         // lintel, floor
   box('stone', [D.front - 1.0, D.front, F0 - 0.7, F0, fz0, fz1], true, true);                                                                                   // the doorstep
   box('stone', [D.front - 0.08, xo, ft, ft + 0.12, fz0 - 0.08, fz1 + 0.08], false, true);                                                                      // a slim lip along the top
-  // the door: steel, hinged on its south edge so it swings in (east); a collision slab in the doorway that E takes out. Its picture is built facing south and turned a quarter (rot)
-  const dw = D.z1 - D.z0, dx = D.front + 0.2, rot = -Math.PI / 2, hinge = new THREE.Group(); hinge.position.set(dx, F0, D.z1); hinge.rotation.y = rot; g.add(hinge);
-  const dp = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); };
-  dp(DOOR_IRON, -dw / 2, D.h / 2, 0, dw - 0.04, D.h - 0.03, 0.1);
-  for (const y of [0.4, D.h / 2, D.h - 0.4]) dp(K.X.stone, -dw / 2, y, 0.07, dw - 0.14, 0.1, 0.03);
-  dp(K.X.stone, -dw + 0.2, D.h * 0.5, 0.1, 0.22, 0.22, 0.04);
-  const tog = 'bunker' + SHEDS.length, zc = (D.z0 + D.z1) / 2, slab = new THREE.Mesh(new THREE.BoxGeometry(0.12, D.h, dw), cm);
-  slab.position.set(dx, F0 + D.h / 2, zc); slab.userData.toggle = tog; cg.add(slab);
-  SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3(dx, 0, zc), y: F0, rot });
-  // It locks from inside (see lockDoor): a health bar on each face while it's locked, like the gate's, and an invisible slab over the door that shots land on
-  const sh = SHEDS[SHEDS.length - 1]; sh.lock = B.lock; sh.in = [1, 0]; sh.locked = false; sh.lockHp = 0;
-  const bc = document.createElement('canvas'); bc.width = 256; bc.height = 40; const tex = new THREE.CanvasTexture(bc), bmat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
-  const bars = [[dx - 0.15, -Math.PI / 2], [dx + 0.08, Math.PI / 2]].map(([x, ry]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 40 / 256), bmat); m.position.set(x, F0 + D.h - 0.3, zc); m.rotation.y = ry; m.renderOrder = 10; m.visible = false; g.add(m); return m; });
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, D.h, dw), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(dx - 0.1, F0 + D.h / 2, zc); hit.userData.bdoor = true; g.add(hit);
-  sh.lockUI = { canvas: bc, tex, bars, hit, shown: -1 };
+  // No door in the doorway (until 2026-11-21 a steel one, that E opened and shut and that locked from inside, with health once locked): dx is where it hung
+  const dx = D.front + 0.2;
   // 4. No light: the room, the passage in from the door and the tunnel are pitch black whatever the time of day (DARK), so you need your flashlight (L) to get through
   // (they had bulbs until 2026-11-21). The tunnel goes a stretch at a time: a level one in one box, a slope in half-metre slices, so no box reaches out past its roof.
   // The cellar and the stairs up (buildCellar) are dark too
@@ -5017,8 +5012,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
-  if (e.code === 'Space' && monitorOpen) toggleGate();
+  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('radar', 'The radar: everyone on the map. E steps away'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
@@ -6018,7 +6012,7 @@ function climbWindow(side) {
   if (side === 'out') hint('roofladder', 'The ladder beside the window goes up to the roof: walk into it to climb', 4);
 }
 
-// ---------- The Computer's monitor: a map with everyone on it, and the gate switch ----------
+// ---------- The Computer's monitor: the radar, a map with everyone on it (it also opened and shut the gate until 2026-11-21) ----------
 let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
 function nearComputer(e) {
   if (!LV || !LV.core || !e.alive) return false;
@@ -6026,19 +6020,8 @@ function nearComputer(e) {
 }
 function setMonitor(on) {
   monitorOpen = !!on; $('cpu').style.display = monitorOpen ? 'block' : 'none';
-  $('cpuhelp').textContent = 'Space: open or close the gate \u00b7 E: step away';
+  $('cpuhelp').textContent = 'E: step away';
   if (monitorOpen) { mouseDown = false; clickQ = false; drawMap(); }
-}
-function toggleGate() {
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gate' }); return; }
-  switchGate(P);
-}
-// Host: someone at the computer flips the gate
-function switchGate(e) {
-  if (!nearComputer(e) || matchOver) return;
-  const open = !gateOpen();
-  if (!open && gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return; }
-  if (!open) GATE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
 }
 // Midas bots shoot a shut gate (its hp is GATE.hp, a percentage) until it gives way; shutting it again mends it
 let gateLock = 0; // seconds until a gate that was shot open can be shut again
@@ -6157,8 +6140,6 @@ function drawMap() {
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
   g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
-  const [gx, gz] = LV.gate.at, gateCol = gateOpen() ? '#ffd23f' : '#9fd8ff';
-  g.fillStyle = gateCol; g.fillRect(X(gx) - 7, Z(gz) - 2, 14, 4);
   const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
   let n = 0;
   for (const e of ents) {
@@ -6167,7 +6148,7 @@ function drawMap() {
     g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
   }
-  $('cpuinfo').textContent = `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(GATE.hp)}%)`} · Others on the map ${n}`;
+  $('cpuinfo').textContent = `Radar · Others on the map ${n}`;
 }
 
 
@@ -6312,7 +6293,6 @@ function onGuestMsg(conn, m) {
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'wa' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
-    case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(250, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
     case 'tdoor': if (nearTowerDoor(r)) useTowerDoor(r); break;
@@ -6826,6 +6806,7 @@ function loop(now) {
   updateChatbox();
   if (isTouch) touchTick(dt);
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
+  updateSkyDiscs();
   const dk = inDarkCPU(camera.position) ? DARK_VM : 1; // and in the dark with you
   if (isTouch) TLIGHT.classList.toggle('on', RANGE.lightOn()); // (the touch Light button shows it's on)
   if (dk < 1 && P.alive && !RANGE.lightOn()) hint('dark', isTouch ? 'It\'s pitch black in here: Light (top left) turns your flashlight on' : 'It\'s pitch black in here: L turns your flashlight on', 4);
@@ -6841,7 +6822,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=33"></script>
-<script src="range.js?v=32"></script>
+<script src="range.js?v=33"></script>
 <script src="art.js?v=11"></script>
 <script src="headlights.js?v=5"></script>
 </body>
