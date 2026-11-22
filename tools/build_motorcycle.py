@@ -1,4 +1,4 @@
-# Builds models/Motorcycle.glb, the motorcycle in the Fortress courtyard (and the Sport bike in Test Drive), from the rigged
+# Builds models/Motorcycle.glb, the motorcycle in the Fortress courtyard, from the rigged
 # Motorcycle.blend (Motorcycle.zip, 2026-11-05). What's in it, in game axes (x across with +x the bike's left; y up; z forward),
 # origin on the ground halfway between the axles:
 #   Body                  the frame, tank, seat, engine, exhaust and rear suspension, merged by material

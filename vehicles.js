@@ -26,12 +26,12 @@
     ['slide', 'Grip on the handbrake', 0.1, 10, 0.1, '', 'all', 'Sliding and handbrake'],
     ['mass', 'Weight', 100, 6000, 10, 'kg', 'all', 'Body'],
     ['wheelbase', 'Length (wheelbase)', 1, 6, 0.05, 'm', 'all', 'Body'],
-    ['track', 'Width (track)', 0.8, 3, 0.05, 'm', 'car', 'Body'],
+    ['track', 'Width (track)', 0.8, 3, 0.05, 'm', 'truck', 'Body'],
     ['wheelR', 'Wheel size (radius)', 0.15, 0.8, 0.01, 'm', 'all', 'Body'],
     ['spring', 'Suspension stiffness', 0.4, 8, 0.1, 'Hz', 'all', 'Suspension'],
     ['damp', 'Suspension damping', 0.05, 2, 0.05, '', 'all', 'Suspension'],
     ['travel', 'Body roll and dive', 0, 4, 0.1, '×', 'all', 'Suspension'],
-    ['lean', 'Lean into turns', 0, 2, 0.05, '×', 'bike', 'Suspension'],
+    ['lean', 'Lean into turns', 0, 2, 0.05, '×', 'motorcycle', 'Suspension'],
     ['gravity', 'Gravity', 2, 40, 0.5, 'm/s²', 'all', 'Air and crashes'],
     ['airPitch', 'Nose control in the air', 0, 10, 0.1, '', 'all', 'Air and crashes'],
     ['bounce', 'Bounce off walls', 0, 1.5, 0.05, '', 'all', 'Air and crashes'],
@@ -47,19 +47,20 @@
     mass: 'How hard you hit, and how far you get shoved, when vehicles collide.',
     travel: 'How far the body dives under braking, squats under power and leans in corners.',
   };
-  const BASE_CAR = { power: 10, top: 170, brake: 11, rev: 40, hand: 9, slide: 1.6, steer: 34, steerFall: 65, grip: 8, maxLat: 2.2, mass: 1200,
+  const BASE_TRUCK = { power: 10, top: 170, brake: 11, rev: 40, hand: 9, slide: 1.6, steer: 34, steerFall: 65, grip: 8, maxLat: 2.2, mass: 1200,
     wheelbase: 2.6, track: 1.6, wheelR: 0.34, spring: 2, damp: 0.5, travel: 1, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 7, downforce: 0 };
-  const BASE_BIKE = { power: 13, top: 190, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 2.0, mass: 230,
+  const BASE_MOTORCYCLE = { power: 13, top: 190, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 45, grip: 10, maxLat: 2.0, mass: 230,
     wheelbase: 1.45, track: 0.3, wheelR: 0.33, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.3, steerRate: 7, downforce: 0 };
   const PRESETS = {
-    // James's tuning; top speed cut from 190 km/h to 70 (2026-11-21), and it never goes faster than BIKE_MAX (42 mph), downhill included
-    sport: { kind: 'bike', name: 'Sport bike', color: 0xc9342b, p: { top: 70, steerFall: 210, maxLat: 3.7, wheelbase: 1.5, wheelR: 0.43, steerRate: 29.5 } },
+    // Austin's tuning (2026-11-22). It never goes faster than its top speed setting, downhill included (a fixed 42 mph until then).
+    // Its wheelbase and wheel size come from the Motorcycle model once that has loaded (setMotorcycleModel).
+    motorcycle: { kind: 'motorcycle', name: 'Motorcycle', color: 0xc9342b, p: { power: 13.5, top: 80, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 210, grip: 10, maxLat: 3.7, mass: 230, wheelbase: 1.5832, track: 0.3, wheelR: 0.3689, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.1, steerRate: 19, downforce: 0 } },
     // The truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
     // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
-    truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
+    truck: { kind: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
   };
-  const BIKE_MAX = 42 / 2.23694; // a bike's hard top speed, m/s (42 mph)
-  const defaults = key => Object.assign({}, PRESETS[key].kind === 'bike' ? BASE_BIKE : BASE_CAR, PRESETS[key].p);
+  const LEAN_MAX = 0.85 * 0.7; // the furthest a motorcycle leans in a turn, radians (~34°; 0.85, ~49°, until 2026-11-22: cut by 30%)
+  const defaults = key => Object.assign({}, PRESETS[key].kind === 'motorcycle' ? BASE_MOTORCYCLE : BASE_TRUCK, PRESETS[key].p);
 
   // ---------------------------------------------------------------- models from the asset library
   // A preset can be drawn from a model file once it has loaded (VEH.setModel): the fort's Cargo Truck, from
@@ -67,7 +68,7 @@
   // model's wheelbase, track and wheel size.
   const MODELS = {};
   function setModel(key, sc) {
-    if (PRESETS[key].kind === 'bike') return setBikeModel(key, sc);
+    if (PRESETS[key].kind === 'motorcycle') return setMotorcycleModel(key, sc);
     const get = n => sc.getObjectByName(n), at = n => get(n).position.clone();
     const boxes = ['Box_Cab', 'Box_Back', 'Box_Under'].map(get).map(o => ({ c: o.position.clone(), h: o.scale.clone() }));
     let z0 = Infinity, z1 = -Infinity;
@@ -94,16 +95,16 @@
   function refresh(key, axles) { for (const v of list) if (v.key === key) { Object.assign(v.p, axles); rebuild(v); } }
   // A motorcycle model (tools/build_motorcycle.py): the body, the steering parts under Steer (at the front axle, its y up the
   // steering axis), the two wheels and where the rider sits. Its wheels go on the preset's axles like the truck's.
-  function setBikeModel(key, sc) {
+  function setMotorcycleModel(key, sc) {
     const get = n => sc.getObjectByName(n), at = n => get(n).position.clone(), wf = get('Wheel_Front'), wb = get('Wheel_Back');
-    const m = { bike: true, body: get('Body'), steer: get('Steer'), wheelF: get('Wheel_F'), wheelB: get('Wheel_B'),
+    const m = { motorcycle: true, body: get('Body'), steer: get('Steer'), wheelF: get('Wheel_F'), wheelB: get('Wheel_B'),
       seats: [0, 1].map(k => ({ p: at('Seat_' + k), peg: at('Peg_' + k) })), // the rider on the front of the saddle, a passenger behind
       wheelbase: wf.position.z - wb.position.z, wheelR: wf.scale.x };
     MODELS[key] = m;
     Object.assign(PRESETS[key].p, { wheelbase: m.wheelbase, wheelR: m.wheelR });
     refresh(key, { wheelbase: m.wheelbase, wheelR: m.wheelR });
   }
-  function buildBikeModel(v, m) {
+  function buildMotorcycleModel(v, m) {
     const p = v.p, L = p.wheelbase, r = p.wheelR, k = r / m.wheelR, g = new THREE.Group(), body = new THREE.Group();
     g.add(body); body.add(m.body.clone());
     // The fork and bars turn on the steering axis with the body (on the suspension); the front wheel turns on the same axis at the axle
@@ -143,7 +144,7 @@
     return { g, body, wheels, steerN: 2, steerWheel: sw, model: m, shell, wreckMesh: wreck, heads, tails, seats: m.seats.map(s => ({ p: s.p.clone(), eye: s.eye.clone(), yaw: s.yaw, blocked: s.blocked })) };
   }
   // The body's length, and where its middle is (ahead of the point halfway between the axles)
-  const lenOf = v => v.model ? v.model.len : v.p.wheelbase + (v.kind === 'bike' ? 0.6 : 0.9);
+  const lenOf = v => v.model ? v.model.len : v.p.wheelbase + (v.kind === 'motorcycle' ? 0.6 : 0.9);
   const midOf = v => v.model ? v.model.mid : 0;
 
   // ---------------------------------------------------------------- materials and models
@@ -201,8 +202,8 @@
       { p: new V3(sx, floor + 0.2, seatZ), eye: new V3(sx, floor + 1.22, seatZ - 0.02), yaw: 0 },
       { p: new V3(-sx, floor + 0.2, seatZ), eye: new V3(-sx, floor + 1.22, seatZ - 0.02), yaw: 0 }, ...rear] };
   }
-  function buildBike(v) {
-    if (MODELS[v.key] && MODELS[v.key].bike) return buildBikeModel(v, MODELS[v.key]);
+  function buildMotorcycle(v) {
+    if (MODELS[v.key] && MODELS[v.key].motorcycle) return buildMotorcycleModel(v, MODELS[v.key]);
     const p = v.p, g = new THREE.Group(), body = new THREE.Group(), paint = mat(v.color), L = p.wheelbase, r = p.wheelR;
     g.add(body);
     const fork = new THREE.Group(); fork.position.set(0, r, L / 2); g.add(fork);
@@ -219,7 +220,7 @@
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
     v.heads = v.tails = v.lens = null; // (a model's lenses, or none for one built from boxes)
-    Object.assign(v, v.kind === 'bike' ? buildBike(v) : buildTruck(v));
+    Object.assign(v, v.kind === 'motorcycle' ? buildMotorcycle(v) : buildTruck(v));
     v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
     if (v.hit) v.g.add(v.hit); // a shootable box, if the game gave it one
@@ -227,11 +228,11 @@
     scene.add(v.g); pose(v, 0);
   }
   // ---------------------------------------------------------------- headlights and tail lights (headlights.js lights them)
-  // Each lamp: where it sits in the part it's fixed to (the body; a bike's on the fork, so it turns with the bars), the way it
+  // Each lamp: where it sits in the part it's fixed to (the body; a motorcycle's on the fork, so it turns with the bars), the way it
   // points there, how far it reaches, how wide (the cosine of the cone's half angle; fov: the shadow camera's) and its colour.
   // Headlights point ahead and down (LAMP_DIP), so the light lands just in front. The truck's sit on its headlight lenses;
   // the motorcycle's one is on its model's lens. Tail lights are only the truck's brake-light lenses (lampGlow), no beam.
-  const LAMP_DIP = { car: 0.42, bike: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3);
+  const LAMP_DIP = { truck: 0.42, motorcycle: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3);
   // The middle and the front (or back) of some meshes' vertices, in o's frame: per side (x < 0 and x > 0) or all together
   function lensSpots(meshes, o, split, front) {
     const inv = new THREE.Matrix4().copy(o.matrixWorld).invert(), v = new V3(), out = split ? [[], []] : [[]];
@@ -245,19 +246,19 @@
     });
   }
   function lampsOf(v) {
-    const o = (v.kind === 'bike' && v.fork) || v.body || v.g, bike = v.kind === 'bike';
+    const o = (v.kind === 'motorcycle' && v.fork) || v.body || v.g, moto = v.kind === 'motorcycle';
     v.g.updateMatrixWorld(true);
     const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
-    const dip = LAMP_DIP[bike ? 'bike' : 'car'], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
-    const head = p => ({ o, p, d: ahead.clone(), far: bike ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL });
+    const dip = LAMP_DIP[v.kind], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
+    const head = p => ({ o, p, d: ahead.clone(), far: moto ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL });
     if (v.heads && v.heads.length) { // the truck, from its model's lenses
       const out = lensSpots(v.heads, o, true, true).map(head);
       return out;
     }
     let at;
-    if (v.model && v.layout === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
-    else if (bike && MODELS[v.key] && MODELS[v.key].bike) at = [[0, 1.085, 0.655]]; // the middle of the model's headlight lens
-    else if (bike) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.2]];
+    if (v.model && v.kind === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
+    else if (moto && MODELS[v.key] && MODELS[v.key].motorcycle) at = [[0, 1.085, 0.655]]; // the middle of the model's headlight lens
+    else if (moto) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.2]];
     else {
       const b = new THREE.Box3(), gi = new THREE.Matrix4().copy(v.g.matrixWorld).invert(), bb = new THREE.Box3();
       v.g.traverse(m => { if (m.isMesh && m.geometry) { if (!m.geometry.boundingBox) m.geometry.computeBoundingBox(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(gi, m.matrixWorld))); } });
@@ -265,19 +266,19 @@
       at = [1, -1].map(sd => [sd * (b.max.x - b.min.x) * 0.3, b.min.y + (b.max.y - b.min.y) * 0.3, b.max.z + 0.05]);
     }
     const lamps = at.map(a => head(new V3(a[0], a[1], a[2]).applyMatrix4(M)));
-    if (bike) { // the motorcycle's lens: a disc over the model's own, which glows at night
+    if (moto) { // the motorcycle's lens: a disc over the model's own, which glows at night
       const lens = new THREE.Mesh(new THREE.CircleGeometry(0.072, 20), new THREE.MeshBasicMaterial({ color: 0x5a5648, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
       lens.position.copy(lamps[0].p); lens.lookAt(lens.position.clone().add(new V3(0, 0, 1).transformDirection(M))); o.add(lens);
       v.lens = lens;
     }
     return lamps;
   }
-  // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, col, v: the vehicle }]. They're on while someone (or
-  // a bot) drives
+  // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, col, v: the vehicle }]. They're on while someone
+  // drives
   function lampBeams() {
     const out = [];
     for (const v of list) {
-      if (v.dead || !v.lamp || !v.lamps || !(v.owner || v.npc || v.npcBusy)) continue;
+      if (v.dead || !v.lamps || !v.owner) continue;
       for (const l of v.lamps) {
         l.o.updateWorldMatrix(true, false);
         out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, col: l.col, v });
@@ -287,13 +288,12 @@
   }
   // The lenses: headlights glow white when they're on; the brake lights glow red only while braking, day or night: for
   // the driver, the whole time S (back) or Space is held; everyone else gets the driver's word (brakeOn, in the vehicle's
-  // network state); a bot's show when it slows down hard
+  // network state)
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
-  function lampGlow(v, dt) {
-    const s = Math.abs(v.speed || 0), decel = v.prevS === undefined ? 0 : (v.prevS - s) / Math.max(dt, 1e-3); v.prevS = s;
-    const driven = !v.dead && !!(v.owner || v.npc || v.npcBusy), lit = driven && nightOn();
+  function lampGlow(v) {
+    const lit = !v.dead && !!v.owner && nightOn();
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
-    else v.brakeOn = v.owner ? !!v.netBrake : driven && s > 0.5 && decel > 2.5;
+    else v.brakeOn = !!v.owner && !!v.netBrake;
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
     for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : _off);
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
@@ -350,18 +350,18 @@
 
   const list = [];
   // The chase camera starts a little above and behind (CAM_PITCH, Austin's angle: 2026-11-03) and stays wherever the mouse leaves it
-  const CAM_PITCH = 0.25, BIKE_PITCH = -0.3; // BIKE_PITCH: riding a bike, the seat view looks this far down, so the handlebars sit across the bottom of the screen
-  const seatPitch = () => (cur && cur.kind === 'bike' ? BIKE_PITCH : 0);
-  let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = CAM_PITCH, lookIdle = 9, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
+  const CAM_PITCH = 0.25, MOTORCYCLE_PITCH = -0.3; // MOTORCYCLE_PITCH: riding a motorcycle, the seat view looks this far down, so the handlebars sit across the bottom of the screen
+  const seatPitch = () => (cur && cur.kind === 'motorcycle' ? MOTORCYCLE_PITCH : 0);
+  let cur = null, ride = null, rideSeat = 0, view = 'chase', camYaw = 0, camPitch = CAM_PITCH, tuneOpen = false; // ride: the vehicle you're a passenger in, in seat rideSeat
   const camPos = new V3(), camLook = new V3();
   const me = () => (NET.role === 'guest' ? NET.myId : P.id);
   const simulated = v => v.owner === me() || (!v.owner && NET.role !== 'guest'); // the driver runs their own vehicle; the host runs parked ones
 
   function make(key, x, z, yaw) {
     const pr = PRESETS[key];
-    const v = { i: list.length, key, kind: pr.kind, layout: pr.layout, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
-      pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, npc: null, npcBusy: false, dead: false, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
-    v.lamp = true; list.push(v); rebuild(v); place(v); return v;
+    const v = { i: list.length, key, kind: pr.kind, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
+      pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, dead: false, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
+    list.push(v); rebuild(v); place(v); return v;
   }
   function clearAll() { for (const v of list) scene.remove(v.g); list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
   function spawnLot(lot) { clearAll(); for (const [key, x, z, yaw] of lot) make(key, x, z, yaw); }
@@ -381,7 +381,7 @@
   // height or a little above. Flat: the ground under all four corners within a hand's width; open: nothing above the wheels
   // along the body (walls, ceilings, the hill itself) and no other vehicle; not under the hill, not in the sea.
   function clearAt(v, x, g, z, yaw) {
-    const len = lenOf(v), mid = midOf(v), r = v.kind === 'bike' ? 0.4 : v.model ? v.model.half : Math.min(v.p.track / 2 + 0.1, 1.05), fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const len = lenOf(v), mid = midOf(v), r = v.kind === 'motorcycle' ? 0.4 : v.model ? v.model.half : Math.min(v.p.track / 2 + 0.1, 1.05), fx = Math.sin(yaw), fz = Math.cos(yaw);
     const n = Math.max(2, Math.ceil(len / (2 * r)) + 1), c = new V3();
     for (let i = 0; i < n; i++) {
       const sd = mid - len / 2 + r + (len - 2 * r) * i / (n - 1);
@@ -395,7 +395,7 @@
   }
   const openSky = (x, z, g) => { let open = true; tgEach(x, z, x, z, t => { const y = triYAt(TG.T, t * 9, x, z); if (y !== null && y > g + 0.35) open = false; }); return open; };
   function flatSpot(v, x0 = v.pos.x, z0 = v.pos.z, y0 = v.pos.y) {
-    const L = v.p.wheelbase / 2 + 0.2, W = (v.kind === 'bike' ? 0.3 : v.p.track) / 2 + 0.1, top = Math.max(y0, v.lastGround ? v.lastGround[1] : -Infinity) + 6;
+    const L = v.p.wheelbase / 2 + 0.2, W = (v.kind === 'motorcycle' ? 0.3 : v.p.track) / 2 + 0.1, top = Math.max(y0, v.lastGround ? v.lastGround[1] : -Infinity) + 6;
     for (let r = 0; r <= 40; r += 1) {
       const n = r ? Math.ceil(2 * Math.PI * r / 1.2) : 1;
       for (let i = 0; i < n; i++) {
@@ -475,19 +475,27 @@
     if (v.launch > 0) { v.launch -= dt; if (touching && inp.thr > 0) vf += p.power * 0.9 * inp.thr * dt; }
     if (v.trail > 0) v.trail -= Math.abs(vf) * dt;
     vf -= 0.0009 * vf * Math.abs(vf) * dt;
-    if (v.kind === 'bike' && vf > BIKE_MAX) vf = BIKE_MAX;
+    if (v.kind === 'motorcycle' && vf > top) vf = top; // (a motorcycle's top speed is a hard limit, downhill included)
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
+    // Steering in a burnout turns the nose the way you steer while the spinning back tyres push the tail out the other way, pivoting
+    // slowly about the front axle: doughnuts (D: nose right, tail left; until 2026-11-22 it went the other way, and four times as fast).
+    // pivot: how fast it's turning (radians a second, + is left), easing in and out so it doesn't snap round
+    v.pivot = (v.pivot || 0) + ((burn ? -inp.steer * BURN_TURN : 0) - (v.pivot || 0)) * Math.min(1, dt * 2);
+    if (Math.abs(v.pivot) > 1e-3) {
+      const a = p.wheelbase / 2, ax = v.pos.x + Math.sin(v.yaw) * a, az = v.pos.z + Math.cos(v.yaw) * a; // the front axle stays put
+      v.yaw += v.pivot * dt; v.pos.x = ax - Math.sin(v.yaw) * a; v.pos.z = az - Math.cos(v.yaw) * a;
+    }
     v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0, burn ? 14 : 0); v.speed = vf; // locked wheels squeal too, and a burnout's spinning ones
     v.skidIn = { brake: inp.thr < 0 && vf > SKID_V, hand: !!inp.hand && Math.abs(vf) > SKID_V, slide: Math.abs(vr) > SLIDE_V }; // (for tyreMarks, once it's moved)
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
-    const L = p.wheelbase / 2, W = (v.kind === 'bike' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5, fb = v.pos.y - 3; // wheels climb ramps, banking and hills, never up a wall
+    const L = p.wheelbase / 2, W = (v.kind === 'motorcycle' ? 0.3 : p.track) / 2, top2 = v.pos.y + 0.5, fb = v.pos.y - 3; // wheels climb ramps, banking and hills, never up a wall
     const rh = Math.max(L, W) * 2.2; // up the island's hillsides the wheels find ground as steep as ~65° (steeper is a cliff: hitWalls)
-    const hf = Math.max(hAt(v.pos.x + fx * L + rx * W, v.pos.z + fz * L + rz * W, top2, fb, rh), hAt(v.pos.x + fx * L - rx * W, v.pos.z + fz * L - rz * W, top2, fb, rh));
-    const hb = Math.max(hAt(v.pos.x - fx * L + rx * W, v.pos.z - fz * L + rz * W, top2, fb, rh), hAt(v.pos.x - fx * L - rx * W, v.pos.z - fz * L - rz * W, top2, fb, rh));
-    const hr = Math.max(hAt(v.pos.x + rx * W + fx * L, v.pos.z + rz * W + fz * L, top2, fb, rh), hAt(v.pos.x + rx * W - fx * L, v.pos.z + rz * W - fz * L, top2, fb, rh));
-    const hl = Math.max(hAt(v.pos.x - rx * W + fx * L, v.pos.z - rz * W + fz * L, top2, fb, rh), hAt(v.pos.x - rx * W - fx * L, v.pos.z - rz * W - fz * L, top2, fb, rh));
-    const gc = Math.max((hf + hb) / 2, Math.min(hf, hb) + 0.02), pT = Math.atan2(hf - hb, 2 * L), rT = v.kind === 'bike' ? 0 : Math.atan2(hl - hr, 2 * W);
+    // The ground under the four corners, once each (front/back pitch it, right/left roll it; a motorcycle doesn't roll with the ground)
+    const corner = (a, b) => hAt(v.pos.x + fx * L * a + rx * W * b, v.pos.z + fz * L * a + rz * W * b, top2, fb, rh);
+    const FR = corner(1, 1), FL = corner(1, -1), BR = corner(-1, 1), BL = corner(-1, -1);
+    const hf = Math.max(FR, FL), hb = Math.max(BR, BL);
+    const gc = Math.max((hf + hb) / 2, Math.min(hf, hb) + 0.02), pT = Math.atan2(hf - hb, 2 * L), rT = v.kind === 'motorcycle' ? 0 : Math.atan2(Math.max(FL, BL) - Math.max(FR, BR), 2 * W);
     if (v.onGround) {
       if (gc < v.pos.y - 0.6 || (v.vy > 3 && gc < v.pos.y + v.vy * dt - 0.12)) { v.onGround = false; v.pitchRate = Math.max(-1.5, Math.min(1.5, v.pitchRate)); } // off a ramp's lip, or a real drop (not every bump)
       else {
@@ -507,9 +515,9 @@
     }
     v.gcPrev = gc;
     if (v.onGround) { v.safe = v.safe || {}; Object.assign(v.safe, { x: v.pos.x, z: v.pos.z, yaw: v.yaw }); v.lastGround = [+v.pos.x.toFixed(1), +v.pos.y.toFixed(1), +v.pos.z.toFixed(1)]; }
-    if (v.kind === 'bike') { // lean into turns (what keeps a bike up); on the kickstand when stopped
+    if (v.kind === 'motorcycle') { // lean into turns (what keeps a motorcycle up), never past LEAN_MAX; on the kickstand when stopped
       const yawRate = vf * Math.tan(v.steer) / p.wheelbase, want = Math.abs(vf) > 1.5 ? Math.atan(vf * yawRate / 9.8) * p.lean : 0.22;
-      v.lean += (Math.max(-0.85, Math.min(0.85, want)) - v.lean) * Math.min(1, dt * 6);
+      v.lean += (Math.max(-LEAN_MAX, Math.min(LEAN_MAX, want)) - v.lean) * Math.min(1, dt * 6);
       v.roll = v.lean;
     }
     if (inp.reset) unstick(v); // R: onto the nearest flat, open ground
@@ -523,8 +531,8 @@
     const yawRate = -((v.yaw - v.prevYaw + Math.PI * 3) % (Math.PI * 2) - Math.PI) / dt, aLat = (v.vel.x * fx + v.vel.z * fz) * yawRate;
     v.prevV.copy(v.vel); v.prevYaw = v.yaw;
     const soft = (2 / p.spring) ** 2 * p.travel, w = 2 * Math.PI * p.spring, z = p.damp;
-    const tp = v.kind === 'bike' ? 0 : Math.max(-0.15, Math.min(0.15, Math.max(-25, Math.min(25, aL)) * 0.011 * soft));
-    const tr = v.kind === 'bike' ? 0 : Math.max(-0.14, Math.min(0.14, -Math.max(-25, Math.min(25, aLat)) * 0.009 * soft));
+    const tp = v.kind === 'motorcycle' ? 0 : Math.max(-0.15, Math.min(0.15, Math.max(-25, Math.min(25, aL)) * 0.011 * soft));
+    const tr = v.kind === 'motorcycle' ? 0 : Math.max(-0.14, Math.min(0.14, -Math.max(-25, Math.min(25, aLat)) * 0.009 * soft));
     const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n; // small fixed steps keep a stiff spring stable
     for (let i = 0; i < n; i++) {
       s.pv += (w * w * (tp - s.p) - 2 * z * w * s.pv) * h; s.p += s.pv * h;
@@ -541,10 +549,16 @@
   // ---------------------------------------------------------------- bumping into things
   const _f = new V3(), _r = new V3(), _c = new V3();
   function axes(v) { _f.set(Math.sin(v.yaw), 0, Math.cos(v.yaw)); _r.set(-Math.cos(v.yaw), 0, Math.sin(v.yaw)); }
-  function spheres(v) { // the body as spheres along its length: [x, y, z, r]
-    const p = v.p, len = lenOf(v), mid = midOf(v), r = v.kind === 'bike' ? 0.4 : v.model ? v.model.half : Math.min(p.track / 2 + 0.1, 1.05), n = Math.max(2, Math.ceil(len / (2 * r)) + 1), out = [];
-    axes(v); const y = v.pos.y + 0.55;
+  // The body as spheres along its length: [x, y, z, r]. Asked for many times a frame (walls, other vehicles, everyone on foot, E's reach), so it's
+  // kept until the vehicle moves, turns or changes shape. Don't change the arrays it hands out
+  function spheres(v) {
+    axes(v); // (callers use _f and _r)
+    const p = v.p, c = v.sph;
+    if (c && c.x === v.pos.x && c.y === v.pos.y && c.z === v.pos.z && c.yaw === v.yaw && c.wb === p.wheelbase && c.tr === p.track && c.m === v.model) return c.out;
+    const len = lenOf(v), mid = midOf(v), r = v.kind === 'motorcycle' ? 0.4 : v.model ? v.model.half : Math.min(p.track / 2 + 0.1, 1.05), n = Math.max(2, Math.ceil(len / (2 * r)) + 1), out = [];
+    const y = v.pos.y + 0.55;
     for (let i = 0; i < n; i++) { const s = mid - len / 2 + r + (len - 2 * r) * i / (n - 1); out.push([v.pos.x + _f.x * s, y, v.pos.z + _f.z * s, r]); }
+    v.sph = { x: v.pos.x, y: v.pos.y, z: v.pos.z, yaw: v.yaw, wb: p.wheelbase, tr: p.track, m: v.model, out };
     return out;
   }
   function hitWalls(v) {
@@ -584,7 +598,7 @@
       }
     }
   }
-  // A vehicle with someone at the wheel hurts whoever it hits at speed (the driver's kill); parked and NPC ones just shove
+  // A vehicle with someone at the wheel hurts whoever it hits at speed (the driver's kill); parked ones just shove
   function runOver(v) {
     const driver = v === cur ? P : ents.find(e => e.id === v.owner); if (!driver || !driver.alive) return;
     const now = performance.now();
@@ -595,7 +609,7 @@
         if (e.pos.y > y + r || e.pos.y + e.h < y - r - 0.3) continue;
         const dx = e.pos.x - x, dz = e.pos.z - z, d = Math.hypot(dx, dz); if (d >= r + R + 0.15 || d < 1e-4) continue;
         const sp = (v.vel.x * dx + v.vel.z * dz) / d; if (sp < 4) continue; // the vehicle's own speed toward them (blockBody has already shoved them clear, which would cancel a relative speed)
-        e.vehHitT = now; damage(e, Math.max(1, Math.round(Math.min(300, (sp - 2) * 14 * (v.layout === 'truck' || v.p.mass > 2500 ? 2.5 : 1)) * maxHp(e) / HP)), driver, 'car', false); break; // trucks hit much harder
+        e.vehHitT = now; damage(e, Math.max(1, Math.round(Math.min(300, (sp - 2) * 14 * (v.kind === 'truck' || v.p.mass > 2500 ? 2.5 : 1)) * maxHp(e) / HP)), driver, 'car', false); break; // trucks hit much harder
       }
     }
   }
@@ -619,9 +633,10 @@
   // on S or sliding sideways, the back ones on the handbrake (they lock). A burnout (drive) lays a fat streak under the back tyre(s), and the next few metres
   // after its launch keep laying one. Only the machine that runs the vehicle draws them; its smoke and spinning wheels everyone works out (burnOf)
   const BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
-  const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'bike' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
-  const rearFrom = v => (v.kind === 'bike' ? 1 : 2);
-  const tyreHalf = v => (v.kind === 'bike' ? 0.065 : Math.max(0.1, v.p.wheelR * 0.28)); // half the tyre's width
+  const BURN_TURN = 0.45; // how fast a burnout turns at full steer, radians a second: slow, a full circle in about 14 s (1.8 until 2026-11-22)
+  const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'motorcycle' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
+  const rearFrom = v => (v.kind === 'motorcycle' ? 1 : 2);
+  const tyreHalf = v => (v.kind === 'motorcycle' ? 0.065 : Math.max(0.1, v.p.wheelR * 0.28)); // half the tyre's width
   const burnOf = v => (simulated(v) ? !!v.burning : !!v.netBurn);
   const _cp = new V3();
   function contact(v, lx, lz) { // the ground under a wheel ([lx, lz] across and along the vehicle)
@@ -692,7 +707,7 @@
   function soundTick() {
     if (!S.on || !AC) return; const v = S.v, t = AC.currentTime;
     if (!isFinite(v.speed) || !isFinite(v.slip)) return;
-    const base = v.kind === 'bike' ? [70, 150, 14] : v.p.mass > 2500 ? [38, 60, 9] : [55, 95, 12];
+    const base = v.kind === 'motorcycle' ? [70, 150, 14] : v.p.mass > 2500 ? [38, 60, 9] : [55, 95, 12];
     const sp = Math.abs(v.speed), gear = Math.min(5, Math.floor(sp / base[2])), frac = (sp - gear * base[2]) / base[2];
     const gas = v === cur && keys.KeyW; // (a passenger hears the engine, but it's not their foot on the pedal)
     const fr = base[0] + (gear ? 0.35 : 0) * base[1] + frac * base[1] * 0.65 + (gas ? 6 : 0);
@@ -711,31 +726,30 @@
     }
     return best;
   }
-  // Where you're standing picks the seat: the left side is the driver's, the right side rides along, the back climbs in. A bike has one button from any side: the
+  // Where you're standing picks the seat: the left side is the driver's, the right side rides along, the back climbs in. A motorcycle has one button from any side: the
   // front seat if nobody's riding it, the back once someone is (until 2026-11-21 coming up behind it always took the back seat)
   function zoneOf(v) {
     if (v.seats.length < 2) return 'driver';
-    if (v.kind === 'bike') return v.owner && v.owner !== me() ? 'passenger' : 'driver';
+    if (v.kind === 'motorcycle') return v.owner && v.owner !== me() ? 'passenger' : 'driver';
     axes(v); const dx = P.pos.x - v.pos.x, dz = P.pos.z - v.pos.z, lz = dx * _f.x + dz * _f.z, lx = dx * _r.x + dz * _r.z;
     if (v.seats.length > 2 && lz < midOf(v) - lenOf(v) / 2 + 1.0) return 'rear';
     return lx > 0.2 ? 'passenger' : 'driver';
   }
   // The back fills from the tailgate in: the first one aboard sits at the open end, where they can see out and shoot
-const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) if (!v.occ[k] && !v.seats[k].blocked && (best < 0 || v.seats[k].p.z < v.seats[best].p.z)) best = k; return best; };
+  const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) if (!v.occ[k] && !v.seats[k].blocked && (best < 0 || v.seats[k].p.z < v.seats[best].p.z)) best = k; return best; };
   // What pressing E here would do: [text, action or null]
   function offer(v) {
     const n = v.name.toLowerCase();
     if (v.dead) return [`The ${n} is wrecked`, null];
-    if (v.npcBusy) return [`Wait for the ${n} to park`, null];
     const z = zoneOf(v);
     if (z === 'rear') { const k = freeRear(v); return k > 0 ? [`E  Climb in the back of the ${n}`, () => rideAlong(v, k)] : [`The back of the ${n} is full`, null]; }
-    if (z === 'passenger') return !v.occ[1] ? [`E  ${v.kind === 'bike' ? 'Ride on the back of' : 'Ride along in'} the ${n}`, () => rideAlong(v, 1)] : [`The passenger seat is taken`, null];
+    if (z === 'passenger') return !v.occ[1] ? [`E  ${v.kind === 'motorcycle' ? 'Ride on the back of' : 'Ride along in'} the ${n}`, () => rideAlong(v, 1)] : [`The passenger seat is taken`, null];
     if (v.owner && v.owner !== me()) return v.seats.length > 1 ? [`Someone is driving: go round to the other side to ride along`, null] : [`Someone is riding the ${n}`, null];
-    return [`E  ${v.kind === 'bike' ? 'Ride' : 'Drive'} the ${n}`, () => enter(v)];
+    return [`E  ${v.kind === 'motorcycle' ? 'Ride' : 'Drive'} the ${n}`, () => enter(v)];
   }
   function use(v) { const [text, act] = offer(v); if (act) act(); else note(text, 1.5); }
   function rideAlong(v, k) {
-    ride = v; rideSeat = k; v.occ[k] = me(); view = 'seat'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : 0; lookIdle = 9; // in the fort you ride in your seat, ready to shoot
+    ride = v; rideSeat = k; v.occ[k] = me(); view = 'seat'; camYaw = 0; camPitch = 0; // in the fort you ride in your seat, ready to shoot
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vride', i: v.i, s: k });
     note(`${k > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}. ${TOUCH ? 'Exit gets out' : 'V changes view, E gets out'}`, 3);
@@ -743,7 +757,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   // Out beside your seat: the driver on the left, the front passenger on the right, the back over the tailgate
   function spotFor(v, k) {
     axes(v);
-    const side = (v.kind === 'bike' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.7, back = lenOf(v) / 2 - midOf(v) + 0.8;
+    const side = (v.kind === 'motorcycle' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.7, back = lenOf(v) / 2 - midOf(v) + 0.8;
     const tries = k > 1 ? [[0, -back], [-side, -back + 1], [side, -back + 1]] : k === 1 ? [[side, 0], [-side, 0]] : [[-side, 0], [side, 0]];
     for (const [sr, sf] of tries) { // sr: toward the driver's right, sf: forward
       const x = v.pos.x + _r.x * sr + _f.x * sf, z = v.pos.z + _r.z * sr + _f.z * sf, g = groundAt(x, z, v.pos.y + 2);
@@ -763,8 +777,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
   function enter(v) {
     if (v.owner && v.owner !== me()) { note(`Someone is already in the ${v.name.toLowerCase()}`, 1.5); return; }
-    // a bike starts in the rider's own eyes, the handlebars across the bottom of the screen (it started in the chase view until 2026-11-21); the truck behind it
-    v.owner = me(); v.net = null; v.npc = null; cur = v; view = v.kind === 'bike' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch(); lookIdle = 9;
+    // a motorcycle starts in the rider's own eyes, the handlebars across the bottom of the screen (it started in the chase view until 2026-11-21); the truck behind it
+    v.owner = me(); v.net = null; cur = v; view = v.kind === 'motorcycle' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch();
     camPos.copy(camera.position); camLook.copy(v.pos);
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
     note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
@@ -807,7 +821,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   const fmt = (n, step) => (step >= 1 ? Math.round(n) : step >= 0.1 ? n.toFixed(1) : n.toFixed(2));
   function buildPanel() {
     const v = cur; if (!v) return;
-    let html = `<h2>Tune: ${v.name}</h2><p class="sub">Changes take effect as you drag. Only this ${v.kind === 'bike' ? 'bike' : 'car'} changes, for everyone in the game.</p>`;
+    let html = `<h2>Tune: ${v.name}</h2><p class="sub">Changes take effect as you drag. Only this ${v.name.toLowerCase()} changes, for everyone in the game.</p>`;
     let sec = '';
     for (const [k, label, min, max, step, unit, kinds, section] of TUNE) {
       if (kinds !== 'all' && kinds !== v.kind) continue;
@@ -817,7 +831,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       if (k === 'downforce') html += `<div class="help" id="vturn" style="color:#cfd6dd"></div>`;
     }
     html += `<div class="btns"><button type="button" class="go" id="vt-go">Drive (Tab)</button><button type="button" id="vt-reset">Reset to ${v.name} defaults</button>
-      <button type="button" id="vt-all">Use these on every ${v.kind === 'bike' ? 'bike' : 'car'}</button><button type="button" id="vt-copy">Copy settings</button></div>
+      <button type="button" id="vt-all">Use these on every ${v.name.toLowerCase()}</button><button type="button" id="vt-copy">Copy settings</button></div>
       <p class="info">Copy settings puts the numbers on your clipboard, to paste to Claude or a friend.</p>`;
     panel.innerHTML = html; turnInfo();
     panel.querySelectorAll('input[type=range]').forEach(el => el.oninput = () => {
@@ -828,7 +842,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     });
     panel.querySelector('#vt-go').onclick = () => setTune(false, true);
     panel.querySelector('#vt-reset').onclick = () => { cur.p = defaults(cur.key); paramsChanged(cur, true); buildPanel(); };
-    panel.querySelector('#vt-all').onclick = () => { for (const o of list) if (o !== cur && o.kind === cur.kind) { o.p = Object.assign({}, cur.p); paramsChanged(o, true); } note(`Every ${cur.kind === 'bike' ? 'bike' : 'car'} now uses these settings`, 2); };
+    panel.querySelector('#vt-all').onclick = () => { for (const o of list) if (o !== cur && o.kind === cur.kind) { o.p = Object.assign({}, cur.p); paramsChanged(o, true); } note(`Every ${cur.name.toLowerCase()} now uses these settings`, 2); };
     panel.querySelector('#vt-copy').onclick = e => { const txt = JSON.stringify({ vehicle: cur.name, ...cur.p }); navigator.clipboard.writeText(txt).then(() => { e.target.textContent = 'Copied'; }).catch(() => prompt2(txt)); };
   }
   function prompt2(txt) { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'width:100%;height:90px;margin-top:8px'; panel.append(ta); ta.select(); }
@@ -853,20 +867,24 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     else if (relock && !matchOver) renderer.domElement.requestPointerLock();
   }
   addEventListener('keydown', e => { if (tuneOpen && e.code === 'Escape') { setTune(false); setPlaying(false); } });
+  // The page is only touched when something on it changes (it was rewritten every frame)
+  const shownAs = new WeakMap();
+  function setShown(el, key, val, apply) { const m = shownAs.get(el) || {}; if (m[key] === val) return; m[key] = val; shownAs.set(el, m); apply(val); }
   function hudTick() {
     const on = list.length > 0 && (locked || tuneOpen);
+    let html = null;
     if (cur && on) {
       const v = cur, mph = Math.round(Math.abs(v.speed) * 2.23694);
-      hud.innerHTML = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${TOUCH ? '' : '<br><small>Tab tune · R back on your wheels · V view · E out</small>'}`;
-      hud.style.display = 'block';
+      html = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${TOUCH ? '' : '<br><small>Tab tune · R back on your wheels · V view · E out</small>'}`;
     } else if (ride && on) {
       const v = ride, mph = Math.round(Math.abs(v.speed) * 2.23694), d = ents.find(e => e.id === v.owner && e !== P);
-      hud.innerHTML = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}${TOUCH ? '' : '<br><small>V view · E out</small>'}`;
-      hud.style.display = 'block';
-    } else hud.style.display = 'none';
+      html = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}${TOUCH ? '' : '<br><small>V view · E out</small>'}`;
+    }
+    if (html !== null) setShown(hud, 'html', html, h => { hud.innerHTML = h; });
+    setShown(hud, 'display', html !== null ? 'block' : 'none', d => { hud.style.display = d; });
     const nv = on && !cur && !ride && P.alive ? nearest() : null;
-    prompt.style.display = nv ? 'block' : 'none';
-    if (nv) prompt.textContent = offer(nv)[0];
+    setShown(prompt, 'display', nv ? 'block' : 'none', d => { prompt.style.display = d; });
+    if (nv) setShown(prompt, 'text', offer(nv)[0], t => { prompt.textContent = t; });
   }
 
   // ---------------------------------------------------------------- networking
@@ -903,34 +921,37 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     };
   };
   const idle = { thr: 0, steer: 0, hand: false, reset: false }, parked = { thr: 0, steer: 0, hand: true, reset: false }; // nobody aboard: the handbrake's on
-  let resetQ = false, selfOn = false, selfRig = null;
+  let resetQ = false;
   function setSelf(on) { // your own body is normally only a shadow; in Test Drive it's drawn (third person, or riding in the open)
-    if (!P.rig) return; selfOn = on; selfRig = P.rig; // set every frame: the game's first-person body view (on foot) switches the same materials
+    if (!P.rig) return; // set every frame: the game's first-person body view (on foot) switches the same materials
     for (const o of P.rig.body || []) if (o.material.colorWrite !== on) { o.material.colorWrite = on; o.material.depthWrite = on; } // (only the body: the gun it holds shares its materials)
   }
   // Seat someone's body in a vehicle seat (crouched, which reads as sitting)
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
+  // A driver's hands are on the wheel or the bars: the gun is put away (after() brings it back once they're out of the seat)
+  function stowGun(rig) { if (rig.gunVis) { rig.gunVis.visible = false; rig.seatHid = true; } }
   function seat(rig, wrap, v, dt, k, who) {
     rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
-    if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatBike(rig, wrap, v, dt, k, who);
+    if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatMotorcycle(rig, wrap, v, dt, k, who);
     const p = seatWorld(v, k);
     wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw, v.roll, 'YXZ'); wrap.visible = true;
     animRig(rig, dt, 0, true, 0.2);
+    if (k === 0) stowGun(rig); // (the truck's driver; until 2026-11-22 they sat holding it, and it showed in the driver's seat view)
   }
-  // Astride a bike: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
+  // Astride a motorcycle: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
   // shots still go from the eyes), a passenger behind turns at the waist toward where they aim, gun up
   const _bq = new THREE.Quaternion(), _bq2 = new THREE.Quaternion(), _bq3 = new THREE.Quaternion(), _bm = new THREE.Matrix4(), _bm2 = new THREE.Matrix4();
   const _b1 = new V3(), _b2 = new V3(), _b3 = new V3(), _b4 = new V3(), _b5 = new V3(), _UP = new V3(0, 1, 0);
   const _unturn = new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), -RIG_TURN);
-  const bikeQ = (v, q) => q.setFromEuler(new THREE.Euler(-v.pitch, v.yaw, v.roll, 'YXZ'));
+  const motorcycleQ = (v, q) => q.setFromEuler(new THREE.Euler(-v.pitch, v.yaw, v.roll, 'YXZ'));
   const hipsOf = (rig, out) => out.copy(rigBone(rig, 'DEF-Thigh_1L').getWorldPosition(_b4)).add(rigBone(rig, 'DEF-Thigh_1R').getWorldPosition(_b5)).multiplyScalar(0.5);
-  function seatBike(rig, wrap, v, dt, k, who) {
+  function seatMotorcycle(rig, wrap, v, dt, k, who) {
     const s = v.seats[k], rider = k === 0, pass = !rider && who && who.alive !== false;
-    v.body.updateMatrixWorld(true); bikeQ(v, _bq);
+    v.body.updateMatrixWorld(true); motorcycleQ(v, _bq);
     wrap.quaternion.copy(_bq).multiply(_unturn); wrap.position.copy(s.saddle).applyMatrix4(v.body.matrixWorld); wrap.visible = true; // (the rig is drawn turned 10° right: square it up)
     animRig(rig, dt, 0, true, pass ? who.pitch || 0 : 0.15);
     // Legs: the hinge angles that put the ankles over the pegs, worked out once per character and seat
-    const legs = rig.model.bikeLegs || (rig.model.bikeLegs = {}), lk = v.key + k;
+    const legs = rig.model.motorcycleLegs || (rig.model.motorcycleLegs = {}), lk = v.key + k;
     if (!legs[lk]) { wrap.updateMatrixWorld(true); legs[lk] = solveLegs(rig, v, s); }
     wrap.updateMatrixWorld(true);
     for (const side of ['L', 'R']) legPose(rig, side, legs[lk][side], _bq);
@@ -950,14 +971,14 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     wrap.position.add(want.sub(hipsOf(rig, _b3))); wrap.updateMatrixWorld(true);
     if (rider && v.grips && v.grips[0]) { // lean in over the tank until the grips are in reach, then hands on them
       armsBack(rig); rig.root.updateMatrixWorld(true);
-      const lean = rig.model.bikeLean || (rig.model.bikeLean = {});
+      const lean = rig.model.motorcycleLean || (rig.model.motorcycleLean = {});
       if (lean[lk] === undefined) lean[lk] = leanToReach(rig, v, _bq);
       else bendUpper(rig, lean[lk], _bq);
       for (const [side, gi] of [['L', 0], ['R', 1]]) reach(rig, side, v.grips[gi], _bq);
-      if (rig.gunVis) { rig.gunVis.visible = false; rig.bikeHid = true; }
+      stowGun(rig);
     }
   }
-  // Everything above the hips bends forward about the spine's base (the bike's side-to-side axis)
+  // Everything above the hips bends forward about the spine's base (the motorcycle's side-to-side axis)
   function bendUpper(rig, ang, q) {
     if (!ang) return;
     const ax = _b1.set(1, 0, 0).applyQuaternion(q).applyQuaternion(rig.upper[0].b.parent.getWorldQuaternion(_bq2).invert());
@@ -977,15 +998,15 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     return total;
   }
   const wrapA = a => ((a % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
-  // A leg: thigh and knee bent on their hinges, then the whole leg swung out at the hip (about the bike's length) to clear the tank
+  // A leg: thigh and knee bent on their hinges, then the whole leg swung out at the hip (about the motorcycle's length) to clear the tank
   function legPose(rig, side, [a, b, out], q) {
     const th = rig.bones['thigh' + side]; setBone(th, a); setBone(rig.bones['knee' + side], b);
     th.b.updateWorldMatrix(false, true);
     turnWorld(th.b, _bq3.setFromAxisAngle(_b5.set(0, 0, 1).applyQuaternion(q), side === 'L' ? out : -out));
   }
-  // Thigh, knee and splay (a grid, then a finer one) that put each ankle just above and behind its peg, in the bike's frame
+  // Thigh, knee and splay (a grid, then a finer one) that put each ankle just above and behind its peg, in the motorcycle's frame
   function solveLegs(rig, v, s) {
-    const q = bikeQ(v, new THREE.Quaternion()), inv = q.clone().invert(), hip = hipsOf(rig, new V3()), res = {};
+    const q = motorcycleQ(v, new THREE.Quaternion()), inv = q.clone().invert(), hip = hipsOf(rig, new V3()), res = {};
     for (const [side, sx] of [['L', 1], ['R', -1]]) {
       const tgt = new V3(sx * (s.peg.x - 0.02), s.peg.y + 0.08, s.peg.z - 0.09).sub(new V3(0, s.saddle.y + 0.1, s.saddle.z)); // the ankle, from the hips
       const foot = rigBone(rig, 'DEF-Foot' + side), d = new V3();
@@ -1005,7 +1026,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   // Two-bone reach: the upper arm and forearm turn so the wrist lands at the grip, the elbow out and down; the hand comes
   // along, and the fingers (loose bones in this rig) follow the wrist
   // The reach bends the forearms and wrists, which nothing else poses: keep how they were, and put them back before each pose
-  // (or the bends pile up frame on frame) and once off the bike (or the arms stay bent for holding a gun)
+  // (or the bends pile up frame on frame) and once off the motorcycle (or the arms stay bent for holding a gun)
   const IK_BONES = ['DEF-Forearm_1L', 'DEF-WristL', 'DEF-Forearm_1R', 'DEF-WristR'];
   function armsBack(rig) {
     if (!rig.ikRest) return;
@@ -1045,7 +1066,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     bone.quaternion.copy(pw.invert().multiply(dq.clone().multiply(w))); bone.updateWorldMatrix(false, true);
   }
   // In a seat you aim where the camera looks, from your eyes (the game's shots take your yaw and pitch, and start at myEye)
-  const _cd = new V3();
+  const _cd = new V3(), _ce = new THREE.Euler(), _cq = new THREE.Quaternion(), _ct = new V3(), _cw = new V3(), _cdir = new V3(); // (and the camera's scratch, reused every frame)
   function aimFromCamera(v, k) {
     camera.getWorldDirection(_cd); P.yaw = Math.atan2(-_cd.x, -_cd.z); P.pitch = Math.asin(Math.max(-1, Math.min(1, _cd.y)));
     if (v.armM) myEye.copy(v.seats[k].eye).applyMatrix4(v.armM);
@@ -1053,7 +1074,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   Object.defineProperty(VEH, 'cur', { get: () => cur, configurable: true });
   Object.defineProperty(VEH, 'tuneOpen', { get: () => tuneOpen, configurable: true });
   Object.defineProperty(VEH, 'riding', { get: () => cur || ride, configurable: true }); // you're in a vehicle, any seat
-  Object.defineProperty(VEH, 'noGuns', { get: () => !!cur || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat; drivers (a bike's rider too: hands on the bars) don't, and get no crosshair
+  Object.defineProperty(VEH, 'noGuns', { get: () => !!cur || (!!ride && view === 'chase'), configurable: true }); // passengers shoot from their seat; drivers (a motorcycle's rider too: hands on the bars) don't, and get no crosshair
   Object.assign(VEH, {
     list,
     rides: id => list.some(v => v.owner === id || (v.occ && v.occ.includes(id))), // someone (a guest, by id) is in a seat
@@ -1064,7 +1085,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     spawn: (key, pos, yaw) => { const v = make(key, pos.x, pos.z, yaw); return v; },
     remove: removeVehicles,
     // A vehicle is wrecked: nobody can drive it, and anyone in it bails out
-    wreck(v) { if (!v || v.dead) return; v.dead = true; v.npc = null; v.npcBusy = false; darken(v); },
+    wreck(v) { if (!v || v.dead) return; v.dead = true; darken(v); },
     update(dt) {
       if (!list.length) return;
       for (const v of list) {
@@ -1073,7 +1094,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
           v.wet = v.pos.y < waterAt(v.pos.x, v.pos.z) - 0.6 ? (v.wet || 0) + dt : 0;
           if (v.pos.y < KILL_Y || v.wet > 2) { console.warn('Vehicle fell out of the world; last on the ground at [x, y, z]:', v.lastGround, v.name); v.wet = 0; respawn(v); }
         }
-        if (simulated(v)) { drive(v, dt, v.dead ? parked : v === cur && locked ? Object.assign(input(), { reset: resetQ }) : v.npc || (v === cur ? idle : parked)); hitWalls(v); tyreMarks(v); }
+        if (simulated(v)) { drive(v, dt, v.dead ? parked : v === cur && locked ? Object.assign(input(), { reset: resetQ }) : v === cur ? idle : parked); hitWalls(v); tyreMarks(v); }
         else follow(v, dt);
       }
       resetQ = false;
@@ -1097,7 +1118,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     },
     block: blockBody,
     armorRay,
-    inArmour: id => list.some(v => v.model && v.layout === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
+    inArmour: id => list.some(v => v.model && v.kind === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
     lampBeams, // the headlights of everything being driven (headlights.js lights them at dusk and night)
     driving: () => cur,
@@ -1108,7 +1129,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     mouse(dx, dy) {
       if (!cur && !ride) return false;
       const inv = view === 'chase' ? -1 : 1; // the chase camera swings round you: mouse up takes it down (looking up past the vehicle); in the seat, up looks up
-      camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - inv * dy * SENS * CTL.sens)); lookIdle = 0; return true;
+      camYaw -= dx * SENS * CTL.sens; camPitch = Math.max(-0.6, Math.min(0.9, camPitch - inv * dy * SENS * CTL.sens)); return true;
     },
     key(code) {
       if (!list.length) return false;
@@ -1125,19 +1146,17 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     camera(dt) {
       if (!list.length) return;
       if (!cur && !ride) return; // on foot: your own eyes (the game's camera)
-      const v = cur || ride, k0 = cur ? 0 : rideSeat; axes(v);
-      lookIdle += dt; // (the view stays where you leave it: it no longer settles back behind the vehicle)
-      camera.fov = 72 + Math.min(14, Math.abs(v.speed || 0) * 0.25); camera.updateProjectionMatrix();
+      const v = cur || ride, k0 = cur ? 0 : rideSeat; axes(v); // (the view stays where you leave it: it no longer settles back behind the vehicle)
+      const fov = 72 + Math.min(14, Math.abs(v.speed || 0) * 0.25); if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
       if (view === 'seat') { // the driver's eyes: open chassis, nothing in the way
         if (!v.armM) bodyMatrix(v);
         camera.position.copy(v.seats[k0].eye).applyMatrix4(v.armM); // (the same eyes you shoot from)
-        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-v.pitch - v.susp.p, v.yaw, v.roll + v.susp.r, 'YXZ'));
-        camera.quaternion.copy(q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(camPitch, Math.PI + camYaw + v.seats[k0].yaw, 0, 'YXZ')));
+        camera.quaternion.setFromEuler(_ce.set(-v.pitch - v.susp.p, v.yaw, v.roll + v.susp.r, 'YXZ')).multiply(_cq.setFromEuler(_ce.set(camPitch, Math.PI + camYaw + v.seats[k0].yaw, 0, 'YXZ')));
         camera.updateMatrixWorld(); aimFromCamera(v, k0); return;
       }
-      const dist = 3.6 + v.p.wheelbase * 1.1, h = 1.5 + v.p.wheelbase * 0.25, target = new V3(v.pos.x, v.pos.y + 0.9, v.pos.z);
-      const y = v.yaw + camYaw, c = Math.cos(camPitch), want = target.clone().add(new V3(-Math.sin(y) * dist * c, h + Math.sin(camPitch) * dist, -Math.cos(y) * dist * c));
-      const dir = want.clone().sub(target), len = dir.length(); dir.divideScalar(len);
+      const dist = 3.6 + v.p.wheelbase * 1.1, h = 1.5 + v.p.wheelbase * 0.25, target = _ct.set(v.pos.x, v.pos.y + 0.9, v.pos.z);
+      const y = v.yaw + camYaw, c = Math.cos(camPitch), want = _cw.set(target.x - Math.sin(y) * dist * c, target.y + h + Math.sin(camPitch) * dist, target.z - Math.cos(y) * dist * c);
+      const dir = _cdir.copy(want).sub(target), len = dir.length(); dir.divideScalar(len);
       const hit = tgRay(target.x, target.y, target.z, dir.x, dir.y, dir.z, len); if (hit < len) want.copy(target).addScaledVector(dir, Math.max(1, hit - 0.4));
       const gy = groundAt(want.x, want.z, want.y + 1); if (gy !== null && want.y < gy + 0.5) want.y = gy + 0.5;
       if (![camPos.x, camPos.y, camPos.z, camLook.x].every(Number.isFinite)) { camPos.copy(want); camLook.copy(target); }
@@ -1148,16 +1167,18 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     after(dt) {
       hudTick();
       const noGun = VEH.noGuns && (cur || ride);
-      for (const id of ['ammo', 'c1', 'c2', 'c3', 'c4']) { const e = $(id); if (e) e.style.visibility = noGun ? 'hidden' : ''; }
+      for (const id of ['ammo', 'c1', 'c2', 'c3', 'c4']) { const e = $(id); if (e) setShown(e, 'vis', noGun ? 'hidden' : '', s => { e.style.visibility = s; }); }
       if (!list.length) return;
-      for (const v of list) lampGlow(v, dt);
+      for (const v of list) lampGlow(v);
       if (noGun) { vm.visible = false; knifeVM.visible = false; }
       // Your body: in Test Drive drawn on foot (third person); in a vehicle drawn in the chase view, hidden in your seat's view
       if (cur || ride) setSelf(view === 'chase'); // (on foot the game's own body view decides)
-      for (const e of ents) if (e.rig) { // off the bike, the gun comes back and the arms straighten (a rider's are posed again below)
-        if (e.rig.bikeHid) { e.rig.bikeHid = false; if (e.rig.gunVis) e.rig.gunVis.visible = true; }
+      for (const e of ents) if (e.rig) { // out of the driver's seat, the gun comes back and the arms straighten (a driver's are posed again below)
+        if (e.rig.seatHid) { e.rig.seatHid = false; if (e.rig.gunVis) e.rig.gunVis.visible = true; }
         if (e.rig.ikBent) armsBack(e.rig);
       }
+      // A passenger holds the gun they have out, in either view (on foot, first person hides your own; the game swaps it as you change weapons: updateSelfView)
+      if (ride && P.rig && P.rig.gunVis) P.rig.gunVis.visible = P.alive && !P.rig.hideHeld;
       if ((cur || ride) && P.rig && P.rig.gear) P.rig.gear.visible = view === 'chase'; // the guns you carry show on your body in the chase view (not in your seat's view)
       if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt, 0, P);
       if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, rideSeat, P);
@@ -1169,8 +1190,8 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     },
     exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked, 2 an NPC has it; + 4 brake lights on, + 8 a burnout), who's in seat 1, seat 2, ...]
-    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : v.npcBusy ? 2 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0), ...v.occ.slice(1).map(o => o || 0)]),
+    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked; + 4 brake lights on, + 8 a burnout), who's in seat 1, seat 2, ...]
+    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0), ...v.occ.slice(1).map(o => o || 0)]),
     myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0, cur.burning ? 1 : 0] : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
@@ -1182,7 +1203,6 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
         const v = list[i]; if (!v || !Array.isArray(s)) return;
         const st = s[12] | 0;
         if ((st & 3) === 1 && !v.dead) VEH.wreck(v);
-        v.npcBusy = (st & 3) === 2;
         if (v !== cur) { v.netBrake = !!(st & 4); v.netBurn = !!(st & 8); }
         for (let q = 1; q < v.seats.length; q++) if (!(v === ride && q === rideSeat)) v.occ[q] = s[12 + q] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
@@ -1194,10 +1214,10 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
     onLeave(r) { for (const v of list) v.occ.forEach((o, q) => { if (q && o === r.id) v.occ[q] = null; }); for (const v of list) if (v.owner === r.id) { v.owner = null; if (v.net) { v.pos.set(v.net.x, v.net.y, v.net.z); v.vel.set(v.net.vx, 0, v.net.vz); } v.net = null; } },
     onGuestMsg(r, m) { // host side
       const v = list[m.i | 0];
-      if (m.t === 'vreq' && v) { if ((!v.owner || v.owner === r.id) && !v.dead && !v.npcBusy) { v.owner = r.id; v.net = null; v.npc = null; } else sendTo(r, { t: 'vdeny', i: v.i }); }
+      if (m.t === 'vreq' && v) { if ((!v.owner || v.owner === r.id) && !v.dead) { v.owner = r.id; v.net = null; } else sendTo(r, { t: 'vdeny', i: v.i }); }
       else if (m.t === 'vfree' && v && v.owner === r.id) { if (Array.isArray(m.s)) { setNet(v, m.s); v.pos.set(v.net.x, v.net.y, v.net.z); v.yaw = v.net.yaw; v.vel.set(v.net.vx, 0, v.net.vz); } v.owner = null; v.net = null; }
       else if (m.t === 'vp' && v && v.owner === r.id) { applyParams(v, m.p); broadcast({ t: 'vp', i: v.i, p: v.p }, r.conn); }
-      else if (m.t === 'vride' && v) { const q = m.s | 0; if (q > 0 && q < v.seats.length && (!v.occ[q] || v.occ[q] === r.id) && !v.dead && !v.npcBusy) v.occ[q] = r.id; else sendTo(r, { t: 'vdeny', i: v.i, ride: 1 }); }
+      else if (m.t === 'vride' && v) { const q = m.s | 0; if (q > 0 && q < v.seats.length && (!v.occ[q] || v.occ[q] === r.id) && !v.dead) v.occ[q] = r.id; else sendTo(r, { t: 'vdeny', i: v.i, ride: 1 }); }
       else if (m.t === 'vunride' && v) { const q = m.s | 0; if (v.occ[q] === r.id) v.occ[q] = null; }
     },
     onHostMsg(m) { // guest side; true when handled
