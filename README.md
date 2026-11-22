@@ -9,7 +9,7 @@ One level, the fort (`levelFortress` in `index.html`), with the start flow below
 - **Title page.** The splash (`splash.png`) and a loading bar on black. Once the fort is in, the black fades to a slow orbit of it (±5°; `TITLE_CAMS`), and the host gets **host a new game**.
 - **Host Options** (the host only, yellow card):
   - **Time of Day**: Day, Dusk or Night (`TIMES` in `index.html`). Everyone in the game, and invited friends still on the start page, get the host's lighting. **Fine-tune lighting** opens the sun, shadow and sky sliders (also in Settings, host only). Every page load starts from Day.
-  - **Game Type**: Team battle (Midas against the Rebels) or Free for all.
+  - **Game Type**: Team battle (Midas against the Pirates) or Free for all.
   - **Bots**: No (the default), or Easy / Medium / Hard. With bots on, they fill the game up to 8 players (4 a side in a team battle).
   - **Copy invite link.**
 - **Your character** (everyone, white card): your name (remembered in your browser) and the 8 characters, 4 a side. A character someone else picked shows their name and can't be taken. **Go!** goes in once you have a name and a character.
@@ -33,7 +33,15 @@ Seven characters and the Midas carbine come from the Blender asset library (`00_
 /Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_characters.py -- "<00_Exports folder>" models [name ...]
 ```
 
-Eli, Beto, Zeke and Deigo are `Soldier_2_heavy`, `Soldier_3_thin`, `Soldier_4_bigframe` and `Soldier_5_smallframe`; Apprentice, Master, Officer and `Midas_Carbine` keep their names. The new characters have no baked gun, so `poseArms` in `index.html` swings their arms down from the T-pose into a carbine grip when the models load. The Apprentice, Master and Officer faces use their painted head textures only: the projected face details (eyes, brows, mouth) don't export.
+Eli, Beto, Zeke and Deigo are `Soldier_2_heavy`, `Soldier_3_thin`, `Soldier_4_bigframe` and `Soldier_5_smallframe`; Apprentice, Master, Officer and `Midas_Carbine` keep their names. The new characters have no baked gun, so `poseArms` in `index.html` swings their arms down from the T-pose into a carbine grip when the models load. The Apprentice, Master and Officer faces use their painted head textures only: the projected face details (eyes, brows, mouth) don't export. The game no longer loads these three (the Pirates replaced them on 2026-11-22), but their GLBs and build entries stay.
+
+### The Pirates
+
+The Pirate team is Zeli, Veto, Reke and Heigo: Eli, Beto, Zeke and Deigo repainted in Procreate from the paintable exports (USDZ, one Body, Head and Gear picture each). `tools/build_pirates.py` puts each repaint on its soldier GLB directly, so the rig, skin and mesh stay exactly the soldier's: Body and Head keep their UVs and get the new pictures, and the worn gear becomes one mesh on the painted gear atlas (one draw call instead of up to eight). Vertex colours the game doesn't draw are dropped, and pictures are JPEG at body 1024 and head and gear 512.
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender -b --python tools/build_pirates.py -- "<folder with Zeli.usdz, Veto.usdz, Reke.usdz, Heigo.usdz>" models [Pirate_Zeli ...]
+```
 
 ### Posing characters (Blender Pose Kit)
 
@@ -112,7 +120,7 @@ The Node checks cover code paths, not actual iOS browser behavior or connectivit
 
 The Fortress level (`?level=fortress`, the default) has grown (Austin's drawing). The fort and the old island are as they were; the island now carries on south around its old southern half, out to a new coast, and the shed is gone.
 
-- **Spawns:** the Rebels start in clearing **A** (south-west) and Midas in clearing **B** (south-east), each reached by a road. Both sides' bots head for the fort from their clearings (`rebelsAdvance`). The spawns behind the shed are gone; the road behind the hill (where Midas used to start) is a free-for-all spawn now. The jeep (the truck) is back where it always parked, on the road behind the hill. The valley is widened there (a level pad, `FORT_EXT.pads`, cut into the hillside by `regradeGround`) and the bots' walking map leaves out the spot the truck stands on, so they path round it instead of getting stuck.
+- **Spawns:** the Pirates start in clearing **A** (south-west) and Midas in clearing **B** (south-east), each reached by a road. Both sides' bots head for the fort from their clearings (`piratesAdvance`). The spawns behind the shed are gone; the road behind the hill (where Midas used to start) is a free-for-all spawn now. The jeep (the truck) is back where it always parked, on the road behind the hill. The valley is widened there (a level pad, `FORT_EXT.pads`, cut into the hillside by `regradeGround`) and the bots' walking map leaves out the spot the truck stands on, so they path round it instead of getting stuck.
 - **Roads:** both branch off the road that runs from the fort's gate down the valley (A about 45 m down it, B at its end by the truck) and are levelled for vehicles: no steeper than 9%, 3.8 m wide, flat within 2.2 m of the middle. The old ground is cut and filled to them at load (`regradeGround`; the road profiles are `FORT_EXT`, printed by the build script), and the new ground is built to the same profile.
 - **The southern lobe** (Austin's second drawing, 2026-11-21): the island grows south again, to about z 160. Its land steps down in low hills from the clearings (24 to 26 m) to a pale sandy shore a little over the sea (which is at about y 6 there), with a small flat-topped hill near the beach (`HILLS`) and the old divider ridge tapering down into it instead of ending at the old coast's cliff (`CREST`). A third road, C, loops from clearing A down the west side, past the dock and round the hill, and back up to clearing B; it's allowed steeper than the others (up to 30%, `ROAD_GRADE`), and the truck climbs its steepest stretch from a standstill. More trees stand where he drew them (`L.trees`); no tree's trunk stands within 3.6 m of a road's centre line (`ROAD_CLEAR` in `addTrees`). The dock is built in the game (`L.dock`, `addSetExtras`): an 8 m wide deck of planks on beams and posts, from the beach 20 m out over the sea, with two bollards at its end. The bots' walking map (`fortNav`) and the coarse grid (`cs: 3.0`) grew to take it in.
 - **Mountain divider:** the old south hill carries on south as a steep rock spine to the south coast, so the two clearings can't see or walk to each other except round the north end (over the old hill, or up the roads). The bazooka is on its crest.
@@ -122,7 +130,7 @@ The new ground is built by `tools/build_fortress_ext.py` (the command is at the 
 
 ## The fort
 
-The **Fortress** level (`?level=fortress`, the default) is James's hilltop fort on an island, played as a team free-for-all (Midas against the Rebels). (It started as a tower defense, Defend the Fort, with waves of pirates riding in by truck, a Master, an Apprentice and the Computer's cannon; that mode was taken out on 2026-11-03.)
+The **Fortress** level (`?level=fortress`, the default) is James's hilltop fort on an island, played as a team free-for-all (Midas against the Pirates). (It started as a tower defense, Defend the Fort, with waves of pirates riding in by truck, a Master, an Apprentice and the Computer's cannon; that mode was taken out on 2026-11-03.)
 
 - **The Computer** in the tower room: press **E** next to it for the radar, a map with everyone on it (it no longer works the gate).
 - **No doors** (since 2026-11-21): the gate's passage, the tower doorway, the bunker and the cellar door into the fort are all open for good. The gate's two doors are gone; its shape in the set is out of play every round (`setGate(true)`), so there's no gate health and no siege. Before, it had doors that could be shut, shot down and shut again; the tower door could be locked and broken down; the bunker door locked.

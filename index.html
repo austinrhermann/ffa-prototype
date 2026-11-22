@@ -144,7 +144,7 @@ body.guest .hostonly{display:none!important}
 #charcard{width:280px}
 #teams{margin-bottom:12px}
 #teams button[data-team=midas].on{background:#f2c230;color:#000}
-#teams button[data-team=rebels].on{background:#4aa8ff;color:#000}
+#teams button[data-team=pirates].on{background:#4aa8ff;color:#000}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
@@ -474,7 +474,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="crow"><label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false"></div>
   <div class="clabel">Choose your player:</div>
   <div id="cpick"></div>
-  <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="rebels">Rebels</button></div></div>
+  <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="pirates">Pirates</button></div></div>
   <div id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
   <div class="cfoot"><button type="button" id="joingo" disabled>Go!</button><button type="button" id="startover" class="hostonly">Start over</button></div>
@@ -821,7 +821,7 @@ const node = (c, r, l = 0) => l * N + idx(c, r);
 const cellPos = n => { const i = n % N; return new V3(cx(i % GW), nodeH(n), cz((i / GW) | 0)); };
 // ===LEVELS-START
 const OVER = new Float32Array(N);
-const SPAWN_SETS = { rebels: [], midas: [] }; // team free for all: where each side starts (level teamSpawns, by index into spawns)
+const SPAWN_SETS = { pirates: [], midas: [] }; // team free for all: where each side starts (level teamSpawns, by index into spawns)
 const WALK = [], SPAWNS = [], AMMO_SPOTS = [], STATIC_PICKUPS = [];
 const MAX_NADES = 3;
 let SNOW = null, curLevel = null;
@@ -884,12 +884,12 @@ function levelFortress() {
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
       [-12, 30.5, 14], [-6, 30, 18], [-24, 26, 24], [4, 34, 36], [12, 32.5, 40], [24, 34.5, 44], [32, 35, 40], [0, 23.5, 54], [-16, 26.5, 52],
       [15, 30, 57.5], [8, 30, 54], [22, 30, 60], [19, 30, 55], [13, 30, 54], [17, 30, 59],
-      // Clearing A, in the south-west (the Rebels), and clearing B, in the south-east (Midas)
+      // Clearing A, in the south-west (the Pirates), and clearing B, in the south-east (Midas)
       [-35.5, 26.9, 96.6], [-37.4, 26.9, 98.9], [-40.5, 26.9, 99.2], [-42.8, 26.9, 97.3], [-43.1, 26.8, 94.2], [-41.2, 26.9, 91.9], [-38.1, 26.9, 91.6], [-35.8, 26.9, 93.5],
       [50.4, 24.9, 97.5], [48.2, 24.9, 100.2], [44.8, 25.0, 100.5], [42.1, 24.9, 98.3], [41.8, 24.9, 94.9], [44.0, 24.9, 92.2], [47.4, 24.9, 91.9], [50.1, 24.9, 94.1]],
-    // Team free for all: both sides start far from the fort, in the two clearings the island now has to the south, a mountain between them: the Rebels in A,
+    // Team free for all: both sides start far from the fort, in the two clearings the island now has to the south, a mountain between them: the Pirates in A,
     // Midas in B. The fort is in the middle for whoever gets there first (the road behind the hill, where Midas used to start, is a free-for-all spawn now)
-    teamSpawns: { rebels: [23, 24, 25, 26, 27, 28, 29, 30], midas: [31, 32, 33, 34, 35, 36, 37, 38] },
+    teamSpawns: { pirates: [23, 24, 25, 26, 27, 28, 29, 30], midas: [31, 32, 33, 34, 35, 36, 37, 38] },
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
       [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55],
       [-36, 26.8, 99], [-43, 26.9, 92.5], [-39.5, 26.8, 89.5], [-34.5, 26.9, 95.4, 1], [50, 24.9, 100], [42, 24.9, 92], [47, 25.0, 89.5], [52, 24.9, 97, 1], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9]],
@@ -930,7 +930,7 @@ function levelFortress() {
     // Bots heading into the fort go in by one of three ways, taken in turn as they spawn: the front twice in every four, then the back trail, then the tunnel from the
     // bunker (fortRoutes: points [x, y, z] walked through in order, the last one inside the fort; fortZone: [x0, x1, z0, z1, above y]; navLinks: points the bots' walking
     // map joins in a chain, through the narrow squeeze from the back door's corridor into the room behind it)
-    fortZone: [-9.5, 8.5, -11, 5.5, 31], rebelsAdvance: true, // (the Rebels start in clearing A and head for the fort like Midas, rather than holding it)
+    fortZone: [-9.5, 8.5, -11, 5.5, 31], piratesAdvance: true, // (the Pirates start in clearing A and head for the fort like Midas, rather than holding it)
     fortRoutes: {
       front: [[-1.9, 33, 8], [-1.5, 33.5, 1.5]],
       back: [[-16.5, 30, -3], [-12, 30, -13], [-3.5, 33.5, -12], [-1.5, 33.5, 1.5]],
@@ -1834,7 +1834,7 @@ function loadLevel(id) {
   navJob = null; // a walking map still being built belongs to the old level (and its TG)
   const L = buildGrid(id);
   buildWorld(L);
-  SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
+  SPAWNS.length = 0; SPAWN_SETS.pirates.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
   FN.nodes = []; FN.cells = null; FN.comp = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
@@ -2347,7 +2347,7 @@ function switchLevel(id) {
   if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules
 function updateGoal() {
-  $('goal').textContent = (GAME_TEAMS ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) +
+  $('goal').textContent = (GAME_TEAMS ? `Team free for all: Midas against the Pirates. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) +
     ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.';
   $('mtitle').textContent = 'Fortress Free-For-All';
 }
@@ -2358,9 +2358,9 @@ function makeEntity(name, isPlayer) {
     onGround: false, respawnT: 0, ammo: MAG, reserve: START_RES, nades: 2, reloading: 0 };
 }
 // ---------- Character models (from the Blender soldier files) ----------
-// The first four are the bot soldiers; the rest are player-only choices
+// The four Midas soldiers, then the four Pirates (the same soldiers repainted: tools/build_pirates.py)
 const MODEL_DEFS = [['Soldier_2_heavy', 'Eli'], ['Soldier_3_thin', 'Beto'], ['Soldier_4_bigframe', 'Zeke'], ['Soldier_5_smallframe', 'Deigo'],
-  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer']];
+  ['Pirate_Zeli', 'Zeli'], ['Pirate_Veto', 'Veto'], ['Pirate_Reke', 'Reke'], ['Pirate_Heigo', 'Heigo']];
 const SOLDIER_COUNT = 4;
 const SUN_GRIDS = {}; // level sun grids by file (loadModels)
 const MODELS = [];
@@ -2714,7 +2714,7 @@ function loadModels() {
       sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
     }
     return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
-  }))).then(ms => { MODELS.push(...ms); if (MODELS[4]) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
+  }))).then(ms => { MODELS.push(...ms); });
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
     if (w.key === 'Battery_Gun') liftPart(sc, BATTERY_BOX, 'Battery');
@@ -3414,8 +3414,8 @@ function fpvReload(r) {
   placeWorld(fresh, hand, Qf);
 }
 
-// Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
-const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
+// Team free for all (levels with teams: true): Midas against the Pirates. Friendly fire is on; bots only hunt the other side.
+const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, pirates: { name: 'Pirates', color: '#4aa8ff' } };
 let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
 const teamsOn = () => !!LV && GAME_TEAMS;
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
@@ -3442,9 +3442,8 @@ const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], 
     'Kestrel', 'Bolt', 'Saber', 'Tundra', 'Ember', 'Grim', 'Lynx', 'Orbit', 'Quake', 'Shade', 'Torque', 'Vex', 'Warden', 'Zero', 'Cinder'].map(n => [n, 0])];
 const bots = [];
 let ents = [P];
-// plan: one entry per bot, its team ('midas' / 'rebels', or undefined without teams). Midas bots are soldiers, Rebels bots the Master and the Apprentice.
+// plan: one entry per bot, its team ('midas' / 'pirates', or undefined without teams). Each side's bots go round its four characters.
 let botSig = '', botN = 0;
-const REBEL_MODELS = [5, 4];
 function buildBots(plan) {
   bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botN = 0; botSig = botKind();
   for (let i = 0; i < plan.length; i++) bots.push(makeBot(plan[i]));
@@ -3466,7 +3465,7 @@ function makeBot(team) {
     const i = botN++, used = new Set(bots.map(b => b.name)), def = BOT_DEFS.find(([n]) => !used.has(n));
     const name = def ? def[0] : 'Bot ' + (i + 1);
     const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = team;
-    b.mesh = makeBotMesh(b, team === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
+    b.mesh = makeBotMesh(b, (team === 'pirates' ? SOLDIER_COUNT : 0) + i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
     const style = BOT_STYLE_IDS[Math.random() * BOT_STYLE_IDS.length | 0];
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
       react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0,
@@ -3502,7 +3501,7 @@ function respawn(e) {
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
   else {
     e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e);
-    // this life's way into the fort (only bots that go in by one take a turn: in a team game the Rebels hold their own ground)
+    // this life's way into the fort (only bots that go in by one take a turn: in a team game the Pirates hold their own ground)
     e.ai.wps = null; e.ai.routeDone = false; e.ai.route = LV && LV.fortRoutes && advances(e) ? ROUTE_TURNS[routeTurn++ % ROUTE_TURNS.length] : null;
   }
 }
@@ -3980,7 +3979,7 @@ function endMatch(w) {
   sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const tm = teamsOn() && w.team ? w.team : null;
   const title = tm ? `${TEAMS[tm].name} win` : `${statName(w)} wins`; // (the winner's own screen says "You win")
-  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : `First to ${KILL_LIMIT} kills`;
+  const sub = tm ? `Midas ${teamKills('midas')}  ·  Pirates ${teamKills('pirates')}` : `First to ${KILL_LIMIT} kills`;
   const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), rows = list.map(statRow);
   // On the roof: the winner, or the whole winning team (top scorer in the middle)
   const champs = (tm ? list.filter(e => e.team === tm) : [w]).slice(0, 8).map(e => [e.id, statName(e), statModel(e), statGun(e), tm || '']);
@@ -4725,8 +4724,8 @@ function fortPath(from, to) {
 // in the front, a quarter by the back trail and a quarter through the tunnel
 const ROUTE_TURNS = ['front', 'back', 'front', 'tunnel'];
 let routeTurn = 0;
-// Bots that make for the fort first, by the level's ways in: Midas in a team game (the Rebels hold their own ground, unless the level sends them too: rebelsAdvance), every bot otherwise
-function advances(b) { return !teamsOn() || b.team === 'midas' || !!(LV && LV.rebelsAdvance); }
+// Bots that make for the fort first, by the level's ways in: Midas in a team game (the Pirates hold their own ground, unless the level sends them too: piratesAdvance), every bot otherwise
+function advances(b) { return !teamsOn() || b.team === 'midas' || !!(LV && LV.piratesAdvance); }
 const inFortZone = p => { const Z = LV && LV.fortZone; return !!Z && p.x > Z[0] && p.x < Z[1] && p.z > Z[2] && p.z < Z[3] && p.y > Z[4]; };
 // The next leg of a bot's way in: a path to its next waypoint (false once it's through, or when a leg can't be walked and it gives up)
 function routeLeg(b) {
@@ -4744,7 +4743,7 @@ function routeLeg(b) {
 function roamFine(b, wish, dt, face = true) {
   const ai = b.ai;
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
-  // the fort first, by this life's way in: Midas in a team game (the Rebels hold their own ground), every bot otherwise
+  // the fort first, by this life's way in: Midas in a team game (the Pirates hold their own ground), every bot otherwise
   if (ai.route && !ai.routeDone && LV.fortRoutes && advances(b)) {
     if (ai.route === 'tunnel') { // the bunker door is locked, and this one is still outside: its enemies shoot it open, its own side go in by the front instead
       const sh = lockableDoor();
@@ -4882,9 +4881,9 @@ function updateBot(b, dt) {
   const fwd = new V3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new V3(Math.cos(b.yaw), 0, -Math.sin(b.yaw));
   const wish = new V3(); let speed = 4.2;
   const t = ai.target;
-  // Rebels on a team level are the home side: once they're back near their own spawns they hold the base instead of
+  // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
-  const home = teamsOn() && b.team === 'rebels' && !(LV && LV.rebelsAdvance) ? teamHomeInfo('rebels') : null;
+  const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
   if (t) {
     const dx = t.pos.x - b.pos.x, dz = t.pos.z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
     b.yaw = turn(b.yaw, want, D.turn * dt);
@@ -4924,7 +4923,7 @@ function updateBot(b, dt) {
   } else {
     b.pitch *= 1 - Math.min(1, dt * 4);
     if (gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
-    else if (home && FN.cells) roamHome(b, wish, dt, true, home); // defending rebels patrol their own base, nowhere else
+    else if (home && FN.cells) roamHome(b, wish, dt, true, home); // defending pirates patrol their own base, nowhere else
     else if (FN.cells) roamFine(b, wish, dt);
     else if (!ai.path) {
       let goal = null;
@@ -5152,7 +5151,7 @@ function updateCamera(dt) {
     _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
     const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
     camera.position.addScaledVector(_fpvDir, f);
-    const m = P.rig && P.rig.model; // the short characters (Master, Apprentice) see from their own height
+    const m = P.rig && P.rig.model; // a short character sees from its own height
     if (m && m.crouchDrop !== undefined) camera.position.y += Math.min(0, m.headY - 0.12 - m.crouchDrop * P.rig.cr - (camera.position.y - P.pos.y)) * bodyK;
   }
   if (tpOn) { // behind your right shoulder, pulled in where a wall is in the way (shots still leave your eyes at what the crosshair is on: range.js shotLine)
@@ -5293,7 +5292,7 @@ function updateHUD(dt) {
   if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
   {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-    setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
+    setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Pirates ${teamKills('pirates')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
     $('top').classList.remove('alert');
   }
   hitT -= dt; setStyle('hit', 'opacity', hitT > 0 ? 1 : 0);
@@ -5356,7 +5355,7 @@ function botPlan() {
   const humans = ents.filter(e => !e.bot && !e.isReplica);
   if (!GAME_TEAMS) return Array(Math.max(0, BOT_FILL - humans.length)).fill(undefined);
   const side = t => Math.max(0, BOT_FILL / 2 - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
-  return [...Array(side('midas')).fill('midas'), ...Array(side('rebels')).fill('rebels')];
+  return [...Array(side('midas')).fill('midas'), ...Array(side('pirates')).fill('pirates')];
 }
 function setPlaying(on) {
   if (on) applySettings();
@@ -5494,9 +5493,9 @@ function initPreview() {
   $('schar').onchange = () => refreshPreview();
   if (params.has('posecheck')) chooseMode('arena');
 }
-// The character grid: Midas the four soldiers; Rebels the Master, two Apprentices (index 7 is the second) and the Officer.
+// The character grid: Midas the four soldiers; Pirates their four repainted counterparts.
 // In a team battle you pick from your own side's
-const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], rebels: [5, 4, 7, 6] };
+const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], pirates: [4, 5, 6, 7] };
 function syncChars() {
   const sel = $('schar'), teams = TEAM_CHARS_NEW;
   const ok = GAME_TEAMS && teams[myTeam] ? teams[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
@@ -5719,7 +5718,7 @@ function buildPicker() {
   }
   setPreview(was);
   const box = $('cpick'); box.textContent = '';
-  for (const t of ['midas', 'rebels']) {
+  for (const t of ['midas', 'pirates']) {
     const list = TEAM_CHARS_NEW[t].filter(i => MODELS[i]); if (!list.length) continue;
     const g = document.createElement('div'); g.className = 'cteam';
     g.innerHTML = `<h3><i style="background:${TEAMS[t].color}"></i>${TEAMS[t].name}</h3><div class="ctiles"></div>`;
@@ -5735,7 +5734,7 @@ function buildPicker() {
 }
 function pick(i) {
   if (!MODELS[i] || blocked(i, myKey())) return;
-  const t = TEAM_CHARS_NEW.rebels.includes(i) ? 'rebels' : 'midas';
+  const t = TEAM_CHARS_NEW.pirates.includes(i) ? 'pirates' : 'midas';
   if (t !== myTeam) { const b = document.querySelector(`#teams button[data-team="${t}"]`); if (b) b.onclick(); }
   PICKED = true; syncChars(); $('schar').value = i; refreshPreview();
   if (NET.role === 'guest' && NET.joined) { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: myPickName(), model: i, tm: myTeam }); } // in the game: the host shows it now
@@ -5826,7 +5825,7 @@ function syncMenu() {
   document.querySelectorAll('.tog[data-for]').forEach(b => { const on = $(b.dataset.for).checked; b.textContent = b.dataset[on ? 'on' : 'off']; b.classList.toggle('on', on); });
 }
 syncMenu();
-// Team free for all: pick Midas or the Rebels (bots even the sides out; a guest tells the host)
+// Team free for all: pick Midas or the Pirates (bots even the sides out; a guest tells the host)
 document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
   const was = P.team; myTeam = P.team = b.dataset.team;
   if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
@@ -6281,7 +6280,7 @@ function onGuestMsg(conn, m) {
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0, seen: performance.now() });
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
-      r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
+      r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('pirates') ? 'midas' : 'pirates'
       setRemoteModel(r, m.model);
       sendTo(r, { t: 'welcome', id: r.id, ws: RANGE.cfg(), look: LOOK, level: curLevel, tg: GAME_TEAMS, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, bb: bulbsBroken(), peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
