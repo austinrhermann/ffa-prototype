@@ -902,7 +902,7 @@ function levelFortress() {
       ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 24.5, 56]], // (the valley floor's at 24.07 there: at 23.5 the gun lay under it once it stopped hovering)
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
     // (the walking map leaves out the spot it stands on: buildFortNav)
-    vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
+    vehicles: [['motorcycle', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
     window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
@@ -2746,15 +2746,15 @@ function loadModels() {
     }
     for (const m of MODELS) if (m.poses) computeModelGuns(m);
   });
-  // The Cargo Truck (vehicles.js draws the truck with it) and the motorcycle (the fort's, and the Sport bike in Test Drive).
+  // The Cargo Truck and the Motorcycle (vehicles.js draws the truck and the motorcycle with them).
   // Without one, that vehicle is built from boxes, so a download or decode that fails tries again in the background (a few
   // times, further apart each time) and the vehicles already out are rebuilt from the model when it comes (VEH.setModel)
   const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => { if (key === 'truck') skinTunnels(sc); VEH.setModel(key, sc); }).catch(e => {
     console.warn(file + ' model:', e);
     if (n < 4) setTimeout(() => vehModel(file, key, n + 1), 3000 * (n + 1));
   });
-  const truck = vehModel('Cargo_Truck', 'truck'), bike = vehModel('Motorcycle', 'sport');
-  return Promise.all([soldiers, weps, sets, guns, truck, bike, sunGrids, extras]);
+  const truck = vehModel('Cargo_Truck', 'truck'), motorcycle = vehModel('Motorcycle', 'motorcycle');
+  return Promise.all([soldiers, weps, sets, guns, truck, motorcycle, sunGrids, extras]);
 }
 // Level sets: the drawn version (textured) and the collision version (never drawn), fetched the first time a level needs them.
 // Water bounds the island but isn't solid.
@@ -4844,7 +4844,7 @@ function avoidBots(b, wish) {
   }
   wish.x += sx; wish.z += sz;
 }
-// Bots don't see vehicles, so a truck parked (or left) in a narrow way stops a whole line of them. Every half second the walking map's nodes under each car, truck or bike (and a
+// Bots don't see vehicles, so a truck parked (or left) in a narrow way stops a whole line of them. Every half second the walking map's nodes under each truck or motorcycle (and a
 // bot's width round it) are shut off for a couple of seconds, wherever it is, so paths go round it; with no way round, a bot waits and then the jam rule moves it on.
 let vehBlockT = 0;
 function markVehicles(dt) {
@@ -4852,7 +4852,7 @@ function markVehicles(dt) {
   const now = performance.now();
   for (const v of VEH.list) {
     if (!v.pos) continue;
-    const half = (v.kind === 'bike' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.55, len = VEH.lenOf(v) / 2 + 0.55, sn = Math.sin(v.yaw), cs = Math.cos(v.yaw), R = Math.max(half, len) + 0.5;
+    const half = (v.kind === 'motorcycle' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.55, len = VEH.lenOf(v) / 2 + 0.55, sn = Math.sin(v.yaw), cs = Math.cos(v.yaw), R = Math.max(half, len) + 0.5;
     const c0 = Math.floor((v.pos.x - R - FN.x0) / FN.S), c1 = Math.ceil((v.pos.x + R - FN.x0) / FN.S), r0 = Math.floor((v.pos.z - R - FN.z0) / FN.S), r1 = Math.ceil((v.pos.z + R - FN.z0) / FN.S);
     for (let j = Math.max(0, r0); j <= Math.min(FN.nz - 1, r1); j++) for (let i = Math.max(0, c0); i <= Math.min(FN.nx - 1, c1); i++) for (const k of FN.cells[j * FN.nx + i]) {
       const n = FN.nodes[k]; if (Math.abs(n.y - v.pos.y) > 3) continue;
@@ -6853,7 +6853,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=37"></script>
+<script src="vehicles.js?v=38"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=5"></script>
