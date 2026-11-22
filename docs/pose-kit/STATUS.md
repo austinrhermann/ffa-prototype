@@ -190,3 +190,21 @@ Entry template:
   - Close-ups of all six guns and first person with the pistol. No console errors.
 - **Commit:** not committed yet.
 - **Problems / questions for Claude:** none.
+
+## 2026-11-22: Pistol and carbine thumbs point forward (outside the phases): Claude
+- **Did:** on the pistol and the carbine the thumb now lies against the gun's left side pointing straight ahead, alongside the other fingers, instead of angled up. In first person it had looked too high. New `GRIPS` thumb angles came from the same raycast search, aimed level. The other four guns are unchanged.
+- **Done-when result:** pass, browser-checked.
+  - The gap from the thumb's 2nd and 3rd bones to the gun surface: pistol 1.2–1.8 cm, carbine 1.3–1.7 cm (resting on it, not inside).
+  - First person and third-person close-ups of both guns. No console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
+
+## 2026-11-22: Thumbs matched to the carbine (outside the phases): Claude
+- **Did:** Austin approved the carbine's thumb, so the pistol, Uzi and Battery Gun now use the same placement. The thumb sits high on the hand and runs straight forward along the gun's left side.
+  - The `GRIPS` angles start from the carbine's and are nudged only as far as each gun needs for the thumb to rest on it without going in. Pistol `[[0, 0.6], [0, 1.55]]`, Uzi `[[0.4, 0.2], [0, 1.6]]`, Battery Gun `[[-0.15, 0.6], [0, 1.55]]`.
+  - The bazooka and the rifle are unchanged.
+- **Done-when result:** pass, browser-checked.
+  - The gap from the thumb's 2nd and 3rd bones to the gun surface: pistol 1.6–1.7 cm, Battery Gun 1.4–2.1 cm, Uzi 2.0–2.3 cm. The Uzi's grip is narrower there, so its thumb stands slightly off it.
+  - Rendered test images: four third-person angles per gun, and first person.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
