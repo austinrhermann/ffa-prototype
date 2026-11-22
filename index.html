@@ -2579,16 +2579,17 @@ const PROC_CURL = [0.7, 0.9, 0.6]; // poseArms' finger curl, knuckle to tip
 // y, z: the middle of the grip, level with the middle finger (before HAND.drop); lean: how far the grip leans back from upright
 // (radians); d, w: how deep (front to back) and wide (side to side) it is there; trig: where the trigger finger's tip goes (y, z), on
 // the front of the trigger; thumb: the way its two bones point, each [up, forward] in radians from straight out to the gun's left
-// (found by a search so the thumb lies against the gun's left side, pointing up and forward, without going into it); drop: in place
-// of HAND.drop. The Master Rifle and the Battery Gun have no pistol grip or trigger guard:
+// (found by a search so the thumb lies against the gun's left side without going into it: straight ahead, alongside the other
+// fingers, high on the hand like the carbine's, on the pistol, carbine, Uzi and Battery Gun; up and forward on the bazooka and the
+// rifle); drop: in place of HAND.drop. The Master Rifle and the Battery Gun have no pistol grip or trigger guard:
 // the hand takes the wrist of the stock, with the finger under the gun just ahead of it
 const GRIPS = {
-  pistol:  { y: -0.015, z: 0.107, lean: 0.43, d: 0.075, w: 0.036, trig: [0.013, 0.012],  thumb: [[-0.6, 0.4], [0.95, 1.45]] },
-  carbine: { y: -0.04,  z: 0.222, lean: 0.42, d: 0.074, w: 0.036, trig: [-0.015, 0.127], thumb: [[0, 0.2], [0.8, 1.6]] },
-  uzi:     { y: 0.047,  z: 0.082, lean: 0,    d: 0.075, w: 0.036, trig: [0.073, 0.014],  thumb: [[-0.6, 0.2], [0.8, 1.6]] },
+  pistol:  { y: -0.015, z: 0.107, lean: 0.43, d: 0.075, w: 0.036, trig: [0.013, 0.012],  thumb: [[0, 0.6], [0, 1.55]] },
+  carbine: { y: -0.04,  z: 0.222, lean: 0.42, d: 0.074, w: 0.036, trig: [-0.015, 0.127], thumb: [[0, 0.6], [0, 1.45]] },
+  uzi:     { y: 0.047,  z: 0.082, lean: 0,    d: 0.075, w: 0.036, trig: [0.073, 0.014],  thumb: [[0.4, 0.2], [0, 1.6]] },
   bazooka: { y: -0.045, z: 0.003, lean: 0.14, d: 0.05,  w: 0.038, trig: [-0.043, -0.05], thumb: [[-0.6, 0.4], [0.3, 1.45]], drop: 0 }, // (a bar under its short grip would come through the fingers)
   rifle:   { y: -0.01,  z: 0.37,  lean: 0.9,  d: 0.06,  w: 0.05,  trig: [-0.024, 0.29],  thumb: [[-0.4, 0.2], [0.8, 1.45]] },
-  shotgun: { y: 0.016,  z: 0.287, lean: 0.9,  d: 0.051, w: 0.05,  trig: [-0.022, 0.176], thumb: [[-0.4, 0.2], [0.3, 1.75]] },
+  shotgun: { y: 0.016,  z: 0.287, lean: 0.9,  d: 0.051, w: 0.05,  trig: [-0.022, 0.176], thumb: [[-0.15, 0.6], [0, 1.55]] },
 };
 // That hand, in the wrist bone's own frame (+y from the wrist to the knuckles, +z toward the index finger, the palm facing -x; the
 // library characters all share one hand rig). palm, finger: from the bone line out to the skin; knuckle: how far the knuckles are
