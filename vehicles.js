@@ -478,9 +478,10 @@
     if (v.kind === 'motorcycle' && vf > MOTORCYCLE_MAX) vf = MOTORCYCLE_MAX;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
-    // Steering in a burnout swings the back out the way you steer (D: the back goes right), pivoting about the front axle: doughnuts.
-    // pivot: how fast it's swinging (radians a second), easing in and out so it doesn't snap round
-    v.pivot = (v.pivot || 0) + ((burn ? inp.steer * BURN_TURN : 0) - (v.pivot || 0)) * Math.min(1, dt * 5);
+    // Steering in a burnout turns the nose the way you steer while the spinning back tyres push the tail out the other way, pivoting
+    // slowly about the front axle: doughnuts (D: nose right, tail left; until 2026-11-22 it went the other way, and four times as fast).
+    // pivot: how fast it's turning (radians a second, + is left), easing in and out so it doesn't snap round
+    v.pivot = (v.pivot || 0) + ((burn ? -inp.steer * BURN_TURN : 0) - (v.pivot || 0)) * Math.min(1, dt * 2);
     if (Math.abs(v.pivot) > 1e-3) {
       const a = p.wheelbase / 2, ax = v.pos.x + Math.sin(v.yaw) * a, az = v.pos.z + Math.cos(v.yaw) * a; // the front axle stays put
       v.yaw += v.pivot * dt; v.pos.x = ax - Math.sin(v.yaw) * a; v.pos.z = az - Math.cos(v.yaw) * a;
@@ -632,7 +633,7 @@
   // on S or sliding sideways, the back ones on the handbrake (they lock). A burnout (drive) lays a fat streak under the back tyre(s), and the next few metres
   // after its launch keep laying one. Only the machine that runs the vehicle draws them; its smoke and spinning wheels everyone works out (burnOf)
   const BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
-  const BURN_TURN = 1.8; // how fast a burnout swings round at full steer, radians a second (a full circle in about 3.5 s)
+  const BURN_TURN = 0.45; // how fast a burnout turns at full steer, radians a second: slow, a full circle in about 14 s (1.8 until 2026-11-22)
   const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'motorcycle' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
   const rearFrom = v => (v.kind === 'motorcycle' ? 1 : 2);
   const tyreHalf = v => (v.kind === 'motorcycle' ? 0.065 : Math.max(0.1, v.p.wheelR * 0.28)); // half the tyre's width
