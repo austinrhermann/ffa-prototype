@@ -20,6 +20,13 @@
 
 **All planned game phases are done** (reviewed by Claude on 2026-10-16: code read and browser-checked with `?posecheck&posefixture`). Only the optional Phase 6 and the deferred animator posing (A) remain.
 
+**Change (2026-11-22, Claude, outside the phases): the procedural hold now takes each gun by its grip.**
+- `GRIPS` no longer holds offsets from the palm. It holds each gun's measured grip, in the `centeredClone` frame: the middle of the grip level with the middle finger (`y`, `z`), its `lean` back from upright, and its depth `d` and width `w`. The Master Rifle and the Battery Gun are taken at the wrist of the stock.
+- `gripFit(m, id)` (cached in `m.grips`) turns the wrist about its joint part of the way (`HAND.turn`, 0.3) toward the grip's lean, so the hand stays nearly level. It closes the middle, ring and little fingers (`HAND.curl`) and seats the gun in the closed hand with the barrel along `gunDir`, `HAND.drop` down the grip (a per-gun `drop` overrides it). `fingerHold` then solves the index finger onto the trigger (`GRIPS[id].trig`) and rests the thumb on the gun's left side, pointing up and forward (`GRIPS[id].thumb`: two [up, forward] directions per gun, found by a raycast search that keeps it against that gun without going into it). `setHand(rig, fit)` applies that to a rig, or puts the hand back to `procHold` for authored holds and held objects. `m.grips[id].muzzle` now feeds `botMuzzle` for procedural guns.
+- The `?posefixture` pistol socket is now `gunBoneInv × gripFit(m, 'pistol').T × C`, relative to the **unturned** wrist. The fixture pistol sits where the procedural one does, but the fixture hand isn't turned or closed. It is still test data only.
+- First person: a gripped gun no longer gets the `FPV_HAND_X` sideways nudge, since the palm is already on the right of the grip. Held objects (knife, grenade, pen, can) keep it.
+- The end-of-match roof poses (`poseWinner`, `poseKneel`) build on the same hand. They're not part of the pose kit, and authored clips don't drive them.
+
 **Decision (2026-10-16, Austin):** no Blender posing happens during this plan. Every character keeps its current procedural pose; the committed `models/poses/Soldier_2_heavy.glb` is unposed and is ignored (`model.poses === null`). The authored code paths are verified with the `?posefixture` test data from Phase 3c instead. **No phase may wait on, or ask for, a real pose export.**
 
 ## Context
