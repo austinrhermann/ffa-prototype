@@ -135,3 +135,58 @@ Entry template:
 - Done-when result: pass. Existing browser regression checks preserved all seven characters' bones/grips/muzzles and passed procedural/fixture weapon, crouch and death previews. Browser smoke checks loaded, switched and reset Driving Sim, Fortress and Arena without JavaScript page errors. Pose inspector rest/reachability checks and git diff --check passed.
 - Commit: this entry accompanies the merge commit.
 - Problems / questions for Claude: none.
+
+## 2026-11-22: Procedural grips + victory poses (outside the phases): Claude
+- **Did:**
+  - Each library character's right hand now takes every gun by its grip: the wrist turns to the grip's lean, the fingers close round it, the thumb lies along the frame, and the gun sits in the closed hand. `GRIPS` now holds measured grip geometry, and `gripFit` / `setHand` do the placement (see the 2026-11-22 change in PLAN.md).
+  - End-of-match roof: the top scorer stands with fists on hips and feet apart. The rest of the winning team take a knee on the right knee, left forearm over the left knee, gun hanging at the right side with its muzzle clear of the floor. Name tags follow the kneeling heads.
+- **Done-when result:** pass, browser-checked.
+  - All six guns on Eli up close from four angles, and all eight characters from a low front view.
+  - A real Fortress team win: Talon stood with fists on hips and three kneeled with a carbine, a rifle and an Uzi.
+  - First person, pistol, carbine and Uzi, including an Uzi reload.
+  - `?posecheck&posefixture`: the authored pistol and `m.guns` still work.
+  - No new console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none. Phase 6 is still optional and not started.
+
+## 2026-11-22: Trigger finger, thumb, lower grip (outside the phases): Claude
+- **Did:**
+  - The index finger now rests on each gun's trigger, solved per gun from `GRIPS[id].trig`. On the Master Rifle and the Battery Gun it lies under the gun just ahead of the hand.
+  - The thumb wraps round the back of the grip and runs forward along the gun's left side, under the frame, at `GRIPS[id].thumb`. Before, it rose into the slide or receiver.
+  - The hand sits 2 cm lower on every grip (`HAND.drop`) except the bazooka's: a bar under its short grip came through the fingers.
+  - Separate curls for the middle, ring and little fingers. Their knuckles sit at different depths, so the old shared curl put the ring and little fingers through the front of the grip.
+- **Done-when result:** pass, browser-checked.
+  - A raycast clip test on two characters measured the gap from each finger and thumb bone line to the gun mesh, for all six guns. The thumb's 2nd and 3rd bones clear by 1 to 2.4 cm and the middle, ring and little fingers by 1 to 4 cm. The index finger is clear except where its tip touches the trigger.
+  - The thumb's first bone touches the back of the grip at its base, inside the web of the hand, as a real grip does.
+  - Close-ups of every gun, the kneeling victory pose, first person with the pistol and carbine, and `?posecheck&posefixture`. No console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
+
+## 2026-11-22: Level wrist, thumb up and left (outside the phases): Claude
+- **Did:**
+  - The wrist turns only 30% of the way toward each grip's lean (`HAND.turn`), so the hand stays nearly level and the trigger finger reaches forward naturally. Before, the hand pointed steeply down, up to 52° on the stock-held guns.
+  - The thumb no longer wraps toward the fingertips. It sticks up and out to the gun's left. Each gun's two thumb directions (`GRIPS[id].thumb`) came from a raycast search for the most up-and-left direction that stays clear of that gun.
+  - The Battery Gun's grip point moved 1 cm up and back so the middle finger clears its front edge.
+- **Done-when result:** pass, browser-checked.
+  - The clip test, on two characters: the thumb's 2nd and 3rd bones clear every gun by 1.9 to 10 cm. The middle, ring and little fingers clear by at least 0.8 cm, except on the bazooka, whose trigger bar and the bar under its short grip leave no room.
+  - Close-ups of all six guns, the kneeling victory pose and first person. No console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
+
+## 2026-11-22: Kneelers' left hand and left leg (outside the phases): Claude
+- **Did:**
+  - The kneelers' left fist now sits on the left hip, elbow out, the same as the winner's (`fistOnHip`). Before, the left forearm rested over the left knee, which put the hand over the crotch.
+  - Fixed the left leg. The planted foot's target height was read after the body went down, so it aimed 0.46 m under the floor and the leg went straight down, as if kneeling on both knees. Now the left foot is planted flat ahead with the knee up, while the right knee stays down with that foot behind on its toes.
+- **Done-when result:** pass, browser-checked.
+  - The left ankle sits at its standing height (0.118 m) and the left knee at 0.59 m.
+  - A real Fortress team win shows the winner with fists on hips and three kneelers with a rifle, a pistol and a carbine. No console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
+
+## 2026-11-22: Thumb rests on the gun (outside the phases): Claude
+- **Did:** the thumb now lies against each gun's left side, pointing up and forward, instead of standing off it. A new raycast search picked each gun's `GRIPS[id].thumb`: the thumb's 2nd and 3rd bones must stay 1.2 to about 2 cm from the surface (touching, not inside), as upright as the gun allows. The bazooka's tube and the Battery Gun's stock curve away, so their thumbs point only a little up.
+- **Done-when result:** pass, browser-checked.
+  - The searched gaps from the bone line to the surface: pistol 1.2–2.0 cm, carbine 1.6–2.2, Uzi 1.3–2.2, bazooka 1.4–2.1, rifle 1.3–2.1, Battery Gun 1.2–2.1.
+  - Close-ups of all six guns and first person with the pistol. No console errors.
+- **Commit:** not committed yet.
+- **Problems / questions for Claude:** none.
