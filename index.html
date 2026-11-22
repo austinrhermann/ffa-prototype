@@ -3112,18 +3112,22 @@ function heldObject(kind) {
   const c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g;
 }
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
+// In a vehicle the gun in your hands still changes with your weapon (a passenger's shows, in their seat's view too); vehicles.js decides what's drawn
 function updateSelfView() {
-  const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
-  const see = (bodyOn || tpOn) && P.alive;
-  if (r.gear) r.gear.visible = tpOn && P.alive; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
-  for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
+  const r = P.rig; if (!r || MODE === 'drive') return;
+  const riding = !!VEH.riding, see = (bodyOn || tpOn) && P.alive;
+  if (!riding) {
+    if (r.gear) r.gear.visible = tpOn && P.alive; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
+    for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
+  }
   let want = RANGE.on ? RANGE.inHand() : curW;
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
   else
   if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife';
   else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
   if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
-  if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
+  if (r.gunVis && !riding) r.gunVis.visible = see && !r.hideHeld;
+  else if (r.gunVis && r.seatHid) r.gunVis.visible = false; // (driving: put away, even if it was just swapped)
 }
 function updatePlayerRig(dt) {
   if (!P.rig) return;
@@ -4282,7 +4286,7 @@ function updateHeals(dt) {
   for (const h of HEALS) {
     if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
     for (const e of ents) {
-      if (!e.alive || e.health >= maxHp(e)) continue;
+      if (!e.alive || e.health >= maxHp(e) || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) continue; // nobody in a vehicle (any seat) picks one up
       if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
         e.health = maxHp(e); setHeal(h, false); h.t = 30;
         if (e.isRemote) sendTo(e, { t: 'heal' });
@@ -6849,7 +6853,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=36"></script>
+<script src="vehicles.js?v=37"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=5"></script>

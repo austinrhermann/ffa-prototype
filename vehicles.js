@@ -59,6 +59,7 @@
     truck: { kind: 'car', layout: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
   };
   const BIKE_MAX = 42 / 2.23694; // a bike's hard top speed, m/s (42 mph)
+  const LEAN_MAX = 0.85 * 0.7; // the furthest a bike leans in a turn, radians (~34°; 0.85, ~49°, until 2026-11-22: cut by 30%)
   const defaults = key => Object.assign({}, PRESETS[key].kind === 'bike' ? BASE_BIKE : BASE_CAR, PRESETS[key].p);
 
   // ---------------------------------------------------------------- models from the asset library
@@ -478,6 +479,13 @@
     if (v.kind === 'bike' && vf > BIKE_MAX) vf = BIKE_MAX;
     v.vel.x = fx * vf + rx * vr; v.vel.z = fz * vf + rz * vr;
     v.pos.x += v.vel.x * dt; v.pos.z += v.vel.z * dt;
+    // Steering in a burnout swings the back out the way you steer (D: the back goes right), pivoting about the front axle: doughnuts.
+    // pivot: how fast it's swinging (radians a second), easing in and out so it doesn't snap round
+    v.pivot = (v.pivot || 0) + ((burn ? inp.steer * BURN_TURN : 0) - (v.pivot || 0)) * Math.min(1, dt * 5);
+    if (Math.abs(v.pivot) > 1e-3) {
+      const a = p.wheelbase / 2, ax = v.pos.x + Math.sin(v.yaw) * a, az = v.pos.z + Math.cos(v.yaw) * a; // the front axle stays put
+      v.yaw += v.pivot * dt; v.pos.x = ax - Math.sin(v.yaw) * a; v.pos.z = az - Math.cos(v.yaw) * a;
+    }
     v.slip = Math.max(Math.abs(vr), inp.hand && v.onGround && Math.abs(vf) > 2 ? 9 : 0, burn ? 14 : 0); v.speed = vf; // locked wheels squeal too, and a burnout's spinning ones
     v.skidIn = { brake: inp.thr < 0 && vf > SKID_V, hand: !!inp.hand && Math.abs(vf) > SKID_V, slide: Math.abs(vr) > SLIDE_V }; // (for tyreMarks, once it's moved)
     // Wheels follow the ground; off the end of a ramp you fly, and land on whatever is below
@@ -507,9 +515,9 @@
     }
     v.gcPrev = gc;
     if (v.onGround) { v.safe = v.safe || {}; Object.assign(v.safe, { x: v.pos.x, z: v.pos.z, yaw: v.yaw }); v.lastGround = [+v.pos.x.toFixed(1), +v.pos.y.toFixed(1), +v.pos.z.toFixed(1)]; }
-    if (v.kind === 'bike') { // lean into turns (what keeps a bike up); on the kickstand when stopped
+    if (v.kind === 'bike') { // lean into turns (what keeps a bike up), never past LEAN_MAX; on the kickstand when stopped
       const yawRate = vf * Math.tan(v.steer) / p.wheelbase, want = Math.abs(vf) > 1.5 ? Math.atan(vf * yawRate / 9.8) * p.lean : 0.22;
-      v.lean += (Math.max(-0.85, Math.min(0.85, want)) - v.lean) * Math.min(1, dt * 6);
+      v.lean += (Math.max(-LEAN_MAX, Math.min(LEAN_MAX, want)) - v.lean) * Math.min(1, dt * 6);
       v.roll = v.lean;
     }
     if (inp.reset) unstick(v); // R: onto the nearest flat, open ground
@@ -619,6 +627,7 @@
   // on S or sliding sideways, the back ones on the handbrake (they lock). A burnout (drive) lays a fat streak under the back tyre(s), and the next few metres
   // after its launch keep laying one. Only the machine that runs the vehicle draws them; its smoke and spinning wheels everyone works out (burnOf)
   const BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
+  const BURN_TURN = 1.8; // how fast a burnout swings round at full steer, radians a second (a full circle in about 3.5 s)
   const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'bike' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
   const rearFrom = v => (v.kind === 'bike' ? 1 : 2);
   const tyreHalf = v => (v.kind === 'bike' ? 0.065 : Math.max(0.1, v.p.wheelR * 0.28)); // half the tyre's width
@@ -910,12 +919,15 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
   }
   // Seat someone's body in a vehicle seat (crouched, which reads as sitting)
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
+  // A driver's hands are on the wheel or the bars: the gun is put away (after() brings it back once they're out of the seat)
+  function stowGun(rig) { if (rig.gunVis) { rig.gunVis.visible = false; rig.seatHid = true; } }
   function seat(rig, wrap, v, dt, k, who) {
     rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
     if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatBike(rig, wrap, v, dt, k, who);
     const p = seatWorld(v, k);
     wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw, v.roll, 'YXZ'); wrap.visible = true;
     animRig(rig, dt, 0, true, 0.2);
+    if (k === 0) stowGun(rig); // (the truck's driver; until 2026-11-22 they sat holding it, and it showed in the driver's seat view)
   }
   // Astride a bike: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
   // shots still go from the eyes), a passenger behind turns at the waist toward where they aim, gun up
@@ -954,7 +966,7 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       if (lean[lk] === undefined) lean[lk] = leanToReach(rig, v, _bq);
       else bendUpper(rig, lean[lk], _bq);
       for (const [side, gi] of [['L', 0], ['R', 1]]) reach(rig, side, v.grips[gi], _bq);
-      if (rig.gunVis) { rig.gunVis.visible = false; rig.bikeHid = true; }
+      stowGun(rig);
     }
   }
   // Everything above the hips bends forward about the spine's base (the bike's side-to-side axis)
@@ -1154,10 +1166,12 @@ const freeRear = v => { let best = -1; for (let k = 2; k < v.seats.length; k++) 
       if (noGun) { vm.visible = false; knifeVM.visible = false; }
       // Your body: in Test Drive drawn on foot (third person); in a vehicle drawn in the chase view, hidden in your seat's view
       if (cur || ride) setSelf(view === 'chase'); // (on foot the game's own body view decides)
-      for (const e of ents) if (e.rig) { // off the bike, the gun comes back and the arms straighten (a rider's are posed again below)
-        if (e.rig.bikeHid) { e.rig.bikeHid = false; if (e.rig.gunVis) e.rig.gunVis.visible = true; }
+      for (const e of ents) if (e.rig) { // out of the driver's seat, the gun comes back and the arms straighten (a driver's are posed again below)
+        if (e.rig.seatHid) { e.rig.seatHid = false; if (e.rig.gunVis) e.rig.gunVis.visible = true; }
         if (e.rig.ikBent) armsBack(e.rig);
       }
+      // A passenger holds the gun they have out, in either view (on foot, first person hides your own; the game swaps it as you change weapons: updateSelfView)
+      if (ride && P.rig && P.rig.gunVis) P.rig.gunVis.visible = P.alive && !P.rig.hideHeld;
       if ((cur || ride) && P.rig && P.rig.gear) P.rig.gear.visible = view === 'chase'; // the guns you carry show on your body in the chase view (not in your seat's view)
       if (cur && P.rig) seat(P.rig, P.rig.wrap, cur, dt, 0, P);
       if (ride && P.rig) seat(P.rig, P.rig.wrap, ride, dt, rideSeat, P);
