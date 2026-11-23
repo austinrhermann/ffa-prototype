@@ -465,13 +465,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="set"><label for="lksoft">Edge softness <output id="olksoft"></output></label><input type="range" id="lksoft" min="0" max="0.4" step="0.01"></div>
   <div class="set"><label for="lksky">Horizon and haze colour <output id="olksky"></output></label><input type="color" id="lksky"></div>
   <div class="set"><label for="lktop">Sky colour overhead <output id="olktop"></output></label><input type="color" id="lktop"></div>
-  <div class="set"><label for="lkhzm">Haze matches the sky behind <output id="olkhzm"></output></label><input type="range" id="lkhzm" min="0" max="1" step="0.05"></div>
-  <div class="set"><label for="lkhzf">Far things lose colour <output id="olkhzf"></output></label><input type="range" id="lkhzf" min="0" max="1" step="0.05"></div>
-  <div class="set"><label for="lkhzg">Haze glows towards the sun <output id="olkhzg"></output></label><input type="range" id="lkhzg" min="0" max="1" step="0.05"></div>
-  <div class="set"><label for="lkhzl">Haze thicker low down <output id="olkhzl"></output></label><input type="range" id="lkhzl" min="0" max="1" step="0.05"></div>
-  <div class="set"><label for="lkhzh">Haze thins by half every <output id="olkhzh"></output></label><input type="range" id="lkhzh" min="3" max="60" step="1"></div>
-  <div class="set"><label for="lkhzb">Shadows fade into the haze <output id="olkhzb"></output></label><input type="range" id="lkhzb" min="0" max="1" step="0.05"></div>
-  <div class="set"><label for="lkhzd">Shadows half faded by <output id="olkhzd"></output></label><input type="range" id="lkhzd" min="20" max="300" step="5"></div>
+  <div class="set"><label for="lkhaze">Haze <output id="olkhaze"></output></label><input type="range" id="lkhaze" min="0" max="2" step="0.05"></div>
   <small>The fort's own shadows are baked from the render (tools/build_fortress.py); the sun here moves the rest.</small>
   <small>Changes show straight away, for everyone in your game.</small>
   <div class="row"><button type="button" id="lkreset">Reset</button><button type="button" id="lkcopy">Copy settings</button><button type="button" id="lkback">Back</button></div>
@@ -568,16 +562,23 @@ scene.add(camera);
 // The defaults are the renders' own (their compositor, tools/build_fortress.py): the sun lamp's direction; lit surfaces at the
 // renders' exposure (lit), shadowed ones far darker (shadow, a touch lighter than the renders' so attackers in shadow stay
 // visible); a blue haze over distance in the sky's horizon colour (sky), the sky darkening to top overhead.
-const LOOK_DEFAULT = { az: 20.8, el: 43.5, lit: '#bababa', shadow: '#34333b', edge: 0.54, soft: 0.07, sky: '#567a9b', top: '#214882',
-  hzMatch: 1, hzFade: 0.35, hzGlow: 0.35, hzLow: 0.5, hzFall: 14, hzBlack: 0.7, hzBlackD: 160 }; // haze: sky match, far colour loss, sun glow, thicker low down, halving height (m), black point lift and its half-way distance (m)
+const LOOK_DEFAULT = { az: 69, el: 39, lit: '#bababa', shadow: '#34333b', edge: 0.54, soft: 0.1, sky: '#5f7e9b', top: '#214882', haze: 1 }; // haze: the one strength (HAZE_AT)
+// The haze at strength 1; the Haze slider scales all of it together (hazeAt): thicker sooner, more colour lost, a brighter glow towards
+// the sun, thicker low down, shadows fading sooner. (How much it takes the sky's colour behind it stays as it is.)
+const HAZE_AT = { match: 0.7, fade: 0.8, glow: 0.65, low: 0.25, fall: 11, black: 0.5, blackD: 20 }; // sky match, far colour loss, sun glow, thicker low down, halving height (m), shadows' lift and its half-way distance (m)
+function hazeAt() {
+  const k = Math.max(0.05, LOOK.haze ?? 1), c = v => Math.min(1, v * k);
+  return { k, match: HAZE_AT.match, fade: c(HAZE_AT.fade), glow: HAZE_AT.glow * k, low: c(HAZE_AT.low), fall: HAZE_AT.fall * k, black: c(HAZE_AT.black), blackD: HAZE_AT.blackD / k };
+}
 let LOOK = { ...LOOK_DEFAULT }; // every load starts from these (the host's Time of Day and the Lighting settings change them for this game; a guest takes the host's)
 try { localStorage.removeItem('fortressLook3'); } catch (e) {} // (the look used to be saved, and an old one could leave the fort nearly black)
 // Time of day (the host's Host Options; everyone gets the host's look): the same sun, other colours. Dusk and night light the
 // vehicles' headlights (headlights.js)
 const TIMES = {
   day: { ...LOOK_DEFAULT },
-  dusk: { ...LOOK_DEFAULT, lit: '#c48f72', shadow: '#3b2d40', sky: '#c98a70', top: '#2a3468' },
-  night: { ...LOOK_DEFAULT, lit: '#4d5c7e', shadow: '#161b2b', sky: '#1a2540', top: '#04070f' },
+  // (dusk and night keep the day's haze and its blue, only dimmer, so the fog reads the same at every time)
+  dusk: { ...LOOK_DEFAULT, lit: '#c48f72', shadow: '#3b2d40', sky: '#56647c', top: '#1f2f5e' },
+  night: { ...LOOK_DEFAULT, lit: '#4d5c7e', shadow: '#161b2b', sky: '#2b3a4f', top: '#081022' },
 };
 const nightOn = () => { const c = new THREE.Color(LOOK.lit); return c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.65; };
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
@@ -803,11 +804,12 @@ function applyLook() {
   if (on) { const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180; SUN_DIR.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)); }
   else SUN_DIR.set(25, 50, 15).normalize();
   scene.background.set(on ? LOOK.sky : 0x9db4c8); scene.fog.color.set(on ? LOOK.sky : 0x9db4c8);
-  const hz = k => LOOK[k] ?? LOOK_DEFAULT[k], top = new THREE.Color(LOOK.top);
-  Object.assign(HAZE.a, { x: on ? 1 : 0, y: hz('hzMatch'), z: hz('hzFade'), w: hz('hzGlow') });
-  Object.assign(HAZE.b, { x: (LV && LV.hazeY) || 0, y: Math.max(1, hz('hzFall')), z: hz('hzLow') });
+  const hz = hazeAt(), top = new THREE.Color(LOOK.top);
+  if (on && LV && LV.fog) { scene.fog.near = LV.fog[0] / hz.k; scene.fog.far = LV.fog[1] / hz.k; } // (the Haze slider: thicker sooner)
+  Object.assign(HAZE.a, { x: on ? 1 : 0, y: hz.match, z: hz.fade, w: hz.glow });
+  Object.assign(HAZE.b, { x: (LV && LV.hazeY) || 0, y: Math.max(1, hz.fall), z: hz.low });
   Object.assign(HAZE.top, { x: top.r, y: top.g, z: top.b }); Object.assign(HAZE.sun, { x: SUN_DIR.x, y: SUN_DIR.y, z: SUN_DIR.z });
-  Object.assign(HAZE.sunCol, { x: lt.r, y: lt.g, z: lt.b }); Object.assign(HAZE.blk, { x: hz('hzBlack'), y: Math.max(1, hz('hzBlackD')) });
+  Object.assign(HAZE.sunCol, { x: lt.r, y: lt.g, z: lt.b }); Object.assign(HAZE.blk, { x: hz.black, y: Math.max(1, hz.blackD) });
   setSky(on); setRidges(on); setPixelRatio();
   // The level's sun grid (the fort): lights what moves
   const g = on && LV.sun && SUN_GRIDS[LV.sun.file];
@@ -840,9 +842,10 @@ function updateSkyDiscs() {
   const c = new THREE.Color(LOOK.lit), m = c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.45 ? MOON_DISC : SUN_DISC; // (night's light is far dimmer than dusk's)
   m.visible = true; m.position.copy(camera.position).addScaledVector(SUN_DIR, SKY_DIST); m.lookAt(camera.position);
 }
-// Far ridges (levels with LV.ridges): rings of low-poly mountains round the island, far past where anyone can go, for the haze
-// to layer. Each ring back is further into the haze, so its shadows lift further and it reads as a paler, flatter band, like
-// ranges stacking into the distance. Coloured from the look (shadow on the sides away from the sun, a muted lit green on the
+// Far ridges (levels with LV.ridges): a far coastline of low-poly mountains, arcs round the island from R.from to R.to degrees
+// (0 is +z, 90 is +x, like the look's az), far past where anyone can go, for the haze to layer; open sea the rest of the way.
+// Each arc back is further into the haze, so its shadows lift further and it reads as a paler, flatter band, like ranges
+// stacking into the distance; the ends sink into the sea. Coloured from the look (shadow on the sides away from the sun, a muted lit green on the
 // sides towards it); they cast and take no shadows, and nothing hits them.
 const RIDGES = new THREE.Group(); RIDGES.visible = false; scene.add(RIDGES);
 function buildRidges(R) {
@@ -852,14 +855,15 @@ function buildRidges(R) {
   R.rings.forEach(([r, lo, hi]) => {
     const ph = [rnd(), rnd(), rnd()].map(v => v * Math.PI * 2), pos = [], idx = [];
     // three rows per column: the foot in front (low, nearer), the crest, the foot behind
-    for (let i = 0; i < N; i++) {
-      const a = i / N * Math.PI * 2, jit = (rnd() - 0.5) * 0.3;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, a = (R.from + (R.to - R.from) * t) * Math.PI / 180, jit = (rnd() - 0.5) * 0.3;
       const n = 0.5 + 0.28 * Math.sin(a * 3 + ph[0]) + 0.16 * Math.sin(a * 7 + ph[1]) + 0.1 * Math.sin(a * 13 + ph[2]) + jit * 0.5;
-      const h = lo + (hi - lo) * Math.min(1, Math.max(0, n)), cr = r + (rnd() - 0.5) * 16;
+      const e = Math.min(1, t / 0.18, (1 - t) / 0.18), end = e * e * (3 - 2 * e); // (the ends slope down into the sea)
+      const h = -20 + (lo + (hi - lo) * Math.min(1, Math.max(0, n)) + 20) * end, cr = r + (rnd() - 0.5) * 16;
       const at = (rr, y) => pos.push(R.c[0] + Math.sin(a) * rr, y, R.c[1] + Math.cos(a) * rr);
       at(cr - h * 1.3, -40); at(cr, h); at(cr + h * 1.3, -40);
     }
-    for (let i = 0; i < N; i++) for (let j = 0; j < 2; j++) { const a = i * 3 + j, b = (i + 1) % N * 3 + j; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    for (let i = 0; i < N; i++) for (let j = 0; j < 2; j++) { const a = i * 3 + j, b = a + 3; idx.push(a, b, a + 1, a + 1, b, b + 1); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
     geo.computeVertexNormals(); // (smooth: soft broad slopes, not facets, so each range reads as one band)
     const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; m.raycast = () => {}; RIDGES.add(m);
@@ -883,7 +887,7 @@ function setSky(on) {
   skyDome.visible = on; if (!on) return;
   const g = skyDome.geometry, pos = g.attributes.position, col = new Float32Array(pos.count * 3);
   const h = new THREE.Color(LOOK.sky).convertSRGBToLinear(), t = new THREE.Color(LOOK.top).convertSRGBToLinear(), c = new THREE.Color();
-  const lt = new THREE.Color(LOOK.lit), v = new THREE.Vector3(), glow = LOOK.hzGlow ?? LOOK_DEFAULT.hzGlow;
+  const lt = new THREE.Color(LOOK.lit), v = new THREE.Vector3(), glow = hazeAt().glow;
   for (let i = 0; i < pos.count; i++) {
     c.copy(t).lerp(h, (1 - pos.getY(i) / 600) / 2).convertLinearToSRGB();
     v.fromBufferAttribute(pos, i).normalize(); const gk = glow * Math.pow(Math.max(v.dot(SUN_DIR), 0), 6); // (the haze's glow towards the sun)
@@ -982,7 +986,7 @@ function levelFortress() {
   return {
     mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true, teams: true,
     cs: 3.0, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], hazeY: 30,
-    ridges: { c: [0, 70], rings: [[230, 35, 95], [310, 60, 145], [400, 95, 200], [490, 130, 250]] }, // far mountains round the island for the haze to layer (setRidges)
+    ridges: { c: [0, 70], from: -105, to: 105, rings: [[300, 45, 115], [390, 80, 170], [480, 110, 220]] }, // a far coastline on the sun's side and round the back, for the haze to layer; open sea behind the tower (setRidges)
     far: 700, top: 0, wall: 0, // (the grid's cells are bigger than they were, to take in the new ground to the south: 3 m since the southern lobe, 2.4 before)
     // Where the sun reaches over the play area, for what moves: tools/build_fortress.py (SUN_GRID) writes it with these numbers
     sun: { file: 'Fortress_v5_sun', lo: [-56, 18, -12], n: [197, 81, 177], cell: 0.5, cols: 9 },
@@ -6146,8 +6150,7 @@ document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
 });
 // Look panel: opens over the paused game with the scene showing through
 const LOOK_FIELDS = { lkaz: ['az', v => v + '°'], lkel: ['el', v => v + '°'], lklit: ['lit', v => v], lkshadow: ['shadow', v => v], lkedge: ['edge', v => (+v).toFixed(2)], lksoft: ['soft', v => (+v).toFixed(2)], lksky: ['sky', v => v], lktop: ['top', v => v],
-  lkhzm: ['hzMatch', v => (+v).toFixed(2)], lkhzf: ['hzFade', v => (+v).toFixed(2)], lkhzg: ['hzGlow', v => (+v).toFixed(2)], lkhzl: ['hzLow', v => (+v).toFixed(2)], lkhzh: ['hzFall', v => v + 'm'],
-  lkhzb: ['hzBlack', v => (+v).toFixed(2)], lkhzd: ['hzBlackD', v => v + 'm'] };
+  lkhaze: ['haze', v => (+v).toFixed(2)] };
 function showLook() {
   for (const [id, [k, fmt]] of Object.entries(LOOK_FIELDS)) { const v = LOOK[k] ?? LOOK_DEFAULT[k]; $(id).value = v; $('o' + id).textContent = fmt(v); }
 }
