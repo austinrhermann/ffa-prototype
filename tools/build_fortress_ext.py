@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fortress_ext_terrain as T
 
 MODELS = sys.argv[-1]
-TEX_BOX = (-68.0, 76.0, 40.0, 126.0)   # the world rectangle the ground's painted texture covers
+TEX_BOX = (-68.0, 76.0, 40.0, 184.0)   # the world rectangle the ground's painted texture covers (z1 was 126 before the southern lobe)
 
 
 def export(path, **kw):
@@ -65,8 +65,8 @@ F = T.make_fields(vis, col)
 land = T.face_up(*T.build_land(F)); print('new ground', len(land[1]), 'triangles')
 x0, x1, z0, z1 = TEX_BOX
 uv = np.stack([(land[0][:, 0] - x0) / (x1 - x0), 1 - (land[0][:, 2] - z0) / (z1 - z0)], 1)       # (blender's v runs up the image)
-paint, _ = T.paint_ground(F, TEX_BOX)
-ribs = [T.road_ribbon(F, k) for k in ('roadA', 'roadB')]
+paint, _ = T.paint_ground(F, TEX_BOX, size=(2048, 2048))
+ribs = [T.road_ribbon(F, k) for k in ('roadA', 'roadB', 'roadC')]
 rib = T.merge(*[(v, f) for v, f, _ in ribs]); rib_uv = np.vstack([u for _, _, u in ribs])
 
 fresh()

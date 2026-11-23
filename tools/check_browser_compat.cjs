@@ -43,7 +43,7 @@ function fixture(search = '') {
     NET: { role: 'guest', hostId: 'ffa-host' }, Peer, ICE: {}, P: { alive: true },
     VOICE: { calls: {} }, closeVoice() {}, locked: false, away: false,
     document: {}, syncGo() {}, answerCall() {}, onHostMsg() {}, performance: { now: () => 0 },
-    lobbySend() { context.lobbySent = true; }, playerModelIdx: 0, myTeam: 'rebels',
+    lobbySend() { context.lobbySent = true; }, playerModelIdx: 0, myTeam: 'pirates',
     setPlaying(on) { context.playing = on; }, console,
     setTimeout: fn => { const id = ++timerID; timers.set(id, fn); return id; },
     clearTimeout: id => timers.delete(id),

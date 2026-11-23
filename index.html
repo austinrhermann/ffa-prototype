@@ -66,6 +66,8 @@ body.touch #chatin{left:50%;transform:translateX(-50%);bottom:auto;top:calc(54px
 #mic:empty{display:none}
 #tmic{left:calc(84px + env(safe-area-inset-left,0px))}
 #tmic.on{background:var(--accent);color:#0d1a08}
+#tlight{left:calc(146px + env(safe-area-inset-left,0px))}
+#tlight.on{background:var(--accent);color:#0d1a08}
 body.touch #mic{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 #camgrid{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:6px;max-width:50vw}
 .camtile{position:relative;width:120px;height:90px;border-radius:6px;overflow:hidden;background:#000;border:2px solid rgba(238,243,234,.35);transition:border-color .15s,box-shadow .15s}
@@ -142,7 +144,7 @@ body.guest .hostonly{display:none!important}
 #charcard{width:280px}
 #teams{margin-bottom:12px}
 #teams button[data-team=midas].on{background:#f2c230;color:#000}
-#teams button[data-team=rebels].on{background:#4aa8ff;color:#000}
+#teams button[data-team=pirates].on{background:#4aa8ff;color:#000}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
@@ -338,7 +340,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div id="ammo"><div id="hpbar" aria-label="Health"><div id="hp"></div></div><div id="nades"></div><div id="bullets"></div></div>
   <div id="msg"></div>
   <div id="cprompt" style="display:none">E: use the computer</div>
-  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div id="cpuhelp">Space: open or close the gate &middot; E: step away</div></div>
+  <div id="cpu" style="display:none"><canvas id="cmap" width="336" height="368"></canvas><div id="cpuinfo"></div><div id="cpuhelp">E: step away</div></div>
   <div id="note"></div>
   <div id="resume">Click to resume</div>
   <div id="camgrid"></div>
@@ -359,6 +361,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="tb drv" id="tview" data-act="view">View</div>
   <div class="tt" id="tpause" data-act="pause">Pause</div>
   <div class="tt" id="tmic" data-act="mic">Mic</div>
+  <div class="tt" id="tlight" data-act="light">Light</div>
 </div>
 <div id="curtain"></div>
 <div id="fshint" role="note"><span>Full screen: Share › <b>Add to Home Screen</b>, then play from the icon</span><button type="button" id="fshintx" aria-label="Dismiss">×</button></div>
@@ -411,7 +414,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>R</dt><dd>Reload: a fresh battery (it also reloads by itself when the clip runs dry)</dd>
       <dt>1–3, wheel</dt><dd>Pick one of your three weapons</dd>
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
-      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, set down where you let go (each takes an F battery)</dd>
+      <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, stuck to the floor, wall or ceiling you're looking at when you let go (each takes an F battery). Shoot a mine to set it off</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
       <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night)</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
@@ -476,7 +479,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="crow"><label for="pname">Name</label><input id="pname" type="text" maxlength="16" placeholder="You" autocomplete="off" spellcheck="false"></div>
   <div class="clabel">Choose your player:</div>
   <div id="cpick"></div>
-  <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="rebels">Rebels</button></div></div>
+  <div id="setteam"><label>Team</label><div class="seg" id="teams"><button type="button" data-team="midas" class="on">Midas</button><button type="button" data-team="pirates">Pirates</button></div></div>
   <div id="setchar"><label for="schar">Character</label><select id="schar"></select></div>
   <canvas id="cprev" width="240" height="280"></canvas>
   <div class="cfoot"><button type="button" id="joingo" disabled>Go!</button><button type="button" id="startover" class="hostonly">Start over</button></div>
@@ -603,9 +606,9 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -620,7 +623,8 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
   for (int i = 0; i < ${FLASH_MAX}; i++) {
     if (float(i) >= flN) break;
     vec3 v = p - flPos[i]; float d = length(v);
-    float c = smoothstep(flCone[i], flCone[i] + 0.035, dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
+    // (band: how far in from its edge, as a cosine, a lamp fades up to full)
+    float c = smoothstep(flCone[i], flCone[i] + flBand[i], dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (c > 0.0) { float s = c * flSeen(i, p, flFar[i]); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
@@ -643,21 +647,47 @@ vec3 bulbLight(vec3 p, vec3 n) { // the warm glow on a surface at p that faces n
   return vec3(1.0, 0.8, 0.5) * k * 1.3;
 }
 `;
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
+// Dark places (the bunker, its tunnel, the cellar and the stairs up to the fort): boxes in which every toon surface is pitch black, whatever the time of day, so only
+// a flashlight (or a bulb) shows anything there. A box takes in the inside faces of its walls, floor and roof, not their outsides. DARK.all is every box the sets have
+// built, DARK.live the ones in the level being played (darkSync); the shaders skip the lot outside DARK.bounds
+const DARK_MAX = 24, DARK_GLOW = 0.03, DARK_VM = 0.08, DARK = { n: { value: 0 }, lo: { value: [...Array(DARK_MAX)].map(() => new THREE.Vector3()) }, hi: { value: [...Array(DARK_MAX)].map(() => new THREE.Vector3()) },
+  bLo: { value: new THREE.Vector3() }, bHi: { value: new THREE.Vector3() }, all: [], live: [] };
+const DARK_GLSL = `
+uniform float dkN; uniform vec3 dkLo[${DARK_MAX}]; uniform vec3 dkHi[${DARK_MAX}]; uniform vec3 dkBLo; uniform vec3 dkBHi;
+bool inDark(vec3 p) {
+  if (any(lessThan(p, dkBLo)) || any(greaterThan(p, dkBHi))) return false;
+  for (int i = 0; i < ${DARK_MAX}; i++) {
+    if (float(i) >= dkN) break;
+    if (all(greaterThan(p, dkLo[i])) && all(lessThan(p, dkHi[i]))) return true;
+  }
+  return false;
+}
+`;
+function darkSync() {
+  const sc = LV && LV.mesh ? LEVEL_SCENES[LV.mesh] : null;
+  DARK.live = DARK.all.filter(b => b.scene === sc).slice(0, DARK_MAX);
+  DARK.bLo.value.set(Infinity, Infinity, Infinity); DARK.bHi.value.set(-Infinity, -Infinity, -Infinity);
+  DARK.live.forEach((b, i) => { DARK.lo.value[i].copy(b.lo); DARK.hi.value[i].copy(b.hi); DARK.bLo.value.min(b.lo); DARK.bHi.value.max(b.hi); });
+  DARK.n.value = DARK.live.length;
+}
+const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
+const inDarkCPU = p => darkNear(p);
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, ...FLASH_UNIFORMS() });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
       reflectedLight.directDiffuse *= sunAt(vSunPos);
     #endif`).replace('#include <tonemapping_fragment>', `
+    if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC, flK); }
     #include <tonemapping_fragment>`);
@@ -758,6 +788,7 @@ function applyLook() {
     f.color.copy(sh); f.intensity = on ? 1 : 0;
     d.color.copy(on ? lit : new THREE.Color(0xffffff)); d.intensity = on ? 1 : dk; d.userData.lit = d.color.clone();
     k.intensity = on ? 0 : kk;
+    f.userData.k = f.intensity; k.userData.k = k.intensity; // (what a dark place scales the gun's light from)
   }
   if (on) { const az = LOOK.az * Math.PI / 180, el = LOOK.el * Math.PI / 180; SUN_DIR.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)); }
   else SUN_DIR.set(25, 50, 15).normalize();
@@ -782,6 +813,23 @@ function applyLook() {
 const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
 skyDome.renderOrder = -1; skyDome.frustumCulled = false; skyDome.visible = false; scene.add(skyDome);
 skyDome.onBeforeRender = (r, sc, cam) => skyDome.position.copy(cam.position);
+// The sun or the moon, exactly where the level's light comes from (SUN_DIR: the directional light shines from there, and the look's az and el are the renders' sun
+// lamp, which the fort's baked shadows came from too). By day and at dusk a yellow sun; at night, when that light is the moon's, a smaller blue crescent. One at a
+// time (both were up at once, and away from the light, until 2026-11-21). With the dome, so with the look; drawn after the dome and before everything else, so the
+// hills and the fort hide it
+const SKY_DIST = 560, SUN_DISC = new THREE.Mesh(new THREE.CircleGeometry(24, 56), new THREE.MeshBasicMaterial({ color: 0xffdf5e, fog: false, depthWrite: false }));
+const MOON_DISC = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), new THREE.MeshBasicMaterial({ fog: false, depthWrite: false, transparent: true, map: (() => {
+  const c = document.createElement('canvas'), n = 256, r = n * 0.44; c.width = c.height = n; const g = c.getContext('2d');
+  g.fillStyle = '#8fb6ff'; g.beginPath(); g.arc(n / 2, n / 2, r, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(n / 2 - r * 0.45, n / 2 - r * 0.38, r * 0.92, 0, Math.PI * 2); g.fill(); // the dark part bitten out: a crescent lit low on its right
+  return new THREE.CanvasTexture(c);
+})() }));
+for (const m of [SUN_DISC, MOON_DISC]) { m.renderOrder = -0.5; m.frustumCulled = false; m.visible = false; scene.add(m); }
+function updateSkyDiscs() {
+  SUN_DISC.visible = MOON_DISC.visible = false; if (!skyDome.visible) return;
+  const c = new THREE.Color(LOOK.lit), m = c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.45 ? MOON_DISC : SUN_DISC; // (night's light is far dimmer than dusk's)
+  m.visible = true; m.position.copy(camera.position).addScaledVector(SUN_DIR, SKY_DIST); m.lookAt(camera.position);
+}
 function setSky(on) {
   skyDome.visible = on; if (!on) return;
   const g = skyDome.geometry, pos = g.attributes.position, col = new Float32Array(pos.count * 3);
@@ -829,35 +877,46 @@ const node = (c, r, l = 0) => l * N + idx(c, r);
 const cellPos = n => { const i = n % N; return new V3(cx(i % GW), nodeH(n), cz((i / GW) | 0)); };
 // ===LEVELS-START
 const OVER = new Float32Array(N);
-const SPAWN_SETS = { rebels: [], midas: [] }; // team free for all: where each side starts (level teamSpawns, by index into spawns)
+const SPAWN_SETS = { pirates: [], midas: [] }; // team free for all: where each side starts (level teamSpawns, by index into spawns)
 const WALK = [], SPAWNS = [], AMMO_SPOTS = [], STATIC_PICKUPS = [];
 const MAX_NADES = 3;
 let SNOW = null, curLevel = null;
 // Mesh levels (Fortress) collide against the level's triangles (TG) and walk a terrain nav grid (EDGE = open directions per cell)
 let TG = null, MODE = 'ffa', KILL_Y = -8, LV = null;
 // The new weapon system (range.js fills it in); declared up here because level setup asks it questions from the start
-const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
+const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}, keyUp() { return false; }, giveItem() { return false; }, loseItem() {}, items: () => [], handItem: () => null, handsUsed: () => 0, paint: () => -1, lightOn: () => false, panelOpen: false, onLevel() {}, kit() {}, update() {}, after() {}, updateGun() {}, next() {}, key() { return false; }, tab() { return false; }, boom() {}, solid() { return false; }, speedK() { return 1; }, life: 40, mine() {}, mineShot() {}, fx() {}, cfg: () => null, doorHp: (kind, base) => base, bats: () => [0, 0, 0, 0], botW: id => WEAPONS[id], knifeDmg: back => (back ? 100 : 55), give() { return false; }, addBats() { return 0; }, packWait: () => 30, weaponWait: () => 25, ammoOf: () => null, packMesh: () => new THREE.Group() };
 // Draw mode, the pen and the spray can (art.js fills it in)
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82);
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
 function flashBeam(e) {
-  const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn(); // (the host's bots: on whenever it's dark)
+  const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn() || darkNear(e.pos, 0.5); // (the host's bots: on whenever it's dark, and in a dark place)
   if (VIC.on || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
   const o = new V3(), d = new V3();
   if (e.isPlayer) {
     d.set(0, 0, -1).applyQuaternion(camera.quaternion);
-    o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
+    if (tpOn) { // third person: the camera's behind your shoulder, so the beam starts at your character (its chest, by the right shoulder; from the camera until
+      // 2026-11-21) and goes to what the crosshair is on (or 30 m out along it)
+      const c = camera.position; let far = 30;
+      if (TG) { TG.hitTri = -1; const t = tgRay(c.x, c.y, c.z, d.x, d.y, d.z, 30, false, true); if (TG.hitTri >= 0) far = Math.max(1, t); }
+      o.copy(myEye).add(_flO.set(0.15, -0.35, 0).applyQuaternion(camera.quaternion)); // (at the chest, by the right shoulder: not out in front of it)
+      _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
+    } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
-    const f = fwdOf(e), p = e.pitch || 0, c = Math.cos(p);
+    // held low, FL_LOW below where they look: looking level, the light lands on the ground just in front of them (its middle about 2 m out) rather than metres
+    // ahead (it pointed along their aim until 2026-11-21, so a level beam only reached the ground far off)
+    const f = fwdOf(e), p = Math.max(-1.35, (e.pitch || 0) - FL_LOW), c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
     const head = e.rig ? e.rig.model.headY : 1.6;
-    o.set(e.pos.x, e.pos.y + head - 0.1, e.pos.z).addScaledVector(d, 0.3);
+    o.set(e.pos.x, e.pos.y + head - 0.35, e.pos.z); // from their chest, in the middle of them (it was 0.3 m out in front of their head until 2026-11-21)
   }
-  return { o, d, far: 30, fov: 46, cone: 0.94, col: FLASHLIGHT_COL, e };
+  // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
+  // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
+  // your own, in first person, fades all the way to the very middle (band 0.117): brightest dead ahead, half bright at 20°
+  return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e };
 }
-const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
+const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, skid() {}, skidEnd() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
 const FN = { nodes: [], cells: null }; // fine walking map of every floor, on mesh levels that ask for one (see buildFortNav)
 // Boot: a small room to stand in for the moment before the fort has loaded (the grid needs a level from the start; the host
@@ -873,7 +932,7 @@ function levelBoot() {
 function levelFortress() {
   return {
     mesh: 'Fortress_v5', collide: 'Fortress_v5_col', mode: 'ffa', look: true, teams: true,
-    cs: 2.4, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], hazeY: 30, far: 700, top: 0, wall: 0, // (the grid's cells are a little bigger than they were, to take in the new ground to the south)
+    cs: 3.0, ox: -70, oz: -22, killY: -5, fog: [19.8, 554], hazeY: 30, far: 700, top: 0, wall: 0, // (the grid's cells are bigger than they were, to take in the new ground to the south: 3 m since the southern lobe, 2.4 before)
     // Where the sun reaches over the play area, for what moves: tools/build_fortress.py (SUN_GRID) writes it with these numbers
     sun: { file: 'Fortress_v5_sun', lo: [-56, 18, -12], n: [197, 81, 177], cell: 0.5, cols: 9 },
     // Inside: courtyard, wall walk over the gate, back corridor, tower (lower floor and computer room). Outside: the valley in
@@ -881,49 +940,54 @@ function levelFortress() {
     spawns: [[-2.8, 34, 1.6], [0.2, 34, 1.8], [-3.0, 37.5, 4.4], [0.9, 37.5, 4.4], [-2, 37.5, -5.3], [2, 37.5, -5.3], [5.3, 37.5, 2.6], [4.6, 44.5, 5.2],
       [-12, 30.5, 14], [-6, 30, 18], [-24, 26, 24], [4, 34, 36], [12, 32.5, 40], [24, 34.5, 44], [32, 35, 40], [0, 23.5, 54], [-16, 26.5, 52],
       [15, 30, 57.5], [8, 30, 54], [22, 30, 60], [19, 30, 55], [13, 30, 54], [17, 30, 59],
-      // Clearing A, in the south-west (the Rebels), and clearing B, in the south-east (Midas)
+      // Clearing A, in the south-west (the Pirates), and clearing B, in the south-east (Midas)
       [-35.5, 26.9, 96.6], [-37.4, 26.9, 98.9], [-40.5, 26.9, 99.2], [-42.8, 26.9, 97.3], [-43.1, 26.8, 94.2], [-41.2, 26.9, 91.9], [-38.1, 26.9, 91.6], [-35.8, 26.9, 93.5],
       [50.4, 24.9, 97.5], [48.2, 24.9, 100.2], [44.8, 25.0, 100.5], [42.1, 24.9, 98.3], [41.8, 24.9, 94.9], [44.0, 24.9, 92.2], [47.4, 24.9, 91.9], [50.1, 24.9, 94.1]],
-    // Team free for all: both sides start far from the fort, in the two clearings the island now has to the south, a mountain between them: the Rebels in A,
+    // Team free for all: both sides start far from the fort, in the two clearings the island now has to the south, a mountain between them: the Pirates in A,
     // Midas in B. The fort is in the middle for whoever gets there first (the road behind the hill, where Midas used to start, is a free-for-all spawn now)
-    teamSpawns: { rebels: [23, 24, 25, 26, 27, 28, 29, 30], midas: [31, 32, 33, 34, 35, 36, 37, 38] },
+    teamSpawns: { pirates: [23, 24, 25, 26, 27, 28, 29, 30], midas: [31, 32, 33, 34, 35, 36, 37, 38] },
     ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
       [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55],
-      [-36, 26.8, 99], [-43, 26.9, 92.5], [-39.5, 26.8, 89.5], [-34.5, 26.9, 95.4, 1], [50, 24.9, 100], [42, 24.9, 92], [47, 25.0, 89.5], [52, 24.9, 97, 1], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9]],
-    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5]],
+      [-36, 26.8, 99], [-43, 26.9, 92.5], [-39.5, 26.8, 89.5], [-34.5, 26.9, 95.4, 1], [50, 24.9, 100], [42, 24.9, 92], [47, 25.0, 89.5], [52, 24.9, 97, 1], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9],
+      [-8.24, 7.5, 175.46], [-7.29, 7.5, 174.83, 1]], // (the last two on the dock, out past its truck and motorcycle)
+    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5], [-11.92, 7.5, 174.5]],
     // Everyone starts with the Pistol and the Carbine, so the rest are the prizes, few of each (and a spot doesn't fill again while its weapon is still
     // about: PICKUP_LIMIT): the Master Rifle beside the Computer in the tower room, the F tube on the hilltop beside the truck, two Izus (the back
-    // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). No Pistols or Carbines lie about: you scavenge the dead's
+    // corridor, the hill across the valley) and three Battery Guns (the courtyard, the valley floor by the road, the end of the dock). No Pistols or Carbines lie about: you scavenge the dead's
     pickups: [['rifle', 4.4, 44.3, 2.6], ['bazooka', 28, 33.9, 50],
       ['uzi', 0.3, 37.5, -5.3], ['uzi', 10, 32.5, 40],
-      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 23.5, 56]],
+      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 24.5, 56], ['shotgun', -9.41, 7.5, 174.71]], // (the valley floor's at 24.07 there: at 23.5 the gun lay under it once it stopped hovering)
     // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
-    // (the walking map leaves out the spot it stands on: buildFortNav)
-    vehicles: [['sport', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
+    // (the walking map leaves out the spot it stands on: buildFortNav). Another truck and motorcycle side by side on the dock, 12 m out, facing inland.
+    vehicles: [['motorcycle', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03], ['truck', -10.27, 168.92, 2.94], ['motorcycle', -6.35, 169.72, 2.94]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
     window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
     balcony: { x0: 4.2, x1: 7.1, z0: -2.9, z1: -1.6, y: 44.95 },
+    // The dock at the end of the southern lobe (the second drawing): a deck of planks from a (on the beach) out to b, w wide, its top at y (the sea is at about 6 there)
+    dock: { a: [-6.2, 157.5], b: [-10.35, 177.8], w: 8, y: 7.3 },
     // An invisible fence along the rim of the valley between the fort and the hill (soldiers kept falling in): [x, z, top]
     fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
     // A door at the tower's entrance from the back corridor: open until someone locks it (E); bots break it down
-    towerDoor: { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 },
+    // (no towerDoor: since 2026-11-21 the doorway from the back corridor into the tower is open. It was { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 })
     // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts shut with a
     // health pool (hp); Midas bots shoot it from the road (siege: [x, z] spots) until it gives way. Once open, E at the door
     // (or the computer in the tower room) shuts it again, and a shut gate is whole again. (hp was 1000: twice as tough now)
-    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0, hp: 800, siege: [[-1.6, 6.7], [-2.5, 10.8], [-4.5, 14], [-1.2, 8.6], [-3.4, 12.2]], doors: { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 } },
-    core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the map and the gate switch)
+    // The gate: its shape in the set (Front_Gate) is out of play for good (setGate(true) every round, and nothing shuts it). Since 2026-11-21 it has no doors (doors:
+    // { x0: -3.55, x1: -0.25, y0: 33.45, y1: 36.5, z: 2.95, t: 0.6 }), so no health (hp: 800) and no siege by the bots either
+    gate: { mesh: 'Front_Gate', at: [-1.9, 5], drop: 0 },
+    core: { at: [5.29, 44.96, 1.4] }, // the Computer in the tower room (its monitor: the radar, a map with everyone on it)
     // Bots find their way on a fine walking map of every floor, built from the collision set at load: area [x0, z0, x1, z1]
     // (the fort, the valley, the hill and the road behind it), cell size, and the height range to look for floors in
-    fortNav: { box: [-66, -10, 76, 124], cell: 0.5, top: 52, bottom: 18 }, // (the whole island now, new ground and all)
+    fortNav: { box: [-66, -10, 76, 182], cell: 0.5, top: 52, bottom: 4 }, // (the whole island now, new ground and all: to z 182 and down to the beach since the southern lobe; it was z 124, y 18)
     // The new ground to the south has two roads, levelled for vehicles (FORT_EXT); the bunker is a concrete door in the hill west of the fort, beside the big tree and facing west, with
     // a tunnel to the cellar under the fort's west wall (the one Minimal + tunnel has)
     roads: FORT_EXT, bunker: FORT_BUNKER, cellar: TUNNEL_MINIMAL,
     // Bots heading into the fort go in by one of three ways, taken in turn as they spawn: the front twice in every four, then the back trail, then the tunnel from the
     // bunker (fortRoutes: points [x, y, z] walked through in order, the last one inside the fort; fortZone: [x0, x1, z0, z1, above y]; navLinks: points the bots' walking
     // map joins in a chain, through the narrow squeeze from the back door's corridor into the room behind it)
-    fortZone: [-9.5, 8.5, -11, 5.5, 31], rebelsAdvance: true, // (the Rebels start in clearing A and head for the fort like Midas, rather than holding it)
+    fortZone: [-9.5, 8.5, -11, 5.5, 31], piratesAdvance: true, // (the Pirates start in clearing A and head for the fort like Midas, rather than holding it)
     fortRoutes: {
       front: [[-1.9, 33, 8], [-1.5, 33.5, 1.5]],
       back: [[-16.5, 30, -3], [-12, 30, -13], [-3.5, 33.5, -12], [-1.5, 33.5, 1.5]],
@@ -933,7 +997,10 @@ function levelFortress() {
     // Drawn things with no collision of their own (the roads sit a hand above the ground, and the rocks, bushes and trees are only pictures): the paint goes on these
     // Trees for cover, where Austin drew them on the top-down map (docs/map): [x, z]. Heights and girths vary tree to tree (addTrees)
     trees: [[-60.4, 44.3], [-33.1, 52.8], [-29.1, 54.4], [-20.1, 70.2], [-39.2, 71.4], [40.6, 72.7], [-46.8, 74.9], [47.3, 75.8], [-35.6, 77.6], [0.7, 78.0], [-41.3, 78.1], [37.1, 80.3],
-      [-47.8, 81.4], [55.0, 84.8], [-56.4, 87.8], [26.6, 91.1], [-54.1, 91.8], [60.4, 92.1], [-57.3, 94.5], [63.6, 98.1], [24.5, 99.7], [28.0, 103.4], [-25.4, 107.0], [-52.9, 107.4], [-28.3, 110.4]],
+      [-47.8, 81.4], [55.0, 84.8], [-56.4, 87.8], [26.6, 91.1], [-54.1, 91.8], [60.4, 92.1], [-57.3, 94.5], [63.6, 98.1], [24.5, 99.7], [28.0, 103.4], [-25.4, 107.0], [-52.9, 107.4], [-28.3, 110.4],
+      // the southern lobe (the second drawing)
+      [-24.4, 119.3], [-21.0, 123.0], [-11.4, 122.7], [11.4, 105.9], [13.9, 115.0], [12.8, 123.4], [22.7, 115.6], [27.0, 116.2], [34.7, 112.7], [41.5, 116.7],
+      [20.5, 120.7], [25.6, 121.8], [31.8, 121.3], [36.4, 120.1], [53.4, 122.4], [52.3, 129.2], [56.8, 130.3], [49.4, 135.5], [20.5, 135.2], [24.4, 134.3]],
     paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
@@ -972,8 +1039,9 @@ const TUNNEL_MINIMAL = {
     ['crate', [-12.45, -11.45, 28.0, 29.0, -5.85, -4.85]], ['crate', [-11.35, -10.35, 28.0, 29.0, -5.85, -4.85]], ['crate', [-12.3, -11.5, 29.0, 29.8, -5.7, -4.9]],
   ],
   barrels: [[-12.05, -3.6], [-12.05, -2.85], [-11.3, -3.25]],
-  bulbs: [[-10.9, 30.15, -1.5], [-7.0, 30.15, 1.4], [-8.2, 36.5, -2.6]],
-  lamp: [-9.6, 30.0, -1.0],
+  // inside the cellar and the stairwell (for DARK: they're pitch black; they had three bulbs and a lamp until 2026-11-21). The stairwell stops short of the door's wall,
+  // whose far face is the fort room's
+  dark: [[-12.5, -5.14, 28.0, 30.6, -5.9, 2.65], [-9.15, -5.14, 28.0, 37.0, -5.9, -0.12]],
 };
 const LEVEL_DEFS = { boot: levelBoot, fortress: levelFortress }; // (boot: only until the fort is in)
 function buildGrid(id) {
@@ -982,7 +1050,7 @@ function buildGrid(id) {
   MODE = L.mode || 'ffa'; KILL_Y = L.killY !== undefined ? L.killY : -8;
   CS = L.cs || 1; OX = L.ox !== undefined ? L.ox : -32; OZ = L.oz !== undefined ? L.oz : -35;
   if (L.mesh) addSetExtras(L);
-  bulbSync();
+  bulbSync(); darkSync();
   TG = L.mesh ? buildTG(LEVEL_SCENES[L.collide || L.mesh]) : null;
   if (TG) resetSheds();
   if (TG && L.towerDoor) setSolid('door', true); // the door starts open
@@ -1216,15 +1284,55 @@ function obbPlanes(c, u, hu, hl, y0, y1) { // a box along the horizontal unit di
 // of 4 corners at each end) and box, and the bulbs that hang on a wire. The faces of every solid point outward (into the tunnel, from the walls round it), so what
 // is lit, shot and painted from inside is the face you see; the light is the bulbs' (BULB: the shader adds the glow of the ones near a surface, so people and guns
 // in the tunnel take it too, and it goes dark where a bulb has been shot out)
+// The tunnels' walls, floors and stairs wear the truck's grey paint (its scuffs and drips, made stronger: grungeTex) under their own colours, so a flashlight shows a
+// worn surface rather than a flat colour. It comes with the truck's model (skinTunnels: the truck's Mat_plastic_utility); until then, or without it, they're plain
+const TUNNEL_SKIN = { tex: null, mats: [] }, TUNNEL_TILE = 22, GRUNGE_MID = 200; // metres per repeat (2.2 until 2026-11-21: tiles ten times the size now); the texture's average, of 255
+function grungeTex(img) {
+  const n = Math.min(512, img.width || 512), c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0, n, n);
+  const d = x.getImageData(0, 0, n, n), a = d.data, lum = i => a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11;
+  let sum = 0; for (let i = 0; i < a.length; i += 4) sum += lum(i);
+  const mean = sum / (a.length / 4);
+  let L = new Float32Array(n * n); for (let i = 0; i < L.length; i++) L[i] = GRUNGE_MID + (lum(i * 4) - mean) * 4; // grey, light, and four times the contrast
+  // Made to tile without a seam: each way in turn, the picture fades into a copy of itself shifted half its size, whose middle is the original's edges (so it
+  // carries on across them), from nothing in the middle to all of it at the edges
+  const w = k => { const e = Math.abs(k / (n - 1) - 0.5) * 2; return e * e * (3 - 2 * e); };
+  for (const ax of [0, 1]) {
+    const o = new Float32Array(n * n);
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) {
+      const sx = ax ? xx : (xx + (n >> 1)) % n, sy = ax ? (yy + (n >> 1)) % n : yy, k = w(ax ? yy : xx);
+      o[yy * n + xx] = L[yy * n + xx] * (1 - k) + L[sy * n + sx] * k;
+    }
+    L = o;
+  }
+  for (let i = 0; i < L.length; i++) a[i * 4] = a[i * 4 + 1] = a[i * 4 + 2] = Math.max(0, Math.min(255, L[i]));
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+}
+function skinMat(m) { if (!TUNNEL_SKIN.tex || m.map) return; m.map = TUNNEL_SKIN.tex; m.color.multiplyScalar(255 / GRUNGE_MID); m.needsUpdate = true; } // (the colour brightened by as much as the texture darkens it)
+function skinTunnels(sc) {
+  let map = null; sc.traverse(o => { if (!map && o.isMesh && o.material.map && /^Mat_plastic_utility/.test(o.material.name)) map = o.material.map; });
+  if (!map || !map.image || TUNNEL_SKIN.tex) return;
+  TUNNEL_SKIN.tex = grungeTex(map.image); TUNNEL_SKIN.mats.forEach(skinMat);
+}
 function tunnelKit(draw, col, cm) {
   const M = { stone: toonMat({ color: 0x8b887f, side: THREE.DoubleSide }), wood: toonMat({ color: 0x7a5636, side: THREE.DoubleSide }), earth: toonMat({ color: 0x5c4b3c, side: THREE.DoubleSide }),
     roof: toonMat({ color: 0x40352b, side: THREE.DoubleSide }), crate: MAT.crate, barrel: toonMat({ color: 0x6e4a2c }) };
+  for (const k of ['stone', 'wood', 'earth', 'roof']) { TUNNEL_SKIN.mats.push(M[k]); skinMat(M[k]); }
   const g = new THREE.Group(); g.name = 'Tunnel'; draw.add(g); const cg = new THREE.Group(); col.add(cg);
   const prism = (kind, ring0, ring1, solid = true) => { // two rings of 4 corners ([x, y, z]), bottom and top
     const P = [], q = (a, b, c) => P.push(...a, ...b, ...c), quad = (a, b, c, d) => { q(a, c, b); q(a, d, c); };
     quad(ring0[3], ring0[2], ring0[1], ring0[0]); quad(ring1[0], ring1[1], ring1[2], ring1[3]);
     for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad(ring0[i], ring0[j], ring1[j], ring1[i]); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals();
+    // texture coordinates from where each face is in the world, seen along the axis it faces most (walls stand the texture upright, floors and roofs lie it flat)
+    const U = [];
+    for (let i = 0; i < P.length; i += 9) {
+      const ax = P[i + 3] - P[i], ay = P[i + 4] - P[i + 1], az = P[i + 5] - P[i + 2], bx = P[i + 6] - P[i], by = P[i + 7] - P[i + 1], bz = P[i + 8] - P[i + 2];
+      const nx = Math.abs(ay * bz - az * by), ny = Math.abs(az * bx - ax * bz), nz = Math.abs(ax * by - ay * bx);
+      for (let k = i; k < i + 9; k += 3) { const [u, v] = ny >= nx && ny >= nz ? [P[k], P[k + 2]] : nx >= nz ? [P[k + 2], P[k + 1]] : [P[k], P[k + 1]]; U.push(u / TUNNEL_TILE, v / TUNNEL_TILE); }
+    }
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
     const o = new THREE.Mesh(geo, M[kind]); o.castShadow = o.receiveShadow = true; g.add(o);
     if (solid) cg.add(new THREE.Mesh(geo, cm));
     return o;
@@ -1237,7 +1345,9 @@ function tunnelKit(draw, col, cm) {
     BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 7, mesh: o, lit: bulbLit, dead: bulbDead, alive: true, hit }); hit.userData.bulb = BULB.all[BULB.all.length - 1];
   };
   const lamp = (x, y, z) => BULB.all.push({ scene: draw, p: new V3(x, y, z), r: 9, mesh: null, alive: true }); // a light with no bulb to shoot
-  return { M, X: M, g, cg, cm, prism, box, bulb, lamp, wireM };
+  // a dark place (DARK): the inside of a room or a stretch of tunnel, [x0, x1, y0, y1, z0, z1] to its walls' inside faces; m takes those faces in, and stops well short of the outsides
+  const dark = ([x0, x1, y0, y1, z0, z1], m = 0.08) => DARK.all.push({ scene: draw, lo: new V3(x0 - m, y0 - m, z0 - m), hi: new V3(x1 + m, y1 + m, z1 + m) });
+  return { M, X: M, g, cg, cm, prism, box, bulb, lamp, wireM, dark };
 }
 // The bulbs in play. bulbSync hands the shaders the ones still lit; a shot (castShot finds them: bulbRay) or a blast puts one out (bulbBreak), the same bulb on every machine
 // (netFx 'bb'; the host's welcome lists the broken ones), and a new round puts them all back (clearHoles)
@@ -1277,26 +1387,18 @@ function bulbAtCPU(p) { let k = 0; for (const b of BULB.live) { if (!b.alive) co
 // The cellar under the fort's west wall, the stairs up from it and the door in the room's back wall (T.pieces, barrels, door, bulbs, lamp): the end of
 // the tunnel under the shed and of the bunker's tunnel
 function buildCellar(T, draw, K) {
-  const { M, g, cg, cm, box, bulb, wireM } = K;
+  const { M, g, cg, cm, box } = K;
   for (const [kind, b, solid] of T.pieces) box(kind, b, solid !== false);
   for (const [x, z] of T.barrels) {
     const o = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.95, 14), M.barrel); o.position.set(x, T.cellarFloor + 0.475, z); o.castShadow = o.receiveShadow = true; g.add(o);
     const c = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.95, 0.62), cm); c.position.set(x, T.cellarFloor + 0.475, z); cg.add(c);
   }
-  const D = T.door, hinge = new THREE.Group(), dw = D.x1 - D.x0, dh = D.h;
-  hinge.position.set(D.x0, D.y, D.z); g.add(hinge);
-  const dp = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); };
-  dp(DOOR_WOOD, dw / 2, dh / 2, 0, dw - 0.04, dh - 0.03, 0.08);
-  for (const y of [0.35, dh / 2, dh - 0.35]) dp(DOOR_IRON, dw / 2, y, 0.05, dw - 0.1, 0.09, 0.02);
-  dp(DOOR_IRON, dw - 0.15, dh * 0.48, 0.07, 0.05, 0.16, 0.05);
+  // the doorway into the room: a wooden frame round it, and no door (it had one until 2026-11-21)
+  const D = T.door, dh = D.h;
   box('wood', [D.x0 - 0.1, D.x0, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false); box('wood', [D.x1, D.x1 + 0.1, D.y, D.y + dh + 0.1, D.z - 0.08, D.z + 0.08], false);
   box('wood', [D.x0 - 0.1, D.x1 + 0.1, D.y + dh, D.y + dh + 0.12, D.z - 0.08, D.z + 0.08], false);
-  const tog = 'cellar' + SHEDS.length, slabC = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, 0.1), cm);
-  slabC.position.set((D.x0 + D.x1) / 2, D.y + dh / 2, D.z); slabC.userData.toggle = tog; cg.add(slabC);
-  SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3((D.x0 + D.x1) / 2, 0, D.z), y: D.y, rot: 0 });
-  // a few bulbs in the cellar, and one warm light down there
-  for (const [x, y, z] of T.bulbs) { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.55, z)]), wireM)); }
-  K.lamp(...T.lamp);
+  // no light: it's dark down there (DARK)
+  for (const b of T.dark) K.dark(b);
 }
 // The bunker on the Fortress (Austin's drawing): a concrete door built into the hillside west of the fort, tucked in beside the big tree and facing west, and a tunnel from
 // the room behind it to the same cellar the shed's tunnel (Minimal + tunnel) ends in. World metres [x, y, z]; boxes [x0, x1, y0, y1, z0, z1].
@@ -1311,10 +1413,9 @@ const FORT_BUNKER = {
   // the hill over the room: the ground within box is raised to top, with a steep bank on the west side, the door's (steep: 'w'; regradeGround does it, to the drawn ground and the collision)
   mound: { box: [-21.4, -14.4, 7.8, 12.4], top: 32.2, side: 3.5, bank: 1.2, steep: 'w',
     apron: [-25.0, 10.0, 2.3, 2.6, 25.4] }, // level ground in front of the door (x, z, flat radius, blend, height = the doorstep's): the door is cut into a cross slope, a metre higher on its right, and this evens both sides out
-  lock: { hp: 240, hold: 4 },                                                 // the door locks from inside (hold E for `hold` seconds) and then has hp to be shot down
 };
 function buildBunker(B, C, col, draw, cm) {
-  const K = tunnelKit(draw, col, cm), { g, cg, box, prism, bulb, wireM } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
+  const K = tunnelKit(draw, col, cm), { g, cg, box, prism } = K, hw = B.w / 2, th = B.th, t = 0.3, [rx0, rx1, rz0, rz1] = B.room, F0 = B.floor, D = B.portal, yt = F0 + B.h;
   const floorAt = s => { const P = B.profile; for (let i = 0; i + 1 < P.length; i++) if (s <= P[i + 1][0]) return P[i][1] + (P[i + 1][1] - P[i][1]) * Math.max(0, s - P[i][0]) / (P[i + 1][0] - P[i][0]); return P[P.length - 1][1]; };
   // the tunnel: straight runs, with a square cell at each corner (open on the two sides the runs join it by)
   const runs = []; let at = 0;
@@ -1369,41 +1470,36 @@ function buildBunker(B, C, col, draw, cm) {
   box('stone', [rx0 - t, rx1 + t, yt, yt + t, rz0 - t, rz1]);                                                       // ceiling
   box('stone', [rx0 - t, rx1 + t, F0, yt + t, rz1, rz1 + 0.5]);                                                     // the south wall (buried in the hill)
   // The door: only the doorway and a little round it, a concrete frame standing out of the hill's west face, with the passage through it to the room. The passage inside the hill
-  // is lit by the bulbs like the room; the frame out in the open is the sun's (open = true); the floor runs on past it as a doorstep, down to the ground
+  // is dark like the room; the frame out in the open is the sun's (open = true); the floor runs on past it as a doorstep, down to the ground
   const fz0 = D.z0 - D.pad, fz1 = D.z1 + D.pad, ft = F0 + D.h + D.pad, xo = rx0 - t, xi = xo - 1.5;
   box('stone', [xi, xo, F0 - 0.4, ft, fz0, D.z0]); box('stone', [xi, xo, F0 - 0.4, ft, D.z1, fz1]); box('stone', [xi, xo, F0 + D.h, ft, D.z0, D.z1]); box('stone', [xi, xo, F0 - 0.4, F0, D.z0, D.z1]);
   box('stone', [D.front, xi, F0 - 0.4, ft, fz0, D.z0], true, true); box('stone', [D.front, xi, F0 - 0.4, ft, D.z1, fz1], true, true);                             // jambs
   box('stone', [D.front, xi, F0 + D.h, ft, D.z0, D.z1], true, true); box('stone', [D.front, xi, F0 - 0.4, F0, D.z0, D.z1], true, true);                         // lintel, floor
   box('stone', [D.front - 1.0, D.front, F0 - 0.7, F0, fz0, fz1], true, true);                                                                                   // the doorstep
   box('stone', [D.front - 0.08, xo, ft, ft + 0.12, fz0 - 0.08, fz1 + 0.08], false, true);                                                                      // a slim lip along the top
-  // the door: steel, hinged on its south edge so it swings in (east); a collision slab in the doorway that E takes out. Its picture is built facing south and turned a quarter (rot)
-  const dw = D.z1 - D.z0, dx = D.front + 0.2, rot = -Math.PI / 2, hinge = new THREE.Group(); hinge.position.set(dx, F0, D.z1); hinge.rotation.y = rot; g.add(hinge);
-  const dp = (m, x, y, z, sx, sy, sz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; hinge.add(o); };
-  dp(DOOR_IRON, -dw / 2, D.h / 2, 0, dw - 0.04, D.h - 0.03, 0.1);
-  for (const y of [0.4, D.h / 2, D.h - 0.4]) dp(K.X.stone, -dw / 2, y, 0.07, dw - 0.14, 0.1, 0.03);
-  dp(K.X.stone, -dw + 0.2, D.h * 0.5, 0.1, 0.22, 0.22, 0.04);
-  const tog = 'bunker' + SHEDS.length, zc = (D.z0 + D.z1) / 2, slab = new THREE.Mesh(new THREE.BoxGeometry(0.12, D.h, dw), cm);
-  slab.position.set(dx, F0 + D.h / 2, zc); slab.userData.toggle = tog; cg.add(slab);
-  SHEDS.push({ scene: draw, door: hinge, a: 0, open: false, tog, p: new V3(dx, 0, zc), y: F0, rot });
-  // It locks from inside (see lockDoor): a health bar on each face while it's locked, like the gate's, and an invisible slab over the door that shots land on
-  const sh = SHEDS[SHEDS.length - 1]; sh.lock = B.lock; sh.in = [1, 0]; sh.locked = false; sh.lockHp = 0;
-  const bc = document.createElement('canvas'); bc.width = 256; bc.height = 40; const tex = new THREE.CanvasTexture(bc), bmat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
-  const bars = [[dx - 0.15, -Math.PI / 2], [dx + 0.08, Math.PI / 2]].map(([x, ry]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 40 / 256), bmat); m.position.set(x, F0 + D.h - 0.3, zc); m.rotation.y = ry; m.renderOrder = 10; m.visible = false; g.add(m); return m; });
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(0.3, D.h, dw), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(dx - 0.1, F0 + D.h / 2, zc); hit.userData.bdoor = true; g.add(hit);
-  sh.lockUI = { canvas: bc, tex, bars, hit, shown: -1 };
-  // 4. Light: a bulb in the room and one every few metres along the tunnel; the cellar (and its door) are the shed tunnel's, with its own bulbs
-  const bulbAt = (x, y, z) => { bulb(x, y, z); g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(x, y + 0.1, z), new V3(x, y + 0.45, z)]), wireM)); };
-  bulbAt((rx0 + rx1) / 2, yt - 0.35, (rz0 + rz1) / 2);
-  for (const s of [1.6, 4.4, 7.4, 9.6, 12.2]) { const r = runs.find(q => s <= q.s0 + q.len) || runs[last], p = pt(r, s - r.s0, 0, 0); bulbAt(p[0], floorAt(s) + th - 0.35, p[2]); }
+  // No door in the doorway (until 2026-11-21 a steel one, that E opened and shut and that locked from inside, with health once locked): dx is where it hung
+  const dx = D.front + 0.2;
+  // 4. No light: the room, the passage in from the door and the tunnel are pitch black whatever the time of day (DARK), so you need your flashlight (L) to get through
+  // (they had bulbs until 2026-11-21). The tunnel goes a stretch at a time: a level one in one box, a slope in half-metre slices, so no box reaches out past its roof.
+  // The cellar and the stairs up (buildCellar) are dark too
+  K.dark([rx0, rx1, F0, yt, rz0, rz1]); K.dark([dx + 0.1, rx0, F0, F0 + D.h, D.z0, D.z1]);
+  runs.forEach((r, i) => {
+    const sa = i ? hw : -t, sb = r.len - (i < last ? hw : -0.3), sl = []; // (from the room's east wall; the last run on into the cellar's south wall)
+    for (let s = sa; s < sb - 1e-6; s += 0.5) { const e = Math.min(sb, s + 0.5), f0 = floorAt(r.s0 + s), f1 = floorAt(r.s0 + e), p = sl[sl.length - 1], y0 = Math.min(f0, f1), y1 = Math.max(f0, f1) + th;
+      if (p && Math.abs(p[2] - y0) < 1e-3 && Math.abs(p[3] - y1) < 1e-3) p[1] = e; else sl.push([s, e, y0, y1]); }
+    for (const [s, e, y0, y1] of sl) { const a = pt(r, s, -hw, 0), b = pt(r, e, hw, 0); K.dark([Math.min(a[0], b[0]), Math.max(a[0], b[0]), y0, y1, Math.min(a[2], b[2]), Math.max(a[2], b[2])]); }
+  });
+  for (let i = 0; i < last; i++) { const c = runs[i + 1].a, f = floorAt(runs[i + 1].s0); K.dark([c[0] - hw, c[0] + hw, f, f + th, c[1] - hw, c[1] + hw]); } // the corner cells
   buildCellar(C, draw, K);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
 // The Fortress's new roads (tools/build_fortress_ext.py builds the new ground, and prints these): each branches off the road from the gate and runs to a spawn clearing,
 // [x, z, height] every 2 m. The ground is levelled to them: the new ground by the build script, the old ground by regradeGround, here, at load, to the same profile
 // (flat is level within `flat` metres of a road's centre, easing back to the land over `blend` more). pads: [x, z, radius, blend, height], level ground that widens the valley where the truck parks.
-const FORT_EXT = { flat: 2.2, blend: 4.0, pads: [[15.5, 58.5, 7.0, 4.5, 23.0]], roads: [
+const FORT_EXT = { flat: 2.2, blend: 4.0, pads: [[15.5, 58.5, 7.0, 4.5, 23.0]], roads: [ // (roadA, roadB, and since the southern lobe roadC: tools/build_fortress_ext.py prints them)
   [[-7.5,45.5,23.2],[-9.24,46.49,23.3],[-10.97,47.48,23.45],[-12.75,48.4,23.61],[-14.53,49.32,23.77],[-16.3,50.25,23.93],[-18.07,51.18,24.09],[-19.77,52.23,24.25],[-21.47,53.28,24.41],[-23.1,54.45,24.57],[-24.72,55.62,24.73],[-26.23,56.93,24.89],[-27.74,58.24,25.05],[-29.08,59.73,25.21],[-30.41,61.22,25.37],[-31.36,62.98,25.53],[-32.3,64.74,25.69],[-32.4,66.74,25.85],[-32.44,68.74,26.01],[-31.69,70.59,26.17],[-30.93,72.44,26.33],[-29.97,74.19,26.49],[-29.03,75.96,26.65],[-28.24,77.8,26.81],[-27.47,79.64,26.65],[-27.12,81.61,26.49],[-26.83,83.59,26.33],[-27.13,85.57,26.17],[-27.58,87.51,26.01],[-28.88,89.02,26.02],[-30.25,90.48,26.18],[-31.84,91.67,26.34],[-33.63,92.57,26.5],[-35.42,93.46,26.5],[-37.21,94.36,26.5],[-39,95.25,26.5]],
-  [[23.5,61.5,22.93],[23.1,63.46,23.09],[22.7,65.42,23.25],[22.85,67.41,23.41],[23,69.41,23.57],[23.6,71.32,23.73],[24.21,73.22,23.89],[25.17,74.98,24.05],[26.12,76.73,24.21],[27.29,78.36,24.37],[28.47,79.98,24.53],[29.78,81.48,24.69],[31.09,82.99,24.85],[32.48,84.43,25.01],[33.87,85.87,25.17],[35.29,87.29,25.06],[36.7,88.7,24.9],[38.11,90.11,24.74],[39.66,91.37,24.58],[41.26,92.57,24.5],[42.86,93.77,24.5],[44.46,94.97,24.5],[46.06,96.17,24.5]]] };
+  [[23.5,61.5,22.93],[23.1,63.46,23.09],[22.7,65.42,23.25],[22.85,67.41,23.41],[23,69.41,23.57],[23.6,71.32,23.73],[24.21,73.22,23.89],[25.17,74.98,24.05],[26.12,76.73,24.21],[27.29,78.36,24.37],[28.47,79.98,24.53],[29.78,81.48,24.69],[31.09,82.99,24.85],[32.48,84.43,25.01],[33.87,85.87,25.17],[35.29,87.29,25.06],[36.7,88.7,24.9],[38.11,90.11,24.74],[39.66,91.37,24.58],[41.26,92.57,24.5],[42.86,93.77,24.5],[44.46,94.97,24.5],[46.06,96.17,24.5]],
+  [[-39.3,95.4,26.5],[-40.64,96.88,26.5],[-41.98,98.37,26.5],[-43.12,99.99,26.5],[-43.6,101.94,26.47],[-44.07,103.88,26.41],[-43.91,105.78,26.3],[-43.16,107.63,26.14],[-42.41,109.49,25.92],[-41.5,111.26,25.62],[-40.39,112.93,25.23],[-39.29,114.59,24.77],[-38.19,116.26,24.23],[-36.96,117.84,23.63],[-35.55,119.25,23.03],[-34.13,120.67,22.43],[-32.72,122.08,21.83],[-31.31,123.49,21.23],[-29.7,124.66,20.63],[-27.96,125.64,20.03],[-26.21,126.62,19.43],[-24.47,127.6,18.83],[-22.74,128.6,18.23],[-21.45,130.12,17.63],[-20.19,131.67,17.03],[-19.71,133.6,16.43],[-19.48,135.58,15.83],[-19.25,137.57,15.23],[-19.12,139.56,14.63],[-19.2,141.56,14.03],[-19.27,143.56,13.43],[-18.93,145.5,12.83],[-18.24,147.37,12.23],[-17.47,149.21,11.63],[-15.97,150.53,11.03],[-14.46,151.84,10.43],[-12.78,152.89,9.83],[-10.9,153.55,9.23],[-9.01,154.22,8.63],[-7.12,154.87,8.03],[-5.14,155.15,7.92],[-3.15,155.32,7.98],[-1.16,155.5,8.08],[0.8,155.29,8.22],[2.67,154.57,8.4],[4.53,153.85,8.63],[6.07,152.68,8.92],[6.99,150.9,9.26],[7.9,149.12,9.67],[8.81,147.34,10.14],[9.59,145.5,10.67],[10.29,143.63,11.25],[10.99,141.75,11.85],[11.69,139.88,12.45],[12.4,138.01,13.05],[13.36,136.26,13.65],[14.38,134.54,14.25],[15.41,132.83,14.85],[16.8,131.45,15.45],[18.51,130.41,15.98],[20.24,129.41,16.34],[22.18,128.98,16.63],[24.16,128.71,16.85],[26.14,128.75,17],[28.13,129.02,17.11],[30.1,129.36,17.18],[32.03,129.87,17.24],[33.96,130.37,17.31],[35.92,130.8,17.42],[37.9,131.08,17.59],[39.88,131.36,17.82],[41.84,131.17,18.13],[43.71,130.48,18.53],[44.97,129.06,19.01],[45.92,127.3,19.55],[46.51,125.41,20.14],[46.75,123.42,20.74],[46.98,121.44,21.34],[47.19,119.45,21.94],[47.27,117.45,22.52],[47.33,115.45,23.01],[47.4,113.45,23.43],[47.47,111.45,23.77],[47.36,109.46,24.04],[47.11,107.48,24.24],[46.85,105.49,24.37],[46.6,103.51,24.5],[46.46,101.51,24.5],[46.32,99.52,24.5],[46.19,97.52,24.5],[46.1,96.2,24.5]]] };
 // Level the old ground along the new roads, and heap the hill over the bunker: the vertices of the ground as drawn and as collided with move (both by the same rule, so
 // they stay together), with the normals of what moved made again. Done once, before the level's triangles are read.
 function regradeGround(L, draw, col) {
@@ -1483,11 +1579,15 @@ function addTrees(L, draw, col, cm) {
   // the sites: Austin's trees, then a companion for each (kind 0 round, 1 pine), well clear of the trees, spawns, weapons and roads
   const spawns = (L.spawns || []).map(p => [p[0], p[2]]), picks = (L.pickups || []).filter(p => typeof p[1] === 'number' && typeof p[3] === 'number').map(p => [p[1], p[3]]);
   const near = (x, z, list, r) => list.some(p => Math.hypot(p[0] - x, p[1] - z) < r);
-  const sites = L.trees.map(([x, z]) => [x, z, 0]), own = sites.length;
+  // and off the roads: a trunk's middle at least ROAD_CLEAR from a road's centre line (L.roads: FORT_EXT). The check on the drawn road alone, a ray at the
+  // trunk's middle, let a few stand at the road's edge with their trunks out over it (one by the Midas clearing on road C) until 2026-11-21
+  const ROAD_CLEAR = 3.6, segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
+  const onRoad = (x, z) => !!(L.roads && L.roads.roads.some(pts => pts.some((p, k) => k + 1 < pts.length && segD(x, z, p, pts[k + 1]) < ROAD_CLEAR)));
+  const sites = L.trees.filter(([x, z]) => !onRoad(x, z)).map(([x, z]) => [x, z, 0]), own = sites.length;
   for (let i = 0; i < own; i++) {
     for (let t = 0; t < 8; t++) {
-      const a = rnd(i * 9 + 21 + t) * Math.PI * 2, d = 4.5 + 4 * rnd(i * 9 + 22 + t), x = L.trees[i][0] + Math.cos(a) * d, z = L.trees[i][1] + Math.sin(a) * d;
-      if (near(x, z, sites, 3.6) || near(x, z, spawns, 4.5) || near(x, z, picks, 3)) continue;
+      const a = rnd(i * 9 + 21 + t) * Math.PI * 2, d = 4.5 + 4 * rnd(i * 9 + 22 + t), x = sites[i][0] + Math.cos(a) * d, z = sites[i][1] + Math.sin(a) * d; // (sites: the drawn trees that are off the roads)
+      if (near(x, z, sites, 3.6) || near(x, z, spawns, 4.5) || near(x, z, picks, 3) || onRoad(x, z)) continue;
       const y = groundAt(x, z); if (y === null) continue;
       let low = y; for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { const g = groundAt(x + dx, z + dz); if (g !== null) low = Math.min(low, g); }
       if (y - low > 1.2) continue; // too steep
@@ -1570,6 +1670,18 @@ function addSetExtras(L) {
   // which swings with the door, so only a shut door stops them
 
   if (L.towerDoor) { const d = L.towerDoor, o = box(col, cm, d.x0, d.x1, d.y0, d.y1, d.z - 0.06, d.z + 0.06); o.userData.toggle = 'door'; o.userData.noShot = true; }
+  if (L.dock) { // planks across a frame of beams, on posts down into the sea; one box to walk on
+    const D = L.dock, [ax, az] = D.a, [bx, bz] = D.b, len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(bx - ax, bz - az), hw = D.w / 2;
+    const frame = (g0) => { const g = new THREE.Group(); g.position.set(ax, D.y, az); g.rotation.y = yaw; g0.add(g); return g; }, g = frame(draw), cg = frame(col); // (local z runs out along the dock)
+    const planks = [0x7a5a38, 0x6e5032, 0x846240].map(c => toonMat({ color: c })), beam = toonMat({ color: 0x3e2a1a });
+    const put = (m, sx, sy, sz, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+    for (let z = 0, k = 0; z < len - 0.05; z += 0.62, k++) put(planks[(k * 7) % 3], D.w - 0.1 * (k % 2), 0.12, 0.56, 0.04 * ((k % 3) - 1), -0.06, z + 0.31); // the planks, with dark gaps between
+    for (const x of [-hw + 0.35, 0, hw - 0.35]) put(beam, 0.24, 0.26, len, x, -0.25, len / 2);                                                  // the beams under them
+    for (let z = 1.5; z < len; z += 3.2) for (const x of [-hw + 0.2, hw - 0.2]) put(beam, 0.3, 4.6, 0.3, x, -2.2, z);                           // posts down into the sea
+    for (const x of [-hw + 0.2, hw - 0.2]) put(beam, 0.32, 0.55, 0.32, x, 0.2, len - 0.25);                                                     // and two bollards at the end
+    const c = new THREE.Mesh(new THREE.BoxGeometry(D.w, 0.3, len), cm); c.position.set(0, -0.15, len / 2); cg.add(c);
+    g.updateMatrixWorld(true); cg.updateMatrixWorld(true);
+  }
   if (L.balcony) {
     const b = L.balcony, y = b.y;
     both(b.x0, b.x1, y - 0.18, y, b.z0, b.z1); // the deck
@@ -1779,13 +1891,14 @@ function loadLevel(id) {
   navJob = null; // a walking map still being built belongs to the old level (and its TG)
   const L = buildGrid(id);
   buildWorld(L);
-  SPAWNS.length = 0; SPAWN_SETS.rebels.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
+  SPAWNS.length = 0; SPAWN_SETS.pirates.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
   FN.nodes = []; FN.cells = null; FN.comp = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
     L.spawns.forEach((p, i) => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else { SPAWNS.push(s); for (const t in SPAWN_SETS) if (L.teamSpawns && L.teamSpawns[t].includes(i)) SPAWN_SETS[t].push(s); } });
     L.ammo.forEach(([x, y, z, nade]) => AMMO_SPOTS.push({ pos: settle([x, y, z]), nade: !!nade }));
     L.pickups.forEach(([wid, x, y, z]) => STATIC_PICKUPS.push([wid, settle([x, y, z])]));
+    pileUp();
     if (navDefer) deferFortNav(); else buildFortNav();
     return;
   }
@@ -2106,6 +2219,7 @@ function meshBlocked(x, y, z, h) {
   return hit;
 }
 function meshSolidPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, () => { hit = true; }); return hit; }
+function meshWallPt(x, y, z, m) { let hit = false; sphereTris(new V3(x, y, z), m, t => { if (Math.abs(TG.NR[t * 3 + 1]) < FLOOR_NY) hit = true; }); return hit; } // a wall (not a floor) within m
 // Nearest triangle hit along a ray (d normalised) within far, walking the columns it crosses
 // shot: only what bullets hit (castShot), and the nearest triangle is left in TG.hitTri
 function tgRay(ox, oy, oz, dx, dy, dz, far, seeThru, shot) { // seeThru: sight lines pass shed windows (walking and paths still don't)
@@ -2167,6 +2281,25 @@ function castShotLevel(ray, targets) {
 function tgClear(a, b) { const d = b.clone().sub(a), l = d.length(); if (l < 1e-3) return true; d.divideScalar(l); return tgRay(a.x, a.y, a.z, d.x, d.y, d.z, l) >= l; }
 // Drop a listed position onto the floor below it
 function settle([x, y, z]) { const g = groundAt(x, z, y + 0.5); return new V3(x, g === null ? y : g, z); }
+// Weapons and ammo in little piles: each weapon's spot draws the nearest ammo spot (within PILE_REACH, on the same floor) in beside it, PILE_GAP away on the side the
+// pack came from (open floor, as it got there). The level's numbers stay where they were drawn; this is the same on every machine
+const PILE_REACH = 8, PILE_GAP = 0.6;
+function pileUp() {
+  const used = new Set();
+  for (const [, w] of STATIC_PICKUPS) {
+    let best = -1, bd = PILE_REACH;
+    AMMO_SPOTS.forEach((a, i) => { const d = Math.hypot(a.pos.x - w.x, a.pos.z - w.z); if (!used.has(i) && Math.abs(a.pos.y - w.y) < 1.5 && d < bd) { bd = d; best = i; } });
+    if (best < 0) continue;
+    used.add(best);
+    const a = AMMO_SPOTS[best], d = Math.hypot(a.pos.x - w.x, a.pos.z - w.z), a0 = d > 0.05 ? Math.atan2(a.pos.z - w.z, a.pos.x - w.x) : 0;
+    // the first side clear of walls (the pack's middle and both its ends), from the pack's own side round either way; it lies alongside the weapon
+    const place = ang => { const q = settle([w.x + Math.cos(ang) * PILE_GAP, w.y + 0.3, w.z + Math.sin(ang) * PILE_GAP]), tx = -Math.sin(ang) * 0.3, tz = Math.cos(ang) * 0.3;
+      return { q, yaw: -(ang + Math.PI / 2), ok: Math.abs(q.y - w.y) < 0.3 && !meshWallPt(q.x, q.y + 0.15, q.z, 0.15) && !meshWallPt(q.x + tx, q.y + 0.15, q.z + tz, 0.1) && !meshWallPt(q.x - tx, q.y + 0.15, q.z - tz, 0.1) }; };
+    let at = null;
+    for (let k = 0; k < 12 && !at; k++) { const c = place(a0 + Math.ceil(k / 2) * (k % 2 ? 1 : -1) * Math.PI / 6); if (c.ok) at = c; }
+    at = at || place(a0); a.pos = at.q; a.yaw = at.yaw;
+  }
+}
 // Terrain nav: each cell is the highest floor in its column; neighbours connect when the slope is walkable,
 // the ground between them holds, and nothing blocks the way at knee and chest height
 function buildTerrainNav() {
@@ -2271,7 +2404,7 @@ function switchLevel(id) {
   if (NET.role === 'host') for (const r of remotes) { const mi = r.helloModel; if (mi !== undefined && mi !== r.modelIdx) setRemoteModel(r, mi); } buildAmmoBoxes(); clearPickups(); buildPickups(); placeProps(); clearCorpses(); clearHoles(); updateGoal(); VEH.onLevel(); RANGE.onLevel(); }
 // Start screen and results show the rules
 function updateGoal() {
-  $('goal').textContent = (GAME_TEAMS ? `Team free for all: Midas against the Rebels. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) +
+  $('goal').textContent = (GAME_TEAMS ? `Team free for all: Midas against the Pirates. Pick your side under Your character. The first team to ${KILL_LIMIT} kills wins. Friendly fire is on for everyone, but the bots never go after their own side.` : `First to ${KILL_LIMIT} kills wins.`) +
     ' Fight in and around the fort. There\'s a motorcycle in the courtyard and a jeep on the road behind the hill (E to get in). The gate starts shut with a health bar: bullets and blasts from anyone wear it down, and the Midas bots shoot it until it gives way, and once it is open you can shut it again with E at the door (30 seconds after it was broken). The computer up in the tower room shows everyone on a map and opens or shuts the gate.';
   $('mtitle').textContent = 'Fortress Free-For-All';
 }
@@ -2282,9 +2415,9 @@ function makeEntity(name, isPlayer) {
     onGround: false, respawnT: 0, ammo: MAG, reserve: START_RES, nades: 2, reloading: 0 };
 }
 // ---------- Character models (from the Blender soldier files) ----------
-// The first four are the bot soldiers; the rest are player-only choices
+// The four Midas soldiers, then the four Pirates (the same soldiers repainted: tools/build_pirates.py)
 const MODEL_DEFS = [['Soldier_2_heavy', 'Eli'], ['Soldier_3_thin', 'Beto'], ['Soldier_4_bigframe', 'Zeke'], ['Soldier_5_smallframe', 'Deigo'],
-  ['Apprentice', 'Apprentice'], ['Master', 'Master'], ['Officer', 'Officer']];
+  ['Pirate_Zeli', 'Zeli'], ['Pirate_Veto', 'Veto'], ['Pirate_Reke', 'Reke'], ['Pirate_Heigo', 'Heigo']];
 const SOLDIER_COUNT = 4;
 const SUN_GRIDS = {}; // level sun grids by file (loadModels)
 const MODELS = [];
@@ -2395,7 +2528,8 @@ const WEAPONS = {
   // A headshot kills outright (players' shots; a bot's headshot does botHead, so a lucky bot burst doesn't one-shot a player)
   carbine: { key: 'Midas_Carbine', name: 'Midas Carbine', auto: false, burst: 3, burstGap: 0.072, rate: 0.4, dmg: 22, head: 999, botHead: 58, mag: 24, startRes: 30, maxRes: 90, spread: 0.006, hip: 0.008, sprayAdd: 0.07, kick: 0.03, reload: 2.2, fov: 45, tracer: 0xffe08a, sound: 'gun', trW: 0.02, trLife: 0.14, rangeSpread: 0.012, botAcc: 0.5, fpvFwd: 0.2 },
   // The Master Rifle (zones): the head, or the middle of the upper chest (makeBotMesh's core), kills; anywhere else takes half your health
-  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 30, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, zones: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
+  // Aimed, it zooms 4× (fov 21.7: 40% more than the 2.9× it had at fov 30 until 2026-11-21)
+  rifle:   { key: 'Master_Rifle',  name: 'Master Rifle',  auto: false, rate: 0.3,  dmg: 999, head: 999, mag: 1, startRes: 4, maxRes: 8, spread: 0.0015, hip: 0.03, sprayAdd: 0.25, kick: 0.09,  reload: 2.6, fov: 21.7, tracer: 0xfff0b8, sound: 'rifle', oneShot: true, zones: true, botAcc: 1.3, trW: 0.06, trLife: 0.8 },
   // holes = bullet holes left per pellet that hits a wall
   shotgun: { key: 'Battery_Gun',   name: 'Battery Gun',   auto: false, holes: 10, rate: 0.3,  dmg: 22, head: 40, mag: 2,  startRes: 6, maxRes: 12,  spread: 0.002,  hip: 0,    sprayAdd: 0.35,  kick: 0.22, reload: 2.4, fov: 62, tracer: 0xffd28a, sound: 'shotgun', pellets: 9, cone: 0.14, trW: 0.013, trLife: 0.1, fixedYaw: Math.PI },
   // Mike's machine pistol, an SMG (draft numbers): 16 shots/s for less per hit than the carbine, so it wins up close, but it sprays
@@ -2489,12 +2623,103 @@ function poseArms(sc) {
   wr0.quaternion.copy(pq2.invert().multiply(q.setFromAxisAngle(new V3(0, 0, 1), Math.atan2(kv.x, kv.y)).multiply(wq2)));
   done3(); sc.updateMatrixWorld(true);
   // Curl the fingers (not the thumb) round the grip
-  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) [[1, 0.7], [2, 0.9], [3, 0.6]].forEach(([n, ang]) => {
-    const b = get('DEF-Finger_' + f + n + 'R'); if (b) b.quaternion.multiply(q.setFromAxisAngle(new V3(1, 0, 0), ang));
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) PROC_CURL.forEach((ang, i) => {
+    const b = get('DEF-Finger_' + f + (i + 1) + 'R'); if (b) b.quaternion.multiply(q.setFromAxisAngle(new V3(1, 0, 0), ang));
   });
   sc.updateMatrixWorld(true);
   const wr = get('DEF-WristR'), hand = wp('DEF-WristR').lerp(wp('DEF-Finger_Middle1R'), 0.55);   // the palm, not the wrist
-  return { dir, hand, inv: wr.matrixWorld.clone().invert(), muzzle: hand.clone().addScaledVector(dir, 0.9), boneName: wr.name, tpose };
+  return { dir, hand, inv: wr.matrixWorld.clone().invert(), wristParent: wr.parent.matrixWorld.clone(), muzzle: hand.clone().addScaledVector(dir, 0.9), boneName: wr.name, tpose };
+}
+const PROC_CURL = [0.7, 0.9, 0.6]; // poseArms' finger curl, knuckle to tip
+// Where the library characters' right hand takes each gun, on the gun as centeredClone() lays it out (muzzle toward -z, up +y):
+// y, z: the middle of the grip, level with the middle finger (before HAND.drop); lean: how far the grip leans back from upright
+// (radians); d, w: how deep (front to back) and wide (side to side) it is there; trig: where the trigger finger's tip goes (y, z), on
+// the front of the trigger; thumb: the way its two bones point, each [up, forward] in radians from straight out to the gun's left
+// (found by a search so the thumb lies against the gun's left side without going into it: straight ahead, alongside the other
+// fingers, high on the hand like the carbine's, on the pistol, carbine, Uzi and Battery Gun; up and forward on the bazooka and the
+// rifle); drop: in place of HAND.drop. The Master Rifle and the Battery Gun have no pistol grip or trigger guard:
+// the hand takes the wrist of the stock, with the finger under the gun just ahead of it
+const GRIPS = {
+  pistol:  { y: -0.015, z: 0.107, lean: 0.43, d: 0.075, w: 0.036, trig: [0.013, 0.012],  thumb: [[0, 0.6], [0, 1.55]] },
+  carbine: { y: -0.04,  z: 0.222, lean: 0.42, d: 0.074, w: 0.036, trig: [-0.015, 0.127], thumb: [[0, 0.6], [0, 1.45]] },
+  uzi:     { y: 0.047,  z: 0.082, lean: 0,    d: 0.075, w: 0.036, trig: [0.073, 0.014],  thumb: [[0.4, 0.2], [0, 1.6]] },
+  bazooka: { y: -0.045, z: 0.003, lean: 0.14, d: 0.05,  w: 0.038, trig: [-0.043, -0.05], thumb: [[-0.6, 0.4], [0.3, 1.45]], drop: 0 }, // (a bar under its short grip would come through the fingers)
+  rifle:   { y: -0.01,  z: 0.37,  lean: 0.9,  d: 0.06,  w: 0.05,  trig: [-0.024, 0.29],  thumb: [[-0.4, 0.2], [0.8, 1.45]] },
+  shotgun: { y: 0.016,  z: 0.287, lean: 0.9,  d: 0.051, w: 0.05,  trig: [-0.022, 0.176], thumb: [[-0.15, 0.6], [0, 1.55]] },
+};
+// That hand, in the wrist bone's own frame (+y from the wrist to the knuckles, +z toward the index finger, the palm facing -x; the
+// library characters all share one hand rig). palm, finger: from the bone line out to the skin; knuckle: how far the knuckles are
+// from the wrist; turn: how much of a grip's lean the wrist follows (the rest the grip takes, across the palm); drop: how far down the
+// grip the hand sits; curl: the other three fingers' joints, closed round the grip; tip: the index finger's last bone's length (the rig
+// doesn't say); trig: how far right of the trigger that finger's last joint sits, and the way its middle joint bends (gun frame:
+// +x right, +y up)
+const HAND = {
+  palm: 0.02, finger: 0.012, knuckle: 0.144, turn: 0.3, drop: 0.02, tip: 0.03,
+  trig: { out: 0.028, pole: [1, -0.6, 0] },
+  curl: { Middle: [1.45, 1.65, 0.5], Ring: [1.1, 1.75, 0.5], Pinky: [0.8, 1.5, 0.45] }, // (the ring and little knuckles sit further back, so they reach forward before wrapping)
+};
+// How the hand takes gun id: it turns about the wrist partway (HAND.turn) toward the grip's lean, and the gun goes where the palm and
+// the closed fingers hold that grip, its barrel along the aim. Model space, from the procedural hold; worked out once per model and gun
+function gripFit(m, id) {
+  const cache = m.grips || (m.grips = {}); if (id in cache) return cache[id];
+  const g = GRIPS[id], w = WEAPONS[id];
+  if (!g || !m.sway || !m.procHold || !m.wristParent || !w || !w.scene) return null; // (not cached: the gun may not have loaded yet)
+  const W0 = m.gunBoneInv.clone().invert(), pw = new V3().setFromMatrixPosition(W0), w0q = new THREE.Quaternion().setFromRotationMatrix(W0);
+  const G = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)), gq = new THREE.Quaternion().setFromRotationMatrix(G);
+  const down = new V3(0, -Math.cos(g.lean), Math.sin(g.lean)); // down the grip, on the gun
+  const Q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(new V3(0, 0, -1).applyQuaternion(w0q), down.clone().applyQuaternion(gq)), HAND.turn);
+  const W1 = new THREE.Matrix4().makeRotationFromQuaternion(Q).setPosition(pw.clone().sub(pw.clone().applyQuaternion(Q))).multiply(W0);
+  const wrist = new THREE.Quaternion(); m.wristParent.clone().invert().multiply(W1).decompose(new V3(), wrist, new V3());
+  const grip = new V3(-(HAND.palm + g.w / 2), HAND.knuckle - HAND.finger - g.d / 2, 0), gp = new V3(0, g.y, g.z).addScaledVector(down, g.drop !== undefined ? g.drop : HAND.drop);
+  const T = G.clone().setPosition(grip.clone().applyMatrix4(W1).sub(gp.applyQuaternion(gq)));
+  const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
+  const muzzle = nativeMuzzlePoint(w.scene, w.yaw).applyMatrix4(child.matrix).applyMatrix4(T);
+  const holder = W1.invert().multiply(T), f = fingerHold(m, g, holder);
+  return cache[id] = { Q, pivot: pw, wrist, thumb: Q.clone().multiply(w0q).multiply(f.thumb), bones: f.bones, T, holder, muzzle };
+}
+// The trigger finger and the thumb, for gun grip g held by holder (the gun's frame to the turned hand's): their bones copied from the
+// hold into the hand's frame (the wrist at the origin) and turned there. The index finger's last joint goes just right of the trigger,
+// its tip round the trigger's front; the thumb rests on the gun's left side, pointing up and forward (GRIPS[id].thumb).
+// Returns the thumb root's turn in the hand's frame, and the other bones' own turns
+function fingerHold(m, g, holder) {
+  const hand = new THREE.Group(), one = new V3(1, 1, 1), at = (x, y, z) => new V3(x, y, z).applyMatrix4(holder), dir = (x, y, z) => new V3(x, y, z).transformDirection(holder);
+  const chain = names => { let p = hand; return names.map((n, i) => {
+    const o = new THREE.Object3D(), t = m.procHold[n]; o.name = n;
+    if (i) { o.position.copy(t.pos); o.quaternion.copy(t.quat); } else m.gunBoneInv.clone().multiply(new THREE.Matrix4().compose(t.pos, t.quat, one)).decompose(o.position, o.quaternion, new V3());
+    p.add(o); return p = o;
+  }); };
+  const pos = o => o.getWorldPosition(new V3()), yAxis = o => new V3(0, 1, 0).transformDirection(o.matrixWorld);
+  const [, i1, i2, i3] = chain(['DEF-Finger_Index_CarpalR', 'DEF-Finger_Index1R', 'DEF-Finger_Index2R', 'DEF-Finger_Index3R']);
+  const [t1, t2, t3] = chain(['DEF-Finger_Thumb1R', 'DEF-Finger_Thumb2R', 'DEF-Finger_Thumb3R']);
+  hand.updateMatrixWorld(true);
+  const [ty, tz] = g.trig;
+  reachBones(hand, i1, i2, i3, at(HAND.trig.out, ty + 0.003, tz), dir(...HAND.trig.pole));
+  turnBone(i3, yAxis(i3), at(-HAND.tip * 0.5, ty, tz - 0.004).sub(pos(i3)).normalize()); hand.updateMatrixWorld(true);
+  const aim = ([up, fwd]) => dir(-Math.cos(up) * Math.cos(fwd), Math.sin(up), -Math.cos(up) * Math.sin(fwd)), [a1, a2] = g.thumb;
+  turnBone(t1, pos(t2).sub(pos(t1)).normalize(), aim(a1)); hand.updateMatrixWorld(true);
+  turnBone(t2, pos(t3).sub(pos(t2)).normalize(), aim(a2)); hand.updateMatrixWorld(true);
+  turnBone(t3, yAxis(t3), aim([a2[0] + 0.2, a2[1]])); hand.updateMatrixWorld(true);
+  const bones = {}; for (const b of [i1, i2, i3, t2, t3]) bones[b.name] = b.quaternion.clone();
+  return { thumb: t1.quaternion.clone(), bones };
+}
+// A rig's right hand: the wrist and fingers as poseArms left them, or turned and closed round a gun's grip (gripFit)
+const HAND_BONES = ['Index', 'Middle', 'Ring', 'Pinky'].flatMap(f => [1, 2, 3].map(n => 'DEF-Finger_' + f + n + 'R')).concat(['DEF-Finger_Thumb2R', 'DEF-Finger_Thumb3R']);
+function setHand(rig, fit) {
+  const m = rig.model, wr = rigBone(rig, 'DEF-WristR'); if (!wr || !m.procHold) return;
+  wr.quaternion.copy(fit ? fit.wrist : m.procHold[wr.name].quat); rig.wristRest = wr.quaternion.clone(); // (your own body's first-person reload rolls the wrist and puts it back)
+  for (const n of HAND_BONES) { const b = rigBone(rig, n); if (b) b.quaternion.copy(m.procHold[n].quat); }
+  if (!fit) return;
+  for (const f in HAND.curl) HAND.curl[f].forEach((ang, i) => { const b = rigBone(rig, 'DEF-Finger_' + f + (i + 1) + 'R'); if (b) b.quaternion.multiply(_q.setFromAxisAngle(_X, ang - PROC_CURL[i])); });
+  for (const n in fit.bones) { const b = rigBone(rig, n); if (b) b.quaternion.copy(fit.bones[n]); }
+  for (const u of rig.upper) if (u.b.name.startsWith('DEF-Finger_') && u.b.name.endsWith('R')) {
+    u.pos.sub(fit.pivot).applyQuaternion(fit.Q).add(fit.pivot);
+    if (u.b.name === 'DEF-Finger_Thumb1R') u.rest.copy(fit.thumb); else u.rest.premultiply(fit.Q);
+  }
+  // a body that falls from here starts from this hand
+  for (const a of rig.armBones) if (/^DEF-(Wrist|Finger_)/.test(a.b.name) && a.b.name.endsWith('R')) {
+    const u = a.top && rig.upper.find(u => u.b === a.b);
+    a.stand.pos.copy(u ? u.pos : a.b.position); a.stand.quat.copy(u ? u.rest : a.b.quaternion);
+  }
 }
 // ---------- Authored pose kit: bake Blender-posed clips from a poses GLB onto a character ----------
 // Each node's local TRS as exported (the clip's rest state), so a clip can be applied from a clean slate each time.
@@ -2581,7 +2806,7 @@ function loadModels() {
     const muzzle = new V3(0.1, 1.3, 0.9), gunObj = sc.getObjectByName('Carbine');
     if (gunObj) { const bb = new THREE.Box3().setFromObject(gunObj); muzzle.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z); }
     // Where the soldier holds a gun: the baked carbine's axis and the right-hand bone
-    let gunDir = null, gunHand = null, gunBoneInv = null;
+    let gunDir = null, gunHand = null, gunBoneInv = null, wristParent = null;
     if (gunObj && gunObj.parent && gunObj.geometry) {
       const pts = [], v = new V3(), a = gunObj.geometry.attributes.position;
       for (let i = 0; i < a.count; i++) pts.push(v.fromBufferAttribute(a, i).applyMatrix4(gunObj.matrixWorld).clone());
@@ -2617,7 +2842,7 @@ function loadModels() {
       for (const id of Object.keys(WEAPONS)) { const sm = socketLocalMatrix(pg.scene, 'Socket_' + id); if (sm) sockets[id] = sm; }
     }
     if (!gunObj && sc.getObjectByName('DEF-WristR')) {
-      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true;
+      const g = poseArms(sc); gunDir = g.dir; gunHand = g.hand; gunBoneInv = g.inv; wristParent = g.wristParent; gunBoneName = g.boneName; muzzle.copy(g.muzzle); sway = true;
       procHold = {};
       sc.traverse(o => { if (o.isBone) procHold[o.name] = { pos: o.position.clone(), quat: o.quaternion.clone() }; });
     }
@@ -2636,8 +2861,8 @@ function loadModels() {
       }
       sockets = {}; // The fixture socket needs the weapon geometry, which loads alongside the characters.
     }
-    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, gunBoneName, sway, tpose, poses, sockets, procHold };
-  }))).then(ms => { MODELS.push(...ms); if (MODELS[4]) MODELS.push(Object.assign({}, MODELS[4])); }); // index 7: a second Apprentice, so the Rebels have four to pick from
+    return { label, scene: sc, headY: hp.y, muzzle, gunDir, gunHand, gunBoneInv, wristParent, gunBoneName, sway, tpose, poses, sockets, procHold };
+  }))).then(ms => { MODELS.push(...ms); });
   const weps = Promise.all(Object.values(WEAPONS).filter(w => w.key).map(w => parseGLB(w.key).then(sc => {
     if (w.key === 'Master_Rifle') sc.traverse(o => { if (o.isMesh) o.material = new THREE.MeshPhongMaterial({ color: 0xd4a52a, specular: 0xfff1b8, shininess: 70, emissive: 0x2a1c00, side: o.material.side }); });
     if (w.key === 'Battery_Gun') liftPart(sc, BATTERY_BOX, 'Battery');
@@ -2659,25 +2884,24 @@ function loadModels() {
   const sets = ensureLevel(selLevel);
   // Bot muzzle points for authored models need each weapon's own geometry loaded, so this waits on both soldiers and weps.
   const guns = Promise.all([soldiers, weps]).then(() => {
+    for (const m of MODELS) for (const id in GRIPS) gripFit(m, id);
     if (params.has('posefixture')) {
-      const m = MODELS[0], w = WEAPONS.pistol, gr = GRIPS.pistol, at = m.gunHand.clone();
-      at.addScaledVector(m.gunDir, gr.z).y -= gr.y;
-      const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
+      const m = MODELS[0], w = WEAPONS.pistol;
       const child = centeredClone(w.scene, w.yaw).children[0]; child.updateMatrix();
-      // Convert the procedural centred gun into a native-frame socket, fixed relative to the wrist.
-      m.sockets.pistol = m.gunBoneInv.clone().multiply(T).multiply(child.matrix);
+      // Convert the procedural centred gun into a native-frame socket, fixed relative to the (unturned) wrist.
+      m.sockets.pistol = m.gunBoneInv.clone().multiply(gripFit(m, 'pistol').T).multiply(child.matrix);
     }
     for (const m of MODELS) if (m.poses) computeModelGuns(m);
   });
-  // The Cargo Truck (vehicles.js draws the truck with it) and the motorcycle (the fort's, and the Sport bike in Test Drive).
+  // The Cargo Truck and the Motorcycle (vehicles.js draws the truck and the motorcycle with them).
   // Without one, that vehicle is built from boxes, so a download or decode that fails tries again in the background (a few
   // times, further apart each time) and the vehicles already out are rebuilt from the model when it comes (VEH.setModel)
-  const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => VEH.setModel(key, sc)).catch(e => {
+  const vehModel = (file, key, n = 0) => parseGLB(file).then(sc => { if (key === 'truck') skinTunnels(sc); VEH.setModel(key, sc); }).catch(e => {
     console.warn(file + ' model:', e);
     if (n < 4) setTimeout(() => vehModel(file, key, n + 1), 3000 * (n + 1));
   });
-  const truck = vehModel('Cargo_Truck', 'truck'), bike = vehModel('Motorcycle', 'sport');
-  return Promise.all([soldiers, weps, sets, guns, truck, bike, sunGrids, extras]);
+  const truck = vehModel('Cargo_Truck', 'truck'), motorcycle = vehModel('Motorcycle', 'motorcycle');
+  return Promise.all([soldiers, weps, sets, guns, truck, motorcycle, sunGrids, extras]);
 }
 // Level sets: the drawn version (textured) and the collision version (never drawn), fetched the first time a level needs them.
 // Water bounds the island but isn't solid.
@@ -2771,7 +2995,6 @@ function measureCrouch(r) {
   r.root.updateMatrixWorld(true);
   return Math.max(0, Math.min(0.8, y1 - y0));
 }
-const GRIPS = { pistol: { y: -0.035, z: 0.12 }, shotgun: { y: 0, z: 0.24 }, carbine: { y: -0.05, z: 0.18 }, uzi: { y: 0.05, z: 0.09 }, bazooka: { y: -0.16, z: 0.02 } };
 function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife, a grenade) instead of the gun
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
@@ -2784,6 +3007,8 @@ function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife,
     // Authored holds are already level; procedural holds retain their original low-ready correction.
     rig.raise = authored ? 0 : m.gunDir ? Math.asin(Math.max(-1, Math.min(1, m.gunDir.y))) : 0;
   }
+  const fit = !authored && !obj && gripFit(m, id);
+  setHand(rig, fit);
   if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
     holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
@@ -2792,12 +3017,14 @@ function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife,
   }
   if (!m.gunDir) return;
   const w = WEAPONS[id] || {}, holder = new THREE.Group(); holder.add(obj || centeredClone(w.scene, w.yaw));
-  // Library characters: pin the gun's grip (measured from the model's centre: how far back and how far below) to the palm,
-  // barrel along the aim direction. The baked-gun characters keep the old centred placement.
-  const gr = !obj && m.sway && GRIPS[id], at = m.gunHand.clone();
-  if (gr) at.addScaledVector(m.gunDir, gr.z).y -= gr.y; else if (!obj) at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
-  const T = new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at);
-  holder.matrixAutoUpdate = false; holder.matrix.copy(m.gunBoneInv).multiply(T); holder.userData.base = holder.matrix.clone();
+  holder.matrixAutoUpdate = false;
+  // Library characters: the grip in the closed hand (gripFit). Anything else held sits at the palm; the baked-gun characters keep the old centred placement.
+  if (fit) { holder.matrix.copy(fit.holder); holder.userData.gripped = true; }
+  else {
+    const at = m.gunHand.clone(); if (!obj) at.addScaledVector(m.gunDir, (w.len || 0.8) * 0.3);
+    holder.matrix.copy(m.gunBoneInv).multiply(new THREE.Matrix4().lookAt(new V3(), m.gunDir, new V3(0, 1, 0)).setPosition(at));
+  }
+  holder.userData.base = holder.matrix.clone();
   rig.gunBone.add(holder); rig.gunVis = holder;
 }
 const corpses = [];
@@ -3035,18 +3262,22 @@ function heldObject(kind) {
   const c = NADE_MODEL.clone(true); c.position.y = -0.085; g.add(c); return g;
 }
 // 3rd person: your body and the gun in your hands are drawn (Test Drive and vehicles see to it themselves)
+// In a vehicle the gun in your hands still changes with your weapon (a passenger's shows, in their seat's view too); vehicles.js decides what's drawn
 function updateSelfView() {
-  const r = P.rig; if (!r || VEH.riding || MODE === 'drive') return;
-  const see = (bodyOn || tpOn) && P.alive;
-  if (r.gear) r.gear.visible = tpOn && P.alive; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
-  for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
+  const r = P.rig; if (!r || MODE === 'drive') return;
+  const riding = !!VEH.riding, see = (bodyOn || tpOn) && P.alive;
+  if (!riding) {
+    if (r.gear) r.gear.visible = tpOn && P.alive; // no guns and ammo on your own back in first person (aiming too: the body goes then, and the gear on your back came back in front of the camera)
+    for (const o of r.body) { o.material.colorWrite = see; o.material.depthWrite = see; }
+  }
   let want = RANGE.on ? RANGE.inHand() : curW;
   if (ART.on) want = ART.held(); // the pen or the spray can (nothing while they come out)
   else
   if (knifeT > 0 && P.alive && !VEH.riding) want = 'knife';
   else if (RANGE.on && !want) { const k = RANGE.handKind(); want = k === 'knife' ? 'knife' : k === 'throw' && NADE_MODEL ? 'nade' : null; }
   if (r.held !== want) { r.held = want; if (want === 'pen' || want === 'spray') setRigWeapon(r, want, ART.heldObject(want, ART.colour())); else if (want === 'knife' || want === 'nade') setRigWeapon(r, want, heldObject(want)); else if (want && WEAPONS[want] && WEAPONS[want].scene) setRigWeapon(r, want); else if (r.gunVis) { r.gunBone.remove(r.gunVis); r.gunVis = null; } }
-  if (r.gunVis) r.gunVis.visible = see && !r.hideHeld;
+  if (r.gunVis && !riding) r.gunVis.visible = see && !r.hideHeld;
+  else if (r.gunVis && r.seatHid) r.gunVis.visible = false; // (driving: put away, even if it was just swapped)
 }
 function updatePlayerRig(dt) {
   if (!P.rig) return;
@@ -3101,8 +3332,8 @@ function fpvFit(r) {
   if (r.wristRest) r.gunBone.quaternion.copy(r.wristRest); // (a reload may have rolled it)
   const gv = r.gunVis, base = gv.userData.base;
   r.wrap.updateMatrixWorld(true); camera.updateMatrixWorld(); vmCam.updateMatrixWorld();
-  if (base) { // the gun sits a little to the left of the hand (on screen), so the hand ends up on the right of the gun
-    _fd.set(-FPV_HAND_X * bodyK, 0, 0).applyQuaternion(camera.quaternion);
+  if (base) { // what the hand holds sits a little to the left of it (on screen), so the hand ends up on the right (a gun held by its grip has the hand there already)
+    _fd.set(gv.userData.gripped ? 0 : -FPV_HAND_X * bodyK, 0, 0).applyQuaternion(camera.quaternion);
     _fm.setFromMatrix4(r.gunBone.matrixWorld).invert(); _fd.applyMatrix3(_fm);
     gv.matrix.copy(_fm4.makeTranslation(_fd.x, _fd.y, _fd.z)).multiply(base); gv.updateMatrixWorld(true);
   }
@@ -3333,8 +3564,8 @@ function fpvReload(r) {
   placeWorld(fresh, hand, Qf);
 }
 
-// Team free for all (levels with teams: true): Midas against the Rebels. Friendly fire is on; bots only hunt the other side.
-const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, rebels: { name: 'Rebels', color: '#4aa8ff' } };
+// Team free for all (levels with teams: true): Midas against the Pirates. Friendly fire is on; bots only hunt the other side.
+const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, pirates: { name: 'Pirates', color: '#4aa8ff' } };
 let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
 const teamsOn = () => !!LV && GAME_TEAMS;
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
@@ -3361,9 +3592,8 @@ const BOT_DEFS = [['Viper', 0xd9534f], ['Nomad', 0x4fa3d9], ['Rook', 0xf0ad4e], 
     'Kestrel', 'Bolt', 'Saber', 'Tundra', 'Ember', 'Grim', 'Lynx', 'Orbit', 'Quake', 'Shade', 'Torque', 'Vex', 'Warden', 'Zero', 'Cinder'].map(n => [n, 0])];
 const bots = [];
 let ents = [P];
-// plan: one entry per bot, its team ('midas' / 'rebels', or undefined without teams). Midas bots are soldiers, Rebels bots the Master and the Apprentice.
+// plan: one entry per bot, its team ('midas' / 'pirates', or undefined without teams). Each side's bots go round its four characters.
 let botSig = '', botN = 0;
-const REBEL_MODELS = [5, 4];
 function buildBots(plan) {
   bots.forEach(b => scene.remove(b.mesh)); bots.length = 0; botN = 0; botSig = botKind();
   for (let i = 0; i < plan.length; i++) bots.push(makeBot(plan[i]));
@@ -3385,7 +3615,7 @@ function makeBot(team) {
     const i = botN++, used = new Set(bots.map(b => b.name)), def = BOT_DEFS.find(([n]) => !used.has(n));
     const name = def ? def[0] : 'Bot ' + (i + 1);
     const b = makeEntity(name, false); b.id = 'b' + i; b.bot = true; b.team = team;
-    b.mesh = makeBotMesh(b, team === 'rebels' ? REBEL_MODELS[i % 2] : i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
+    b.mesh = makeBotMesh(b, (team === 'pirates' ? SOLDIER_COUNT : 0) + i % SOLDIER_COUNT); b.mesh.visible = false; scene.add(b.mesh);
     const style = BOT_STYLE_IDS[Math.random() * BOT_STYLE_IDS.length | 0];
     b.ai = { target: null, scanT: Math.random() * 0.3, strafeT: 0, strafeDir: 1, path: null, pi: 0, stuckT: 0, stuckN: 0, lastPos: new V3(),
       react: 0, fireCd: 0, burst: 0, knifeCd: 0, nadeCd: 2 + Math.random() * 3, lastSeen: null, lastSeenT: 0,
@@ -3421,7 +3651,7 @@ function respawn(e) {
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
   else {
     e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e);
-    // this life's way into the fort (only bots that go in by one take a turn: in a team game the Rebels hold their own ground)
+    // this life's way into the fort (only bots that go in by one take a turn: in a team game the Pirates hold their own ground)
     e.ai.wps = null; e.ai.routeDone = false; e.ai.route = LV && LV.fortRoutes && advances(e) ? ROUTE_TURNS[routeTurn++ % ROUTE_TURNS.length] : null;
   }
 }
@@ -3899,7 +4129,7 @@ function endMatch(w) {
   sTone([523, 659, 784, 1047], 0.14, 'square', 0.12);
   const tm = teamsOn() && w.team ? w.team : null;
   const title = tm ? `${TEAMS[tm].name} win` : `${statName(w)} wins`; // (the winner's own screen says "You win")
-  const sub = tm ? `Midas ${teamKills('midas')}  ·  Rebels ${teamKills('rebels')}` : `First to ${KILL_LIMIT} kills`;
+  const sub = tm ? `Midas ${teamKills('midas')}  ·  Pirates ${teamKills('pirates')}` : `First to ${KILL_LIMIT} kills`;
   const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), rows = list.map(statRow);
   // On the roof: the winner, or the whole winning team (top scorer in the middle)
   const champs = (tm ? list.filter(e => e.team === tm) : [w]).slice(0, 8).map(e => [e.id, statName(e), statModel(e), statGun(e), tm || '']);
@@ -3927,6 +4157,115 @@ function showResults(m, me) {
 const VIC = { on: false, t: 0, at: 0, rigs: [], tags: [], m: null, wait: 0 };
 const VIC_ROOF = { fortress: { x0: 3.1, x1: 7.6, z: 5.85, y: 47.64, back: 0.95 } }; // the roof's floor, its usable width, and the line just in from its front edge (z ≈ 6.45)
 const VIC_FOV = 45, VIC_SWAY = 22 * Math.PI / 180, VIC_PERIOD = 28, VIC_DELAY = 1.4;
+// Their poses on the roof (the library characters; any other just stands with its gun): the top scorer stands tall with fists on hips,
+// the rest take a knee on the right knee, left foot planted ahead, left fist on the hip, gun hanging at the right side. Worked out once, on a fresh rig
+// standing at the origin (feet on y = 0, facing +z); all in metres and directions of that space.
+// win: lean (back), feet (each foot further out), hand (the fist on the hip: out from the middle, up from the hip joint, forward) and
+// point (the way the hand points), elbow (the way the elbows go); the kneelers' left fist uses the same. kneel: knee (the knee joint's
+// height off the floor), kneeFwd (how far the thigh leans forward), toes (how high the right ankle is off the floor), foot (how far
+// forward the left foot is), lean (forward), side (the right wrist from the right shoulder), clear (how high the muzzle stays off the floor)
+const VIC_POSE = {
+  win: { lean: 0.06, feet: 0.06, hand: [0.24, 0.2, 0], point: [0.35, -0.7, 0.5], elbow: [1, 0, -0.1] },
+  kneel: { knee: 0.05, kneeFwd: 0.15, toes: 0.15, foot: 0.4, lean: 0.06, side: [-0.1, -0.47, 0.06], clear: 0.07 },
+};
+const vicPos = (r, n) => rigBone(r, n).getWorldPosition(new V3());
+function turnBone(b, from, to) { // turn a bone in world space so the direction from points along to
+  const wq = b.getWorldQuaternion(new THREE.Quaternion()), pq = b.parent.getWorldQuaternion(new THREE.Quaternion());
+  b.quaternion.copy(pq.invert().multiply(new THREE.Quaternion().setFromUnitVectors(from, to)).multiply(wq));
+}
+function setWorldQuat(b, wq) { const pq = b.parent.getWorldQuaternion(new THREE.Quaternion()); b.quaternion.copy(pq.invert().multiply(wq)); }
+// Two-bone reach (an arm, a leg, a finger): the end joint E goes to T, the middle joint M bends toward pole; root holds them all
+function reachBones(root, U, M, E, T, pole) {
+  const at = o => o.getWorldPosition(new V3());
+  root.updateMatrixWorld(true);
+  const S = at(U), K = at(M), a = S.distanceTo(K), b = K.distanceTo(at(E));
+  const d = T.clone().sub(S), D = Math.max(Math.abs(a - b) + 0.002, Math.min(d.length(), a + b - 0.002)); d.normalize();
+  const ca = Math.max(-1, Math.min(1, (a * a + D * D - b * b) / (2 * a * D))), p = pole.clone().normalize();
+  const K2 = S.clone().addScaledVector(d, a * ca).addScaledVector(p.addScaledVector(d, -p.dot(d)).normalize(), a * Math.sqrt(1 - ca * ca));
+  turnBone(U, K.sub(S).normalize(), K2.sub(S).normalize()); root.updateMatrixWorld(true);
+  const K3 = at(M); turnBone(M, at(E).sub(K3).normalize(), T.clone().sub(K3).normalize()); root.updateMatrixWorld(true);
+}
+const reachLimb = (r, [up, mid, end], T, pole) => reachBones(r.wrap, rigBone(r, up), rigBone(r, mid), rigBone(r, end), T, pole);
+// The finger chains hang off the rig, not the wrist: note where they sit now, and the returned call moves them with the wrist's move since
+function followHand(r, side) {
+  r.wrap.updateMatrixWorld(true);
+  const wr = rigBone(r, 'DEF-Wrist' + side), w0 = wr.matrixWorld.clone().invert();
+  const roots = r.upper.filter(u => u.b.name.startsWith('DEF-Finger_') && u.b.name.endsWith(side)).map(u => [u.b, u.b.matrixWorld.clone()]);
+  return () => {
+    r.wrap.updateMatrixWorld(true); const d = wr.matrixWorld.clone().multiply(w0), m = new THREE.Matrix4(), s = new V3();
+    for (const [b, m0] of roots) m.copy(b.parent.matrixWorld).invert().multiply(d).multiply(m0).decompose(b.position, b.quaternion, s);
+    r.wrap.updateMatrixWorld(true);
+  };
+}
+// Turn a wrist so the hand points along hd (wrist to knuckles) with its knuckles (little finger to index) along kl
+function aimHand(r, side, hd, kl) {
+  r.wrap.updateMatrixWorld(true);
+  const W = vicPos(r, 'DEF-Wrist' + side), basis = (h, k) => { const x = h.clone().normalize(), y = k.clone().addScaledVector(x, -k.dot(x)).normalize(); return new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)); };
+  const now = basis(vicPos(r, 'DEF-Finger_Middle1' + side).sub(W), vicPos(r, 'DEF-Finger_Index1' + side).sub(vicPos(r, 'DEF-Finger_Pinky1' + side)));
+  const wr = rigBone(r, 'DEF-Wrist' + side), q = new THREE.Quaternion().setFromRotationMatrix(basis(hd, kl).multiply(now.invert()));
+  setWorldQuat(wr, q.multiply(wr.getWorldQuaternion(new THREE.Quaternion()))); r.wrap.updateMatrixWorld(true);
+}
+function curlFingers(r, side, angs) {
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) angs.forEach((a, i) => { const b = rigBone(r, 'DEF-Finger_' + f + (i + 1) + side); if (b) b.quaternion.multiply(_q.setFromAxisAngle(_X, a)); });
+}
+// Face straight ahead (no RIG_TURN), legs and upper body from the hold
+function vicStart(r, lean) {
+  r.root.rotation.y = 0; r.root.position.set(-r.piv1.x, 0, -r.piv1.z);
+  for (const k in r.bones) setBone(r.bones[k], 0);
+  poseUpper(r, lean, -lean); r.wrap.updateMatrixWorld(true);
+}
+function vicDone(r) { r.posed = true; r.wrap.updateMatrixWorld(true); r.tagY = vicPos(r, 'DEF-Head').y; }
+// A fist on the hip, elbow out: side 'R' or 'L'
+function fistOnHip(r, s) {
+  const P = VIC_POSE.win, sg = s === 'R' ? -1 : 1, done = followHand(r, s), hd = new V3(-sg * P.point[0], P.point[1], P.point[2]).normalize();
+  const fist = new V3(sg * P.hand[0], vicPos(r, 'DEF-Thigh_1' + s).y + P.hand[1], P.hand[2]);
+  reachLimb(r, ['DEF-UpperArm_1' + s, 'DEF-Forearm_1' + s, 'DEF-Wrist' + s], fist.addScaledVector(hd, -0.08), new V3(sg * P.elbow[0], P.elbow[1], P.elbow[2]));
+  aimHand(r, s, hd, new V3(0, 2, 0).addScaledVector(hd, hd.y)); done();
+}
+function poseWinner(r) {
+  const P = VIC_POSE.win;
+  vicStart(r, -P.lean);
+  for (const [s, sg] of [['R', -1], ['L', 1]]) { // feet apart, soles flat
+    const th = rigBone(r, 'DEF-Thigh_1' + s), ft = rigBone(r, 'DEF-Foot' + s), fq = ft.getWorldQuaternion(new THREE.Quaternion()), H = vicPos(r, th.name), A = vicPos(r, ft.name);
+    turnBone(th, A.clone().sub(H).normalize(), A.clone().add(new V3(sg * P.feet, 0, 0)).sub(H).normalize()); r.wrap.updateMatrixWorld(true); setWorldQuat(ft, fq);
+  }
+  fistOnHip(r, 'R'); fistOnHip(r, 'L');
+  curlFingers(r, 'L', PROC_CURL); // (the right hand is already closed from the gun hold)
+  vicDone(r);
+}
+function poseKneel(r, id) {
+  const P = VIC_POSE.kneel, fit = gripFit(r.model, id);
+  setRigWeapon(r, id); vicStart(r, P.lean);
+  const fl = rigBone(r, 'DEF-FootL').getWorldQuaternion(new THREE.Quaternion()), ankleL = vicPos(r, 'DEF-FootL').y; // (before the body goes down)
+  // down: the right thigh nearly upright with its knee on the floor
+  const H0 = vicPos(r, 'DEF-Thigh_1R'), a = H0.distanceTo(vicPos(r, 'DEF-Knee_1R')), b = vicPos(r, 'DEF-Knee_1R').distanceTo(vicPos(r, 'DEF-FootR'));
+  const kd = new V3(0, -1, P.kneeFwd).normalize();
+  r.root.position.y = P.knee - a * kd.y - H0.y; r.wrap.updateMatrixWorld(true);
+  const H = vicPos(r, 'DEF-Thigh_1R'), K = H.clone().addScaledVector(kd, a), A = K.clone().add(new V3(0, P.toes - P.knee, -Math.sqrt(b * b - (P.toes - P.knee) ** 2)));
+  turnBone(rigBone(r, 'DEF-Thigh_1R'), vicPos(r, 'DEF-Knee_1R').sub(H).normalize(), K.clone().sub(H).normalize()); r.wrap.updateMatrixWorld(true);
+  const K1 = vicPos(r, 'DEF-Knee_1R'); turnBone(rigBone(r, 'DEF-Knee_1R'), vicPos(r, 'DEF-FootR').sub(K1).normalize(), A.clone().sub(K1).normalize()); r.wrap.updateMatrixWorld(true);
+  // the right foot behind, up on its toes
+  const ft = rigBone(r, 'DEF-FootR'), Af = vicPos(r, ft.name), toe = rigBone(r, 'DEF-ToesR');
+  turnBone(ft, vicPos(r, toe.name).sub(Af).normalize(), new V3(0, 0.03 - Af.y, -0.07).normalize()); r.wrap.updateMatrixWorld(true);
+  turnBone(toe, new V3(0, 1, 0).applyQuaternion(toe.getWorldQuaternion(new THREE.Quaternion())), new V3(0, -0.15, -1).normalize()); r.wrap.updateMatrixWorld(true);
+  // the left foot flat out in front, its knee up
+  const HL = vicPos(r, 'DEF-Thigh_1L');
+  reachLimb(r, ['DEF-Thigh_1L', 'DEF-Knee_1L', 'DEF-FootL'], new V3(HL.x + 0.02, ankleL, HL.z + P.foot), new V3(0, 1, 0.5));
+  setWorldQuat(rigBone(r, 'DEF-FootL'), fl); r.wrap.updateMatrixWorld(true);
+  // the left fist on the hip
+  fistOnHip(r, 'L'); curlFingers(r, 'L', PROC_CURL);
+  // the right hand down at the side, the gun in it pointing ahead and down, as steeply as it can with the muzzle clear of the floor
+  const done = followHand(r, 'R');
+  reachLimb(r, ['DEF-UpperArm_1R', 'DEF-Forearm_1R', 'DEF-WristR'], vicPos(r, 'DEF-UpperArm_1R').add(new V3(...P.side)), new V3(-0.3, 0, -1));
+  if (fit) {
+    const W1 = fit.T.clone().multiply(fit.holder.clone().invert()), w1q = new THREE.Quaternion().setFromRotationMatrix(W1);
+    const W = vicPos(r, 'DEF-WristR'), mz = fit.muzzle.clone().applyMatrix4(W1.invert()), q = new THREE.Quaternion();
+    for (let th = 1.2; th > 0; th -= 0.05) { q.setFromUnitVectors(new V3(0, 0, 1), new V3(0, -Math.sin(th), Math.cos(th))).multiply(w1q); if (W.y + mz.clone().applyQuaternion(q).y > P.clear) break; }
+    setWorldQuat(rigBone(r, 'DEF-WristR'), q);
+  }
+  done();
+  vicDone(r);
+}
 function showVictory(m, me) {
   endVictory();
   VIC.m = m; VIC.me = me; VIC.wait = VIC_DELAY; // the freeze on the last kill, then the roof
@@ -3944,7 +4283,8 @@ function startVictory() {
   const byMid = a => a.map((x, i) => [x, i]).sort((p, q) => Math.abs(p[0]) - Math.abs(q[0]) || p[0] - q[0]).map(p => p[0]); // middle out
   const pos = [...byMid(fs).map(x => [mid + x, roof.z]), ...byMid(bs).map(x => [mid + x, roof.z - roof.back])];
   VIC.rigs = order.map((c, i) => {
-    const rig = makeRig(c[2]); setRigWeapon(rig, c[3]);
+    const rig = makeRig(c[2]); // (posed at the origin, then put on the roof)
+    if (!rig.model.sway || !rig.armBones.length) setRigWeapon(rig, c[3]); else if (i === 0) poseWinner(rig); else poseKneel(rig, c[3]);
     const [x, z] = pos[i]; rig.wrap.position.set(x, roof.y, z);
     rig.wrap.rotation.y = -(x - mid) * 0.12 + (i % 2 ? 0.08 : -0.08); // out to the valley, the ends turned in a touch
     rig.wrap.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -3976,7 +4316,7 @@ function updateVictory(dt) {
   if (VIC.wait > 0 && (VIC.wait -= dt) <= 0 && VIC.m) startVictory();
   if (!VIC.on) return;
   VIC.t += dt;
-  for (const r of VIC.rigs) animRig(r, dt, 0, false, 0.12);
+  for (const r of VIC.rigs) if (!r.posed) animRig(r, dt, 0, false, 0.12);
   // Where the panel leaves room: beside it on a wide screen, above it on a tall one
   const W = innerWidth, H = innerHeight, side = W > H, pw = side ? Math.min(440, W * 0.46) : 0, ph = side ? 0 : H * 0.5;
   const aw = W - pw, ah = H - ph, cx = aw / 2;
@@ -3994,7 +4334,7 @@ function updateVictory(dt) {
   camera.setViewOffset(W, H, W / 2 - cx, H / 2 - cy, W, H); // the middle of the view where the room is
   camera.updateMatrixWorld();
   VIC.rigs.forEach((r, i) => {
-    const tag = VIC.tags[i]; _vT.copy(r.wrap.position); _vT.y += r.model.headY + 0.42; _vT.project(camera);
+    const tag = VIC.tags[i]; _vT.copy(r.wrap.position); _vT.y += (r.tagY || r.model.headY) + 0.42; _vT.project(camera);
     tag.style.transform = `translate(-50%,-100%) translate(${((_vT.x + 1) / 2 * W).toFixed(1)}px,${((1 - _vT.y) / 2 * H).toFixed(1)}px)`;
   });
 }
@@ -4102,16 +4442,16 @@ function updateRockets(dt) {
   }
 }
 
-// Ammo boxes
+// Ammo boxes (battery packs sit still where they lie, turned lieYaw: they spun and bobbed until 2026-11-21)
 const ammoBoxes = [];
 function buildAmmoBoxes() {
   ammoBoxes.forEach(a => scene.remove(a.mesh)); ammoBoxes.length = 0;
   // Battery packs: D, and F where the grenades were (range.js draws them;
   // before it has loaded there are none: the fort's switch builds them)
   if (RANGE.on) {
-    const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D' })); // (no packs on the weapon spots: just the two kinds, D and F)
-    for (const { pos: p, cell, kind } of spots) {
-      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.3, p.z); scene.add(g);
+    const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D', yaw: a.yaw })); // (just the two kinds, D and F; the ones by a weapon lie alongside it: pileUp)
+    for (const { pos: p, cell, kind, yaw } of spots) {
+      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); g.rotation.y = yaw ?? lieYaw(p); scene.add(g); // (on the ground)
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
     }
   }
@@ -4120,7 +4460,6 @@ buildAmmoBoxes();
 function updateAmmo(dt, now) {
   for (const a of ammoBoxes) {
     if (!a.active) { a.t -= dt; if (a.t <= 0) { a.active = true; a.mesh.visible = true; } continue; }
-    a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
       if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // nor ammo
       if (a.kind) { // a battery pack: you take what you can carry; a guest is sent it; a bot refills the old way
@@ -4148,8 +4487,22 @@ function updateAmmo(dt, now) {
 let PICKUP_KEY = 0;
 function clearPickups() { PICKUPS.forEach(pk => scene.remove(pk.mesh)); PICKUPS.length = 0; PICKUP_KEY = 0; }
 const PICKUPS = [];
+// Where something lying on the ground points: a turn from where it lies, so it's the same on every machine and every round
+const lieYaw = p => { const h = Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453; return (h - Math.floor(h)) * Math.PI * 2; };
+// A weapon on the ground, as if someone set it down: on its side (its thinnest way up), resting on the floor, turned lieYaw, or the next way round from there
+// (a twelfth of a turn at a time) that keeps both its ends out of the walls. (They stood up, spun and bobbed until 2026-11-21)
+function lyingGun(id, pos) {
+  const g = new THREE.Group(), m = centeredClone(WEAPONS[id].scene, WEAPONS[id].yaw); m.scale.setScalar(1.2); g.add(m);
+  const sz = new THREE.Box3().setFromObject(m).getSize(new V3());
+  if (sz.x <= sz.y && sz.x <= sz.z) m.rotation.z = Math.PI / 2; else if (sz.z < sz.y) m.rotation.x = Math.PI / 2; // (already flat if it's thinnest up and down)
+  const b = new THREE.Box3().setFromObject(m), alongX = b.max.x - b.min.x >= b.max.z - b.min.z, hl = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * 0.45;
+  m.position.y -= b.min.y - 0.01; // its lowest point on the floor
+  const y0 = lieYaw(pos), clear = yaw => { const dx = alongX ? Math.cos(yaw) : Math.sin(yaw), dz = alongX ? -Math.sin(yaw) : Math.cos(yaw); return [1, -1].every(sg => !meshWallPt(pos.x + dx * hl * sg, pos.y + 0.08, pos.z + dz * hl * sg, 0.07)); };
+  let yaw = y0; if (TG) for (let k = 0; k < 12; k++) if (clear(y0 + k * Math.PI / 6)) { yaw = y0 + k * Math.PI / 6; break; }
+  g.rotation.y = yaw; g.position.copy(pos); return g;
+}
 function addPickup(id, pos, opt) {
-  const mesh = centeredClone(WEAPONS[id].scene, WEAPONS[id].yaw); mesh.scale.setScalar(1.2); mesh.position.copy(pos); scene.add(mesh);
+  const mesh = lyingGun(id, pos); scene.add(mesh);
   PICKUPS.push(Object.assign({ id, pos: pos.clone(), active: true, t: 0, mesh, key: PICKUP_KEY++ }, opt || {}));
 }
 function nearestPickup(b) {
@@ -4172,7 +4525,6 @@ function updatePickups(dt, now) {
     const pk = PICKUPS[i];
     if (pk.dropped) { pk.life -= dt; if (pk.life <= 0) { scene.remove(pk.mesh); PICKUPS.splice(i, 1); continue; } }
     if (!pk.active) { pk.t -= dt; if (pk.t <= 0) { if (pickupOut(pk.id) >= pickupSpots(pk.id)) { pk.t = 1; continue; } pk.active = true; pk.mesh.visible = true; } continue; }
-    pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06;
     for (const e of ents) {
       if (e.isPlayer ? VEH.riding : VEH.rides(e.id)) continue; // no picking up weapons from a seat
       if (!e.alive || !e.inv || (pk.id === 'bazooka' && !e.isPlayer && !e.isRemote)) continue; // bots don't know how to use it
@@ -4193,7 +4545,7 @@ function updateHeals(dt) {
   for (const h of HEALS) {
     if (!h.active) { h.t -= dt; if (h.t <= 0) setHeal(h, true); continue; }
     for (const e of ents) {
-      if (!e.alive || e.health >= maxHp(e)) continue;
+      if (!e.alive || e.health >= maxHp(e) || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) continue; // nobody in a vehicle (any seat) picks one up
       if (Math.hypot(e.pos.x - h.pos.x, e.pos.z - h.pos.z) < 1.0 && Math.abs(e.pos.y - h.pos.y) < 1.2) {
         e.health = maxHp(e); setHeal(h, false); h.t = 30;
         if (e.isRemote) sendTo(e, { t: 'heal' });
@@ -4307,7 +4659,7 @@ function giveWeapon(e, id, ammo) {
   return true;
 }
 // Everything a soldier carried falls where they die: their weapons (each lies there for RANGE.dropLife() seconds, then a Pistol or Carbine
-// is gone and anything else is back on its spot: PICKUP_LIMIT) and their batteries (BAGS: they never go away)
+// is gone and anything else is back on its spot: PICKUP_LIMIT) and some of their batteries (BAGS: they never go away)
 function dropWeapons(e) {
   if (!e.inv) return; syncE(e);
   let k = 0;
@@ -4318,17 +4670,17 @@ function dropWeapons(e) {
     const ammo = RANGE.on ? (e.bot ? RANGE.clipOf(id) : a.mag + (RANGE.ammoOf(id) === 'R' ? spareR * RANGE.clipOf(id) : 0)) : a.mag + a.res; // (a bot's gun: a full clip)
     if (!RANGE.on && ammo <= 0) continue;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
-    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
+    pos.y = TG ? groundAt(pos.x, pos.z, e.pos.y + 0.6) ?? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos))); // (on the ground where it lands, a slope or a step from their feet)
     addPickup(id, pos, { dropped: true, ammo, life: RANGE.dropLife() });
   }
   e.inv = ['pistol'];
   if (RANGE.on) dropBats(e, k);
 }
-// Batteries that fell from the dead: a pack of D and one of F (as many as they had), there until someone takes them all. The host keeps them
+// Batteries that fell from the dead: a pack of D and one of F (half what they had, and no more than the host's dropD and dropF: RANGE.dropBats), there until someone takes them all. The host keeps them
 // and sends them in its snapshot (bg); the oldest go if there get to be too many
 const BAGS = [], BAG_MAX = 60; let BAG_KEY = 0;
 function addBag(kind, n, pos, key) {
-  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.3, pos.z); scene.add(g);
+  const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.01, pos.z); g.rotation.y = lieYaw(pos); scene.add(g); // (on the ground)
   const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g }; BAGS.push(b); return b;
 }
 function removeBag(i) { scene.remove(BAGS[i].mesh); BAGS.splice(i, 1); }
@@ -4336,9 +4688,9 @@ function clearBags() { while (BAGS.length) removeBag(0); }
 function dropBats(e, k) {
   const b = e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 2, e.nades | 0, 0]; // [A, D, F, R] (a bot: two D and its grenades)
   [['D', b[1] | 0], ['F', b[2] | 0]].forEach(([kind, n]) => {
-    if (n <= 0) return;
+    n = RANGE.dropBats(kind, n); if (n <= 0) return;
     const pos = e.pos.clone().add(new V3(Math.cos(k * 2.1) * 0.6, 0, Math.sin(k * 2.1) * 0.6)); k++;
-    pos.y = TG ? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos)));
+    pos.y = TG ? groundAt(pos.x, pos.z, e.pos.y + 0.6) ?? e.pos.y : Math.max(BASE, nodeH(cellOf(e.pos))); // (on the ground where it lands, a slope or a step from their feet)
     addBag(kind, n, pos);
   });
   while (BAGS.length > BAG_MAX) removeBag(0);
@@ -4347,7 +4699,6 @@ function dropBats(e, k) {
 function updateBags(dt, now) {
   for (let i = BAGS.length - 1; i >= 0; i--) {
     const a = BAGS[i];
-    a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05;
     for (const e of ents) {
       if (!e.alive || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) continue;
       if (Math.hypot(e.pos.x - a.pos.x, e.pos.z - a.pos.z) >= 1.0 || Math.abs(e.pos.y - a.pos.y) >= 1.2) continue;
@@ -4411,7 +4762,7 @@ function botMiss(start, aim, marks) {
   return hit.point;
 }
 function botMuzzle(b, w) {
-  const m = b.rig.model, g = m.guns && m.guns[w.id];
+  const m = b.rig.model, g = m.guns && m.guns[w.id] || m.grips && m.grips[w.id];
   const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
   return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
 }
@@ -4633,8 +4984,8 @@ function fortPath(from, to) {
 // in the front, a quarter by the back trail and a quarter through the tunnel
 const ROUTE_TURNS = ['front', 'back', 'front', 'tunnel'];
 let routeTurn = 0;
-// Bots that make for the fort first, by the level's ways in: Midas in a team game (the Rebels hold their own ground, unless the level sends them too: rebelsAdvance), every bot otherwise
-function advances(b) { return !teamsOn() || b.team === 'midas' || !!(LV && LV.rebelsAdvance); }
+// Bots that make for the fort first, by the level's ways in: Midas in a team game (the Pirates hold their own ground, unless the level sends them too: piratesAdvance), every bot otherwise
+function advances(b) { return !teamsOn() || b.team === 'midas' || !!(LV && LV.piratesAdvance); }
 const inFortZone = p => { const Z = LV && LV.fortZone; return !!Z && p.x > Z[0] && p.x < Z[1] && p.z > Z[2] && p.z < Z[3] && p.y > Z[4]; };
 // The next leg of a bot's way in: a path to its next waypoint (false once it's through, or when a leg can't be walked and it gives up)
 function routeLeg(b) {
@@ -4652,7 +5003,7 @@ function routeLeg(b) {
 function roamFine(b, wish, dt, face = true) {
   const ai = b.ai;
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
-  // the fort first, by this life's way in: Midas in a team game (the Rebels hold their own ground), every bot otherwise
+  // the fort first, by this life's way in: Midas in a team game (the Pirates hold their own ground), every bot otherwise
   if (ai.route && !ai.routeDone && LV.fortRoutes && advances(b)) {
     if (ai.route === 'tunnel') { // the bunker door is locked, and this one is still outside: its enemies shoot it open, its own side go in by the front instead
       const sh = lockableDoor();
@@ -4752,7 +5103,7 @@ function avoidBots(b, wish) {
   }
   wish.x += sx; wish.z += sz;
 }
-// Bots don't see vehicles, so a truck parked (or left) in a narrow way stops a whole line of them. Every half second the walking map's nodes under each car, truck or bike (and a
+// Bots don't see vehicles, so a truck parked (or left) in a narrow way stops a whole line of them. Every half second the walking map's nodes under each truck or motorcycle (and a
 // bot's width round it) are shut off for a couple of seconds, wherever it is, so paths go round it; with no way round, a bot waits and then the jam rule moves it on.
 let vehBlockT = 0;
 function markVehicles(dt) {
@@ -4760,7 +5111,7 @@ function markVehicles(dt) {
   const now = performance.now();
   for (const v of VEH.list) {
     if (!v.pos) continue;
-    const half = (v.kind === 'bike' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.55, len = VEH.lenOf(v) / 2 + 0.55, sn = Math.sin(v.yaw), cs = Math.cos(v.yaw), R = Math.max(half, len) + 0.5;
+    const half = (v.kind === 'motorcycle' ? 0.4 : v.model ? v.model.half : v.p.track / 2) + 0.55, len = VEH.lenOf(v) / 2 + 0.55, sn = Math.sin(v.yaw), cs = Math.cos(v.yaw), R = Math.max(half, len) + 0.5;
     const c0 = Math.floor((v.pos.x - R - FN.x0) / FN.S), c1 = Math.ceil((v.pos.x + R - FN.x0) / FN.S), r0 = Math.floor((v.pos.z - R - FN.z0) / FN.S), r1 = Math.ceil((v.pos.z + R - FN.z0) / FN.S);
     for (let j = Math.max(0, r0); j <= Math.min(FN.nz - 1, r1); j++) for (let i = Math.max(0, c0); i <= Math.min(FN.nx - 1, c1); i++) for (const k of FN.cells[j * FN.nx + i]) {
       const n = FN.nodes[k]; if (Math.abs(n.y - v.pos.y) > 3) continue;
@@ -4790,9 +5141,9 @@ function updateBot(b, dt) {
   const fwd = new V3(Math.sin(b.yaw), 0, Math.cos(b.yaw)), right = new V3(Math.cos(b.yaw), 0, -Math.sin(b.yaw));
   const wish = new V3(); let speed = 4.2;
   const t = ai.target;
-  // Rebels on a team level are the home side: once they're back near their own spawns they hold the base instead of
+  // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
-  const home = teamsOn() && b.team === 'rebels' && !(LV && LV.rebelsAdvance) ? teamHomeInfo('rebels') : null;
+  const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
   if (t) {
     const dx = t.pos.x - b.pos.x, dz = t.pos.z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
     b.yaw = turn(b.yaw, want, D.turn * dt);
@@ -4832,7 +5183,7 @@ function updateBot(b, dt) {
   } else {
     b.pitch *= 1 - Math.min(1, dt * 4);
     if (gateSiegeOn() && b.team === 'midas' && b.pos.z > LV.gate.doors.z + 1) siegeGate(b, wish, dt);
-    else if (home && FN.cells) roamHome(b, wish, dt, true, home); // defending rebels patrol their own base, nowhere else
+    else if (home && FN.cells) roamHome(b, wish, dt, true, home); // defending pirates patrol their own base, nowhere else
     else if (FN.cells) roamFine(b, wish, dt);
     else if (!ai.path) {
       let goal = null;
@@ -4952,8 +5303,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ') nextWeapon(1);
   if (e.code === 'KeyX') tAim = !tAim;
   // E uses whatever is in front of you (vehicles are handled above); with nothing to use, it's the knife
-  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('gate', 'Space opens or closes the gate. E closes the map'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
-  if (e.code === 'Space' && monitorOpen) toggleGate();
+  if (e.code === 'KeyE') { if (e.repeat && nearLockDoor(P)) { /* held at the bunker door: the lock timer counts (updateLockDoor) */ } else if (!monitorOpen && windowSide(P)) climbWindow(windowSide(P)); else if (monitorOpen || nearComputer(P)) { setMonitor(!monitorOpen); if (monitorOpen) hint('radar', 'The radar: everyone on the map. E steps away'); } else if (!(nearTowerDoor(P) && useTowerDoor(P)) && !(nearGateDoor(P) && useGateDoor(P)) && !useShedDoor(P)) playerKnife(); }
   const dn = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5 }[e.code];
   if (dn !== undefined && P.inv[dn] && P.inv[dn] !== curW && P.alive) selectWeapon(P.inv[dn]);
 });
@@ -5061,7 +5411,7 @@ function updateCamera(dt) {
     _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
     const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
     camera.position.addScaledVector(_fpvDir, f);
-    const m = P.rig && P.rig.model; // the short characters (Master, Apprentice) see from their own height
+    const m = P.rig && P.rig.model; // a short character sees from its own height
     if (m && m.crouchDrop !== undefined) camera.position.y += Math.min(0, m.headY - 0.12 - m.crouchDrop * P.rig.cr - (camera.position.y - P.pos.y)) * bodyK;
   }
   if (tpOn) { // behind your right shoulder, pulled in where a wall is in the way (shots still leave your eyes at what the crosshair is on: range.js shotLine)
@@ -5202,7 +5552,7 @@ function updateHUD(dt) {
   if (P.nades !== hud.nades) { hud.nades = P.nades; $('nades').innerHTML = '<i></i>'.repeat(P.nades); }
   {
     const leader = ents.reduce((a, b) => (b.kills > a.kills ? b : a));
-    setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Rebels ${teamKills('rebels')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
+    setText('top', MODE === 'drive' ? 'Test Drive' : MODE === 'range' ? 'Shooting Range' : teamsOn() ? `First team to ${KILL_LIMIT}   ·   Midas ${teamKills('midas')}  Pirates ${teamKills('pirates')}   ·   You (${P.team ? TEAMS[P.team].name : ''}) ${P.kills}/${P.deaths}` : `First to ${KILL_LIMIT}   ·   Leader: ${leader.name} ${leader.kills}   ·   You ${P.kills}/${P.deaths}`);
     $('top').classList.remove('alert');
   }
   hitT -= dt; setStyle('hit', 'opacity', hitT > 0 ? 1 : 0);
@@ -5228,6 +5578,7 @@ function updateHUD(dt) {
 
 // ---------- Touch ----------
 const isTouch = matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+const TLIGHT = document.getElementById('tlight');
 if (isTouch) document.body.classList.add('touch');
 // iOS (Safari, Chrome and Firefox there are all WebKit) has no full screen for pages; from the home screen it opens without browser bars
 {
@@ -5264,7 +5615,7 @@ function botPlan() {
   const humans = ents.filter(e => !e.bot && !e.isReplica);
   if (!GAME_TEAMS) return Array(Math.max(0, BOT_FILL - humans.length)).fill(undefined);
   const side = t => Math.max(0, BOT_FILL / 2 - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
-  return [...Array(side('midas')).fill('midas'), ...Array(side('rebels')).fill('rebels')];
+  return [...Array(side('midas')).fill('midas'), ...Array(side('pirates')).fill('pirates')];
 }
 function setPlaying(on) {
   if (on) applySettings();
@@ -5360,6 +5711,7 @@ function touchEnd(e) {
     const act = el ? el.dataset.act : null;
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
+    if (e.type === 'touchend' && act === 'light') RANGE.toggleLight(); // the flashlight (L)
     if (act === 'nade') releaseCook();
   }
 }
@@ -5401,9 +5753,9 @@ function initPreview() {
   $('schar').onchange = () => refreshPreview();
   if (params.has('posecheck')) chooseMode('arena');
 }
-// The character grid: Midas the four soldiers; Rebels the Master, two Apprentices (index 7 is the second) and the Officer.
+// The character grid: Midas the four soldiers; Pirates their four repainted counterparts.
 // In a team battle you pick from your own side's
-const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], rebels: [5, 4, 7, 6] };
+const TEAM_CHARS_NEW = { midas: [0, 1, 2, 3], pirates: [4, 5, 6, 7] };
 function syncChars() {
   const sel = $('schar'), teams = TEAM_CHARS_NEW;
   const ok = GAME_TEAMS && teams[myTeam] ? teams[myTeam].filter(i => MODELS[i]) : MODELS.map((m, i) => i);
@@ -5626,7 +5978,7 @@ function buildPicker() {
   }
   setPreview(was);
   const box = $('cpick'); box.textContent = '';
-  for (const t of ['midas', 'rebels']) {
+  for (const t of ['midas', 'pirates']) {
     const list = TEAM_CHARS_NEW[t].filter(i => MODELS[i]); if (!list.length) continue;
     const g = document.createElement('div'); g.className = 'cteam';
     g.innerHTML = `<h3><i style="background:${TEAMS[t].color}"></i>${TEAMS[t].name}</h3><div class="ctiles"></div>`;
@@ -5642,7 +5994,7 @@ function buildPicker() {
 }
 function pick(i) {
   if (!MODELS[i] || blocked(i, myKey())) return;
-  const t = TEAM_CHARS_NEW.rebels.includes(i) ? 'rebels' : 'midas';
+  const t = TEAM_CHARS_NEW.pirates.includes(i) ? 'pirates' : 'midas';
   if (t !== myTeam) { const b = document.querySelector(`#teams button[data-team="${t}"]`); if (b) b.onclick(); }
   PICKED = true; syncChars(); $('schar').value = i; refreshPreview();
   if (NET.role === 'guest' && NET.joined) { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'hello', name: myPickName(), model: i, tm: myTeam }); } // in the game: the host shows it now
@@ -5733,7 +6085,7 @@ function syncMenu() {
   document.querySelectorAll('.tog[data-for]').forEach(b => { const on = $(b.dataset.for).checked; b.textContent = b.dataset[on ? 'on' : 'off']; b.classList.toggle('on', on); });
 }
 syncMenu();
-// Team free for all: pick Midas or the Rebels (bots even the sides out; a guest tells the host)
+// Team free for all: pick Midas or the Pirates (bots even the sides out; a guest tells the host)
 document.querySelectorAll('#teams button').forEach(b => b.onclick = () => {
   const was = P.team; myTeam = P.team = b.dataset.team;
   if (was !== P.team && NET.role === 'host' && READY && P.alive) respawn(P); // start on the new side
@@ -5856,10 +6208,10 @@ function sPin() {
   g.gain.setValueAtTime(0, t); env(g, t + 0.05, 0.12, 0.3); o.connect(g); g.connect(master); o.start(t + 0.05); o.stop(t + 0.4);
   noise(t + 0.12, 0.03, 0.25, 5000, 2000);
 }
-function sBeep(f) {
-  if (!AC) return; const t = AC.currentTime;
+function sBeep(f, v = 1) { // v: how loud (vol() for a beep out in the world, like a mine's)
+  if (!AC || v < 0.02) return; const t = AC.currentTime;
   const o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; o.frequency.value = f;
-  env(g, t, 0.12, 0.06); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.08);
+  env(g, t, 0.12 * v, 0.06); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.08);
 }
 function sFoot(v, run, pan) {
   if (v < 0.01) return; const t = AC.currentTime;
@@ -5952,7 +6304,7 @@ function climbWindow(side) {
   if (side === 'out') hint('roofladder', 'The ladder beside the window goes up to the roof: walk into it to climb', 4);
 }
 
-// ---------- The Computer's monitor: a map with everyone on it, and the gate switch ----------
+// ---------- The Computer's monitor: the radar, a map with everyone on it (it also opened and shut the gate until 2026-11-21) ----------
 let monitorOpen = false, mapBg = null, mapLevel = null, mapBox = null;
 function nearComputer(e) {
   if (!LV || !LV.core || !e.alive) return false;
@@ -5960,19 +6312,8 @@ function nearComputer(e) {
 }
 function setMonitor(on) {
   monitorOpen = !!on; $('cpu').style.display = monitorOpen ? 'block' : 'none';
-  $('cpuhelp').textContent = 'Space: open or close the gate \u00b7 E: step away';
+  $('cpuhelp').textContent = 'E: step away';
   if (monitorOpen) { mouseDown = false; clickQ = false; drawMap(); }
-}
-function toggleGate() {
-  if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'gate' }); return; }
-  switchGate(P);
-}
-// Host: someone at the computer flips the gate
-function switchGate(e) {
-  if (!nearComputer(e) || matchOver) return;
-  const open = !gateOpen();
-  if (!open && gateLock > 0) { const m = `The broken gate can be shut again in ${Math.ceil(gateLock)}s`; if (e === P) note(m, 1.5); else sendTo(e, { t: 'wn', x: m }); return; }
-  if (!open) GATE.hp = 100; setGate(open); waveNote(`${e.name} ${open ? 'opened' : 'closed'} the gate`);
 }
 // Midas bots shoot a shut gate (its hp is GATE.hp, a percentage) until it gives way; shutting it again mends it
 let gateLock = 0; // seconds until a gate that was shot open can be shut again
@@ -6091,8 +6432,6 @@ function drawMap() {
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
   g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
-  const [gx, gz] = LV.gate.at, gateCol = gateOpen() ? '#ffd23f' : '#9fd8ff';
-  g.fillStyle = gateCol; g.fillRect(X(gx) - 7, Z(gz) - 2, 14, 4);
   const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
   let n = 0;
   for (const e of ents) {
@@ -6101,7 +6440,7 @@ function drawMap() {
     g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
   }
-  $('cpuinfo').textContent = `Gate ${gateOpen() ? 'open' : `closed (${Math.ceil(GATE.hp)}%)`} · Others on the map ${n}`;
+  $('cpuinfo').textContent = `Radar · Others on the map ${n}`;
 }
 
 
@@ -6202,7 +6541,7 @@ function onGuestMsg(conn, m) {
       Object.assign(r, { isRemote: true, conn, id: 'r' + NET.nextRid++, target: new V3(), inv: ['pistol'], ammoBy: { pistol: { mag: 12, res: 24 } }, wpn: 'pistol', spawnSeq: 0, seen: performance.now() });
       remotes.push(r); ents.push(r); r.helloModel = m.model | 0;
       const humans = t => ents.filter(x => !x.bot && x.team === t).length;
-      r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('rebels') ? 'midas' : 'rebels'
+      r.team = TEAMS[m.tm] ? m.tm : humans('midas') <= humans('pirates') ? 'midas' : 'pirates'
       setRemoteModel(r, m.model);
       sendTo(r, { t: 'welcome', id: r.id, ws: RANGE.cfg(), look: LOOK, level: curLevel, tg: GAME_TEAMS, lim: KILL_LIMIT, over: matchOver, holes: [], scorches, bb: bulbsBroken(), peers: [[NET.peer.id, 'h'], ...remotes.filter(x => x !== r).map(x => [x.conn.peer, x.id])] });
       // The bullet holes so far follow in pieces (HOLE_CHUNK at a time, about 12 KB): all of them in the welcome could be over 64 KB
@@ -6241,11 +6580,11 @@ function onGuestMsg(conn, m) {
     case 'chat': { const x = String(m.x || '').replace(/\s+/g, ' ').trim().slice(0, 120); if (x) { chatLine(r.name, x, false); broadcast({ t: 'chat', n: r.name, x }, conn); } break; }
     case 'cam': r.camOn = !!m.on; break;
     case 'drop': if (WEAPONS[m.id] && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite) && v3(m.p).distanceTo(r.pos) < 12) addPickup(m.id, v3(m.p), { dropped: true, ammo: Math.max(0, Math.min(WEAPONS[m.id].mag * 3, +m.a || 0)), life: RANGE.dropLife() }); break; // a guest threw down a weapon
-    case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r); break; // a guest set a mine (?dev)
+    case 'mine': if (r.alive && Array.isArray(m.p) && m.p.length === 3 && m.p.every(Number.isFinite)) RANGE.mine(v3(m.p), r, m.n); break; // a guest set a mine, on the surface m.n faces out of
+    case 'mshot': if (r.alive && Number.isInteger(m.i)) RANGE.mineShot(m.i, r); break; // a guest shot a mine: it goes off
     case 'rkt': { const o = v3(m.o), now = performance.now(); if (o.distanceTo(r.pos) < 6 && now - (r._rkt || 0) > 2500) { r._rkt = now; launchRocket(r, o, v3(m.d), WEAPONS.bazooka); } break; }
     case 'nade': throwNade(r, v3(m.o), v3(m.v), Math.max(0.01, Math.min(m.im ? 15 : NADE_FUSE, +m.f || NADE_FUSE)), !!m.im); break;
     case 'fx': if (m.m && m.m.t !== 'co' && m.m.t !== 'wa' && m.m.t !== 'fd' && m.m.t !== 'cs' && m.m.t !== 'look' && m.m.t !== 'wset') { applyFx(m.m); broadcast(m.m, conn); } break;
-    case 'gate': switchGate(r); break;
     case 'ghit': damageGate(Math.min(250, Math.max(0, +m.amt || 0))); break;
     case 'gdoor': if (nearGateDoor(r)) useGateDoor(r); break;
     case 'tdoor': if (nearTowerDoor(r)) useTowerDoor(r); break;
@@ -6295,7 +6634,7 @@ function snapshot() {
       hp: Math.ceil(e.health), k: e.kills, d: e.deaths, tm: e.team || null,
       cm: e.isPlayer ? (CAM.stream ? 1 : 0) : (e.camOn ? 1 : 0),
       ar: e.isPlayer ? ART.state() : e.art | 0, ac: e.isPlayer ? ART.colour() : e.artC | 0, // drawing: the pen (1) or the spray can (2), and its colour
-      fl: (e.isPlayer ? RANGE.lightOn() : e.isRemote ? e.lit : e.alive && nightOn()) ? 1 : 0, // flashlights (the bots' are on at dusk and night)
+      fl: (e.isPlayer ? RANGE.lightOn() : e.isRemote ? e.lit : e.alive && (nightOn() || darkNear(e.pos, 0.5))) ? 1 : 0, // flashlights (the bots' are on at dusk and night, and in a dark place)
       iv: (e.isPlayer ? P.inv : e.inv) || [], bt: e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 0, e.nades | 0, 0], // what they carry, to show on them
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
@@ -6466,8 +6805,6 @@ function updateReplicas(dt, now) {
     animRig(r.rig, dt, Math.hypot(r.vel.x, r.vel.z), r.h < STAND_H, r.pitch); crouchHit(r); stepSound(r, dt);
     updateNameTag(r);
   }
-  for (const a of ammoBoxes) if (a.active) { a.mesh.rotation.y += dt; a.mesh.position.y = a.pos.y + 0.3 + Math.sin(now / 400) * 0.05; }
-  for (const pk of PICKUPS) if (pk.active) { pk.mesh.rotation.y += dt * 1.5; pk.mesh.position.y = pk.pos.y + 0.75 + Math.sin(now / 350) * 0.06; }
 }
 function showGuestResults(m) {
   matchOver = true;
@@ -6761,7 +7098,12 @@ function loop(now) {
   updateChatbox();
   if (isTouch) touchTick(dt);
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
-  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position)); // your gun is in the shade with you
+  updateSkyDiscs();
+  const dk = inDarkCPU(camera.position) ? DARK_VM : 1; // and in the dark with you
+  if (isTouch) TLIGHT.classList.toggle('on', RANGE.lightOn()); // (the touch Light button shows it's on)
+  if (dk < 1 && P.alive && !RANGE.lightOn()) hint('dark', isTouch ? 'It\'s pitch black in here: Light (top left) turns your flashlight on' : 'It\'s pitch black in here: L turns your flashlight on', 4);
+  vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
+  vmFill.intensity = (vmFill.userData.k ?? 1) * dk; vmSky.intensity = (vmSky.userData.k ?? 0.9) * dk;
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
   if (VIC.on) victoryHide();
   renderer.clear();
@@ -6771,9 +7113,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=32"></script>
-<script src="range.js?v=30"></script>
-<script src="art.js?v=11"></script>
-<script src="headlights.js?v=3"></script>
+<script src="vehicles.js?v=40"></script>
+<script src="range.js?v=33"></script>
+<script src="art.js?v=13"></script>
+<script src="headlights.js?v=5"></script>
 </body>
 </html>

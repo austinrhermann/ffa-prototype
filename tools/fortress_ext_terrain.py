@@ -3,7 +3,9 @@
 #
 # The land follows Austin's drawing of the bigger island (DESIGN below, traced from it): the island grows south around its old southern half,
 # out to a new coast; a mountain divider runs on south from the old south hill; two spawn clearings, A (west) and B (east), each with a road
-# up to the old ground. The new ground is a second mesh that sits over the old one: where it is higher it covers it (the old coast cliffs go
+# up to the old ground. His second drawing (2026-11-21) grows it again: a lobe to the south whose land steps down in low hills to a beach and a
+# dock (index.html builds the dock), a small flat-topped hill near the beach, and a road (roadC) that loops from clearing A down past the dock and
+# back up to clearing B. The new ground is a second mesh that sits over the old one: where it is higher it covers it (the old coast cliffs go
 # under it), where it is lower it hides 0.6 m under it, so the two meet without a seam. The roads are levelled to a smooth grade the vehicles
 # can drive: on the new ground here, on the old ground by the game itself at load (it shifts the old ground's vertices to the same profile,
 # see regradeGround in index.html), so both agree.
@@ -11,26 +13,44 @@ import numpy as np
 
 DESIGN = dict(
     # the new coast, west end to east end (the old coast closes the shape in the north)
-    coast=[[-62.9, 45.2], [-63.4, 47.5], [-63.9, 61.5], [-61.9, 76.5], [-63.4, 83.3], [-63.2, 89.1], [-60.9, 100.5], [-60.4, 106.3], [-58.4, 111.8], [-56.0, 114.2],
-           [-45.6, 115.7], [-40.1, 117.4], [2.9, 121.5], [38.9, 118.3], [65.7, 117.8], [67.8, 116.7], [71.5, 112.3], [72.4, 110.2], [72.2, 92.7], [70.8, 85.8],
+    # (the south coast between x -58 and 72 was at z 114 to 121 until the second drawing: [-56.0, 114.2], [-45.6, 115.7], [-40.1, 117.4], [2.9, 121.5], [38.9, 118.3],
+    # [65.7, 117.8], [67.8, 116.7], [71.5, 112.3]; now it's the southern lobe's)
+    coast=[[-62.9, 45.2], [-63.4, 47.5], [-63.9, 61.5], [-61.9, 76.5], [-63.4, 83.3], [-63.2, 89.1], [-60.9, 100.5], [-60.4, 106.3], [-58.4, 111.8],
+           [-56.0, 117.0], [-53.4, 121.8], [-46.6, 126.4], [-38.6, 129.8], [-30.7, 133.2], [-26.1, 138.9], [-24.4, 144.5], [-23.9, 150.2], [-21.0, 154.8],
+           [-15.9, 157.6], [-10.2, 159.9], [-4.5, 160.5], [2.3, 158.2], [10.2, 154.8], [18.2, 146.8], [25.0, 144.0], [33.0, 142.3], [40.9, 142.3], [48.9, 144.5],
+           [56.8, 143.4], [63.6, 140.0], [68.2, 134.3], [70.5, 125.2], [72.0, 116.0], [72.4, 110.2], [72.2, 92.7], [70.8, 85.8],
            [70.3, 75.4], [59.5, 54.7], [56.4, 51.2], [51.0, 46.8], [43.2, 38.1]],
     # the mountain divider's crest, from the old south hill's tip down to the south coast
-    divider=[[-3.0, 92.0], [-3.1, 99.2], [-3.4, 101.5], [-1.9, 104.6], [-1.8, 108.0], [0.4, 112.1], [0.7, 121.0]],
+    divider=[[-3.0, 92.0], [-3.1, 99.2], [-3.4, 101.5], [-1.9, 104.6], [-1.8, 108.0], [0.4, 112.1], [0.7, 121.0], [0.6, 129.0]],   # (it ran out at the old coast, z 121, until the lobe)
     # the roads to the spawn clearings, each branching off the road from the fort's gate (the painted path that runs down the valley to the truck)
     roadA=[[-7.5, 45.5], [-11.0, 47.5], [-14.5, 49.3], [-18.1, 51.2], [-21.5, 53.3], [-24.7, 55.6], [-27.7, 58.2], [-30.4, 61.2], [-32.3, 64.7], [-32.5, 68.6],
            [-31.0, 72.3], [-29.1, 75.8], [-27.5, 79.5], [-26.8, 83.4], [-27.4, 87.3], [-29.9, 90.2], [-31.5, 91.5]],
     roadB=[[23.5, 61.5], [22.7, 65.4], [23.0, 69.4], [24.2, 73.2], [26.1, 76.7], [28.4, 79.9], [31.1, 83.0], [33.8, 85.8], [36.7, 88.7], [38.5, 90.5]],
+    # the lobe's road (the second drawing's yellow line): from clearing A down the west side, past the dock, round the hill and back up to clearing B
+    roadC=[[-39.3, 95.4], [-43.0, 99.5], [-44.3, 104.8], [-42.0, 110.5], [-37.5, 117.3], [-30.7, 124.1], [-22.7, 128.6], [-19.9, 132.0], [-19.1, 138.9],
+           [-19.3, 144.5], [-17.6, 149.1], [-13.6, 152.6], [-6.8, 155.0], [0.0, 155.6], [5.7, 153.4], [9.1, 146.8], [12.5, 137.7], [15.9, 132.0], [20.5, 129.2],
+           [25.0, 128.6], [29.5, 129.2], [35.2, 130.7], [40.9, 131.5], [44.3, 130.3], [46.4, 126.4], [47.2, 119.5], [47.5, 110.5], [46.6, 103.6], [46.1, 96.2]],
     spawnA=dict(c=[-39.3, 95.4], r=8.8, level=26.5), spawnB=dict(c=[46.1, 96.2], r=9.8, level=24.5),   # (the ground's level in each clearing)
 )
+ROAD_ENDS = {'roadA': (None, 'spawnA'), 'roadB': (None, 'spawnB'), 'roadC': ('spawnA', 'spawnB')}   # the clearing each road starts in (None: on the road it branches from) and ends in
+ROAD_GRADE = {'roadC': 0.3}   # roads allowed steeper than MAX_GRADE: the lobe's road comes down some 18 m to the dock
+# The southern lobe: south of LOBE_Z0 the land steps down over LOBE_RUN metres to low rolling ground a little over the water (the sea is at about
+# y 6 off the lobe), in low hills; a beach round the dock (DOCK: where it meets the land; its sand within BEACH_R); and the small hill near it
+# (x, z, radius, height, the radius of its flat top)
+LOBE_Z0, LOBE_RUN, LOW = 106.0, 46.0, 8.4
+DOCK, BEACH_R, BEACH_Y = (-6.7, 160.0), 16.0, 7.1
+HILLS = [(-1.2, 143.7, 10.0, 7.5, 4.0)]
 LAND = 26.0          # level of the new ground (the island's valley floor is 23 to 26, its hills 30 to 45)
 ROAD_W = 3.8         # the drawn road
 FLAT, BLEND = 2.2, 4.0   # the ground is level this far from a road's centre, and eases back to the land over this much more
 MAX_GRADE = 0.08     # the steepest a road may climb
 PADS = [(15.5, 58.5, 7.0, 4.5, 23.0)]   # level ground, to widen the valley where the truck parks: x, z, radius, blend, height (the game levels the old ground to them too: FORT_EXT.pads)
-CREST = ([0.0, 0.25, 1.0], [41.0, 47.0, 44.0])  # the divider's crest height along it (north end, a quarter of the way, the coast)
+# the divider's crest height along it: north end, a fifth of the way, z 112, the old coast (z 121), its end in the lobe. It ran on at 44 m to the old coast's
+# cliff until the lobe; now it steps down from z 112 into the lobe's low hills
+CREST = ([0.0, 0.2, 0.55, 0.79, 1.0], [41.0, 47.0, 44.0, 30.0, 18.0])
 DIVIDER_TOP, DIVIDER_FOOT = 2.5, 7.0   # half the width of its flat top, and how far the flank then falls to the ground: steep enough that nobody walks over it
 MOUNDS = [(-50, 70, 8, 5), (60, 70, 9, 7), (62, 108, 8, 5), (-22, 112, 8, 4), (25, 112, 9, 5), (-52, 101, 7, 3)]  # x, z, radius, height
-BOUNDS = (-80.0, 84.0, 34.0, 136.0)  # x0, x1, z0, z1 of the work area
+BOUNDS = (-80.0, 84.0, 34.0, 186.0)  # x0, x1, z0, z1 of the work area (z1 was 136 before the lobe)
 RES = 0.5
 HIDE = 0.6           # how far under the old ground the new one hides
 COLLAR = 9.0         # how far inside the old coast the new ground reaches: it fills the old coast's bank, easing back under the old ground by the inner edge
@@ -110,6 +130,11 @@ def cliff_drop(d):
     return np.where(d >= 0, np.interp(d, [0, 0.5, 1, 2, 3, 4, 6], [12, 10.2, 6.4, 3.3, 1.9, 0.9, 0.0]), 12 + 12 * -np.minimum(d, 0))
 
 
+def beach_drop(d):
+    """The same for low ground: a shore that slopes gently into the sea."""
+    return np.interp(d, [-6, -2, 0, 3, 6], [12.0, 4.0, 1.8, 0.5, 0.0])
+
+
 class Fields:
     """The rasters the terrain is made from (cell (i, j) is x = X0 + (j + .5) * RES, z = Z0 + (i + .5) * RES)."""
     pass
@@ -145,11 +170,18 @@ def make_fields(old_vis, old_col):
     n1 = vnoise(X, Z, 28.0, 3); n2 = vnoise(X, Z, 11.0, 5); n3 = vnoise(X, Z, 5.5, 9)
     free = LAND + 2.4 * n1 + 1.1 * n2 + 0.35 * n3
     Ee = np.where(np.isfinite(E), E, free); base = wo * free + (1 - wo) * Ee
+    # the lobe: down from the plateau to low rolling ground (never under the sea: LOW is about 2 m over it)
+    down = smooth((Z - LOBE_Z0) / LOBE_RUN); low = LOW + 1.4 * n1 + 0.9 * n2 + 0.3 * n3
+    base = base * (1 - down) + low * down
     dd, arc = dist_to_polyline(DESIGN['divider'], X, Z)
     crest = np.interp(arc, *CREST); k = smooth(1 - np.clip((dd - DIVIDER_TOP) / DIVIDER_FOOT, 0, 1))
     base = base + np.maximum(0, crest + 0.8 * n2 - base) * k
     for mx, mz, r, h in MOUNDS:
         d = np.hypot(X - mx, Z - mz); base = base + h * np.where(d < r, np.cos(np.pi / 2 * d / r) ** 2, 0.0)
+    for hx, hz, r, h, top in HILLS:   # flat on top, falling away on all sides
+        d = np.hypot(X - hx, Z - hz); u = np.clip((d - top) / (r - top), 0, 1); base = base + h * np.cos(np.pi / 2 * u) ** 2
+    db = np.hypot(X - DOCK[0], Z - DOCK[1]); wb = smooth(1 - (db - BEACH_R * 0.5) / (BEACH_R * 0.6))   # the beach round the dock: sand rising gently inland
+    base = base * (1 - wb) + (BEACH_Y + 0.08 * db) * wb; F.beach = wb
     for key in ('spawnA', 'spawnB'):
         s = DESIGN[key]; d = np.hypot(X - s['c'][0], Z - s['c'][1]); c1 = smooth(1 - np.clip((d - (s['r'] + 1.5)) / 7.5, 0, 1))
         base = base * (1 - c1) + (s['level'] + 0.25 * n3) * c1
@@ -157,7 +189,7 @@ def make_fields(old_vis, old_col):
     # the roads: each one's grade along it, then the ground levelled to it
     ground = np.where(inside & (F.dold > 0), HO, base)         # what's there before the road goes through: the old ground, or the new land
     F.roads = {}; HOg = HO.copy()                                  # (HOg: the old ground as it is once the game has levelled it along the roads)
-    for key in ('roadA', 'roadB'):
+    for key in ('roadA', 'roadB', 'roadC'):
         C, h = road_profile(F, key, ground); F.roads[key] = (C, h)
         dist = np.full(X.shape, np.inf); hh = np.zeros(X.shape)
         for q in range(len(C)):
@@ -166,14 +198,16 @@ def make_fields(old_vis, old_col):
     for px, pz, pr, pb, ph in PADS:
         c3 = smooth(1 - np.clip((np.hypot(X - px, Z - pz) - pr) / pb, 0, 1)); HOg = HOg * (1 - c3) + ph * c3; base = base * (1 - c3) + ph * c3
     F.HOg = HOg; F.base = base
-    F.land = np.maximum(base - cliff_drop(F.dcoast), -40.0)   # (well under the level's kill height, so no ledge out there can hold anyone)
+    hi = smooth((base - 12.0) / 5.0)                            # a cliff where the land is high, a sloping shore where it's low (the lobe's south)
+    F.land = np.maximum(base - (hi * cliff_drop(F.dcoast) + (1 - hi) * beach_drop(F.dcoast)), -40.0)   # (well under the level's kill height, so no ledge out there can hold anyone)
     return F
 
 
 def road_profile(F, key, ground):
     """(centre line every metre, height of the road at each point): the ground along it smoothed, kept to MAX_GRADE, starting on the road it branches
     from and ending on the clearing."""
-    C = resample(DESIGN[key], 1.0); s = DESIGN['spawnA' if key == 'roadA' else 'spawnB']
+    a, b = ROAD_ENDS[key]; s = DESIGN[b]; G = ROAD_GRADE.get(key, MAX_GRADE)
+    C = resample(DESIGN[key], 1.0)
     C = resample(np.vstack([C, resample([C[-1], s['c']], 1.0)[1:]]), 1.0)   # on into the clearing, a point every metre
     gi = np.clip(((C[:, 0] - F.x0) / RES).astype(int), 0, F.nx - 1); gj = np.clip(((C[:, 1] - F.z0) / RES).astype(int), 0, F.nz - 1)
     g = ground[gj, gi].copy(); g = np.where(np.isfinite(g), g, LAND)
@@ -182,11 +216,13 @@ def road_profile(F, key, ground):
     h[0] = g[0]; n = len(h); end = np.hypot(*(C - np.array(s['c'])).T) < s['r'] * 0.8
     h = np.where(end, s['level'], h)
     pin = np.zeros(n, bool); pin[0] = True; pin[end] = True
+    if a:   # it starts in a clearing too
+        sa = DESIGN[a]; start = np.hypot(*(C - np.array(sa['c'])).T) < sa['r'] * 0.8; h = np.where(start, sa['level'], h); pin[start] = True
     for _ in range(60):                                                  # keep the grade down, forward and back, leaving the pinned ends alone
         for i in range(1, n):
-            if not pin[i]: h[i] = np.clip(h[i], h[i - 1] - MAX_GRADE, h[i - 1] + MAX_GRADE)
+            if not pin[i]: h[i] = np.clip(h[i], h[i - 1] - G, h[i - 1] + G)
         for i in range(n - 2, -1, -1):
-            if not pin[i]: h[i] = np.clip(h[i], h[i + 1] - MAX_GRADE, h[i + 1] + MAX_GRADE)
+            if not pin[i]: h[i] = np.clip(h[i], h[i + 1] - G, h[i + 1] + G)
     return C, h
 
 
@@ -232,8 +268,10 @@ def face_up(v, f):
 
 def road_ribbon(F, key, width=ROAD_W, lift=0.08):
     """A strip along road `key` from where it branches to its clearing, lying on the levelled ground: (verts, faces, uv). v runs along it, a texture tile every 8 m."""
-    C, h = F.roads[key]; s = DESIGN['spawnA' if key == 'roadA' else 'spawnB']
-    keep = np.hypot(*(C - np.array(s['c'])).T) > s['r'] * 0.55; C, h = C[keep], h[keep]            # stop short of the middle of the clearing
+    C, h = F.roads[key]; keep = np.ones(len(C), bool)
+    for e in ROAD_ENDS[key]:
+        if e: s = DESIGN[e]; keep &= np.hypot(*(C - np.array(s['c'])).T) > s['r'] * 0.55            # stop short of the middle of a clearing
+    C, h = C[keep], h[keep]
     t = np.gradient(C, axis=0); t /= np.hypot(t[:, 0], t[:, 1])[:, None]; nrm = np.stack([-t[:, 1], t[:, 0]], 1); n = len(C)
     arc = np.r_[0, np.cumsum(np.hypot(*np.diff(C, axis=0).T))]
     V = []; UV = []
@@ -283,8 +321,12 @@ def paint_ground(F, box, size=(2048, 1024), seed=21):
     lo = -9
     for hi, col in cuts:
         m = (r >= lo) & (r < hi); out[m] = col; lo = hi
-    out[sl > 0.55] = P['taupe']; out[sl > 1.0] = P['pale']                       # steep ground is rock
+    lobe = Z > LOBE_Z0 + 6                                                       # (the lobe slopes all over, so only its really steep ground counts as rock)
+    out[(sl > 0.55) & ~lobe] = P['taupe']; out[(sl > 1.0) & ~lobe] = P['pale']     # steep ground is rock
+    out[(sl > 0.75) & lobe] = P['taupe']; out[(sl > 1.35) & lobe] = P['pale']
     out[(dc < 2.5) & (sl > 0.35)] = P['taupe']
+    out[(dc < 3.0) & (h < 11.0) & (Z > LOBE_Z0)] = P['pale']                       # the lobe's low shore: pale sand, as he drew it
+    out[sample(F, F.beach, X, Z) > 0.5] = P['pale']
     return np.clip(blur(out, 1.6), 0, 255).astype(np.uint8), (x0, x1, z0, z1)
 
 
