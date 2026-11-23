@@ -9,6 +9,7 @@
 // Loaded after the main game script and vehicles.js; it uses the game's globals (scene, renderer, camera, VEH, FLASH, ...).
 (() => {
   const LAMP_FAR = 40, RES = 256, COLS = 4, _white = new V3(1, 1, 1);
+  const _spotUp = new V3(0, 9, 6), _spotCol = new V3(1, 0.96, 0.86); // (the victory spotlight: where it hangs from the winners, and its colour)
   const target = new THREE.WebGLRenderTarget(RES * COLS, RES * 2, { depthBuffer: true, stencilBuffer: false });
   target.depthTexture = new THREE.DepthTexture(RES * COLS, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
   target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
@@ -77,6 +78,8 @@
   function after() {
     beams.length = 0;
     const night = nightOn();
+    // The victory screen at night: a spotlight from up in front of the winners on the roof, down onto them (first, so it's always one of the lamps)
+    if (night && VIC.on && VIC.c) { const o = VIC.c.clone().add(_spotUp), d = VIC.c.clone(); d.y += (VIC.h || 1.8) * 0.45; d.sub(o).normalize(); beams.push({ o, d, far: 22, fov: 56, cone: 0.92, band: 0.06, col: _spotCol }); }
     if (night) for (const b of VEH.lampBeams()) beams.push(b);
     for (const e of ents) { const b = flashBeam(e); if (b && (night || darkNear(b.o, 2))) beams.push(b); } // flashlights: at dusk and night, and by day in (or at the door of) a dark place, the bunker
     if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
