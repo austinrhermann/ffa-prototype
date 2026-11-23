@@ -578,7 +578,7 @@ const TIMES = {
   day: { ...LOOK_DEFAULT },
   // (dusk and night keep the day's haze and its blue, only dimmer, so the fog reads the same at every time)
   dusk: { ...LOOK_DEFAULT, lit: '#c48f72', shadow: '#3b2d40', sky: '#56647c', top: '#1f2f5e' },
-  night: { ...LOOK_DEFAULT, lit: '#4d5c7e', shadow: '#161b2b', sky: '#2b3a4f', top: '#081022' },
+  night: { ...LOOK_DEFAULT, az: 55, el: 18, lit: '#090a11', shadow: '#000000', sky: '#111318', top: '#0f1f43', haze: 1.05 }, // (tuned 2026-11-23: a low moon, near-black shadows)
 };
 const nightOn = () => { const c = new THREE.Color(LOOK.lit); return c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.65; };
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
@@ -7335,6 +7335,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=40"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=5"></script>
+<script src="headlights.js?v=7"></script>
 </body>
 </html>
