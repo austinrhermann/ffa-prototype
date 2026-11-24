@@ -4395,7 +4395,7 @@ function damage(t, amt, attacker, weapon, head) {
   // a bot that's hit knows it, and where from: under fire (it may make for cover: updateBot), and with nobody in sight, after whoever it was
   if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') {
     t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; }
-    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
+    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && !(teamHolds(t.team) && !inFortZone(t.pos) && t.pos.distanceTo(attacker.pos) > 25) && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
   }
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -5740,11 +5740,31 @@ function fortPostList() { // the level's posts on the walking map, each with the
   }
   return defPosts;
 }
+// A side holds the fort: two or more of it inside and nobody of the other side
+const teamHolds = team => !!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts && fortCount(team) >= 2 && !Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0));
+// Its side holds the fort and it's outside: back onto a way in (its side's road, tunnel or long way round, whichever gets it there soonest from where it is), so it fights its
+// way to the fort (on a way in, it only turns aside for someone close: enRoute), instead of exploring or roaming. Checked about once a second
+function rejoinFort(b, dt) {
+  const ai = b.ai;
+  if ((ai.rejoinT = (ai.rejoinT || 0) - dt) > 0) return; ai.rejoinT = 0.8 + Math.random() * 0.4;
+  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) return;
+  if (ai.rev && ai.rev.who.pos.distanceTo(b.pos) > 25) ai.rev = null; // (no rushing off after someone far away: to the fort)
+  if (ai.way && !ai.routeDone) return;
+  const sp = botSpots(), tw = sp && sp.team[b.team]; if (!tw) return;
+  let best = null, bk = 0, bc = Infinity;
+  for (const [name, w] of Object.entries(tw)) {
+    if (!w || !w.length) continue;
+    let rest = 0; const tail = []; for (let k = w.length - 1; k >= 0; k--) { tail[k] = rest; if (k) rest += Math.hypot(w[k][0] - w[k - 1][0], w[k][2] - w[k - 1][2]); }
+    for (let k = 0; k < w.length; k++) { const c = Math.hypot(w[k][0] - b.pos.x, w[k][2] - b.pos.z) * 1.5 + tail[k]; if (c < bc) { bc = c; best = name; bk = k; } }
+  }
+  if (!best) return;
+  Object.assign(ai, { route: best, way: tw[best].slice(bk), routeDone: false, wps: null, via: null, hpath: null, explore: [], searchN: 0, flank: null });
+}
 // The post b holds, or null (and it lets go of any it held): only on a team level, while its side holds the fort, once it's inside
 function defendPost(b) {
   const ai = b.ai;
   // (held: two or more of its side inside and none of the other side; with both sides in there it's contested, and they fight it out for it)
-  const held = teamsOn() && b.team && LV && LV.fortZone && LV.fortPosts && fortCount(b.team) >= 2 && !Object.keys(TEAMS).some(o => o !== b.team && fortCount(o) > 0) && !ai.seatV && !ai.boardV;
+  const held = teamHolds(b.team) && !ai.seatV && !ai.boardV;
   if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
   if (ai.post && ai.post.by === b) return ai.post;
   // Spread over the kinds of post: the kind its side has fewest at (in or on the tower first, if nobody of its side is there yet), then the nearest free one of that kind
@@ -5866,6 +5886,7 @@ function updateBot(b, dt) {
   // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
+  if (FN.cells) rejoinFort(b, dt);
   const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
   const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
   if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
