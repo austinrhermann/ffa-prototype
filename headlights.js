@@ -12,7 +12,7 @@
   // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
   // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
   const SPOT_OUT = 1.6, SPOT_LOW = 0.1, _spotCol = new V3(1, 0.96, 0.86);
-  const SPOT_EDGE = 33, SPOT_ASP = 0.95, SPOT_BAND = 0.05, SPOT_AIM = 0.45, SPOT_HAZE = 0.35; // (wide enough to catch the near side of 2nd and 3rd; 4th, 2 m along, is past its edge)
+  const SPOT_EDGE = 33, SPOT_ASP = 1.3, SPOT_BAND = 0.05, SPOT_AIM = 0.45, SPOT_HAZE = 0.35; // (wide enough to light the faces of 2nd and 3rd, 1 m to each side; 4th, 2 m along, is past its edge)
   const target = new THREE.WebGLRenderTarget(RES * COLS, RES * 2, { depthBuffer: true, stencilBuffer: false });
   target.depthTexture = new THREE.DepthTexture(RES * COLS, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
   target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
