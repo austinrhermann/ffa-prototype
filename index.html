@@ -1091,7 +1091,14 @@ function levelFortress() {
       tunnel: [[-24.8, 25.2, 10.0], [-22.0, 25.4, 10.0], [-19.0, 25.4, 10.0], [-16.4, 25.4, 10.7], [-13.4, 25.4, 10.7], [-10.8, 25.4, 10.7], [-10.8, 26.4, 7.8], [-10.8, 28.0, 4.9], [-10.5, 28.0, 1], [-7.86, 33.5, 1.4], [-1.5, 33.5, 1.5]],
     },
     navLinks: [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]]],
-    // Bots' own ways (lifePlan): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
+    // The teams' ways to the fort (Austin's drawing, 2026-11-24), built by teamWays from these and the level's own roads: the main road from the valley junction up
+    // to the gate (botMain, [x, z]), the valley floor from road B's north end to the junction (botLink), and the branch off the main road west to the bunker's door
+    // (botBunker). Each team has three: up its own road (Midas road B, the Pirates road A) and the main road to the front gate; the same, then the branch to the
+    // bunker and the tunnel; or the long way round, along the dirt track under the mountains to the other side's clearing and up that side's road
+    botMain: [[-12.7, 47.0], [-13.5, 40.4], [-16.4, 32.9], [-17.6, 27.1], [-15.6, 23.0], [-10.2, 19.2], [-5.2, 15.5], [-2.3, 10.6]],
+    botLink: [[21.4, 61.0], [17.2, 54.8], [12.2, 51.9], [3.9, 48.6], [-5.2, 47.0]],
+    botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
+    // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
     botVias: [[12, 32.5, 40], [8, 30, 54], [-16, 26.5, 52], [-12, 30.5, 14], [24, 34.5, 44], [-24, 26, 24], [0, 23.5, 54], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9], [-6, 30, 18],
       [4, 34, 36], [28, 34, 50], [-31.4, 25.5, 63], [26.1, 24.2, 76.7]],
@@ -5268,39 +5275,65 @@ function fortPath(from, to, who) {
 // ground (ai.seed, for fortPath), the places in the fort it means to look round (LV.explore, shuffled), and on levels with fortRoutes, its way in: the front, the back
 // trail or the tunnel from the bunker, picked at random (40/30/30; until 2026-11-24 they were taken in turn, and everyone walked to the fort in a line), mostly by way of
 // one of the level's vias that isn't far out of its way. Riding along, cover and chasing are cleared
-// The level's spots for bots (fortRoutes, botVias, explore) checked against the walking map as it is (botSpots, once a map): each moves onto the nearest
-// ground that joins up with the rest (within 2 m across and 2 m up or down), or is left out if there's none; a way in with a waypoint left out isn't taken at all.
+// The level's spots for bots (team ways, fortRoutes, botVias, explore) checked against the walking map as it is (botSpots, once a map): each moves onto the nearest
+// ground that joins up with the rest (within 2 m across and 2 m up or down; a point given as [x, null, z], on a road, the nearest open ground within 2.5 m), or is left out if
+// there's none. A way with a fixed point (one with a height: in the fort, the tunnel) left out isn't taken at all; road points left out are just skipped.
 // (Levels change under them: since the peninsula, the back trail's start is cut off from everywhere else, and a third of the bots walked off to it and gave up)
 function botSpot(p) {
-  const ci = Math.round((p[0] - FN.x0) / FN.S), cj = Math.round((p[2] - FN.z0) / FN.S); let best = null, bd = Infinity;
-  for (let j = cj - 4; j <= cj + 4; j++) for (let i = ci - 4; i <= ci + 4; i++) {
+  const top = p[1] === null || p[1] === undefined, R = top ? 2.5 : 2, n0 = Math.ceil(R / FN.S);
+  const ci = Math.round((p[0] - FN.x0) / FN.S), cj = Math.round((p[2] - FN.z0) / FN.S), near = [];
+  for (let j = cj - n0; j <= cj + n0; j++) for (let i = ci - n0; i <= ci + n0; i++) {
     if (i < 0 || j < 0 || i >= FN.nx || j >= FN.nz) continue;
     for (const k of FN.cells[j * FN.nx + i]) {
-      const n = FN.nodes[k], dy = Math.abs(n.y - p[1]); if (dy > 2 || (FN.comp && FN.comp[k] !== FN.mainComp)) continue;
-      const d = Math.hypot(n.x - p[0], n.z - p[2]); if (d < 2 && d + dy < bd) { bd = d + dy; best = [n.x, n.y, n.z]; }
+      const n = FN.nodes[k]; if (FN.comp && FN.comp[k] !== FN.mainComp) continue;
+      const d = Math.hypot(n.x - p[0], n.z - p[2]); if (d <= R && (top || Math.abs(n.y - p[1]) <= 2)) near.push([d, n]);
     }
   }
+  if (!near.length) return null;
+  // (on a road: the nearest open ground, keeping off a steep bank beside it: pen, the walking map's mark for ground beside one)
+  let best = null, bd = Infinity;
+  for (const [d, n] of near) { const sc = top ? d + (n.pen || 0) * 0.6 : d + Math.abs(n.y - p[1]); if (sc < bd) { bd = sc; best = [n.x, n.y, n.z]; } }
   return best;
+}
+// The teams' three ways each (the level's botMain, botLink and botBunker, its roads A and B, the dirt track): see levelFortress. [x, y or null, z] points
+function teamWays(L) {
+  const rd = (L.roads && L.roads.roads) || [], A = rd[0], B = rd[1], tr = (L.tracks || [])[0];
+  if (!A || !B || !tr || !L.botMain || !L.fortRoutes || !L.fortRoutes.front || !L.fortRoutes.tunnel) return null;
+  const xz = p => [p[0], null, p[1]], every = (a, n) => a.filter((_, i) => i % n === 0 || i === a.length - 1);
+  const fromA = every(A, 4).map(xz).reverse(), fromB = [...every(B, 4).map(xz).reverse(), ...L.botLink.map(xz)];   // each clearing up its own road to the junction
+  const track = tr.slice(A.length).map(xz), main = L.botMain.map(xz), bunker = L.botBunker.map(xz), { front, tunnel } = L.fortRoutes;  // (the track: clearing A round to B)
+  const ways = (own, other, loop) => ({ road: [...own, ...main, ...front], tunnel: [...own, ...main.slice(0, 2), ...bunker, ...tunnel], loop: [...loop, ...other, ...main, ...front] });
+  return { pirates: ways(fromA, fromB, track), midas: ways(fromB, fromA, [...track].reverse()) };
 }
 function botSpots() {
   if (!LV || !FN.cells || !FN.nodes.length) return null;
   if (FN.spots && FN.spots.lv === LV) return FN.spots;
-  const keep = a => (a || []).map(botSpot).filter(Boolean), routes = {};
-  for (const [k, r] of Object.entries(LV.fortRoutes || {})) { const w = r.map(botSpot); if (w.every(Boolean)) routes[k] = w; else console.warn('Bot route left out (cut off from the walking map):', k); }
-  return (FN.spots = { lv: LV, routes, vias: keep(LV.botVias), explore: keep(LV.explore) });
+  const keep = a => (a || []).map(botSpot).filter(Boolean), routes = {}, team = {};
+  const way = (r, name) => { const out = []; for (const p of r) { const q = botSpot(p); if (q) out.push(q); else if (p[1] !== null && p[1] !== undefined) { console.warn('Bot way left out (cut off from the walking map):', name, p); return null; } } return out; };
+  for (const [k, r] of Object.entries(LV.fortRoutes || {})) { const w = way(r, k); if (w) routes[k] = w; }
+  const tw = teamWays(LV); if (tw) for (const t in tw) { team[t] = {}; for (const [k, r] of Object.entries(tw[t])) { const w = way(r, t + ' ' + k); if (w && w.length) team[t][k] = w; } }
+  return (FN.spots = { lv: LV, routes, team, vias: keep(LV.botVias), explore: keep(LV.explore) });
 }
 function lifePlan(e) {
   const ai = e.ai;
-  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
+  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
     laneOff: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6), seed: [Math.random() * 60, Math.random() * 60] });
   const sp = botSpots(), ex = (sp ? sp.explore : []).map(p => new V3(p[0], p[1], p[2])); ai.needPlan = !sp && !!(LV && LV.fortNav); // (no walking map yet: planned once there is one, roamFine)
   for (let i = ex.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [ex[i], ex[j]] = [ex[j], ex[i]]; }
   ai.explore = ex;
-  if (!(LV && LV.fortRoutes && advances(e)) || !sp) return;
-  const W = { front: 0.4, back: 0.3, tunnel: 0.3 }, ways = Object.keys(sp.routes); if (!ways.length) return;
-  let r = Math.random() * ways.reduce((t, k) => t + (W[k] || 0.3), 0); ai.route = ways.find(k => (r -= W[k] || 0.3) <= 0) || ways[0];
-  // its via: one of the level's, or anywhere on the walking map's main part (a few dozen picked at random), that's no more than 40 m out of its way
-  const st = sp.routes[ai.route][0], d0 = Math.hypot(e.pos.x - st[0], e.pos.z - st[2]);
+  if (!sp || !advances(e)) return;
+  const pick = (ws, W) => { const ks = Object.keys(ws); if (!ks.length) return null; let r = Math.random() * ks.reduce((t, k) => t + (W[k] || 0.3), 0); return ks.find(k => (r -= W[k] || 0.3) <= 0) || ks[0]; };
+  // A team game: one of its team's three ways (road 40%, tunnel 30%, the long way round 30%), from the point on it nearest where it spawned
+  const tw = teamsOn() && e.team && sp.team[e.team];
+  if (tw && (ai.route = pick(tw, { road: 0.4, tunnel: 0.3, loop: 0.3 }))) {
+    const w = tw[ai.route]; let k0 = 0, bd = Infinity; for (let k = 0; k < Math.min(8, w.length); k++) { const d = Math.hypot(w[k][0] - e.pos.x, w[k][2] - e.pos.z); if (d < bd) { bd = d; k0 = k; } }
+    ai.way = w.slice(k0); return;
+  }
+  // Otherwise (free for all) a way in by the level's fortRoutes (front or tunnel), mostly by way of a via no more than 40 m out of its way: one of the level's, or
+  // anywhere on the walking map's main part (a few dozen picked at random)
+  if (!LV.fortRoutes || !(ai.route = pick(sp.routes, { front: 0.4, back: 0.3, tunnel: 0.3 }))) return;
+  ai.way = sp.routes[ai.route];
+  const st = ai.way[0], d0 = Math.hypot(e.pos.x - st[0], e.pos.z - st[2]);
   const out = v => Math.hypot(e.pos.x - v[0], e.pos.z - v[2]) + Math.hypot(v[0] - st[0], v[2] - st[2]) - d0;
   const vias = sp.vias.filter(v => out(v) < 35);
   if (FN.nodes.length) for (let k = 0; k < 40; k++) { const j = Math.random() * FN.nodes.length | 0, n = FN.nodes[j]; if ((!FN.comp || FN.comp[j] === FN.mainComp) && !n.door && out([n.x, n.y, n.z]) < 40) vias.push([n.x, n.y, n.z]); }
@@ -5316,7 +5349,7 @@ function routeLeg(b) {
     const [x, y, z] = ai.wps[ai.wpi];
     if (Math.hypot(x - b.pos.x, z - b.pos.z) < 1.6 && Math.abs(y - b.pos.y) < 2.2) { ai.wpi++; continue; }
     const p = fortPath(b.pos, new V3(x, y, z), b), end = p && FN.nodes[p[p.length - 1]];
-    if (!p || Math.hypot(end.x - x, end.z - z) > 2.5 || Math.abs(end.y - y) > 2.5) break; // can't get there from here
+    if (!p || Math.hypot(end.x - x, end.z - z) > 2.5 || Math.abs(end.y - y) > 2.5) { if (ai.wpi < ai.wps.length - 1) { ai.wpi++; continue; } break; } // can't get there from here: on to the next
     if (p.length < 2) { ai.wpi++; continue; }
     ai.hpath = p; ai.hi = 0; return true;
   }
@@ -5330,16 +5363,16 @@ function roamFine(b, wish, dt, face = true) {
   // After someone: round their side first if told to flank (teamCallout), then where they were last seen, then a look round there; at a run
   const after = ai.flank || (ai.lastSeenT > 0 && ai.lastSeen) || ai.searchN > 0;
   // the fort first, by this life's way in: Midas in a team game (the Pirates hold their own ground), every bot otherwise
-  if (!after && ai.route && !ai.routeDone && LV.fortRoutes && advances(b)) {
+  if (!after && ai.way && !ai.routeDone && advances(b)) {
     if (ai.route === 'tunnel') { // the bunker door is locked, and this one is still outside: its enemies shoot it open, its own side go in by the front instead
       const sh = lockableDoor();
       if (sh && sh.locked && b.pos.x < sh.p.x) {
         if (!teamsOn() || b.team !== sh.lockTeam) { if (b.ammo > 0 || b.reserve > 0) { siegeDoor(b, sh, wish, dt); return; } } // (with no ammo left it goes looking for some instead: the route is given up below)
-        else { ai.route = 'front'; ai.wps = null; ai.hpath = null; }
+        else { const sp = botSpots(), tw = teamsOn() && sp && sp.team[b.team]; ai.route = tw && tw.road ? 'road' : 'front'; ai.way = (tw && tw.road) || (sp && sp.routes.front) || null; ai.wps = null; ai.hpath = null; }
       } else ai.sd = null;
     }
     if (ai.wps && !b.onGround) return; // dropping down the shaft: plan the next leg once it lands
-    if (!ai.wps) { if (inFortZone(b.pos)) ai.routeDone = true; else { const way = (botSpots() || { routes: {} }).routes[ai.route] || LV.fortRoutes[ai.route]; ai.wps = ai.via ? [ai.via, ...way] : way; ai.wpi = 0; } }
+    if (!ai.wps) { if (inFortZone(b.pos)) ai.routeDone = true; else { ai.wps = ai.via ? [ai.via, ...ai.way] : ai.way; ai.wpi = 0; } }
     if (ai.wps && ai.wpi > 0 && ai.via) ai.via = null; // (past its via: next time it plans, the way in alone)
     if (ai.wps && routeLeg(b)) { walkFine(b, wish, dt, face); return; }
   }
@@ -5350,7 +5383,7 @@ function roamFine(b, wish, dt, face = true) {
   else if (!goal && ai.searchN > 0 && ai.lastSeen) { ai.searchN--; const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 6; goal = new V3(ai.lastSeen.x + Math.cos(a) * r, ai.lastSeen.y, ai.lastSeen.z + Math.sin(a) * r); } // looking round where they went
   if (!goal && b.reserve < BW(b.wpn).mag * 2) { const box = nearestBox(b); if (box) goal = box.pos; }
   if (!goal && Math.random() < 0.35) { const pk = nearestPickup(b); if (pk) goal = pk.pos; }
-  if (!goal && ai.explore && ai.explore.length && (ai.routeDone || !LV.fortRoutes || !advances(b))) goal = ai.explore.shift(); // the places it hasn't looked round yet
+  if (!goal && ai.explore && ai.explore.length && (ai.routeDone || !ai.way || !advances(b))) goal = ai.explore.shift(); // the places it hasn't looked round yet
   if (!goal && Math.random() < 0.6) goal = SPAWNS[Math.random() * SPAWNS.length | 0]; // the level's key spots: rooms, roofs, platforms
   if (!goal) { const n = FN.nodes[Math.random() * FN.nodes.length | 0]; goal = new V3(n.x, n.y, n.z); }
   ai.lastSeenT = 0; ai.hpath = fortPath(b.pos, goal, b); ai.hi = 0;
