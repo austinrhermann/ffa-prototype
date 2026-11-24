@@ -1052,7 +1052,9 @@ function levelFortress() {
     vehicles: [['motorcycle', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
-    window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25] },
+    window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25], sill: [5.29, 44.97, -1.42] },
+    // Ways the walking map can't find by itself, for the bots: through the window (they step through it as a player does) and up or down the ladder to the roof
+    hops: [{ kind: 'window', a: [5.29, 43.94, -0.45], b: [5.29, 44.95, -2.25] }, { kind: 'ladder', a: [6.5, 44.95, -2.0], b: [6.2, 47.64, -1.3] }],
     balcony: { x0: 4.2, x1: 7.1, z0: -2.9, z1: -1.6, y: 44.95 },
     // The back of the map (the third drawing, 2026-11-23): the island is a peninsula now, the tower at its tip, and a range of mountains fills the south where the
     // southern lobe and the sea were (BACK_RANGE), behind an invisible wall at their foot. The main road (road C's west end) runs on into a pass between them and
@@ -2458,7 +2460,12 @@ function ladderAt(p) {
 function climbLadder(e, l, dt) {
   const [fx, fz] = l.dir, along = e.climb || 0, top = e.pos.y >= l.box[5] - 0.3;
   const floor = groundAt(e.pos.x, e.pos.z, e.pos.y + 0.05), standing = floor !== null && e.pos.y - floor < 0.05;
-  if ((top && along > 0.2) || (standing && along < -0.2)) return false;
+  if (top && along > 0.2) { // over the top: if what's straight ahead is blocked (the tower roof's parapet is beside its ladder), slide to the side that's open
+    const y = l.box[5] + 0.05, ax = e.pos.x + fx * 0.6, az = e.pos.z + fz * 0.6;
+    if (blockedAt(ax, y, az, STAND_H)) for (const sd of [-1, 1]) if (!blockedAt(ax - fz * sd * 0.6, y, az + fx * sd * 0.6, STAND_H)) { e.pos.x -= fz * sd * 2 * dt; e.pos.z += fx * sd * 2 * dt; pushOut(e); break; }
+    return false;
+  }
+  if (standing && along < -0.2) return false;
   e.vel.y = Math.max(-1, Math.min(1, along + (e.climbUp ? 1 : 0))) * 3.2;
   const vn = e.vel.x * fx + e.vel.z * fz; e.vel.x -= vn * fx; e.vel.z -= vn * fz;
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt; pushOut(e);
@@ -2468,7 +2475,20 @@ function climbLadder(e, l, dt) {
   e.onGround = true; // full control on the ladder (no air drift)
   return true;
 }
+// Through the tower's back window: walk into it and you're carried over the sill (a body won't fit through it standing), out onto the balcony or back into the room
+function startPass(e, side) {
+  const w = LV.window, to = side === 'out' ? w.outside : w.inside;
+  e.pass = { a: e.pos.clone(), m: new V3(...w.sill), b: new V3(to[0], to[1] + 0.02, to[2]), t: 0, dur: 0.55 };
+  e.vel.set(0, 0, 0);
+}
+function stepPass(e, dt) {
+  const ps = e.pass; ps.t += dt; const u = Math.min(1, ps.t / ps.dur);
+  if (u < 0.5) e.pos.lerpVectors(ps.a, ps.m, u * 2); else e.pos.lerpVectors(ps.m, ps.b, u * 2 - 1);
+  e.pos.y += Math.sin(u * Math.PI) * 0.15; e.vel.set(0, 0, 0); e.onGround = true;
+  if (u >= 1) { e.pos.copy(ps.b); e.pass = null; }
+}
 function meshPhysics(e, dt) {
+  if (e.pass) { stepPass(e, dt); return; }
   if (e.climb !== undefined) { const l = ladderAt(e.pos); if (l && climbLadder(e, l, dt)) return; }
   e.vel.y -= GRAV * dt;
   const wasGround = e.onGround, y0 = e.pos.y, steps = Math.max(1, Math.ceil(Math.hypot(e.vel.x, e.vel.z) * dt / 0.2));
@@ -3922,7 +3942,7 @@ function respawn(e) {
     sendTo(e, { t: 'spawn', p: arr(s), y: look, n: e.spawnSeq });
   } else if (e.isPlayer) { e.yaw = look; e.pitch = 0; e.viewY = s.y + 1.6; $('msg').textContent = ''; initPlayerWeapons(); }
   else {
-    e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.ai.lastSeenT = 0; botInitWeapons(e);
+    e.yaw = Math.atan2(-s.x, -s.z); e.mesh.visible = true; e.rig.wrap.rotation.x = 0; e.ai.target = null; e.ai.path = null; e.ai.hpath = null; e.climb = undefined; e.pass = null; e.ai.lastSeenT = 0; e.ai.rev = null; botInitWeapons(e);
     lifePlan(e); // this life's own way, and where it'll look round
   }
 }
@@ -4336,7 +4356,10 @@ function damage(t, amt, attacker, weapon, head) {
   if (attacker && attacker !== t && weapon !== 'fall') { attacker.dmg = (attacker.dmg || 0) + Math.min(amt, t.health); if (weapon === 'gun') attacker.hits = (attacker.hits || 0) + 1; } // for the end-of-match stats
   t.health -= amt;
   // a bot that's hit knows it, and where from: under fire (it may make for cover: updateBot), and with nobody in sight, after whoever it was
-  if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') { t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; } }
+  if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') {
+    t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; }
+    if (!sameTeam(t, attacker) && attacker.alive !== false && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
+  }
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
   if (t.isPlayer) hurtFx(felt);
@@ -5164,6 +5187,14 @@ function* fortNavSteps() {
       prev = k;
     }
   }
+  // hops (LV.hops): the window and the ladder, joined both ways; walkFine knows to step through or climb (FN.hops: 'from>to' -> the hop)
+  FN.hops = new Map();
+  for (const hp of LV.hops || []) {
+    const end = ([x, y, z]) => { let k = -1, bd = 1.2; FN.nodes.forEach((n, j) => { const d = Math.hypot(n.x - x, n.z - z) + Math.abs(n.y - y); if (Math.abs(n.y - y) < 0.6 && d < bd) { bd = d; k = j; } }); return k; };
+    const a = end(hp.a), b = end(hp.b); if (a < 0 || b < 0) { console.warn('Hop with no ground', hp); continue; }
+    if (!FN.nodes[a].nb.includes(b)) { FN.nodes[a].nb.push(b); FN.nodes[b].nb.push(a); }
+    FN.hops.set(a + '>' + b, { hp, up: true }); FN.hops.set(b + '>' + a, { hp, up: false });
+  }
   // one-way drops (down the shaft under the shed): the floor round the hole leads to the node at the bottom, and nothing leads back up
   for (const dr of LV.drops || []) {
     let to = -1, best = Infinity;
@@ -5255,7 +5286,7 @@ const AS = { n: 0, id: 0, seen: null, done: null, g: null, came: null, hf: [], h
 function fortPath(from, to, who) {
   const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
   // (on its way to the fort, a team bot keeps to its way: off the road costs it twice as much, and its own taste counts for little)
-  const sd = who && who.ai && who.ai.seed, stick = !!(who && who.ai && who.ai.way && !who.ai.routeDone && teamsOn());
+  const sd = who && who.ai && who.ai.seed, stick = !!(who && who.ai && who.ai.way && !who.ai.routeDone && !who.ai.rev && teamsOn());
   const cost = o => (o.road ? 0.7 : stick ? 2 : 1) * (sd ? (stick ? 1.05 : 1.25) + (stick ? 0.05 : 0.25) * Math.sin(o.x * 0.09 + sd[0]) * Math.sin(o.z * 0.09 + sd[1]) : 1);
   const inKeep = !!FN.nodes[a].keep; // (already down in the ravine: it may walk there, at a price, to get out)
   const open = gateOpen(), nodes = FN.nodes, goal = nodes[b], now = performance.now();
@@ -5442,14 +5473,37 @@ function laneAt(b, p, hi) {
   if (!ai.laneOff || hi >= p.length - 1 || hi === 0) return n;
   if (ai.laneP === p && ai.laneI === hi) return ai.laneO || n;
   const m = FN.nodes[p[hi + 1]], dx = m.x - n.x, dz = m.z - n.z, l = Math.hypot(dx, dz) || 1, ox = n.x - dz / l * ai.laneOff, oz = n.z + dx / l * ai.laneOff;
+  if (Math.abs(m.y - n.y) > 0.35 * l || (hi > 0 && Math.abs(FN.nodes[p[hi - 1]].y - n.y) > 0.4)) { ai.laneP = p; ai.laneI = hi; ai.laneO = null; return n; } // (stairs, a steep bit: on the line, not beside it over the drop)
   const g = groundAt(ox, oz, n.y + STEP);
   ai.laneP = p; ai.laneI = hi; ai.laneO = g !== null && Math.abs(g - n.y) < 0.35 && n.door === undefined && !blockedAt(ox, g + 0.05, oz, STAND_H) ? { x: ox, y: g, z: oz } : null;
   return ai.laneO || n;
 }
 function walkFine(b, wish, dt, face) {
   const ai = b.ai, p = ai.hpath; if (!p || !p.length) return false;
+  if (b.pass) return true; // stepping through the window
   let n = laneAt(b, p, ai.hi);
-  while (ai.hi < p.length - 1 && Math.hypot(n.x - b.pos.x, n.z - b.pos.z) < 0.35) n = laneAt(b, p, ++ai.hi);
+  while (ai.hi < p.length - 1 && Math.hypot(n.x - b.pos.x, n.z - b.pos.z) < 0.35 && Math.abs(n.y - b.pos.y) < 1.2) n = laneAt(b, p, ++ai.hi);
+  // a hop next (the window, the ladder: FN.hops): once at its near end, through the window, or onto the ladder and up (or down) it
+  const hop = ai.hi > 0 && FN.hops && FN.hops.get(p[ai.hi - 1] + '>' + p[ai.hi]);
+  if (hop) {
+    const from = FN.nodes[p[ai.hi - 1]];
+    if (hop.hp.kind === 'window') {
+      if (Math.hypot(from.x - b.pos.x, from.z - b.pos.z) < 0.9 && Math.abs(from.y - b.pos.y) < 0.6) { startPass(b, hop.up ? 'out' : 'in'); return true; }
+    } else if (hop.hp.kind === 'ladder') {
+      const l = LV.ladders[0], [fx, fz] = l.dir, cx = (l.box[0] + l.box[1]) / 2, cz = (l.box[2] + l.box[3]) / 2, onL = ladderAt(b.pos);
+      const atL = Math.abs(b.pos.x - cx) < 0.6 && Math.abs(b.pos.z - cz) < 0.75, high = b.pos.y > l.box[5] - 0.5;
+      if (hop.up) {
+        if (onL && !high) { b.climb = 1; wish.set(fx + (cx - b.pos.x) * 2 * Math.abs(fz), 0, fz + (cz - b.pos.z) * 2 * Math.abs(fx)); if (face) b.yaw = turn(b.yaw, Math.atan2(fx, fz), 6 * dt); ai.stkP = null; b.vel.x = b.vel.z = 0; return true; } // up
+        if (high && (onL || atL)) { // at the top: on over onto the roof, toward the spot there (the roof's parapet is right beside the ladder's top)
+          const to = FN.nodes[p[ai.hi]], tx = to.x - b.pos.x, tz = to.z - b.pos.z, tl = Math.hypot(tx, tz) || 1;
+          b.climb = 1; wish.set(tx / tl + fx * 0.6, 0, tz / tl + fz * 0.6); ai.stkP = null; return true;
+        }
+        if (!high) { n = { x: cx, y: from.y, z: cz }; b.climb = 1; } // (to the ladder's foot first)
+      } else if (onL || (high && (atL || Math.hypot(from.x - b.pos.x, from.z - b.pos.z) < 1.2))) { // down: back off the roof edge onto the ladder and down it
+        b.climb = -1; wish.set(-fx + (cx - b.pos.x) * 2 * Math.abs(fz), 0, -fz + (cz - b.pos.z) * 2 * Math.abs(fx)); // (square onto it) if (face) b.yaw = turn(b.yaw, Math.atan2(fx, fz), 6 * dt); ai.stkP = null; return true;
+      }
+    }
+  }
   // a shut door on the way, close ahead: open it (E), as a player would
   for (let j = ai.hi; j < Math.min(p.length, ai.hi + 6); j++) {
     const q = FN.nodes[p[j]]; if (q.door === undefined) continue;
@@ -5458,6 +5512,7 @@ function walkFine(b, wish, dt, face) {
     break;
   }
   const dx = n.x - b.pos.x, dz = n.z - b.pos.z; if (Math.hypot(dx, dz) < 0.1) return false;
+  if (b.climb !== undefined && !hop) b.climb = undefined;
   // Stuck (the walking map says there's a way, the ground disagrees: a lip, a parked truck): keep off the spot it was heading for
   // for a while and plan again. Not in the air. (Fighting counts: a bot only follows a path while its target is far; close in it strafes and doesn't come here)
   if (b.onGround) {
@@ -5607,6 +5662,65 @@ function botRide(b, dt) {
   }
   return false;
 }
+// Shot at by a player (or a bot within 40 m): the bot goes after whoever shot it (ai.rev), wherever they are (a sniper on the tower roof included: through the window and up the ladder), not just
+// back at them from where it stands. Off its way in, out of its base: it rushes them, by way of a spot behind them (the side they aren't facing) when
+// they're far, shooting whenever it sees them. One or two of its side close by (45 m) come too, each round a different side. It gives up after 30 s
+// without being shot again by them, or when one of them dies
+const REV_T = 30000, REV_CLOSE = 7;
+function revenge(b, a) {
+  const now = performance.now(), ai = b.ai, fresh = !ai.rev || ai.rev.who !== a;
+  ai.rev = { who: a, until: now + REV_T, side: (ai.rev && ai.rev.side) || (Math.random() < 0.5 ? -1 : 1), behind: fresh ? true : ai.rev.behind };
+  if (fresh) { ai.huntT = Math.random() * 0.3; ai.huntG = null; ai.cov = null; }
+  if (!teamsOn() || !b.team || a.bot || (ai.revCallT || 0) > now) return; ai.revCallT = now + 4000; // (its side come along against a player)
+  let n = 0;
+  for (const o of bots) {
+    if (n >= 2 || o === b || !o.alive || o.team !== b.team || o.ai.rev || o.ai.seatV || o.ai.boardV) continue;
+    if (o.ai.target && o.ai.target.alive && o.pos.distanceTo(o.ai.target.pos) < 20) continue; // (busy with its own fight)
+    if (o.pos.distanceTo(b.pos) > 45) continue;
+    o.ai.rev = { who: a, until: now + REV_T * 0.8, side: n++ % 2 ? -ai.rev.side : ai.rev.side, behind: true }; o.ai.huntT = 0.3 + Math.random() * 0.6; o.ai.huntG = null; o.ai.cov = null; // (staggered: long searches, not all in one frame)
+  }
+}
+function huntOn(b) {
+  const rv = b.ai.rev; if (!rv) return null;
+  if (!rv.who.alive || performance.now() > rv.until || sameTeam(b, rv.who) || isArtist(rv.who)) { b.ai.rev = null; return null; }
+  return rv;
+}
+// Where it means to come at them from: a few metres behind them, to the side it was given, on ground the walking map has, at their height; or them
+function huntGoal(b, rv) {
+  const a = rv.who, d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
+  if (!rv.behind || d < 10) return a.pos;
+  const fx = a.bot ? Math.sin(a.yaw) : -Math.sin(a.yaw), fz = a.bot ? Math.cos(a.yaw) : -Math.cos(a.yaw);
+  for (const r of [5, 3.5, 2]) {
+    const x = a.pos.x - fx * r - fz * rv.side * r * 0.5, z = a.pos.z - fz * r + fx * rv.side * r * 0.5;
+    const k = fortNode(new V3(x, a.pos.y, z), false); if (k === null) continue;
+    const n = FN.nodes[k]; if (n.keep || Math.abs(n.y - a.pos.y) > 1.2 || Math.hypot(n.x - x, n.z - z) > 1.5) continue;
+    return new V3(n.x, n.y, n.z);
+  }
+  return a.pos;
+}
+// The rush: after them at a run on the walking map, shooting whenever they're in sight (t: whoever it sees, else them if it can)
+function hunt(b, rv, wish, dt, t, style) {
+  const ai = b.ai, a = rv.who;
+  // a new plan now and then (sooner the closer it is), and only when where it's going has moved: a search across the map is costly
+  if ((ai.huntT = (ai.huntT || 0) - dt) <= 0) {
+    let g = huntGoal(b, rv);
+    if (rv.behind && g !== a.pos && Math.hypot(g.x - b.pos.x, g.z - b.pos.z) < 2 && Math.abs(g.y - b.pos.y) < 1.5) { rv.behind = false; g = a.pos; } // round behind them: now in
+    const far = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
+    ai.huntT = (far > 40 ? 3 : far > 15 ? 1.8 : 1) * (0.8 + Math.random() * 0.4);
+    if (!ai.hpath || !ai.huntG || Math.hypot(g.x - ai.huntG.x, g.y - ai.huntG.y, g.z - ai.huntG.z) > (far > 40 ? 6 : 2.5)) { ai.hpath = fortPath(b.pos, g, b); ai.hi = 0; ai.huntG = g.clone(); }
+  }
+  const see = t || (b.pos.distanceTo(a.pos) < 120 && seenAt(b, a) ? a : null);
+  if (!walkFine(b, wish, dt, !see)) { ai.hpath = null; ai.huntT = Math.min(ai.huntT, 0.3); const dx = a.pos.x - b.pos.x, dz = a.pos.z - b.pos.z; wish.set(dx, 0, dz); }
+  if (see && !b.pass && b.climb === undefined) {
+    const dx = see.pos.x - b.pos.x, dz = see.pos.z - b.pos.z, dist = Math.hypot(dx, dz);
+    b.yaw = turn(b.yaw, Math.atan2(dx, dz), D.turn * dt);
+    b.pitch += (Math.atan2(see.pos.y + see.h * 0.7 - b.pos.y - 1.5, dist) - b.pitch) * Math.min(1, dt * 8);
+    if (!(b.ammo === 0 && b.reserve === 0)) botEngage(b, see, dt, style, true);
+  } else b.pitch *= 1 - Math.min(1, dt * 4);
+}
+// Close enough to fight it out as usual: near them, at about their height, and in sight (and not halfway through the window or up the ladder)
+const atLadderTop = b => (LV && LV.ladders || []).some(l => b.pos.y > l.box[5] - 0.6 && Math.abs(b.pos.x - (l.box[0] + l.box[1]) / 2) < 1 && Math.abs(b.pos.z - (l.box[2] + l.box[3]) / 2) < 1.3);
+const huntClose = (b, a) => !b.pass && b.climb === undefined && !ladderAt(b.pos) && !atLadderTop(b) && Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) < REV_CLOSE && Math.abs(a.pos.y - b.pos.y) < 2 && !!seenAt(b, a);
 function updateBot(b, dt) {
   if (!b.alive) {
     if (b.ai.seatV) leaveSeat(b); b.ai.boardV = null;
@@ -5637,7 +5751,10 @@ function updateBot(b, dt) {
   // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
-  if (ai.boardV && FN.cells) { // a teammate's vehicle to get into: run to it (shooting on the way if there's someone to shoot)
+  const rv = FN.cells && !ai.boardV ? huntOn(b) : null;
+  if (rv && !(t && t !== rv.who && b.pos.distanceTo(t.pos) < 12) && !huntClose(b, rv.who) && !(b.ammo === 0 && b.reserve === 0)) { // after whoever shot it
+    ai.cov = null; hunt(b, rv, wish, dt, t, style); speed = RUN_BOT;
+  } else if (ai.boardV && FN.cells) { // a teammate's vehicle to get into: run to it (shooting on the way if there's someone to shoot)
     if (!ai.hpath || (ai.repathT -= dt) <= 0) { ai.hpath = fortPath(b.pos, ai.boardV.pos, b); ai.hi = 0; ai.repathT = 0.8; }
     if (!walkFine(b, wish, dt, !t)) { const dx = ai.boardV.pos.x - b.pos.x, dz = ai.boardV.pos.z - b.pos.z; wish.set(dx, 0, dz); if (!t) b.yaw = turn(b.yaw, Math.atan2(dx, dz), 6 * dt); }
     speed = RUN_BOT;
@@ -5725,7 +5842,7 @@ function updateBot(b, dt) {
   ai.stuckT += dt; ai.jumpCd -= dt;
   if (ai.stuckT > 0.6) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
-    if (moved < 0.3 && wish.lengthSq() > 0.01) { // stuck: a sideways kick to break free, plus a hop but only over an actual ledge or obstacle, and not too often
+    if (moved < 0.3 && wish.lengthSq() > 0.01 && !b.pass && b.climb === undefined) { // stuck: a sideways kick to break free, plus a hop but only over an actual ledge or obstacle, and not too often
       const dir = wish.clone().normalize();
       if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z)) { b.vel.y = JUMP; ai.jumpCd = 1.2; }
       b.vel.x += (Math.random() - 0.5) * 5; b.vel.z += (Math.random() - 0.5) * 5;
@@ -5737,7 +5854,7 @@ function updateBot(b, dt) {
   // A jam that goes on: trying to get somewhere and no nearer in eight seconds (a line of bots held up at something the walking map says is fine and the ground says isn't): the
   // spot it was heading for is shut off, and the bot goes on along its path a few nodes (or, with no path, back onto the nearest node that joins up). Not while it's close to its target
   // (then it's strafing and shooting, and standing about is what it does)
-  if (b.onGround && wish.lengthSq() > 0.01 && !(ai.target && ai.target.pos && Math.hypot(ai.target.pos.x - b.pos.x, ai.target.pos.z - b.pos.z) < 7)) {
+  if (b.onGround && wish.lengthSq() > 0.01 && !b.pass && b.climb === undefined && !(ai.target && ai.target.pos && Math.hypot(ai.target.pos.x - b.pos.x, ai.target.pos.z - b.pos.z) < 7)) {
     if ((ai.jamT = (ai.jamT || 0) + dt) > 4) {
       ai.jamT = 0;
       if (ai.jamP && Math.hypot(b.pos.x - ai.jamP.x, b.pos.z - ai.jamP.z) < 1.2) {
@@ -5872,6 +5989,7 @@ function updatePlayer(dt) {
   const sn = Math.sin(P.yaw), cs = Math.cos(P.yaw);
   let wx = -sn * ff + cs * ss, wz = -cs * ff - sn * ss;
   const len = Math.hypot(wx, wz); if (len > 1) { wx /= len; wz /= len; }
+  if (TG && !monitorOpen) walkWindow(wx, wz);
   const lad = TG ? ladderAt(P.pos) : null;
   P.climb = lad ? wx * lad.dir[0] + wz * lad.dir[1] : 0; P.climbUp = !!(lad && keys.Space);
   const running = (keys.ShiftLeft || keys.ShiftRight || Math.hypot(joy.x, joy.y) > 0.9) && !crouched && adsK < 0.5;
@@ -6117,9 +6235,9 @@ function applySettings() {
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
 }
-// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (four a side in a team battle)
+// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (six a side in a team battle)
 let BOT_LEVEL = 0; // off by default (the difficulty menu still starts at Medium, for when they are switched on)
-const BOT_FILL = 8;
+const BOT_FILL = 12;
 const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
   const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
@@ -6810,10 +6928,15 @@ function windowSide(e) {
   return null;
 }
 function climbWindow(side) {
-  const w = LV.window, [x, y, z] = side === 'out' ? w.outside : w.inside;
-  P.pos.set(x, y + 0.02, z); P.vel.set(0, 0, 0); P.viewY = y + 1.6;
-  P.yaw = side === 'out' ? -Math.PI / 2 : Math.PI; P.pitch = 0; // out: facing the ladder; in: facing into the room
+  if (P.pass) return;
+  startPass(P, side);
   if (side === 'out') hint('roofladder', 'The ladder beside the window goes up to the roof: walk into it to climb', 4);
+}
+// Walking into the window (square on to it, not past it) takes you through: no E needed
+function walkWindow(wx, wz) {
+  const ws = windowSide(P); if (!ws || P.pass || !P.onGround) return;
+  const w = LV.window, dz = ws === 'out' ? -1 : 1; // the window faces -z: out is -z, in is +z
+  if (Math.abs(P.pos.x - w.sill[0]) < 0.45 && wz * dz > 0.6 && Math.hypot(wx, wz) > 0.5) climbWindow(ws);
 }
 
 // ---------- The Computer's monitor: the radar, a map with everyone on it (it also opened and shut the gate until 2026-11-21) ----------
@@ -6910,7 +7033,7 @@ function updateComputer() {
   if (monitorOpen && !near) setMonitor(false);
   // What E does here: the window, the computer, the tower door
   let text = null; const ws = locked && !chatOpen && !monitorOpen ? windowSide(P) : null;
-  if (ws) text = ws === 'out' ? 'E: climb out the window' : 'E: climb back in';
+  if (ws) text = ws === 'out' ? 'Walk into the window to climb out' : 'Walk into the window to climb back in';
   else if (near && !monitorOpen) text = 'E: use the computer';
   else if (locked && !chatOpen && !monitorOpen && (text = lockPrompt())) { /* the bunker door's lock */ }
   else if (locked && !chatOpen && nearTowerDoor(P) && TDOOR.state !== 'broken' && !isAtk(P)) text = TDOOR.state === 'open' ? 'E: close and lock the door' : 'E: open the door';
