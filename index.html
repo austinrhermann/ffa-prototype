@@ -657,7 +657,7 @@ vec3 bulbLight(vec3 p, vec3 n) { // the warm glow on a surface at p that faces n
 `;
 // Muzzle flashes: every shot lights up what's round the gun for a blink (MUZ_LIFE), a warm point light like a bulb's, up to MUZ_MAX at once (the oldest gives way).
 // Barely there by day; at night and in the dark places, a blip of light at each gun that fires
-const MUZ_MAX = 8, MUZ_LIFE = 0.07, MUZ_R = 4, MUZ = { n: { value: 0 }, pos: { value: [...Array(MUZ_MAX)].map(() => new THREE.Vector4()) }, k: { value: new Array(MUZ_MAX).fill(0) }, list: [] };
+const MUZ_MAX = 8, MUZ_LIFE = 0.16, MUZ_HOLD = 0.35, MUZ_R = 4.5, MUZ = { n: { value: 0 }, pos: { value: [...Array(MUZ_MAX)].map(() => new THREE.Vector4()) }, k: { value: new Array(MUZ_MAX).fill(0) }, list: [] };
 const MUZ_GLSL = `
 uniform float mzN; uniform vec4 mzPos[${MUZ_MAX}]; uniform float mzK[${MUZ_MAX}];
 vec3 muzLight(vec3 p, vec3 n, float face) { // face: how much the way the surface faces counts (0 where there's no normal to go by)
@@ -668,16 +668,17 @@ vec3 muzLight(vec3 p, vec3 n, float face) { // face: how much the way the surfac
     if (d2 > R * R) continue;
     k += mzK[i] * (1.0 - smoothstep(R * R * 0.2, R * R, d2)) / (1.0 + d2 * 0.35) * (1.0 - face + face * (0.15 + 0.85 * max(dot(n, v * inversesqrt(max(d2, 1e-4))), 0.0)));
   }
-  return vec3(1.0, 0.78, 0.45) * k * 1.6;
+  return vec3(1.0, 0.86, 0.62) * k * 4.0; // (brighter than a flashlight's full beam close up)
 }
 `;
 function muzLight(p, d) { MUZ.list.push({ p: p.clone().addScaledVector(d, 0.2), t: MUZ_LIFE, k: 0.8 + Math.random() * 0.4 }); if (MUZ.list.length > MUZ_MAX) MUZ.list.shift(); }
+const muzFade = m => { const u = 1 - m.t / MUZ_LIFE; return u < MUZ_HOLD ? 1 : (1 - (u - MUZ_HOLD) / (1 - MUZ_HOLD)) ** 2; }; // full for the first part of its life, then fading out
 function updateMuz(dt) {
   MUZ.list = MUZ.list.filter(m => (m.t -= dt) > 0);
-  MUZ.list.forEach((m, i) => { MUZ.pos.value[i].set(m.p.x, m.p.y, m.p.z, MUZ_R); MUZ.k.value[i] = m.k * m.t / MUZ_LIFE; });
+  MUZ.list.forEach((m, i) => { MUZ.pos.value[i].set(m.p.x, m.p.y, m.p.z, MUZ_R); MUZ.k.value[i] = m.k * muzFade(m); });
   MUZ.n.value = MUZ.list.length;
 }
-function muzAtCPU(p) { let k = 0; for (const m of MUZ.list) { const d2 = m.p.distanceToSquared(p); if (d2 < MUZ_R * MUZ_R) k += m.k * (m.t / MUZ_LIFE) / (1 + d2 * 0.35); } return k; }
+function muzAtCPU(p) { let k = 0; for (const m of MUZ.list) { const d2 = m.p.distanceToSquared(p); if (d2 < MUZ_R * MUZ_R) k += m.k * muzFade(m) / (1 + d2 * 0.35); } return k; }
 // Dark places (the bunker, its tunnel, the cellar and the stairs up to the fort): boxes in which every toon surface is pitch black, whatever the time of day, so only
 // a flashlight (or a bulb) shows anything there. A box takes in the inside faces of its walls, floor and roof, not their outsides. DARK.all is every box the sets have
 // built, DARK.live the ones in the level being played (darkSync); the shaders skip the lot outside DARK.bounds
@@ -7795,7 +7796,7 @@ function loop(now) {
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
   vmFill.intensity = (vmFill.userData.k ?? 1) * dk; vmSky.intensity = (vmSky.userData.k ?? 0.9) * dk;
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
-  if (MUZ.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.78, 0.45).multiplyScalar(Math.min(2, muzAtCPU(camera.position) * 2.2))); // (and your own shots' flash)
+  if (MUZ.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.78, 0.45).multiplyScalar(Math.min(3, muzAtCPU(camera.position) * 4))); // (and your own shots' flash)
   if (VIC.on) victoryHide();
   renderer.clear();
   renderWorld();
