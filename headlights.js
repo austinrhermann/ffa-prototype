@@ -68,7 +68,7 @@
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
   });
   const vols = [...Array(FLASH_MAX)].map((_, i) => { const m = new THREE.Mesh(cone, beamMat(i)); m.visible = false; m.renderOrder = 5; m.raycast = () => {}; m.name = 'Beam'; scene.add(m); return m; });
-  const BEAM_K = 0.4, _ax = new V3();
+  const BEAM_K = 0.4, _ax = new V3(), _proj = new THREE.Matrix4(), _frus = new THREE.Frustum(), _ball = new THREE.Sphere();
   function beamVols() {
     const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
     vols.forEach((m, i) => {
@@ -134,6 +134,15 @@
     // flashlights: anyone who has switched theirs on (people, day or night, since 2026-11-24); the bots' at dusk and night, and by day in (or at the door of) a dark place, the bunker
     for (const e of ents) { const b = flashBeam(e); if (b && (night || e.isPlayer || e.isRemote || e.isReplica || darkNear(b.o, 2))) beams.push(b); }
     lenses(); // (every lit flashlight shows its lens, even the ones past FLASH_MAX)
+    // Only lamps that light something in view: a cone whose bounding ball is off the screen lights nothing you can see and has no glow there either (since 2026-11-24:
+    // every lamp drew its map of the level each frame, behind you or not). The victory spotlight always stays
+    _proj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frus.setFromProjectionMatrix(_proj);
+    for (let i = beams.length - 1; i >= 0; i--) {
+      const b = beams[i]; if (b.vic) continue;
+      const far = b.far || LAMP_FAR, t = Math.tan(Math.acos(Math.min(0.999, b.cone || 0.935))) * (b.asp || 1);
+      _ball.center.copy(b.o).addScaledVector(b.d, far * 0.5); _ball.radius = far * Math.sqrt(0.25 + t * t);
+      if (!_frus.intersectsSphere(_ball)) beams.splice(i, 1);
+    }
     if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
     FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
@@ -147,9 +156,11 @@
         target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
         drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
-        for (const v of VEH.list || []) if (v !== b.v && v.g) drawBody(v.g, cam);
+        // (only what's within the lamp's reach and not behind it: each one drawn is a pass of its own, and with eight lamps and everyone that was a hundred a frame)
+        const reach = (p, r) => { _ax.copy(p).sub(b.o); const d2 = _ax.lengthSq(); return d2 < (far + r) * (far + r) && (d2 < r * r || _ax.dot(b.d) > -r); };
+        for (const v of VEH.list || []) if (v !== b.v && v.g && reach(v.pos, 4)) drawBody(v.g, cam);
         if (VIC.on) for (const r of VIC.rigs) drawBody(r.wrap, cam); // (the winners on the roof: they throw shadows too; everyone else is out of sight)
-        else for (const o of ents) if (o.alive && o !== b.e) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
+        else for (const o of ents) if (o.alive && o !== b.e && reach(o.pos, 2.5)) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
         FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
         FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = far;
         FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; FLASH.soft.value[i] = b.soft || 0; // (band: how gradually its edge fades in; asp: how many times wider than tall)

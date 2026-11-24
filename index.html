@@ -5333,21 +5333,39 @@ function fortNode(p, anyFloor) {
 // A* from one node toward another (the gate passage only counts while the gate is open). Its bookkeeping lives in typed arrays
 // kept between searches (a search that can't reach its goal visits the whole map, 40,000+ nodes on the fort): an entry counts
 // only when its stamp is this search's
-const AS = { n: 0, id: 0, seen: null, done: null, g: null, came: null, hf: [], hk: [] };
+const AS = { n: 0, id: 0, seen: null, done: null, g: null, came: null, hf: [], hk: [], fc: undefined };
+// The map in flat arrays, made once per walking map (AS.fc: the map it was made for; FN.comp is new each time one's built): where each node is, its neighbours in a row
+// (NB, from OFF[k] to OFF[k + 1]) with the length of the step there (ND: times 1 + that neighbour's pen), what each node is (FL: road 1, keep 2, gate 4, a door 8), and
+// sin and cos of its x and z at the scale of a bot's taste (so the taste's sin(x·0.09 + seed) is a multiply and an add: the sum of angles). Since 2026-11-24
+function astMap() {
+  const nodes = FN.nodes, N = nodes.length;
+  if (AS.fc === FN.comp && AS.n === N && FN.comp) return;
+  let E = 0; for (const n of nodes) E += n.nb.length;
+  const X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N), SX = new Float64Array(N), CX = new Float64Array(N), SZ = new Float64Array(N), CZ = new Float64Array(N);
+  const FL = new Uint8Array(N), DR = new Int32Array(N).fill(-1), OFF = new Int32Array(N + 1), NB = new Int32Array(E), ND = new Float64Array(E);
+  for (let k = 0; k < N; k++) { const n = nodes[k]; X[k] = n.x; Y[k] = n.y; Z[k] = n.z; SX[k] = Math.sin(n.x * 0.09); CX[k] = Math.cos(n.x * 0.09); SZ[k] = Math.sin(n.z * 0.09); CZ[k] = Math.cos(n.z * 0.09);
+    FL[k] = (n.road ? 1 : 0) | (n.keep ? 2 : 0) | (n.gate ? 4 : 0) | (n.door !== undefined ? 8 : 0); if (n.door !== undefined) DR[k] = n.door; }
+  for (let k = 0, e = 0; k < N; k++) { OFF[k] = e; const n = nodes[k]; for (const m of n.nb) { const o = nodes[m]; NB[e] = m; ND[e++] = Math.sqrt((o.x - n.x) ** 2 + (o.y - n.y) ** 2 + (o.z - n.z) ** 2) * (1 + (o.pen || 0)); } OFF[N] = e; }
+  Object.assign(AS, { n: N, id: 0, fc: FN.comp, X, Y, Z, SX, CX, SZ, CZ, FL, DR, OFF, NB, ND, seen: new Uint32Array(N), done: new Uint32Array(N), g: new Float64Array(N), came: new Int32Array(N) });
+}
 // who: the bot it's for. Roads cost less (n.road), and each bot has its own taste for the ground besides (ai.seed: broad hills and hollows of extra cost, new each life),
 // so bots going the same way spread over the ways there are instead of all taking the one shortest
 function fortPath(from, to, who) {
   const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
-  // (on its way to the fort, a team bot keeps to its way: off the road costs it twice as much, and its own taste counts for little)
-  const sd = who && who.ai && who.ai.seed, stick = !!(who && who.ai && who.ai.way && !who.ai.routeDone && !who.ai.rev && teamsOn());
-  const cost = o => (o.road ? 0.7 : stick ? 2 : 1) * (sd ? (stick ? 1.05 : 1.25) + (stick ? 0.05 : 0.25) * Math.sin(o.x * 0.09 + sd[0]) * Math.sin(o.z * 0.09 + sd[1]) : 1);
-  const inKeep = !!FN.nodes[a].keep; // (already down in the ravine: it may walk there, at a price, to get out)
-  const open = gateOpen(), nodes = FN.nodes, goal = nodes[b], now = performance.now();
-  if (AS.n !== nodes.length) Object.assign(AS, { n: nodes.length, id: 0, seen: new Uint32Array(nodes.length), done: new Uint32Array(nodes.length), g: new Float64Array(nodes.length), came: new Int32Array(nodes.length) });
+  // (on its way to the fort, a team bot keeps to its way: off the road costs it twice as much, and its own taste counts for little. Not one going to or holding a post, or
+  // regrouping off its way: until 2026-11-24 a defender still counted as on its way, and its searches round the fort took up to 17 ms)
+  const ai = who && who.ai, sd = ai && ai.seed, stick = !!(ai && ai.way && !ai.routeDone && !ai.rev && !ai.post && teamsOn());
+  astMap();
+  const nodes = FN.nodes, { X, Y, Z, SX, CX, SZ, CZ, FL, DR, OFF, NB, ND } = AS;
+  // cost of stepping onto o: (road ? 0.7 : stick ? 2 : 1) * (taste ? base + amp * sin(x·0.09 + s0) * sin(z·0.09 + s1) : 1)
+  const offR = stick ? 2 : 1, base = sd ? (stick ? 1.05 : 1.25) : 1, amp = sd ? (stick ? 0.05 : 0.25) : 0;
+  const c0 = sd ? Math.cos(sd[0]) : 0, s0 = sd ? Math.sin(sd[0]) : 0, c1 = sd ? Math.cos(sd[1]) : 0, s1 = sd ? Math.sin(sd[1]) : 0;
+  const inKeep = !!(FL[a] & 2); // (already down in the ravine: it may walk there, at a price, to get out)
+  const open = gateOpen(), gx = X[b], gy = Y[b], gz = Z[b], now = performance.now();
   if (++AS.id > 4e9) { AS.seen.fill(0); AS.done.fill(0); AS.id = 1; }
   const id = AS.id, { seen, done, g, came, hf, hk } = AS;
   seen[a] = id; g[a] = 0; came[a] = -1; hf.length = hk.length = 0; hf.push(0); hk.push(a);
-  const h = k => { const n = nodes[k]; return Math.hypot(n.x - goal.x, n.y - goal.y, n.z - goal.z); };
+  const h = k => Math.sqrt((X[k] - gx) ** 2 + (Y[k] - gy) ** 2 + (Z[k] - gz) ** 2);
   let near = a, nearH = h(a); // if the goal can't be reached, settle for the closest place that can
   const push = (f, k) => { hf.push(f); hk.push(k); let i = hf.length - 1; while (i) { const q = (i - 1) >> 1; if (hf[q] <= f) break; hf[i] = hf[q]; hk[i] = hk[q]; i = q; } hf[i] = f; hk[i] = k; };
   const pop = () => {
@@ -5359,11 +5377,17 @@ function fortPath(from, to, who) {
     const k = pop(); if (done[k] === id) continue; done[k] = id;
     const hk0 = h(k); if (hk0 < nearH) { nearH = hk0; near = k; }
     if (k === b) break;
-    const n = nodes[k];
-    for (const m of n.nb) {
-      if (done[m] === id || (!open && nodes[m].gate) || (nodes[m].door !== undefined && SHEDS[nodes[m].door].locked) || (nodes[m].keep && !inKeep)) continue; // (keep: the ravine)
+    const gk = g[k];
+    for (let e = OFF[k], e1 = OFF[k + 1]; e < e1; e++) {
+      const m = NB[e]; if (done[m] === id) continue;
+      const f = FL[m];
+      if (f & 14) { if ((!open && (f & 4)) || ((f & 8) && SHEDS[DR[m]].locked) || ((f & 2) && !inKeep)) continue; } // (keep: the ravine)
       // (blockT: where a bot just got stuck: kept off at a price rather than shut, or a bot in a corner whose only way out is through one is boxed in for good, 2026-11-24)
-      const o = nodes[m], ng = g[k] + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z) * (1 + (o.pen || 0)) * cost(o) * (o.keep ? 4 : 1) * (o.blockT > now && m !== b ? 8 : 1);
+      let c = ND[e] * (f & 1 ? 0.7 : offR);
+      if (amp) c *= base + amp * (SX[m] * c0 + CX[m] * s0) * (SZ[m] * c1 + CZ[m] * s1);
+      if (f & 2) c *= 4;
+      const bt = nodes[m].blockT; if (bt !== undefined && bt > now && m !== b) c *= 8;
+      const ng = gk + c;
       if (ng < (seen[m] === id ? g[m] : Infinity)) { seen[m] = id; g[m] = ng; came[m] = k; push(ng + h(m), m); }
     }
   }
@@ -7994,6 +8018,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=23"></script>
+<script src="headlights.js?v=24"></script>
 </body>
 </html>
