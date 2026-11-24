@@ -945,30 +945,49 @@ const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js f
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
 const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
-// Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing), just out from the chest
-const FL_LEFT = 0.09, FL_DOWN = 0.19, FL_OUT = 0.15; // (left of the middle, down from the top of the head (just under the shoulder joints), out in front of the middle: just clear of the chest, which is about 0.13 out there)
-// The way someone's body faces (their model's, level): it can turn a little from where they aim (a rifle stance is about 17° off), and the light is clipped to the body
-function bodyFwd(e) {
-  const m = e === P ? P.rig && P.rig.wrap : e.mesh;
-  if (!m) return fwdOf(e);
-  m.updateMatrixWorld(true); const v = new V3(0, 0, 1).transformDirection(m.matrixWorld); v.y = 0;
-  return v.lengthSq() > 1e-6 ? v.normalize() : fwdOf(e);
+// Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing). It hangs off the left shoulder
+// bone (mountLamp, for every rig), so it crouches, leans and turns with the body; FL_LEFT and FL_DOWN place it (left of the middle, down from the top of the head,
+// just under the shoulder joints) and each character's own chest and gear (a flare, a bandolier, pouches) set how far out it sits: FL_CLEAR in front of the
+// furthest thing there, measured once per character in its rest pose (it was the same 0.15 out for everyone until 2026-11-24, so some pirates' gear hid it)
+const FL_LEFT = 0.09, FL_DOWN = 0.19, FL_CLEAR = 0.03, FL_OUT = 0.15;
+const _flQ = new THREE.Quaternion(), _flQ2 = new THREE.Quaternion();
+function mountLamp(r) {
+  const sh = r.root.getObjectByName('DEF-ShoulderL'), m = r.model; if (!sh) return null;
+  r.root.updateMatrixWorld(true);
+  if (!m.lampSpot) { // (in the root's frame: x left, y up, z forward)
+    const skins = []; r.root.traverse(o => { if (o.isSkinnedMesh && o.visible) skins.push(o); });
+    const rc = new THREE.Raycaster(), at = new V3(), back = new V3(0, 0, -1).transformDirection(r.root.matrixWorld), inv = new THREE.Matrix4().copy(r.root.matrixWorld).invert();
+    const y = m.headY - FL_DOWN; let z = -1;
+    for (const dx of [-0.045, 0, 0.045]) for (const dy of [-0.045, 0, 0.045]) {
+      rc.set(at.set(FL_LEFT + dx, y + dy, 2).applyMatrix4(r.root.matrixWorld), back); rc.far = 4;
+      const h = rc.intersectObjects(skins, false)[0]; if (h) z = Math.max(z, h.point.applyMatrix4(inv).z);
+    }
+    m.lampSpot = new V3(FL_LEFT, y, z > 0 ? z + FL_CLEAR : FL_OUT);
+  }
+  const a = new THREE.Object3D(); a.name = 'FlashlightMount'; sh.add(a);
+  a.position.copy(sh.worldToLocal(m.lampSpot.clone().applyMatrix4(r.root.matrixWorld)));
+  a.quaternion.copy(sh.getWorldQuaternion(_flQ).invert().multiply(r.root.getWorldQuaternion(_flQ2))); // (facing the way the body does: its +z)
+  return a;
 }
-function chestLamp(e, o) {
-  const f = bodyFwd(e), head = e.rig ? e.rig.model.headY : 1.6; // (left of facing f: (f.z, 0, -f.x))
+// Where someone's flashlight is, and the way its lens faces (the body's way): from their rig's mount, or, with no rig, from where they stand
+const _flF = new V3();
+function chestLamp(e, o, face) {
+  const a = e.rig && (e.rig.lamp !== undefined ? e.rig.lamp : (e.rig.lamp = mountLamp(e.rig)));
+  if (a) { a.updateWorldMatrix(true, false); a.getWorldPosition(o); if (face) face.set(0, 0, 1).transformDirection(a.matrixWorld); return o; }
+  const f = fwdOf(e), head = 1.6; if (face) face.copy(f);
   return o.set(e.pos.x + f.z * FL_LEFT + f.x * FL_OUT, e.pos.y + head - FL_DOWN, e.pos.z - f.x * FL_LEFT + f.z * FL_OUT);
 }
 function flashBeam(e) {
   const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn() || darkNear(e.pos, 0.5); // (the host's bots: on whenever it's dark, and in a dark place)
   if (VIC.on || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
-  const o = new V3(), d = new V3();
+  const o = new V3(), d = new V3(), face = new V3();
   if (e.isPlayer) {
     d.set(0, 0, -1).applyQuaternion(camera.quaternion);
     if (tpOn) { // third person: the camera's behind your shoulder, so the beam starts at your character (its chest, by the right shoulder; from the camera until
       // 2026-11-21) and goes to what the crosshair is on (or 30 m out along it)
       const c = camera.position; let far = 30;
       if (TG) { TG.hitTri = -1; const t = tgRay(c.x, c.y, c.z, d.x, d.y, d.z, 30, false, true); if (TG.hitTri >= 0) far = Math.max(1, t); }
-      chestLamp(e, o); // (clipped to the chest by the left shoulder, since 2026-11-23: at the right shoulder before, and the chest before that)
+      chestLamp(e, o, face); // (clipped to the chest by the left shoulder, since 2026-11-23: at the right shoulder before, and the chest before that)
       _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
     } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
@@ -976,12 +995,12 @@ function flashBeam(e) {
     // ahead (it pointed along their aim until 2026-11-21, so a level beam only reached the ground far off)
     const f = fwdOf(e), p = Math.max(-1.35, (e.pitch || 0) - FL_LOW), c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
-    chestLamp(e, o); // clipped to their chest by the left shoulder (since 2026-11-23; their right shoulder earlier that day, their chest before, and 0.3 m out in front of their head until 2026-11-21)
+    chestLamp(e, o, face); // clipped to their chest by the left shoulder (since 2026-11-23; their right shoulder earlier that day, their chest before, and 0.3 m out in front of their head until 2026-11-21)
   }
   // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
   // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
   // your own, in first person, fades all the way to the very middle (band 0.117): brightest dead ahead, half bright at 20°
-  return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e };
+  return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e, face };
 }
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, skid() {}, skidEnd() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
@@ -3211,6 +3230,7 @@ function makeRig(mi) {
     }
   }
   const r = { wrap, root, bones, model, phase: 0, amp: 0, cr: 0, pt: 0, upper, piv1, piv2, raise, gunBone, gunVis: null, armBones, deathBones };
+  r.lamp = mountLamp(r); // the flashlight's clip on the chest (measured in the rest pose, before anything moves)
   if (model.crouchDrop === undefined) model.crouchDrop = measureCrouch(r);
   return r;
 }
@@ -7349,6 +7369,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=41"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=13"></script>
+<script src="headlights.js?v=14"></script>
 </body>
 </html>

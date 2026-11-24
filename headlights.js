@@ -44,7 +44,8 @@
   // The beams in the air: each lamp's cone drawn as a soft glow, added over the scene (light in the haze). Brightest down its middle and near the lamp, fading out to its
   // far end and at its sides; where the lamp's own depth map says something's in the way, the beam stops (flSeen), and walls in front hide it. Stronger in thicker haze
   // (the Lighting panel's Haze) and darker light; your own flashlight's is fainter, since you look down it. Nothing else sees them: no shadows, no hits, no paint
-  const BEAM_SEG = 28, cone = new THREE.ConeGeometry(1, 1, BEAM_SEG, 10, true);
+  // (BEAM_SEG: round the cone; 28 until 2026-11-24 showed as stripes down the beam)
+  const BEAM_SEG = 96, cone = new THREE.ConeGeometry(1, 1, BEAM_SEG, 10, true);
   cone.translate(0, -0.5, 0); cone.rotateX(-Math.PI / 2); // (apex at the origin, opening along +z, 1 long and 1 across at the far end)
   const beamMat = i => new THREE.ShaderMaterial({
     uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 } }),
@@ -58,7 +59,8 @@
         float fall = (1.0 - t) * (1.0 - t) * smoothstep(0.0, 0.04, t);           // bright by the lamp, gone at its reach
         float side = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); // soft at the cone's edges as you see it
         float k = bK * fall * side * seen;
-        gl_FragColor = vec4(col * k, 1.0);
+        float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453); // a little noise, so the faint glow has no bands
+        gl_FragColor = vec4(max(col * k + (n - 0.5) * 2.0 / 255.0 * step(0.0005, k), 0.0), 1.0);
       }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
   });
@@ -74,20 +76,27 @@
     });
   }
 
-  // Flashlight lenses: where each lit flashlight's beam starts, a small bright disc flat to their chest, and a soft glow round it (brighter the more it points your
-  // way), like the headlights' lenses. Only while the light is on and lighting something (at dusk and night, or in a dark place); never your own in first person
-  // (it's by your eyes)
-  const LENS_R = 0.03, HALO = 0.32, LENS_OUT = 0; // (LENS_OUT: how far ahead of where the beam starts; none: it sits right where the beam starts, by the chest)
+  // Flashlight lenses: where each lit flashlight's beam starts, a small bright disc flat to their chest at the end of a short black tube (the light's body,
+  // running back into the chest), and a soft glow round it (brighter the more it points your way), like the headlights' lenses. Only while the light is on and
+  // lighting something (at dusk and night, or in a dark place); never your own in first person (it's by your eyes)
+  const LENS_R = 0.03, HALO = 0.32, TUBE_R = 0.036, TUBE_L = 0.08;
+  // The glow: a smooth falloff, drawn finely (128 across, 64 until 2026-11-24) with a little noise in it so its faint edge has no rings
   const haloTex = (() => {
-    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, 'rgba(255,248,225,1)'); g.addColorStop(0.18, 'rgba(255,240,200,0.55)'); g.addColorStop(0.5, 'rgba(255,230,180,0.12)'); g.addColorStop(1, 'rgba(255,230,180,0)');
-    x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+    const N = 128, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), img = x.createImageData(N, N), px = img.data;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const r = Math.hypot(i + 0.5 - N / 2, j + 0.5 - N / 2) / (N / 2), core = Math.exp(-r * r * 40), glow = Math.exp(-r * r * 7) * (1 - r * r);
+      const a = Math.max(0, Math.min(1, r >= 1 ? 0 : core + glow * 0.6)), n = (Math.random() - 0.5) * 2, k = (j * N + i) * 4;
+      px[k] = 255; px[k + 1] = 245 - 10 * (1 - core); px[k + 2] = 220 - 30 * (1 - core); px[k + 3] = Math.max(0, Math.min(255, Math.round(a * 255 + (a > 0.002 ? n : 0))));
+    }
+    x.putImageData(img, 0, 0); return new THREE.CanvasTexture(c);
   })();
-  const lensGeo = new THREE.CircleGeometry(LENS_R, 16), lensMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8, fog: false });
+  const lensGeo = new THREE.CircleGeometry(LENS_R, 20), lensMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8, fog: false });
+  const tubeGeo = new THREE.CylinderGeometry(TUBE_R, TUBE_R, TUBE_L, 16); tubeGeo.rotateX(Math.PI / 2); tubeGeo.translate(0, 0, -TUBE_L / 2 - 0.001); // (along -z, behind the lens)
+  const tubeMat = new THREE.MeshBasicMaterial({ color: 0x141414 });
   const lensPool = [], _toCam = new V3();
   function lensAt(k) {
     if (lensPool[k]) return lensPool[k];
-    const g = new THREE.Group(), disc = new THREE.Mesh(lensGeo, lensMat);
+    const g = new THREE.Group(), disc = new THREE.Mesh(lensGeo, lensMat), tube = new THREE.Mesh(tubeGeo, tubeMat); g.add(tube);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
     halo.scale.set(HALO, HALO, 1); halo.renderOrder = 6; g.add(disc, halo); g.name = 'FlashlightLens';
     g.traverse(o => { o.raycast = () => {}; }); g.userData.halo = halo; g.visible = false; scene.add(g);
@@ -98,8 +107,8 @@
     for (const b of beams) {
       if (!b.e || (b.e === P && !tpOn)) continue;
       const g = lensAt(k++);
-      // the disc stands upright, flat to the chest, facing the way they face (not tipped down along the beam)
-      const fw = bodyFwd(b.e); g.position.copy(b.o).addScaledVector(fw, LENS_OUT); _ax.copy(g.position).add(fw); g.lookAt(_ax); g.visible = true;
+      // the disc stands flat to the chest, facing the way the body does (not tipped down along the beam)
+      const fw = b.face; g.position.copy(b.o); _ax.copy(g.position).add(fw); g.lookAt(_ax); g.visible = true;
       const f = Math.max(0, fw.dot(_toCam.copy(camera.position).sub(g.position).normalize()));
       g.userData.halo.material.opacity = 0.3 + 0.7 * f * f;
     }
