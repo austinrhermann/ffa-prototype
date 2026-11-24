@@ -8,8 +8,11 @@
 // people). More than FLASH_MAX at once: the ones nearest you.
 // Loaded after the main game script and vehicles.js; it uses the game's globals (scene, renderer, camera, VEH, FLASH, ...).
 (() => {
-  const LAMP_FAR = 40, RES = 256, COLS = 4, _white = new V3(1, 1, 1);
-  const _spotUp = new V3(0, 9, 6), _spotCol = new V3(1, 0.96, 0.86); // (the victory spotlight: where it hangs from the winners, and its colour)
+  const LAMP_FAR = 40, RES = 512, COLS = 4, _white = new V3(1, 1, 1);
+  // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
+  // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
+  const SPOT_OUT = 1.6, SPOT_LOW = 0.1, _spotCol = new V3(1, 0.96, 0.86);
+  const SPOT_EDGE = 33, SPOT_ASP = 0.95, SPOT_BAND = 0.05, SPOT_AIM = 0.45, SPOT_HAZE = 0.35; // (wide enough to catch the near side of 2nd and 3rd; 4th, 2 m along, is past its edge)
   const target = new THREE.WebGLRenderTarget(RES * COLS, RES * 2, { depthBuffer: true, stencilBuffer: false });
   target.depthTexture = new THREE.DepthTexture(RES * COLS, RES * 2); target.depthTexture.type = THREE.UnsignedIntType;
   target.depthTexture.minFilter = target.depthTexture.magFilter = THREE.NearestFilter; target.texture.generateMipmaps = false;
@@ -72,7 +75,7 @@
       if (i >= n) { m.visible = false; return; }
       const b = beams[i], far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
-      m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1); // (yours, looking down it: fainter)
+      m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1) * (b.hz || 1); // (yours, looking down it: fainter)
     });
   }
 
@@ -119,8 +122,13 @@
   function after() {
     beams.length = 0;
     const night = nightOn();
-    // The victory screen at night: a spotlight from up in front of the winners on the roof, down onto them (first, so it's always one of the lamps)
-    if (night && VIC.on && VIC.c) { const o = VIC.c.clone().add(_spotUp), d = VIC.c.clone(); d.y += (VIC.h || 1.8) * 0.45; d.sub(o).normalize(); beams.push({ o, d, far: 22, fov: 56, cone: 0.92, band: 0.06, col: _spotCol }); }
+    // The victory screen at night: a hard spotlight from just off the front of the roof up at the top scorer (first, so it's always one of the lamps); it lights
+    // only what faces it (soft -1), and the winners throw hard shadows up the mast behind. (Until 2026-11-24 it hung 11 m up in front of the roof: a wide,
+    // bright cone down on the middle of the whole line)
+    if (night && VIC.on && VIC.c && VIC.rigs && VIC.rigs[0]) {
+      const r = VIC.rigs[0], w = r.wrap.position, o = new V3(w.x, VIC.c.y + SPOT_LOW, w.z + SPOT_OUT), d = new V3(w.x, VIC.c.y + r.model.headY * SPOT_AIM, w.z).sub(o).normalize();
+      beams.push({ o, d, far: 22, fov: SPOT_EDGE * 2 + 6, asp: SPOT_ASP, cone: Math.cos(SPOT_EDGE * Math.PI / 180), band: SPOT_BAND, soft: -1, col: _spotCol, hz: SPOT_HAZE, vic: true });
+    }
     if (night) for (const b of VEH.lampBeams()) beams.push(b);
     for (const e of ents) { const b = flashBeam(e); if (b && (night || darkNear(b.o, 2))) beams.push(b); } // flashlights: at dusk and night, and by day in (or at the door of) a dark place, the bunker
     lenses(); // (every lit flashlight shows its lens, even the ones past FLASH_MAX)
@@ -138,10 +146,11 @@
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
         drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
         for (const v of VEH.list || []) if (v !== b.v && v.g) drawBody(v.g, cam);
-        for (const o of ents) if (o.alive && o !== b.e) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
+        if (VIC.on) for (const r of VIC.rigs) drawBody(r.wrap, cam); // (the winners on the roof: they throw shadows too; everyone else is out of sight)
+        else for (const o of ents) if (o.alive && o !== b.e) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
         FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
         FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = far;
-        FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; // (band: how gradually its edge fades in; asp: how many times wider than tall)
+        FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; FLASH.soft.value[i] = b.soft || 0; // (band: how gradually its edge fades in; asp: how many times wider than tall)
       });
     } finally { renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac; }
     FLASH.n.value = beams.length;
