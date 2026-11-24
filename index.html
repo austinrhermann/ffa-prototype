@@ -1132,10 +1132,10 @@ function levelFortress() {
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
-    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the tower's windows (the top
-    // room's front and side, the lower room's), the roof and the balcony behind the tower
+    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the lower tower room's
+    // window, the roof and the balcony behind the tower (none in the computer room, the top one: they crowded it, 2026-11-24)
     // (each [x, y, z, kind]: 'bridge', 'tower' its windows and balcony, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
-    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'], [5.5, 43.9, 5.5, 'tower'], [7, 43.9, 2, 'tower'], [6.5, 43.9, 4, 'tower'],
+    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'],
       [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof'], [4.5, 47.6, -1.5, 'roof'], [5, 45, -2, 'tower']],
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
