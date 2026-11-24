@@ -937,15 +937,30 @@
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
   // A driver's hands are on the wheel or the bars: the gun is put away (after() brings it back once they're out of the seat)
   function stowGun(rig) { if (rig.gunVis) { rig.gunVis.visible = false; rig.seatHid = true; } }
-  const PASS = { back: 0.2, turn: 0.75, aim: 0.5, lift: 0.16 }, _sb = new V3(); // the truck's front passenger: how far back from the seat's point, turned toward the window, and the gun's aim (up)
+  // The truck's passengers. The front one sits back from the seat's point (crouched over it, as until 2026-11-24, the gun came out through the front of the cab), a little
+  // up, turned toward their own window; the ones on the benches in the back sit in from the sides (rearIn), so legs and backs stay inside the bed
+  const PASS = { back: 0.2, turn: 0.75, lift: 0.16, rearIn: 0.18, maxYaw: 2.4 }, _sb = new V3();
+  // Where seat k's body faces (the way the rig is turned before a passenger twists at the waist toward their aim)
+  const seatFace = (v, k) => v.yaw + v.seats[k].yaw + (k === 1 && !v.seats[k].yaw ? Math.sign(v.seats[k].p.x) * PASS.turn : 0);
   function seat(rig, wrap, v, dt, k, who) {
     rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
     if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatMotorcycle(rig, wrap, v, dt, k, who);
-    // (the front passenger sits back from the seat's point: crouched over it, as they were until 2026-11-24, their gun came out through the front of the cab)
-    const p = k === 1 && !v.seats[k].yaw ? (v.body.updateMatrixWorld(true), v.seats[k].p.clone().add(_sb.set(0, 0, -PASS.back)).applyMatrix4(v.body.matrixWorld)) : seatWorld(v, k);
-    const turn = k === 1 && !v.seats[k].yaw ? Math.sign(v.seats[k].p.x) * PASS.turn : 0; // (turned toward their own window and sat up, forearm on the sill and the gun out over it)
-    wrap.position.set(p.x, p.y - 0.5 + (turn ? PASS.lift : 0), p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw + turn, v.roll, 'YXZ'); wrap.visible = true;
-    animRig(rig, dt, 0, true, turn ? PASS.aim : 0.2);
+    const s = v.seats[k], front = k === 1 && !s.yaw, rear = !!s.yaw;
+    v.body.updateMatrixWorld(true);
+    const p = s.p.clone().add(_sb.set(rear ? -Math.sign(s.p.x) * PASS.rearIn : 0, 0, front ? -PASS.back : 0)).applyMatrix4(v.body.matrixWorld);
+    const face = seatFace(v, k);
+    wrap.position.set(p.x, p.y - 0.5 + (front ? PASS.lift : 0), p.z); wrap.rotation.set(-v.pitch, face, v.roll, 'YXZ'); wrap.visible = true;
+    // A passenger aims: up and down with the arms (the rig's pitch), and round at the waist toward where they look, as on the motorcycle
+    const pass = k > 0 && who && who.alive !== false;
+    animRig(rig, dt, 0, true, pass ? who.pitch || 0 : 0.2);
+    if (pass && rig.upper.length && rig.piv1) {
+      const look = who.isPlayer ? who.yaw + Math.PI : who.yawV !== undefined ? who.yawV : who.yaw; // (your own yaw is the way you look; everyone else's is the way their body faces)
+      const yaw = Math.max(-PASS.maxYaw, Math.min(PASS.maxYaw, wrapA(look - face)));
+      wrap.updateMatrixWorld(true);
+      const up = _b1.copy(_UP).applyQuaternion(wrap.quaternion).applyQuaternion(rig.upper[0].b.parent.getWorldQuaternion(_bq2).invert());
+      _bq3.setFromAxisAngle(up, yaw);
+      for (const u of rig.upper) { u.b.position.sub(rig.piv1).applyQuaternion(_bq3).add(rig.piv1); u.b.quaternion.premultiply(_bq3); }
+    }
     if (k === 0) stowGun(rig); // (the truck's driver; until 2026-11-22 they sat holding it, and it showed in the driver's seat view)
   }
   // Astride a motorcycle: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
@@ -1132,7 +1147,7 @@
     setModel,
     lampBeams, // the headlights that are on (headlights.js lights them at dusk and night)
     // For bots riding along (index.html's botRide): where seat k is in the world, where to get out of it, and a free seat to take (the front passenger's, else the back's)
-    seatAt: seatWorld, exitSpot: spotFor, passPose: PASS,
+    seatAt: seatWorld, seatFace, exitSpot: spotFor, passPose: PASS,
     freeSeat: v => (v.seats.length > 1 && !v.occ[1] && !v.seats[1].blocked ? 1 : freeRear(v)),
     toggleLights: () => (cur ? (toggleLights(), true) : false), // L at the wheel (and the touch Light button)
     driving: () => cur,

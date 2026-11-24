@@ -5661,7 +5661,8 @@ function botRide(b, dt) {
     const v = ai.seatV, d = rideDriver(v);
     if (!d || d.id !== ai.rideWith || v.occ[ai.seatK] !== b.id) { leaveSeat(b); return false; }
     const p = VEH.seatAt(v, ai.seatK); b.pos.set(p.x, p.y - 0.5, p.z); b.vel.copy(v.vel); b.onGround = true; b.h = STAND_H; ai.crouchHold = 0;
-    if (ai.target) botEngage(b, ai.target, dt, BOT_STYLES[ai.style], false);
+    if (ai.target) botEngage(b, ai.target, dt, BOT_STYLES[ai.style], false); // (it turns at the waist and aims from the seat: vehicles.js seat)
+    else if (VEH.seatFace) { b.yaw = turn(b.yaw, VEH.seatFace(v, ai.seatK), 2.5 * dt); b.pitch *= 1 - Math.min(1, dt * 3); } // nobody to shoot: settles back facing the way it sits
     crouchHit(b); updateNameTag(b);
     return true;
   }
@@ -7775,7 +7776,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=48"></script>
+<script src="vehicles.js?v=49"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=22"></script>
