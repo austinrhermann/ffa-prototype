@@ -69,9 +69,41 @@
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
       const b = beams[i], far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
-      m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r, r, far); m.visible = haze > 0.01;
+      m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
       m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1); // (yours, looking down it: fainter)
     });
+  }
+
+  // Flashlight lenses: where each lit flashlight's beam starts, a small bright disc flat to their chest, and a soft glow round it (brighter the more it points your
+  // way), like the headlights' lenses. Only while the light is on and lighting something (at dusk and night, or in a dark place); never your own in first person
+  // (it's by your eyes)
+  const LENS_R = 0.03, HALO = 0.32, LENS_OUT = 0; // (LENS_OUT: how far ahead of where the beam starts; none: it sits right where the beam starts, by the chest)
+  const haloTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,248,225,1)'); g.addColorStop(0.18, 'rgba(255,240,200,0.55)'); g.addColorStop(0.5, 'rgba(255,230,180,0.12)'); g.addColorStop(1, 'rgba(255,230,180,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+  })();
+  const lensGeo = new THREE.CircleGeometry(LENS_R, 16), lensMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8, fog: false });
+  const lensPool = [], _toCam = new V3();
+  function lensAt(k) {
+    if (lensPool[k]) return lensPool[k];
+    const g = new THREE.Group(), disc = new THREE.Mesh(lensGeo, lensMat);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    halo.scale.set(HALO, HALO, 1); halo.renderOrder = 6; g.add(disc, halo); g.name = 'FlashlightLens';
+    g.traverse(o => { o.raycast = () => {}; }); g.userData.halo = halo; g.visible = false; scene.add(g);
+    return (lensPool[k] = g);
+  }
+  function lenses() {
+    let k = 0;
+    for (const b of beams) {
+      if (!b.e || (b.e === P && !tpOn)) continue;
+      const g = lensAt(k++);
+      // the disc stands upright, flat to the chest, facing the way they face (not tipped down along the beam)
+      const fw = bodyFwd(b.e); g.position.copy(b.o).addScaledVector(fw, LENS_OUT); _ax.copy(g.position).add(fw); g.lookAt(_ax); g.visible = true;
+      const f = Math.max(0, fw.dot(_toCam.copy(camera.position).sub(g.position).normalize()));
+      g.userData.halo.material.opacity = 0.3 + 0.7 * f * f;
+    }
+    for (; k < lensPool.length; k++) lensPool[k].visible = false;
   }
 
   const beams = [];
@@ -82,6 +114,7 @@
     if (night && VIC.on && VIC.c) { const o = VIC.c.clone().add(_spotUp), d = VIC.c.clone(); d.y += (VIC.h || 1.8) * 0.45; d.sub(o).normalize(); beams.push({ o, d, far: 22, fov: 56, cone: 0.92, band: 0.06, col: _spotCol }); }
     if (night) for (const b of VEH.lampBeams()) beams.push(b);
     for (const e of ents) { const b = flashBeam(e); if (b && (night || darkNear(b.o, 2))) beams.push(b); } // flashlights: at dusk and night, and by day in (or at the door of) a dark place, the bunker
+    lenses(); // (every lit flashlight shows its lens, even the ones past FLASH_MAX)
     if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
     FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
@@ -89,7 +122,8 @@
     try {
       beams.forEach((b, i) => {
         const cam = cams[i], far = b.far || LAMP_FAR, fov = b.fov || 46;
-        if (cam.far !== far || cam.fov !== fov) { cam.far = far; cam.fov = fov; cam.updateProjectionMatrix(); }
+        const asp = b.asp || 1; // (an oval lamp: its map as much wider as the oval is)
+        if (cam.far !== far || cam.fov !== fov || cam.aspect !== asp) { cam.far = far; cam.fov = fov; cam.aspect = asp; cam.updateProjectionMatrix(); }
         cam.position.copy(b.o); cam.lookAt(b.o.x + b.d.x, b.o.y + b.d.y, b.o.z + b.d.z); cam.updateMatrixWorld();
         target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
@@ -98,7 +132,7 @@
         for (const o of ents) if (o.alive && o !== b.e) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)
         FLASH.mat.value[i].multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
         FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = far;
-        FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; // (band: how gradually its edge fades in)
+        FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; // (band: how gradually its edge fades in; asp: how many times wider than tall)
       });
     } finally { renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac; }
     FLASH.n.value = beams.length;

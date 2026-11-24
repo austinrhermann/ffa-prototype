@@ -416,7 +416,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
       <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, stuck to the floor, wall or ceiling you're looking at when you let go (each takes an F battery). Shoot a mine to set it off</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
-      <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night)</dd>
+      <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night); at the wheel, the headlights</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
@@ -609,9 +609,9 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -626,8 +626,10 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
   for (int i = 0; i < ${FLASH_MAX}; i++) {
     if (float(i) >= flN) break;
     vec3 v = p - flPos[i]; float d = length(v);
-    // (band: how far in from its edge, as a cosine, a lamp fades up to full)
-    float c = smoothstep(flCone[i], flCone[i] + flBand[i], dot(v / max(d, 1e-4), flDir[i])) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
+    // (band: how far in from its edge, as a cosine, a lamp fades up to full; asp: how many times wider than tall it is, an oval for the headlights; 1 a round cone)
+    vec3 u = v / max(d, 1e-4); float a = dot(u, flDir[i]);
+    if (flAsp[i] != 1.0) { vec3 r = normalize(cross(flDir[i], vec3(0.0, 1.0, 0.0))); float x = dot(u, r) / flAsp[i], y = dot(u, cross(r, flDir[i])); a /= sqrt(a * a + x * x + y * y); }
+    float c = smoothstep(flCone[i], flCone[i] + flBand[i], a) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (c > 0.0) { float s = c * flSeen(i, p, flFar[i]); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
@@ -675,7 +677,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -943,6 +945,19 @@ const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js f
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
 const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
+// Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing), just out from the chest
+const FL_LEFT = 0.09, FL_DOWN = 0.19, FL_OUT = 0.15; // (left of the middle, down from the top of the head (just under the shoulder joints), out in front of the middle: just clear of the chest, which is about 0.13 out there)
+// The way someone's body faces (their model's, level): it can turn a little from where they aim (a rifle stance is about 17° off), and the light is clipped to the body
+function bodyFwd(e) {
+  const m = e === P ? P.rig && P.rig.wrap : e.mesh;
+  if (!m) return fwdOf(e);
+  m.updateMatrixWorld(true); const v = new V3(0, 0, 1).transformDirection(m.matrixWorld); v.y = 0;
+  return v.lengthSq() > 1e-6 ? v.normalize() : fwdOf(e);
+}
+function chestLamp(e, o) {
+  const f = bodyFwd(e), head = e.rig ? e.rig.model.headY : 1.6; // (left of facing f: (f.z, 0, -f.x))
+  return o.set(e.pos.x + f.z * FL_LEFT + f.x * FL_OUT, e.pos.y + head - FL_DOWN, e.pos.z - f.x * FL_LEFT + f.z * FL_OUT);
+}
 function flashBeam(e) {
   const lit = e.isPlayer ? RANGE.lightOn() : e.isRemote || e.isReplica ? e.lit : nightOn() || darkNear(e.pos, 0.5); // (the host's bots: on whenever it's dark, and in a dark place)
   if (VIC.on || !e.alive || !lit || (e.isPlayer ? VEH.riding : VEH.rides(e.id))) return null;
@@ -953,7 +968,7 @@ function flashBeam(e) {
       // 2026-11-21) and goes to what the crosshair is on (or 30 m out along it)
       const c = camera.position; let far = 30;
       if (TG) { TG.hitTri = -1; const t = tgRay(c.x, c.y, c.z, d.x, d.y, d.z, 30, false, true); if (TG.hitTri >= 0) far = Math.max(1, t); }
-      o.copy(myEye).add(_flO.set(0.2, -0.24, 0.05).applyQuaternion(camera.quaternion)); // (on the right shoulder, since 2026-11-23: it was at the chest)
+      chestLamp(e, o); // (clipped to the chest by the left shoulder, since 2026-11-23: at the right shoulder before, and the chest before that)
       _flD.copy(c).addScaledVector(d, far).sub(o); if (_flD.dot(d) > 0.5) d.copy(_flD).normalize(); // (a crosshair on something right by you keeps the camera's way)
     } else o.copy(camera.position).add(_flO.set(0.18, -0.22, 0).applyQuaternion(camera.quaternion)); // a hand's width right of and below your eyes, so its shadows show
   } else {
@@ -961,8 +976,7 @@ function flashBeam(e) {
     // ahead (it pointed along their aim until 2026-11-21, so a level beam only reached the ground far off)
     const f = fwdOf(e), p = Math.max(-1.35, (e.pitch || 0) - FL_LOW), c = Math.cos(p);
     d.set(f.x * c, Math.sin(p), f.z * c).normalize();
-    const head = e.rig ? e.rig.model.headY : 1.6;
-    o.set(e.pos.x - f.z * 0.2 + f.x * 0.05, e.pos.y + head - 0.24, e.pos.z + f.x * 0.2 + f.z * 0.05); // from their right shoulder (since 2026-11-23; their chest before, and 0.3 m out in front of their head until 2026-11-21)
+    chestLamp(e, o); // clipped to their chest by the left shoulder (since 2026-11-23; their right shoulder earlier that day, their chest before, and 0.3 m out in front of their head until 2026-11-21)
   }
   // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
   // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
@@ -5480,7 +5494,7 @@ function updateBot(b, dt) {
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
 const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, armorRay() { return null; }, inArmour() { return false; }, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; },
-  lampBeams: () => [], driving: () => null };
+  lampBeams: () => [], toggleLights: () => false, driving: () => null };
 
 // ---------- Shooting Range (range.js fills this in) ----------
 
@@ -5930,7 +5944,7 @@ function touchEnd(e) {
     const act = el ? el.dataset.act : null;
     if (e.type === 'touchend' && act === 'pause') setPlaying(false);
     if (e.type === 'touchend' && act === 'mic') { if (VOICE.stream) setMute(!VOICE.muted); else getMic(); }
-    if (e.type === 'touchend' && act === 'light') RANGE.toggleLight(); // the flashlight (L)
+    if (e.type === 'touchend' && act === 'light' && !VEH.toggleLights()) RANGE.toggleLight(); // the flashlight (L); at the wheel, the headlights
     if (act === 'nade') releaseCook();
   }
 }
@@ -7332,9 +7346,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=40"></script>
+<script src="vehicles.js?v=41"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=8"></script>
+<script src="headlights.js?v=13"></script>
 </body>
 </html>

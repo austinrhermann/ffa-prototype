@@ -232,7 +232,8 @@
   // points there, how far it reaches, how wide (the cosine of the cone's half angle; fov: the shadow camera's) and its colour.
   // Headlights point ahead and down (LAMP_DIP), so the light lands just in front. The truck's sit on its headlight lenses;
   // the motorcycle's one is on its model's lens. Tail lights are only the truck's brake-light lenses (lampGlow), no beam.
-  const LAMP_DIP = { truck: 0.42, motorcycle: 0.3 }, HEAD_COL = new V3(1.5, 1.45, 1.3);
+  // Each beam is a wide oval (LAMP_ASP: how many times wider than tall; round cones until 2026-11-23)
+  const LAMP_DIP = { truck: 0.42, motorcycle: 0.3 }, LAMP_ASP = { truck: 2, motorcycle: 1.8 }, HEAD_COL = new V3(1.5, 1.45, 1.3);
   // The middle and the front (or back) of some meshes' vertices, in o's frame: per side (x < 0 and x > 0) or all together
   function lensSpots(meshes, o, split, front) {
     const inv = new THREE.Matrix4().copy(o.matrixWorld).invert(), v = new V3(), out = split ? [[], []] : [[]];
@@ -250,7 +251,7 @@
     v.g.updateMatrixWorld(true);
     const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
     const dip = LAMP_DIP[v.kind], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
-    const head = p => ({ o, p, d: ahead.clone(), far: moto ? 30 : 40, cone: 0.92, fov: 46, col: HEAD_COL });
+    const head = p => ({ o, p, d: ahead.clone(), far: moto ? 30 : 40, cone: 0.92, fov: 46, asp: LAMP_ASP[v.kind] || 1, col: HEAD_COL });
     if (v.heads && v.heads.length) { // the truck, from its model's lenses
       const out = lensSpots(v.heads, o, true, true).map(head);
       return out;
@@ -273,15 +274,16 @@
     }
     return lamps;
   }
-  // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, col, v: the vehicle }]. They're on while someone
-  // drives
+  // The lit ones, in the world: [{ o: where, d: which way, far, cone, fov, asp, col, v: the vehicle }]. They're on while the headlights are (lightsOn: L at the
+  // wheel; they come on by themselves when you get in at dusk or night, unless someone has switched them, and they stay as they are when you get out; until
+  // 2026-11-23 they were on only while someone drove)
   function lampBeams() {
     const out = [];
     for (const v of list) {
-      if (v.dead || !v.lamps || !v.owner) continue;
+      if (v.dead || !v.lamps || !v.lightsOn) continue;
       for (const l of v.lamps) {
         l.o.updateWorldMatrix(true, false);
-        out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, col: l.col, v });
+        out.push({ o: l.p.clone().applyMatrix4(l.o.matrixWorld), d: l.d.clone().transformDirection(l.o.matrixWorld), far: l.far, cone: l.cone, fov: l.fov, asp: l.asp, col: l.col, v });
       }
     }
     return out;
@@ -291,13 +293,16 @@
   // network state)
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
   function lampGlow(v) {
-    const lit = !v.dead && !!v.owner && nightOn();
+    const lit = !v.dead && !!v.lightsOn && nightOn();
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
     else v.brakeOn = !!v.owner && !!v.netBrake;
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
     for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : _off);
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
   }
+
+  // L at the wheel: the headlights on or off (they stay that way when you get out)
+  function toggleLights() { const v = cur; if (!v) return; v.lightsOn = !v.lightsOn; v.lightsSet = true; note(`Headlights ${v.lightsOn ? 'on' : 'off'}`, 1); }
 
   // Wrecked: a model swaps to its wreck (burnt darker, on its own wheels); anything else just goes dark
   function darken(v) {
@@ -780,8 +785,9 @@
     // a motorcycle starts in the rider's own eyes, the handlebars across the bottom of the screen (it started in the chase view until 2026-11-21); the truck behind it
     v.owner = me(); v.net = null; cur = v; view = v.kind === 'motorcycle' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch();
     camPos.copy(camera.position); camLook.copy(v.pos);
+    if (!v.lightsSet && nightOn()) v.lightsOn = true; // headlights on by themselves at dusk and night, the first time (after that they're as someone left them)
     if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vreq', i: v.i });
-    note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. V changes view, E gets out`, 4);
+    note(TOUCH ? `${v.name}: left stick up to drive, down to brake and reverse, sideways to steer. Brake is the handbrake, Exit gets out` : `${v.name}: W/S drive, A/D steer, Space handbrake, R puts you back on your wheels. L headlights, V changes view, E gets out`, 4);
   }
   function leave(force) {
     const v = cur; if (!v) return false;
@@ -790,7 +796,7 @@
     P.pos.copy(spot); P.vel.set(v.vel.x * 0.5, 0, v.vel.z * 0.5);
     P.yaw = Math.atan2(-_f.x, -_f.z); P.pitch = -0.1; P.viewY = spot.y + 1.6;
     cur = null; v.owner = null; setTune(false); soundStop();
-    if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vfree', i: v.i, s: stateOf(v) });
+    if (NET.role === 'guest' && NET.conn && NET.conn.open) NET.conn.send({ t: 'vfree', i: v.i, s: [...stateOf(v), v.brakeOn ? 1 : 0, 0, v.lightsOn ? 1 : 0] }); // (its headlights stay as you left them)
     return true;
   }
 
@@ -895,6 +901,7 @@
     if (![x, y, z, yaw].every(Number.isFinite)) return;
     if (s.length > 11) v.netBrake = s[11] === 1; // (a driver's own state message: its brake lights, and whether it's doing a burnout)
     if (s.length > 12) v.netBurn = s[12] === 1;
+    if (s.length > 13) { v.lightsOn = s[13] === 1; v.lightsSet = true; } // its headlights
     v.net = { x, y, z, yaw, pitch: pitch || 0, roll: roll || 0, vx: vx || 0, vy: vy || 0, vz: vz || 0, steer: steer || 0, t: performance.now() };
   }
   function applyParams(v, p) {
@@ -1120,7 +1127,8 @@
     armorRay,
     inArmour: id => list.some(v => v.model && v.kind === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
-    lampBeams, // the headlights of everything being driven (headlights.js lights them at dusk and night)
+    lampBeams, // the headlights that are on (headlights.js lights them at dusk and night)
+    toggleLights: () => (cur ? (toggleLights(), true) : false), // L at the wheel (and the touch Light button)
     driving: () => cur,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
     lenOf,
@@ -1139,6 +1147,7 @@
       }
       if ((cur || ride) && code === 'KeyV') { view = view === 'chase' ? 'seat' : 'chase'; camYaw = 0; camPitch = view === 'chase' ? CAM_PITCH : seatPitch(); return true; } // (each view starts from its own default)
       if (cur && code === 'KeyR') { resetQ = true; return true; }
+      if (cur && code === 'KeyL') { toggleLights(); return true; } // the headlights (on foot, L is the flashlight)
       const gunKeys = ['KeyR', 'KeyF', 'KeyG', 'KeyQ', 'KeyX', 'Digit1', 'Digit2', 'Digit3', 'Digit4'];
       return (VEH.noGuns && gunKeys.includes(code)) || (!!cur && code === 'KeyC');
     },
@@ -1190,9 +1199,9 @@
     },
     exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked; + 4 brake lights on, + 8 a burnout), who's in seat 1, seat 2, ...]
-    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0), ...v.occ.slice(1).map(o => o || 0)]),
-    myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0, cur.burning ? 1 : 0] : null),
+    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked; + 4 brake lights on, + 8 a burnout, + 16 headlights on), who's in seat 1, seat 2, ...]
+    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0) + (v.lightsOn ? 16 : 0), ...v.occ.slice(1).map(o => o || 0)]),
+    myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0, cur.burning ? 1 : 0, cur.lightsOn ? 1 : 0] : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
       // Match the host's vehicles: rebuild from the first one that differs
@@ -1203,7 +1212,7 @@
         const v = list[i]; if (!v || !Array.isArray(s)) return;
         const st = s[12] | 0;
         if ((st & 3) === 1 && !v.dead) VEH.wreck(v);
-        if (v !== cur) { v.netBrake = !!(st & 4); v.netBurn = !!(st & 8); }
+        if (v !== cur) { v.netBrake = !!(st & 4); v.netBurn = !!(st & 8); v.lightsOn = !!(st & 16); v.lightsSet = true; }
         for (let q = 1; q < v.seats.length; q++) if (!(v === ride && q === rideSeat)) v.occ[q] = s[12 + q] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
         v.owner = s[1] || null; setNet(v, [i, ...s.slice(2, 12)]);
