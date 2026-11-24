@@ -1132,6 +1132,10 @@ function levelFortress() {
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
+    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the tower's windows (the top
+    // room's front and side, the lower room's), the roof and the balcony behind the tower
+    fortPosts: [[-2, 37.1, 4], [-4.5, 37.1, 4.5], [2, 37.1, 3], [1.5, 37.6, 3.5], [5.5, 43.9, 5.5], [7, 43.9, 2], [6.5, 43.9, 4],
+      [4.5, 47.6, 5.5], [7, 47.6, 6], [3, 47.6, 2], [4.5, 47.6, -1.5], [5, 45, -2]],
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
@@ -4390,7 +4394,7 @@ function damage(t, amt, attacker, weapon, head) {
   // a bot that's hit knows it, and where from: under fire (it may make for cover: updateBot), and with nobody in sight, after whoever it was
   if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') {
     t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; }
-    if (!sameTeam(t, attacker) && attacker.alive !== false && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
+    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
   }
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -5123,7 +5127,7 @@ function botNade(b, t) {
   throwNade(b, o, new V3(dx / T * err, (tp.y - o.y + 0.5 * GRAV * T * T) / T, dz / T * err));
 }
 function findTarget(b) {
-  let best = null, bd = 55;
+  let best = null, bd = b.ai && b.ai.post ? DEF_SEE : 55; // (at a post in the fort: it picks off people further out)
   for (const o of ents) {
     if (o === b || !o.alive || sameTeam(b, o) || isArtist(o)) continue;
     const d = b.pos.distanceTo(o.pos);
@@ -5713,6 +5717,57 @@ function botRide(b, dt) {
   }
   return false;
 }
+// Holding the fort: once two or more of a side are inside it (LV.fortZone), its bots there stop exploring and chasing and each takes a post (LV.fortPosts: the bridge over the
+// gate, the tower's windows, the roof), the nearest free one, and holds it: shooting at whoever it sees from there (out to DEF_SEE), crouching to reload, looking out
+// when there's nobody. Someone close by inside (DEF_CLOSE) it fights as it would anyway. It gives the post up when it dies, or when fewer than two of its side are left inside
+const DEF_SEE = 95, DEF_CLOSE = 10;
+let defCache = { t: -1, n: {} }, defPosts = null, defLv = null;
+function fortCount(team) {
+  const now = performance.now();
+  if (now - defCache.t > 200) { defCache = { t: now, n: {} }; for (const e of ents) { const tm = e === P ? myTeam : e.team; if (e.alive && tm && e.pos && inFortZone(e.pos)) defCache.n[tm] = (defCache.n[tm] || 0) + 1; } }
+  return defCache.n[team] || 0;
+}
+function fortPostList() { // the level's posts on the walking map, each with the way it looks out (the middle of the directions it can see 25 m or more along)
+  if (defLv === LV && defPosts) return defPosts;
+  defLv = LV; defPosts = [];
+  for (const [x, y, z] of (LV && LV.fortPosts) || []) {
+    const k = fortNode(new V3(x, y, z), false); if (k === null) continue;
+    const n = FN.nodes[k]; let sx = 0, sz = 0;
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a); if (tgRay(n.x, n.y + 1.45, n.z, dx, -0.08, dz, 30, true) >= 25) { sx += dx; sz += dz; } }
+    defPosts.push({ p: new V3(n.x, n.y, n.z), face: sx || sz ? Math.atan2(sx, sz) : 0, by: null });
+  }
+  return defPosts;
+}
+// The post b holds, or null (and it lets go of any it held): only on a team level, while its side holds the fort, once it's inside
+function defendPost(b) {
+  const ai = b.ai;
+  const held = teamsOn() && b.team && LV && LV.fortZone && LV.fortPosts && fortCount(b.team) >= 2 && !ai.seatV && !ai.boardV;
+  if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
+  if (ai.post && ai.post.by === b) return ai.post;
+  let best = null, bd = Infinity;
+  for (const q of fortPostList()) {
+    if (q.by && q.by !== b && q.by.alive && q.by.ai.post === q) continue;
+    const d = Math.hypot(q.p.x - b.pos.x, q.p.z - b.pos.z) + Math.abs(q.p.y - b.pos.y) * 1.5; if (d < bd) { bd = d; best = q; }
+  }
+  if (!best) return null;
+  best.by = b; ai.post = best; ai.hpath = null; ai.cov = null; ai.rev = null; ai.flank = null; ai.searchN = 0; ai.routeDone = true;
+  return best;
+}
+function defendMove(b, post, wish, dt, t, style) {
+  const ai = b.ai, p = post.p, at = Math.hypot(p.x - b.pos.x, p.z - b.pos.z) < 0.7 && Math.abs(p.y - b.pos.y) < 1.2;
+  let speed = 3.5;
+  if (!at) { // on to the post (shooting on the way if there's someone)
+    if (!ai.hpath || ai.postP !== post || (ai.repathT -= dt) <= 0) { ai.hpath = fortPath(b.pos, p, b); ai.hi = 0; ai.postP = post; ai.repathT = 3; }
+    if (!walkFine(b, wish, dt, !t)) { ai.hpath = null; wish.set(p.x - b.pos.x, 0, p.z - b.pos.z); }
+    speed = t ? 4.2 : RUN_BOT;
+  } else { // at it: hold, looking out
+    ai.hpath = null;
+    if (!t) { b.yaw = turn(b.yaw, post.face, 3 * dt); b.pitch += (-0.12 - b.pitch) * Math.min(1, dt * 3); }
+    if (b.reloading > 0) ai.crouchHold = 0.4; // (down behind the sill to reload)
+  }
+  if (t) botEngage(b, t, dt, style, false);
+  return speed;
+}
 // Shot at by a player (or a bot within 40 m): the bot goes after whoever shot it (ai.rev), wherever they are (a sniper on the tower roof included: through the window and up the ladder), not just
 // back at them from where it stands. Off its way in, out of its base: it rushes them, by way of a spot behind them (the side they aren't facing) when
 // they're far, shooting whenever it sees them. One or two of its side close by (45 m) come too, each round a different side. It gives up after 30 s
@@ -5774,7 +5829,7 @@ const atLadderTop = b => (LV && LV.ladders || []).some(l => b.pos.y > l.box[5] -
 const huntClose = (b, a) => !b.pass && b.climb === undefined && !ladderAt(b.pos) && !atLadderTop(b) && Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) < REV_CLOSE && Math.abs(a.pos.y - b.pos.y) < 2 && !!seenAt(b, a);
 function updateBot(b, dt) {
   if (!b.alive) {
-    if (b.ai.seatV) leaveSeat(b); b.ai.boardV = null;
+    if (b.ai.seatV) leaveSeat(b); b.ai.boardV = null; if (b.ai.post) { if (b.ai.post.by === b) b.ai.post.by = null; b.ai.post = null; }
     b.respawnT -= dt; if (b.respawnT <= 0) respawn(b);
     return;
   }
@@ -5802,8 +5857,11 @@ function updateBot(b, dt) {
   // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
-  const rv = FN.cells && !ai.boardV ? huntOn(b) : null;
-  if (rv && !(t && t !== rv.who && b.pos.distanceTo(t.pos) < 12) && !huntClose(b, rv.who) && !(b.ammo === 0 && b.reserve === 0)) { // after whoever shot it
+  const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
+  const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
+  if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
+    ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
+  } else if (rv && !(t && t !== rv.who && b.pos.distanceTo(t.pos) < 12) && !huntClose(b, rv.who) && !(b.ammo === 0 && b.reserve === 0)) { // after whoever shot it
     ai.cov = null; hunt(b, rv, wish, dt, t, style); speed = RUN_BOT;
   } else if (ai.boardV && FN.cells) { // a teammate's vehicle to get into: run to it (shooting on the way if there's someone to shoot)
     if (!ai.hpath || (ai.repathT -= dt) <= 0) { ai.hpath = fortPath(b.pos, ai.boardV.pos, b); ai.hi = 0; ai.repathT = 0.8; }
