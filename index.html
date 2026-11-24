@@ -1066,6 +1066,9 @@ function levelFortress() {
     // An invisible fence along the rim of the valley between the fort and the hill (soldiers kept falling in): [x, z, top]
     fence: [[2.6, 10, 35.5], [2, 11, 35.3], [1.4, 12.5, 35], [0, 14.5, 34.5], [-0.6, 16, 34], [-1.5, 18, 33.5], [-2.2, 20, 32.5], [-4.4, 22, 32], [-6.4, 23, 31.5],
       [-5.4, 24, 30], [-2.1, 25, 28], [-1.1, 26, 28], [-0.3, 27, 30], [0.6, 29, 33], [1.2, 31, 35]],
+    // Bots keep out of the ravine the fence is round (markKeepOut): the walking map's ground on its far side, out to x1 and between z0 and z1, more than below under
+    // the fence's top. (Bots that went in, chasing someone or making for the hill, stuck at the fence trying to get out the way they'd planned)
+    botKeepOut: { x1: 22, z0: 8, z1: 33, below: 3.5 },
     // A door at the tower's entrance from the back corridor: open until someone locks it (E); bots break it down
     // (no towerDoor: since 2026-11-21 the doorway from the back corridor into the tower is open. It was { x0: 4.59, x1: 5.97, z: -1.41, y0: 37.07, y1: 39.4, hp: 20 })
     // The gate: two doors at the courtyard end of the passage under the wall walk, hinged at the sides. It starts shut with a
@@ -5191,7 +5194,7 @@ function* fortNavSteps() {
   const d = LV.gate && LV.gate.doors;
   if (d) for (const n of FN.nodes) n.gate = n.x > d.x0 - 0.5 && n.x < d.x1 + 0.5 && n.z > d.z - 0.5 && n.z < d.z + d.t + 0.5 && n.y < d.y1;
   Object.assign(FN, { x0, z0, S, nx, nz, cells });
-  markRoads(LV);
+  markRoads(LV); markKeepOut(LV);
   // Which nodes join up with the rest: a bot that ends up on a bit of ground nothing leads off (a pocket in a cliff it slid into) is found and put back on the map (updateBot)
   const comp = new Int32Array(FN.nodes.length).fill(-1), size = []; let nc = 0;
   for (let k0 = 0; k0 < FN.nodes.length; k0++) {
@@ -5206,7 +5209,7 @@ function* fortNavSteps() {
 function markRoads(L) {
   const R = 2.4, rs = (L.roads && L.roads.roads) || [], hide = L.hideRoads;
   const inBox = (p, b) => p[0] > b[0] && p[0] < b[1] && p[1] > b[2] && p[1] < b[3];
-  const lines = [...(L.tracks || [])];
+  const lines = [...(L.tracks || []), ...[L.botMain, L.botLink, L.botBunker].filter(Boolean)]; // (and the stretches drawn for the bots' ways)
   rs.forEach((r, i) => { if (!hide || i === hide.keep) lines.push(r); else if (hide.keepBox) { const k = r.filter(p => inBox(p, hide.keepBox)); if (k.length > 1) lines.push(k); } });
   for (const line of lines) for (let q = 0; q + 1 < line.length; q++) {
     const ax = line[q][0], az = line[q][1], bx = line[q + 1][0], bz = line[q + 1][1], ex = bx - ax, ez = bz - az, ll = ex * ex + ez * ez || 1;
@@ -5216,6 +5219,16 @@ function markRoads(L) {
       const n = FN.nodes[k], t = Math.max(0, Math.min(1, ((n.x - ax) * ex + (n.z - az) * ez) / ll));
       if (Math.hypot(n.x - ax - ex * t, n.z - az - ez * t) < R) n.road = true;
     }
+  }
+}
+// The ground bots keep out of (n.keep): the ravine behind the level's fence (botKeepOut). Paths go round it (fortPath), and nothing a bot heads for is picked there
+function markKeepOut(L) {
+  const K = L.botKeepOut, F = L.fence; if (!K || !F) return;
+  const at = z => { for (let i = 0; i + 1 < F.length; i++) { const [x0, z0, t0] = F[i], [x1, z1, t1] = F[i + 1]; if (z >= Math.min(z0, z1) && z <= Math.max(z0, z1)) { const t = (z - z0) / ((z1 - z0) || 1); return [x0 + (x1 - x0) * t, t0 + (t1 - t0) * t]; } } return null; };
+  const zs = F.map(f => f[1]), zmin = Math.min(...zs), zmax = Math.max(...zs);
+  for (const n of FN.nodes) {
+    if (n.z < K.z0 || n.z > K.z1 || n.x > K.x1) continue;
+    const f = at(Math.max(zmin, Math.min(zmax, n.z))); if (f && n.x > f[0] && n.y < f[1] - K.below) n.keep = true;
   }
 }
 const inFort = p => FN.cells && p.x > FN.x0 && p.z > FN.z0 && p.x < FN.x0 + (FN.nx - 1) * FN.S && p.z < FN.z0 + (FN.nz - 1) * FN.S;
@@ -5241,7 +5254,10 @@ const AS = { n: 0, id: 0, seen: null, done: null, g: null, came: null, hf: [], h
 // so bots going the same way spread over the ways there are instead of all taking the one shortest
 function fortPath(from, to, who) {
   const a = fortNode(from, false), b = fortNode(to, true); if (a === null || b === null) return null;
-  const sd = who && who.ai && who.ai.seed, cost = o => (o.road ? 0.7 : 1) * (sd ? 1.25 + 0.25 * Math.sin(o.x * 0.09 + sd[0]) * Math.sin(o.z * 0.09 + sd[1]) : 1);
+  // (on its way to the fort, a team bot keeps to its way: off the road costs it twice as much, and its own taste counts for little)
+  const sd = who && who.ai && who.ai.seed, stick = !!(who && who.ai && who.ai.way && !who.ai.routeDone && teamsOn());
+  const cost = o => (o.road ? 0.7 : stick ? 2 : 1) * (sd ? (stick ? 1.05 : 1.25) + (stick ? 0.05 : 0.25) * Math.sin(o.x * 0.09 + sd[0]) * Math.sin(o.z * 0.09 + sd[1]) : 1);
+  const inKeep = !!FN.nodes[a].keep; // (already down in the ravine: it may walk there, at a price, to get out)
   const open = gateOpen(), nodes = FN.nodes, goal = nodes[b], now = performance.now();
   if (AS.n !== nodes.length) Object.assign(AS, { n: nodes.length, id: 0, seen: new Uint32Array(nodes.length), done: new Uint32Array(nodes.length), g: new Float64Array(nodes.length), came: new Int32Array(nodes.length) });
   if (++AS.id > 4e9) { AS.seen.fill(0); AS.done.fill(0); AS.id = 1; }
@@ -5261,8 +5277,8 @@ function fortPath(from, to, who) {
     if (k === b) break;
     const n = nodes[k];
     for (const m of n.nb) {
-      if (done[m] === id || (!open && nodes[m].gate) || (nodes[m].blockT > now && m !== b) || (nodes[m].door !== undefined && SHEDS[nodes[m].door].locked)) continue; // (blockT: where a bot just got stuck)
-      const o = nodes[m], ng = g[k] + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z) * (1 + (o.pen || 0)) * cost(o);
+      if (done[m] === id || (!open && nodes[m].gate) || (nodes[m].blockT > now && m !== b) || (nodes[m].door !== undefined && SHEDS[nodes[m].door].locked) || (nodes[m].keep && !inKeep)) continue; // (blockT: where a bot just got stuck; keep: the ravine)
+      const o = nodes[m], ng = g[k] + Math.hypot(o.x - n.x, o.y - n.y, o.z - n.z) * (1 + (o.pen || 0)) * cost(o) * (o.keep ? 4 : 1);
       if (ng < (seen[m] === id ? g[m] : Infinity)) { seen[m] = id; g[m] = ng; came[m] = k; push(ng + h(m), m); }
     }
   }
@@ -5285,7 +5301,7 @@ function botSpot(p) {
   for (let j = cj - n0; j <= cj + n0; j++) for (let i = ci - n0; i <= ci + n0; i++) {
     if (i < 0 || j < 0 || i >= FN.nx || j >= FN.nz) continue;
     for (const k of FN.cells[j * FN.nx + i]) {
-      const n = FN.nodes[k]; if (FN.comp && FN.comp[k] !== FN.mainComp) continue;
+      const n = FN.nodes[k]; if ((FN.comp && FN.comp[k] !== FN.mainComp) || n.keep) continue;
       const d = Math.hypot(n.x - p[0], n.z - p[2]); if (d <= R && (top || Math.abs(n.y - p[1]) <= 2)) near.push([d, n]);
     }
   }
@@ -5336,7 +5352,7 @@ function lifePlan(e) {
   const st = ai.way[0], d0 = Math.hypot(e.pos.x - st[0], e.pos.z - st[2]);
   const out = v => Math.hypot(e.pos.x - v[0], e.pos.z - v[2]) + Math.hypot(v[0] - st[0], v[2] - st[2]) - d0;
   const vias = sp.vias.filter(v => out(v) < 35);
-  if (FN.nodes.length) for (let k = 0; k < 40; k++) { const j = Math.random() * FN.nodes.length | 0, n = FN.nodes[j]; if ((!FN.comp || FN.comp[j] === FN.mainComp) && !n.door && out([n.x, n.y, n.z]) < 40) vias.push([n.x, n.y, n.z]); }
+  if (FN.nodes.length) for (let k = 0; k < 40; k++) { const j = Math.random() * FN.nodes.length | 0, n = FN.nodes[j]; if ((!FN.comp || FN.comp[j] === FN.mainComp) && !n.door && !n.keep && out([n.x, n.y, n.z]) < 40) vias.push([n.x, n.y, n.z]); }
   if (vias.length && Math.random() < 0.85) ai.via = vias[Math.random() * vias.length | 0];
 }
 // Bots that make for the fort first, by the level's ways in: Midas in a team game (the Pirates hold their own ground, unless the level sends them too: piratesAdvance), every bot otherwise
@@ -5361,7 +5377,8 @@ function roamFine(b, wish, dt, face = true) {
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
   ai.hurry = false;
   // After someone: round their side first if told to flank (teamCallout), then where they were last seen, then a look round there; at a run
-  const after = ai.flank || (ai.lastSeenT > 0 && ai.lastSeen) || ai.searchN > 0;
+  let after = ai.flank || (ai.lastSeenT > 0 && ai.lastSeen) || ai.searchN > 0;
+  if (after && enRoute(b) && !(ai.lastSeen && Math.hypot(ai.lastSeen.x - b.pos.x, ai.lastSeen.z - b.pos.z) < EN_ROUTE_REACH)) { after = false; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0; } // (too far off its way: on it goes)
   // the fort first, by this life's way in: Midas in a team game (the Pirates hold their own ground), every bot otherwise
   if (!after && ai.way && !ai.routeDone && advances(b)) {
     if (ai.route === 'tunnel') { // the bunker door is locked, and this one is still outside: its enemies shoot it open, its own side go in by the front instead
@@ -5385,7 +5402,7 @@ function roamFine(b, wish, dt, face = true) {
   if (!goal && Math.random() < 0.35) { const pk = nearestPickup(b); if (pk) goal = pk.pos; }
   if (!goal && ai.explore && ai.explore.length && (ai.routeDone || !ai.way || !advances(b))) goal = ai.explore.shift(); // the places it hasn't looked round yet
   if (!goal && Math.random() < 0.6) goal = SPAWNS[Math.random() * SPAWNS.length | 0]; // the level's key spots: rooms, roofs, platforms
-  if (!goal) { const n = FN.nodes[Math.random() * FN.nodes.length | 0]; goal = new V3(n.x, n.y, n.z); }
+  if (!goal) { let n; for (let k = 0; k < 20 && (!n || n.keep); k++) n = FN.nodes[Math.random() * FN.nodes.length | 0]; goal = new V3(n.x, n.y, n.z); }
   ai.lastSeenT = 0; ai.hpath = fortPath(b.pos, goal, b); ai.hi = 0;
   if (ai.hpath && ai.hpath.length > 1) walkFine(b, wish, dt, face); else ai.hpath = null;
 }
@@ -5495,7 +5512,10 @@ function markVehicles(dt) {
     }
   }
 }
-const RUN_BOT = 6.2; // a bot's run (a player runs at 6.8, walks at 4.2)
+const RUN_BOT = 6.2;
+// On its way to the fort in a team game (a team way, not there yet): it keeps to it, and leaves it only for a fight close by (EN_ROUTE_REACH): one in sight that
+// far or nearer, a call or a shot from that close; farther off it shoots as it goes and walks on
+const EN_ROUTE_REACH = 22, enRoute = b => !!(teamsOn() && b.ai && b.ai.way && !b.ai.routeDone); // a bot's run (a player runs at 6.8, walks at 4.2)
 // Firing at a target in sight: the reaction time, bursts and pauses for its weapon and style, and now and then a grenade. turned: the caller has already turned it to face them
 function botEngage(b, t, dt, style, turned) {
   const ai = b.ai, dx = t.pos.x - b.pos.x, dz = t.pos.z - b.pos.z, dist = Math.hypot(dx, dz), want = Math.atan2(dx, dz);
@@ -5522,7 +5542,7 @@ function teamCallout(b, t) {
   let n = 0;
   for (const o of bots) {
     if (o === b || !o.alive || o.team !== b.team || o.ai.target || o.ai.seatV || o.ai.boardV) continue;
-    const dx = t.pos.x - o.pos.x, dz = t.pos.z - o.pos.z, d = Math.hypot(dx, dz); if (d > 60) continue;
+    const dx = t.pos.x - o.pos.x, dz = t.pos.z - o.pos.z, d = Math.hypot(dx, dz); if (d > (enRoute(o) ? EN_ROUTE_REACH : 60)) continue;
     o.ai.lastSeen = t.pos.clone(); o.ai.lastSeenT = 9; o.ai.hpath = null; o.ai.hurry = true; o.ai.flank = null;
     if (n++ % 2 && d > 10) { const sd = Math.random() < 0.5 ? -1 : 1; o.ai.flank = new V3(t.pos.x - dz / d * 7 * sd - dx / d * 3, t.pos.y, t.pos.z + dx / d * 7 * sd - dz / d * 3); }
   }
@@ -5537,7 +5557,7 @@ function findCover(b, t) {
     const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 7, x = b.pos.x + Math.cos(a) * r, z = b.pos.z + Math.sin(a) * r;
     const i = Math.round((x - FN.x0) / FN.S), j = Math.round((z - FN.z0) / FN.S); if (i < 0 || j < 0 || i >= FN.nx || j >= FN.nz) continue;
     for (const k of FN.cells[j * FN.nx + i]) {
-      const n = FN.nodes[k]; if (Math.abs(n.y - b.pos.y) > 2.5 || (FN.comp && FN.comp[k] !== c0) || n.blockT > performance.now()) continue;
+      const n = FN.nodes[k]; if (Math.abs(n.y - b.pos.y) > 2.5 || (FN.comp && FN.comp[k] !== c0) || n.blockT > performance.now() || n.keep) continue;
       if (Math.hypot(n.x - t.pos.x, n.z - t.pos.z) < Math.min(td, 6)) continue; // (not up toward them)
       tests++;
       if (losPts(e, new V3(n.x, n.y + 1.0, n.z))) continue; // they'd see it
@@ -5652,6 +5672,9 @@ function updateBot(b, dt) {
         if (holdGround) wish.addScaledVector(right, ai.strafeDir * (style.pref > 10 ? 0.3 : 0.55));
         else { roamHome(b, wish, dt, false, home); wish.addScaledVector(right, ai.strafeDir * 0.4); }
         speed = 3.5;
+      } else if (FN.cells && dist > style.pref + 5 && enRoute(b) && dist > EN_ROUTE_REACH) { // on its way and they're well off it: walk on, shooting as it goes
+        roamFine(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.3);
+        speed = 4.6;
       } else if (FN.cells && dist > style.pref + 5) { // too far off for its liking: after them on the walking map, shooting as it goes
         if (!ai.hpath || (ai.repathT -= dt) <= 0) { ai.hpath = fortPath(b.pos, t.pos, b); ai.hi = 0; ai.repathT = 1.2; }
         if (!walkFine(b, wish, dt, false)) { ai.hpath = null; wish.addScaledVector(fwd, 1); }
@@ -5694,7 +5717,7 @@ function updateBot(b, dt) {
     ai.islandT = 0; const k = fortNode(b.pos, false);
     if (k !== null && FN.comp[k] !== FN.mainComp) {
       if ((ai.islandN = (ai.islandN || 0) + 1) >= 4) {
-        let best = -1, bd = Infinity; FN.nodes.forEach((n, j) => { if (FN.comp[j] !== FN.mainComp) return; const d = Math.hypot(n.x - b.pos.x, n.y - b.pos.y, n.z - b.pos.z); if (d < bd) { bd = d; best = j; } });
+        let best = -1, bd = Infinity; FN.nodes.forEach((n, j) => { if (FN.comp[j] !== FN.mainComp || n.keep) return; const d = Math.hypot(n.x - b.pos.x, n.y - b.pos.y, n.z - b.pos.z); if (d < bd) { bd = d; best = j; } });
         if (best >= 0) { const n = FN.nodes[best]; b.pos.set(n.x, n.y, n.z); b.vel.set(0, 0, 0); ai.hpath = null; ai.path = null; ai.islandN = 0; }
       }
     } else ai.islandN = 0;
@@ -5721,7 +5744,7 @@ function updateBot(b, dt) {
         if ((ai.jamN = (ai.jamN || 0) + 1) >= 2) {
           ai.jamN = 0; const p = ai.hpath;
           if (p && p.length > ai.hi + 1) { FN.nodes[p[Math.min(ai.hi, p.length - 1)]].blockT = performance.now() + 20000; const n = FN.nodes[p[Math.min(p.length - 1, ai.hi + 4)]]; b.pos.set(n.x, n.y, n.z); }
-          else if (FN.comp) { const k = fortNode(b.pos, true); if (k !== null) { let best = -1, bd = Infinity; FN.nodes.forEach((n, j) => { if (FN.comp[j] !== FN.mainComp) return; const d = Math.hypot(n.x - b.pos.x, n.z - b.pos.z), dy = Math.abs(n.y - b.pos.y); if (d > 3 && d < bd && dy < 3) { bd = d; best = j; } }); if (best >= 0) { const n = FN.nodes[best]; b.pos.set(n.x, n.y, n.z); } } }
+          else if (FN.comp) { const k = fortNode(b.pos, true); if (k !== null) { let best = -1, bd = Infinity; FN.nodes.forEach((n, j) => { if (FN.comp[j] !== FN.mainComp || (n.keep && !FN.nodes[k].keep)) return; const d = Math.hypot(n.x - b.pos.x, n.z - b.pos.z), dy = Math.abs(n.y - b.pos.y); if (d > 3 && d < bd && dy < 3) { bd = d; best = j; } }); if (best >= 0) { const n = FN.nodes[best]; b.pos.set(n.x, n.y, n.z); } } }
           b.vel.set(0, 0, 0); ai.hpath = null; ai.path = null;
         }
       } else ai.jamN = 0;
