@@ -5753,7 +5753,7 @@ function fortPostList() { // the level's posts on the walking map, each with the
 }
 // Following a person: on a team level, about half its side's bots (up to FOLLOW_N per person) stick with each person on their side, the nearest ones (picked again
 // every couple of seconds). A follower keeps a few metres behind and to one side of them (its own slot), runs to catch up, shoots at whoever it sees as it goes and fights
-// someone close by (FOLLOW_FIGHT), then falls back in; it rides along when they drive (botRide). With them in the fort it takes a post there; with them out, it leaves it
+// someone close by (FOLLOW_FIGHT), then falls back in; it rides along when they drive (botRide). Only while its side doesn't hold the fort: holding it, they all hold it
 const FOLLOW_N = 3, FOLLOW_FIGHT = 22;
 let followT = -1e9;
 function assignFollowers() {
@@ -5762,7 +5762,8 @@ function assignFollowers() {
   if (!teamsOn()) return;
   const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
   for (const h of people) {
-    const team = h === P ? myTeam : h.team, mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead);
+    const team = h === P ? myTeam : h.team; if (teamHolds(team)) continue; // (holding the fort: they hold it, they don't follow anyone)
+    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead);
     const n = Math.min(FOLLOW_N, Math.ceil(bots.filter(b => b.team === team).length / 2 / Math.max(1, people.filter(o => (o === P ? myTeam : o.team) === team).length)));
     mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, n).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
   }
@@ -5788,8 +5789,16 @@ function followMove(b, h, wish, dt, t, style) {
   if (t) botEngage(b, t, dt, style, false);
   return speed;
 }
-// A side holds the fort: two or more of it inside and nobody of the other side
-const teamHolds = team => !!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts && fortCount(team) >= 2 && !Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0));
+// A side holds the fort: it takes it with two or more of it inside and nobody of the other side, and keeps it while any of it is left inside (the last one holds on
+// alone) and nobody of the other side gets in. fortHolder: which side holds it now
+let fortHolder = null;
+function teamHolds(team) {
+  if (!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts)) return false;
+  const foeIn = Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0), mine = fortCount(team);
+  if (fortHolder === team && (foeIn || mine < 1)) fortHolder = null;          // lost it: the other side got in, or nobody's left
+  if (fortHolder !== team && !foeIn && mine >= 2 && (!fortHolder || fortCount(fortHolder) < 1)) fortHolder = team; // taken
+  return fortHolder === team;
+}
 // Its side holds the fort and it's outside: back onto a way in (its side's road, tunnel or long way round, whichever gets it there soonest from where it is), so it fights its
 // way to the fort (on a way in, it only turns aside for someone close: enRoute), instead of exploring or roaming. Checked about once a second
 function rejoinFort(b, dt) {
@@ -5820,7 +5829,7 @@ function postFace(q, team) {
 function defendPost(b) {
   const ai = b.ai;
   // (held: two or more of its side inside and none of the other side; with both sides in there it's contested, and they fight it out for it)
-  const held = teamHolds(b.team) && !ai.seatV && !ai.boardV && !(ai.lead && ai.lead.alive && !inFortZone(ai.lead.pos)); // (following someone who's out of the fort: with them)
+  const held = teamHolds(b.team) && !ai.seatV && !ai.boardV;
   if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
   if (ai.post && ai.post.by === b) return ai.post;
   // Spread over the kinds of post: the kind its side has fewest at (in or on the tower first, if nobody of its side is there yet), then the nearest free one of that kind
@@ -5945,7 +5954,7 @@ function updateBot(b, dt) {
   if (FN.cells) { assignFollowers(); rejoinFort(b, dt); }
   const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
   const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
-  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive ? ai.lead : null;
+  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamHolds(b.team) ? ai.lead : null;
   const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
   if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
