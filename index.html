@@ -5387,9 +5387,10 @@ function teamWays(L) {
   if (!A || !B || !tr || !L.botMain || !L.fortRoutes || !L.fortRoutes.front || !L.fortRoutes.tunnel) return null;
   const xz = p => [p[0], null, p[1]], every = (a, n) => a.filter((_, i) => i % n === 0 || i === a.length - 1);
   const fromA = every(A, 4).map(xz).reverse(), fromB = [...every(B, 4).map(xz).reverse(), ...L.botLink.map(xz)];   // each clearing up its own road to the junction
-  const track = tr.slice(A.length).map(xz), main = L.botMain.map(xz), bunker = L.botBunker.map(xz), { front, tunnel } = L.fortRoutes;  // (the track: clearing A round to B)
-  const ways = (own, other, loop) => ({ road: [...own, ...main, ...front], tunnel: [...own, ...main.slice(0, 2), ...bunker, ...tunnel], loop: [...loop, ...other, ...main, ...front] });
-  return { pirates: ways(fromA, fromB, track), midas: ways(fromB, fromA, [...track].reverse()) };
+  const main = L.botMain.map(xz), bunker = L.botBunker.map(xz), { front, tunnel } = L.fortRoutes;  // (the track: clearing A round to B)
+  // (the long way round, the dirt track under the mountains to the other side's clearing, was a third way until 2026-11-24: Austin took it out)
+  const ways = own => ({ road: [...own, ...main, ...front], tunnel: [...own, ...main.slice(0, 2), ...bunker, ...tunnel] });
+  return { pirates: ways(fromA), midas: ways(fromB) };
 }
 function botSpots() {
   if (!LV || !FN.cells || !FN.nodes.length) return null;
@@ -5411,7 +5412,7 @@ function lifePlan(e) {
   const pick = (ws, W) => { const ks = Object.keys(ws); if (!ks.length) return null; let r = Math.random() * ks.reduce((t, k) => t + (W[k] || 0.3), 0); return ks.find(k => (r -= W[k] || 0.3) <= 0) || ks[0]; };
   // A team game: one of its team's three ways (road 40%, tunnel 30%, the long way round 30%), from the point on it nearest where it spawned
   const tw = teamsOn() && e.team && sp.team[e.team];
-  if (tw && (ai.route = pick(tw, { road: 0.4, tunnel: 0.3, loop: 0.3 }))) {
+  if (tw && (ai.route = pick(tw, { road: 0.55, tunnel: 0.45 }))) {
     const w = tw[ai.route]; let k0 = 0, bd = Infinity; for (let k = 0; k < Math.min(8, w.length); k++) { const d = Math.hypot(w[k][0] - e.pos.x, w[k][2] - e.pos.z); if (d < bd) { bd = d; k0 = k; } }
     ai.way = w.slice(k0); return;
   }
@@ -5710,6 +5711,7 @@ function botRide(b, dt) {
     crouchHit(b); updateNameTag(b);
     return true;
   }
+  if (ai.post) { ai.boardV = null; return false; } // (defending the fort: it stays at its post, whoever drives by)
   if ((ai.boardT -= dt) > 0) return false;
   ai.boardT = 0.5;
   if (!teamsOn() || !VEH.list || !VEH.list.length) { ai.boardV = null; return false; }
@@ -5731,8 +5733,8 @@ function botRide(b, dt) {
 }
 // Holding the fort: once two or more of a side are inside it (LV.fortZone), its bots there stop exploring and chasing and each takes a post (LV.fortPosts: the bridge over the
 // gate, the tower's windows, the roof), the nearest free one, and holds it: shooting at whoever it sees from there (out to DEF_SEE), crouching to reload, looking out
-// when there's nobody. Someone close by inside (DEF_CLOSE) it fights as it would anyway. It gives the post up when it dies, when fewer than two of its side are left inside,
-// or when the other side gets in too (contested: no one holds it, and they fight it out)
+// when there's nobody. Someone close by inside (DEF_CLOSE) it fights as it would anyway. Once it has a post it defends it till it dies, whatever happens to the hold, and
+// never leaves it for a ride. (A side only takes posts while it holds the fort, and loses the hold once the other side gets in: then nobody new takes one)
 const DEF_SEE = 95, DEF_CLOSE = 10;
 let defCache = { t: -1, n: {} }, defPosts = null, defLv = null;
 function fortCount(team) {
@@ -5831,8 +5833,8 @@ function defendPost(b) {
   const ai = b.ai;
   // (held: two or more of its side inside and none of the other side; with both sides in there it's contested, and they fight it out for it)
   const held = teamHolds(b.team) && !ai.seatV && !ai.boardV;
-  if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
-  if (ai.post && ai.post.by === b) return ai.post;
+  if (ai.post && ai.post.by === b && !ai.seatV) return ai.post; // (once at a post, it defends it till it dies)
+  if (!held || !inFortZone(b.pos)) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
   // Spread over the kinds of post: the kind its side has fewest at (in or on the tower first, if nobody of its side is there yet), then the nearest free one of that kind
   const list = fortPostList(), held1 = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q && q.by.team === b.team;
   const busy = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q;
