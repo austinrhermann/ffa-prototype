@@ -1128,6 +1128,9 @@
     inArmour: id => list.some(v => v.model && v.kind === 'truck' && (v.owner === id || v.occ.includes(id))), // someone sits in a truck (behind its armour)
     setModel,
     lampBeams, // the headlights that are on (headlights.js lights them at dusk and night)
+    // For bots riding along (index.html's botRide): where seat k is in the world, where to get out of it, and a free seat to take (the front passenger's, else the back's)
+    seatAt: seatWorld, exitSpot: spotFor,
+    freeSeat: v => (v.seats.length > 1 && !v.occ[1] && !v.seats[1].blocked ? 1 : freeRear(v)),
     toggleLights: () => (cur ? (toggleLights(), true) : false), // L at the wheel (and the touch Light button)
     driving: () => cur,
     rearOf: v => lenOf(v) / 2 - midOf(v), // how far the back of the body is behind the vehicle's position
