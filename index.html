@@ -1095,7 +1095,8 @@ function levelFortress() {
       back: [[-16.5, 30, -3], [-12, 30, -13], [-3.5, 33.5, -12], [-1.5, 33.5, 1.5]],
       tunnel: [[-24.8, 25.2, 10.0], [-22.0, 25.4, 10.0], [-19.0, 25.4, 10.0], [-16.4, 25.4, 10.7], [-13.4, 25.4, 10.7], [-10.8, 25.4, 10.7], [-10.8, 26.4, 7.8], [-10.8, 28.0, 4.9], [-10.5, 28.0, 1], [-7.86, 33.5, 1.4], [-1.5, 33.5, 1.5]],
     },
-    navLinks: [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]]],
+    navLinks: [[[-2, 33.5, -5.5], [-2, 33.5, -5], [-2, 33.5, -4.5], [-2, 33.5, -4]],
+      [[-7.86, 33.51, -0.6], [-7.86, 33.51, 0.06], [-7.86, 33.51, 0.6]]], // (and the doorway at the top of the cellar stairs, the tunnel's way into the fort: since its door went, 2026-11-21, it fell between the map's spots and nothing led through)
     // The teams' ways to the fort (Austin's drawing, 2026-11-24), built by teamWays from these and the level's own roads: the main road from the valley junction up
     // to the gate (botMain, [x, z]), the valley floor from road B's north end to the junction (botLink), and the branch off the main road west to the bunker's door
     // (botBunker). Each team has three: up its own road (Midas road B, the Pirates road A) and the main road to the front gate; the same, then the branch to the
@@ -1103,6 +1104,9 @@ function levelFortress() {
     botMain: [[-12.7, 47.0], [-13.5, 40.4], [-16.4, 32.9], [-17.6, 27.1], [-15.6, 23.0], [-10.2, 19.2], [-5.2, 15.5], [-2.3, 10.6]],
     botLink: [[21.4, 61.0], [17.2, 54.8], [12.2, 51.9], [3.9, 48.6], [-5.2, 47.0]],
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
+    // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
+    // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
+    bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
     botVias: [[12, 32.5, 40], [8, 30, 54], [-16, 26.5, 52], [-12, 30.5, 14], [24, 34.5, 44], [-24, 26, 24], [0, 23.5, 54], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9], [-6, 30, 18],
@@ -4427,8 +4431,8 @@ function endMatch(w) {
   const title = tm ? `${TEAMS[tm].name} win` : `${statName(w)} wins`; // (the winner's own screen says "You win")
   const sub = tm ? `Midas ${teamKills('midas')}  ·  Pirates ${teamKills('pirates')}` : `First to ${KILL_LIMIT} kills`;
   const list = [...ents].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths), rows = list.map(statRow);
-  // On the roof: the winner, or the whole winning team (top scorer in the middle)
-  const champs = (tm ? list.filter(e => e.team === tm) : [w]).slice(0, 8).map(e => [e.id, statName(e), statModel(e), statGun(e), tm || '']);
+  // On the roof: the top four by kills, whichever side they're on (the top scorer in the middle; each tag in its own side's colour)
+  const champs = list.slice(0, 4).map(e => [e.id, statName(e), statModel(e), statGun(e), teamsOn() ? (e === P ? myTeam : e.team) || '' : '']);
   const m = { t: 'end', ttl: title, sub, wid: w.id, wn: statName(w), tm, rows, champs };
   broadcast(m);
   if (!tm && w.isPlayer) m.ttl = 'You win';
@@ -4452,6 +4456,7 @@ function showResults(m, me) {
 // else (the real bodies, wherever they are) is hidden until the next round
 const VIC = { on: false, t: 0, at: 0, rigs: [], tags: [], m: null, wait: 0 };
 const VIC_ROOF = { fortress: { x0: 3.1, x1: 7.6, z: 5.85, y: 47.64, back: 0.95 } }; // the roof's floor, its usable width, and the line just in from its front edge (z ≈ 6.45)
+const VIC_STEP = 0.35; // the top scorer stands this far ahead of the rest
 const VIC_FOV = 45, VIC_SWAY = 22 * Math.PI / 180, VIC_PERIOD = 28, VIC_DELAY = 1.4;
 // Their poses on the roof (the library characters; any other just stands with its gun): the top scorer stands tall with fists on hips,
 // the rest take a knee on the right knee, left foot planted ahead, left fist on the hip, gun hanging at the right side. Worked out once, on a fresh rig
@@ -4581,7 +4586,7 @@ function startVictory() {
   VIC.rigs = order.map((c, i) => {
     const rig = makeRig(c[2]); // (posed at the origin, then put on the roof)
     if (!rig.model.sway || !rig.armBones.length) setRigWeapon(rig, c[3]); else if (i === 0) poseWinner(rig); else poseKneel(rig, c[3]);
-    const [x, z] = pos[i]; rig.wrap.position.set(x, roof.y, z);
+    const [x, z] = pos[i]; rig.wrap.position.set(x, roof.y, z + (i === 0 ? VIC_STEP : 0)); // (the top scorer a step ahead of the others)
     rig.wrap.rotation.y = -(x - mid) * 0.12 + (i % 2 ? 0.08 : -0.08); // out to the valley, the ends turned in a touch
     rig.wrap.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(rig.wrap);
@@ -5388,6 +5393,22 @@ function lifePlan(e) {
 }
 // Bots that make for the fort first, by the level's ways in: Midas in a team game (the Pirates hold their own ground, unless the level sends them too: piratesAdvance), every bot otherwise
 function advances(b) { return !teamsOn() || b.team === 'midas' || !!(LV && LV.piratesAdvance); }
+// On the slope by the bunker (LV.bunkerSlope, outside, above the bunker's floor) or in the bunker and its tunnel (LV.bunkerInside: [x0, x1, z0, z1, below y])
+const onBunkerSlope = p => { const Z = LV && LV.bunkerSlope, I = LV && LV.bunkerInside; return !!Z && p.x > Z[0] && p.x < Z[1] && p.z > Z[2] && p.z < Z[3] && !(I && p.x > I[0] && p.x < I[1] && p.z > I[2] && p.z < I[3] && p.y < 27.5); };
+const inBunker = p => { const I = LV && LV.bunkerInside, d = LV && LV.fortRoutes && LV.fortRoutes.tunnel && LV.fortRoutes.tunnel[0];
+  return !!I && ((p.x > I[0] && p.x < I[1] && p.z > I[2] && p.z < I[3] && p.y < I[4]) || (!!d && Math.hypot(p.x - d[0], p.z - d[2]) < 4 && Math.abs(p.y - d[1]) < 2)); }; // (its doorstep too)
+// A bot in a fight on the bunker slope: onto the way through the bunker (its team's tunnel way, or the level's), from the bunker door, if it isn't on it already. True while it's
+// pushing through (on the slope or in the bunker, on that way, short of the fort)
+function bunkerPush(b) {
+  const ai = b.ai, slope = onBunkerSlope(b.pos);
+  if (!slope && !(ai.route === 'tunnel' && inBunker(b.pos))) return false;
+  if (ai.route === 'tunnel' && ai.way && !ai.routeDone) return true;
+  if (!slope) return false;
+  const sp = botSpots(), w = sp && ((teamsOn() && b.team && sp.team[b.team] && sp.team[b.team].tunnel) || sp.routes.tunnel); if (!w || !LV.fortRoutes) return false;
+  const door = LV.fortRoutes.tunnel[0]; let k0 = 0, bd = Infinity; w.forEach((q, k) => { const d = Math.hypot(q[0] - door[0], q[2] - door[2]); if (d < bd) { bd = d; k0 = k; } });
+  Object.assign(ai, { route: 'tunnel', way: w.slice(k0), routeDone: false, wps: null, via: null, hpath: null, cov: null });
+  return true;
+}
 const inFortZone = p => { const Z = LV && LV.fortZone; return !!Z && p.x > Z[0] && p.x < Z[1] && p.z > Z[2] && p.z < Z[3] && p.y > Z[4]; };
 // The next leg of a bot's way in: a path to its next waypoint (false once it's through, or when a leg can't be walked and it gives up)
 function routeLeg(b) {
@@ -5409,6 +5430,7 @@ function roamFine(b, wish, dt, face = true) {
   ai.hurry = false;
   // After someone: round their side first if told to flank (teamCallout), then where they were last seen, then a look round there; at a run
   let after = ai.flank || (ai.lastSeenT > 0 && ai.lastSeen) || ai.searchN > 0;
+  if (after && ai.route === 'tunnel' && ai.way && !ai.routeDone && (onBunkerSlope(b.pos) || inBunker(b.pos))) after = false; // (pushing through the bunker: on, whoever it saw)
   if (after && enRoute(b) && !(ai.lastSeen && Math.hypot(ai.lastSeen.x - b.pos.x, ai.lastSeen.z - b.pos.z) < EN_ROUTE_REACH)) { after = false; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0; } // (too far off its way: on it goes)
   // the fort first, by this life's way in: Midas in a team game (the Pirates hold their own ground), every bot otherwise
   if (!after && ai.way && !ai.routeDone && advances(b)) {
@@ -5772,12 +5794,16 @@ function updateBot(b, dt) {
       // Into cover when hurt, reloading, or under fire (more often for a cover-minded bot): a spot close by that the enemy can't see, run to it, crouch there till
       // reloaded and steady, then back out to fight
       const hurt = b.health < maxHp(b) * 0.45, shot = performance.now() - (ai.hitT || 0) < 1200;
-      if (!ai.cov && FN.cells && ai.coverCd <= 0 && dist > 5 && (hurt || b.reloading > 0 || (shot && Math.random() < 0.25 + style.cover * 0.5))) {
+      const push = FN.cells && dist > 3 && !ai.cov && bunkerPush(b);
+      if (!push && !ai.cov && FN.cells && ai.coverCd <= 0 && dist > 5 && (hurt || b.reloading > 0 || (shot && Math.random() < 0.25 + style.cover * 0.5))) {
         ai.coverCd = 1.5; const c = findCover(b, t);
         if (c) { ai.cov = { p: c, t: 0, hide: 0 }; ai.hpath = fortPath(b.pos, c, b); ai.hi = 0; ai.coverCd = 6 + Math.random() * 3; }
       }
       const holdGround = home && Math.hypot(b.pos.x - home.pos.x, b.pos.z - home.pos.z) < home.r * 0.9;
-      if (ai.cov) {
+      if (push) { // on the slope by the bunker, or in it: on in and through, shooting as it runs, not standing out there under the walls
+        roamFine(b, wish, dt, false); wish.addScaledVector(right, ai.strafeDir * 0.2);
+        speed = RUN_BOT;
+      } else if (ai.cov) {
         ai.cov.t += dt;
         const cd = Math.hypot(ai.cov.p.x - b.pos.x, ai.cov.p.z - b.pos.z);
         if (cd > 0.6 && ai.cov.t < 5) { if (walkFine(b, wish, dt, false)) speed = RUN_BOT + 0.4; else ai.cov = null; }
@@ -6034,12 +6060,13 @@ function updateCamera(dt) {
   camera.rotation.set(P.pitch + punch + sx, P.yaw + sy, sy * 0.5);
   myEye.copy(camera.position);
   tpOn = !!CTL.third && P.alive && !VEH.riding && !PREGAME && !document.body.classList.contains('titleon');
-  bodyK += ((FPV_BODY && !tpOn && P.alive && adsK < 0.3 && !VEH.riding && !PREGAME && !document.body.classList.contains('titleon') ? 1 : 0) - bodyK) * Math.min(1, dt * 12); // (not on the start pages: your body and gun would hang in front of the title camera)
+  // (a wall right in front, as on the ladder or up against a parapet: no room for the camera ahead of the head, and from inside it you'd see your own shoulders: the plain gun view instead)
+  _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); const fpvRoom = tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15;
+  bodyK += ((FPV_BODY && !tpOn && P.alive && adsK < 0.3 && fpvRoom > FPV_FWD * 0.7 && !(TG && ladderAt(P.pos)) && !VEH.riding && !PREGAME && !document.body.classList.contains('titleon') ? 1 : 0) - bodyK) * Math.min(1, dt * 12); // (not on the start pages: your body and gun would hang in front of the title camera)
   if (tpOn) bodyK = 0; // (third person has no first-person arms)
   bodyOn = bodyK > 0.001 && !ads && adsK < 0.3 && (bodyOn || bodyK > 0.92); // (it drops out the moment you aim, and comes back only once the camera has moved out past the head: no head or neck swinging by the lens)
   if (bodyK > 0.001) { // the camera sits ahead of the head, which then only casts its shadow
-    _fpvDir.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
-    const f = Math.min(FPV_FWD, Math.max(0, tpRoom(_fpvDir, FPV_FWD + 0.15) - 0.15)) * bodyK;
+    const f = Math.min(FPV_FWD, Math.max(0, fpvRoom)) * bodyK;
     camera.position.addScaledVector(_fpvDir, f);
     const m = P.rig && P.rig.model; // a short character sees from its own height
     if (m && m.crouchDrop !== undefined) camera.position.y += Math.min(0, m.headY - 0.12 - m.crouchDrop * P.rig.cr - (camera.position.y - P.pos.y)) * bodyK;
@@ -7033,7 +7060,7 @@ function updateComputer() {
   if (monitorOpen && !near) setMonitor(false);
   // What E does here: the window, the computer, the tower door
   let text = null; const ws = locked && !chatOpen && !monitorOpen ? windowSide(P) : null;
-  if (ws) text = ws === 'out' ? 'Walk into the window to climb out' : 'Walk into the window to climb back in';
+  if (ws) { /* the window: walking into it takes you through, nothing to say */ }
   else if (near && !monitorOpen) text = 'E: use the computer';
   else if (locked && !chatOpen && !monitorOpen && (text = lockPrompt())) { /* the bunker door's lock */ }
   else if (locked && !chatOpen && nearTowerDoor(P) && TDOOR.state !== 'broken' && !isAtk(P)) text = TDOOR.state === 'open' ? 'E: close and lock the door' : 'E: open the door';
@@ -7748,7 +7775,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=42"></script>
+<script src="vehicles.js?v=44"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=22"></script>
