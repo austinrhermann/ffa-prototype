@@ -416,7 +416,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
       <dt>X</dt><dd>Knife: a quick stab without putting your gun away</dd>
       <dt>F</dt><dd>Grenade: hold to cook, let go to throw. Right click while it's out turns it into a mine, stuck to the floor, wall or ceiling you're looking at when you let go (each takes an F battery). Shoot a mine to set it off</dd>
       <dt>V</dt><dd>First or third person (in a vehicle: chase or seat view)</dd>
-      <dt>L</dt><dd>Flashlight on or off (it lights the way at dusk and night); at the wheel, the headlights</dd>
+      <dt>L</dt><dd>Flashlight on or off, day or night (it comes on by itself at dusk and night); at the wheel, the headlights</dd>
       <dt>Q</dt><dd>Drop what's in your hands (you carry three, plus the knife)</dd>
       <dt>E</dt><dd>Use whatever is in front of you (the computer, a door, a vehicle)</dd>
       <dt>P</dt><dd>Draw: a pen and a spray can instead of your weapons. 1–6 pick the colour, Q or the wheel switches tool, P again for your weapons. While drawing nothing hurts you and bots leave you alone</dd>
@@ -722,7 +722,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
     if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (mzN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * muzLight(vSunPos, inverseTransformDirection(normal, viewMatrix), 1.0) * (1.0 - 0.7 * sunAt(vSunPos)); // (a shot's flash)
-    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC, flK); }
+    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC), flK); } // (never darker than it was: by day a lamp only lifts the shade)
     #include <tonemapping_fragment>`);
 };
 // Unlit materials whose vertex colours are their light (the fort's tunnel and cellar, tunnelKit's bake): in a flashlight
@@ -734,7 +734,7 @@ THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
     vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
   sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
     #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
-    if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, flBase * flC, flK); }
+    if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
     if (mzN > 0.5) gl_FragColor.rgb += flBase * muzLight(vSunPos, vec3(0.0), 0.0);
     #include <tonemapping_fragment>`);
 };
@@ -5011,13 +5011,29 @@ function dropWeapons(e) {
   if (RANGE.on) dropBats(e, k);
 }
 // Batteries that fell from the dead: a pack of D and one of F (half what they had, and no more than the host's dropD and dropF: RANGE.dropBats), there until someone takes them all. The host keeps them
-// and sends them in its snapshot (bg); the oldest go if there get to be too many
-const BAGS = [], BAG_MAX = 60; let BAG_KEY = 0;
-function addBag(kind, n, pos, key) {
+// and sends them in its snapshot (bg); the oldest go if there get to be too many. Like the bodies, they lie there BAG_STAY seconds, fade out over BAG_FADE, then are gone
+// (they stayed till someone took them until 2026-11-24). age: how long it's been down (the host's count, in its snapshot, so a guest fades it at the same time)
+const BAGS = [], BAG_MAX = 60, BAG_STAY = 30, BAG_FADE = 3; let BAG_KEY = 0;
+function addBag(kind, n, pos, key, age) {
   const g = RANGE.packMesh(kind); g.position.set(pos.x, pos.y + 0.01, pos.z); g.rotation.y = lieYaw(pos); scene.add(g); // (on the ground)
-  const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g }; BAGS.push(b); return b;
+  const b = { key: key === undefined ? ++BAG_KEY : key, kind, n, pos: pos.clone(), mesh: g, age: age || 0 }; BAGS.push(b); return b;
 }
-function removeBag(i) { scene.remove(BAGS[i].mesh); BAGS.splice(i, 1); }
+function removeBag(i) { const b = BAGS[i]; scene.remove(b.mesh); if (b.mats) b.mats.forEach(m => m.dispose()); BAGS.splice(i, 1); }
+// Every machine fades them; only the host takes them away (a guest drops one when the host's snapshot no longer has it)
+function fadeBags(dt) {
+  for (let i = BAGS.length - 1; i >= 0; i--) {
+    const b = BAGS[i]; b.age += dt;
+    if (b.age < BAG_STAY) continue;
+    if (!b.mats) { // its own copy of its materials (the packs share theirs), see-through, and no shadow left behind
+      b.mats = [];
+      const own = m => { const m2 = m.clone(); m2.transparent = true; b.mats.push(m2); return m2; };
+      b.mesh.traverse(o => { if (!o.isMesh) return; o.castShadow = false; o.material = Array.isArray(o.material) ? o.material.map(own) : own(o.material); });
+    }
+    const k = Math.max(0, 1 - (b.age - BAG_STAY) / BAG_FADE);
+    for (const m of b.mats) m.opacity = k;
+    if (k <= 0 && NET.role !== 'guest') removeBag(i);
+  }
+}
 function clearBags() { while (BAGS.length) removeBag(0); }
 function dropBats(e, k) {
   const b = e.isPlayer ? RANGE.bats() : e.isRemote ? e.gBats || [0, 0, 0, 0] : [0, 2, e.nades | 0, 0]; // [A, D, F, R] (a bot: two D and its grenades)
@@ -5048,10 +5064,10 @@ function updateBags(dt, now) {
 }
 function syncBags(list) { // a guest: as the host's snapshot says
   const keys = new Set();
-  for (const [key, kind, n, x, y, z] of list) {
+  for (const [key, kind, n, x, y, z, age] of list) {
     keys.add(key);
     const b = BAGS.find(q => q.key === key);
-    if (!b && (kind === 'D' || kind === 'F')) addBag(kind, n, new V3(x, y, z), key); else if (b) b.n = n;
+    if (!b && (kind === 'D' || kind === 'F')) addBag(kind, n, new V3(x, y, z), key, age); else if (b) b.n = n;
   }
   for (let i = BAGS.length - 1; i >= 0; i--) if (!keys.has(BAGS[i].key)) removeBag(i);
 }
@@ -7501,7 +7517,7 @@ function snapshot() {
     })),
     pk: PICKUPS.map(pk => [pk.key, pk.id, arr(pk.pos), pk.active ? 1 : 0]),
     am: ammoBoxes.map(a => (a.active ? 1 : 0)),
-    bg: BAGS.map(b => [b.key, b.kind, b.n, +b.pos.x.toFixed(2), +b.pos.y.toFixed(2), +b.pos.z.toFixed(2)]), // batteries the dead dropped
+    bg: BAGS.map(b => [b.key, b.kind, b.n, +b.pos.x.toFixed(2), +b.pos.y.toFixed(2), +b.pos.z.toFixed(2), Math.round(b.age)]), // batteries the dead dropped (and how long they've been down)
     hl: HEALS.map(h => (h.active ? 1 : 0)),
     nd: nades.map(n => arr(n.pos)),
     vh: VEH.netSnapshot(),
@@ -7921,7 +7937,7 @@ function loop(now) {
   if (NET.role === 'guest') {
     if (!matchOver) { updatePlayer(dt); VEH.update(dt); updateGun(dt); RANGE.update(dt); }
     updateRockets(dt); updateSheds(dt);
-    updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt);
+    updateReplicas(dt, now); updateCorpses(dt); fadeCorpses(dt); fadeBags(dt);
   } else if (!matchOver && (locked || away || remotes.length)) {
     updatePlayer(dt);
     VEH.update(dt);
@@ -7934,7 +7950,7 @@ function loop(now) {
     updateNades(dt);
     updateRockets(dt);
     updateSheds(dt);
-    updateAmmo(dt, now); updateBags(dt, now);
+    updateAmmo(dt, now); updateBags(dt, now); fadeBags(dt);
     updatePickups(dt, now);
     updateHeals(dt);
     updateCorpses(dt); fadeCorpses(dt);
@@ -7976,9 +7992,9 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=50"></script>
+<script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=22"></script>
+<script src="headlights.js?v=23"></script>
 </body>
 </html>

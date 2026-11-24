@@ -70,11 +70,12 @@
   const vols = [...Array(FLASH_MAX)].map((_, i) => { const m = new THREE.Mesh(cone, beamMat(i)); m.visible = false; m.renderOrder = 5; m.raycast = () => {}; m.name = 'Beam'; scene.add(m); return m; });
   const BEAM_K = 0.4, _ax = new V3();
   function beamVols() {
-    const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, dark = nightOn() ? 1 : 0.55;
+    const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
       const b = beams[i], far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
+      const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
       m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1) * (b.hz || 1); // (yours, looking down it: fainter)
     });
   }
@@ -129,8 +130,9 @@
       const r = VIC.rigs[0], w = r.wrap.position, o = new V3(w.x, VIC.c.y + SPOT_LOW, w.z + SPOT_OUT), d = new V3(w.x, VIC.c.y + r.model.headY * SPOT_AIM, w.z).sub(o).normalize();
       beams.push({ o, d, far: 22, fov: SPOT_EDGE * 2 + 6, asp: SPOT_ASP, cone: Math.cos(SPOT_EDGE * Math.PI / 180), band: SPOT_BAND, soft: -1, col: _spotCol, hz: SPOT_HAZE, vic: true });
     }
-    if (night) for (const b of VEH.lampBeams()) beams.push(b);
-    for (const e of ents) { const b = flashBeam(e); if (b && (night || darkNear(b.o, 2))) beams.push(b); } // flashlights: at dusk and night, and by day in (or at the door of) a dark place, the bunker
+    for (const b of VEH.lampBeams()) beams.push(b); // headlights that are on, day or night (only at dusk and night until 2026-11-24)
+    // flashlights: anyone who has switched theirs on (people, day or night, since 2026-11-24); the bots' at dusk and night, and by day in (or at the door of) a dark place, the bunker
+    for (const e of ents) { const b = flashBeam(e); if (b && (night || e.isPlayer || e.isRemote || e.isReplica || darkNear(b.o, 2))) beams.push(b); }
     lenses(); // (every lit flashlight shows its lens, even the ones past FLASH_MAX)
     if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
     FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)

@@ -293,7 +293,7 @@
   // network state)
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
   function lampGlow(v) {
-    const lit = !v.dead && !!v.lightsOn && nightOn();
+    const lit = !v.dead && !!v.lightsOn; // (day or night, since 2026-11-24)
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
     else v.brakeOn = !!v.owner && !!v.netBrake;
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
