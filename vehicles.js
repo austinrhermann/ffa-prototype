@@ -937,15 +937,15 @@
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
   // A driver's hands are on the wheel or the bars: the gun is put away (after() brings it back once they're out of the seat)
   function stowGun(rig) { if (rig.gunVis) { rig.gunVis.visible = false; rig.seatHid = true; } }
-  const PASS_BACK = 0.3, PASS_TURN = 0.9, _sb = new V3();
+  const PASS = { back: 0.1, turn: 0.75, aim: 0.2, lift: 0.32 }, _sb = new V3(); // the truck's front passenger: how far back from the seat's point, turned toward the window, and the gun's aim (up)
   function seat(rig, wrap, v, dt, k, who) {
     rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
     if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatMotorcycle(rig, wrap, v, dt, k, who);
     // (the front passenger sits back from the seat's point: crouched over it, as they were until 2026-11-24, their gun came out through the front of the cab)
-    const p = k === 1 && !v.seats[k].yaw ? (v.body.updateMatrixWorld(true), v.seats[k].p.clone().add(_sb.set(0, 0, -PASS_BACK)).applyMatrix4(v.body.matrixWorld)) : seatWorld(v, k);
-    const turn = k === 1 && !v.seats[k].yaw ? Math.sign(v.seats[k].p.x) * PASS_TURN : 0; // (and turned toward their own window, the gun out of it)
-    wrap.position.set(p.x, p.y - 0.5, p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw + turn, v.roll, 'YXZ'); wrap.visible = true;
-    animRig(rig, dt, 0, true, 0.2);
+    const p = k === 1 && !v.seats[k].yaw ? (v.body.updateMatrixWorld(true), v.seats[k].p.clone().add(_sb.set(0, 0, -PASS.back)).applyMatrix4(v.body.matrixWorld)) : seatWorld(v, k);
+    const turn = k === 1 && !v.seats[k].yaw ? Math.sign(v.seats[k].p.x) * PASS.turn : 0; // (turned toward their own window and sat up, forearm on the sill and the gun out over it)
+    wrap.position.set(p.x, p.y - 0.5 + (turn ? PASS.lift : 0), p.z); wrap.rotation.set(-v.pitch, v.yaw + v.seats[k].yaw + turn, v.roll, 'YXZ'); wrap.visible = true;
+    animRig(rig, dt, 0, true, turn ? PASS.aim : 0.2);
     if (k === 0) stowGun(rig); // (the truck's driver; until 2026-11-22 they sat holding it, and it showed in the driver's seat view)
   }
   // Astride a motorcycle: hips on the saddle and feet on the pegs; the rider leans to the grips with both hands (the gun put away:
@@ -1132,7 +1132,7 @@
     setModel,
     lampBeams, // the headlights that are on (headlights.js lights them at dusk and night)
     // For bots riding along (index.html's botRide): where seat k is in the world, where to get out of it, and a free seat to take (the front passenger's, else the back's)
-    seatAt: seatWorld, exitSpot: spotFor,
+    seatAt: seatWorld, exitSpot: spotFor, passPose: PASS,
     freeSeat: v => (v.seats.length > 1 && !v.occ[1] && !v.seats[1].blocked ? 1 : freeRear(v)),
     toggleLights: () => (cur ? (toggleLights(), true) : false), // L at the wheel (and the touch Light button)
     driving: () => cur,
