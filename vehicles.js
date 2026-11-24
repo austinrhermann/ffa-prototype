@@ -937,7 +937,7 @@
   const seatWorld = (v, k) => { v.body.updateMatrixWorld(true); return v.seats[k].p.clone().applyMatrix4(v.body.matrixWorld); };
   // A driver's hands are on the wheel or the bars: the gun is put away (after() brings it back once they're out of the seat)
   function stowGun(rig) { if (rig.gunVis) { rig.gunVis.visible = false; rig.seatHid = true; } }
-  const PASS = { back: 0.1, turn: 0.75, aim: 0.2, lift: 0.32 }, _sb = new V3(); // the truck's front passenger: how far back from the seat's point, turned toward the window, and the gun's aim (up)
+  const PASS = { back: 0.2, turn: 0.75, aim: 0.5, lift: 0.16 }, _sb = new V3(); // the truck's front passenger: how far back from the seat's point, turned toward the window, and the gun's aim (up)
   function seat(rig, wrap, v, dt, k, who) {
     rig.amp = 0; // (the game walks your body at the vehicle's speed: sitting, the legs stay still)
     if (v.seats[k].peg && rig.bones.thighL && rig.piv1) return seatMotorcycle(rig, wrap, v, dt, k, who);
