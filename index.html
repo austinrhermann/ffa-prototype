@@ -1133,10 +1133,10 @@ function levelFortress() {
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
     // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the lower tower room's
-    // window, the roof and the balcony behind the tower (none in the computer room, the top one: they crowded it, 2026-11-24)
-    // (each [x, y, z, kind]: 'bridge', 'tower' its windows and balcony, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
+    // window and the roof (none in the computer room, the top one: they crowded it, 2026-11-24)
+    // (each [x, y, z, kind]: 'bridge', 'tower' its lower room's window, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
     fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'],
-      [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof'], [4.5, 47.6, -1.5, 'roof'], [5, 45, -2, 'tower']],
+      [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
@@ -5745,9 +5745,9 @@ function fortPostList() { // the level's posts on the walking map, each with the
   defLv = LV; defPosts = [];
   for (const [x, y, z, kind] of (LV && LV.fortPosts) || []) {
     const k = fortNode(new V3(x, y, z), false); if (k === null) continue;
-    const n = FN.nodes[k]; let sx = 0, sz = 0;
-    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a); if (tgRay(n.x, n.y + 1.45, n.z, dx, -0.08, dz, 30, true) >= 25) { sx += dx; sz += dz; } }
-    defPosts.push({ p: new V3(n.x, n.y, n.z), face: sx || sz ? Math.atan2(sx, sz) : 0, by: null, kind: kind || 'tower' });
+    const n = FN.nodes[k], dirs = [];
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a); if (tgRay(n.x, n.y + 1.45, n.z, dx, -0.08, dz, 30, true) >= 25) dirs.push(a); }
+    defPosts.push({ p: new V3(n.x, n.y, n.z), dirs, face: {}, by: null, kind: kind || 'tower' });
   }
   return defPosts;
 }
@@ -5808,6 +5808,14 @@ function rejoinFort(b, dt) {
   if (!best) return;
   Object.assign(ai, { route: best, way: tw[best].slice(bk), routeDone: false, wps: null, via: null, hpath: null, explore: [], searchN: 0, flank: null });
 }
+// Which way a post's holder looks with nobody in sight: toward the other side's spawns (where they come from), as near as the post can see out that way
+function postFace(q, team) {
+  if (q.face[team] !== undefined) return q.face[team];
+  const foe = Object.keys(TEAMS).find(o => o !== team), sp = (foe && SPAWN_SETS[foe]) || [];
+  let want = 0; if (sp.length) { const c = sp.reduce((a, p) => a.add(p), new V3()).divideScalar(sp.length); want = Math.atan2(c.x - q.p.x, c.z - q.p.z); }
+  let best = want, bd = Infinity; for (const a of q.dirs) { const d = Math.abs(wrap(a - want)); if (d < bd) { bd = d; best = a; } }
+  return (q.face[team] = q.dirs.length ? best : want);
+}
 // The post b holds, or null (and it lets go of any it held): only on a team level, while its side holds the fort, once it's inside
 function defendPost(b) {
   const ai = b.ai;
@@ -5839,7 +5847,7 @@ function defendMove(b, post, wish, dt, t, style) {
     speed = t ? 4.2 : RUN_BOT;
   } else { // at it: hold, looking out
     ai.hpath = null;
-    if (!t) { b.yaw = turn(b.yaw, post.face, 3 * dt); b.pitch += (-0.12 - b.pitch) * Math.min(1, dt * 3); }
+    if (!t) { b.yaw = turn(b.yaw, postFace(post, b.team), 3 * dt); b.pitch += (-0.12 - b.pitch) * Math.min(1, dt * 3); }
     if (b.reloading > 0) ai.crouchHold = 0.4; // (down behind the sill to reload)
   }
   if (t) botEngage(b, t, dt, style, false);
