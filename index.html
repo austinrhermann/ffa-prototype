@@ -1134,8 +1134,9 @@ function levelFortress() {
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
     // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the tower's windows (the top
     // room's front and side, the lower room's), the roof and the balcony behind the tower
-    fortPosts: [[-2, 37.1, 4], [-4.5, 37.1, 4.5], [2, 37.1, 3], [1.5, 37.6, 3.5], [5.5, 43.9, 5.5], [7, 43.9, 2], [6.5, 43.9, 4],
-      [4.5, 47.6, 5.5], [7, 47.6, 6], [3, 47.6, 2], [4.5, 47.6, -1.5], [5, 45, -2]],
+    // (each [x, y, z, kind]: 'bridge', 'tower' its windows and balcony, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
+    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'], [5.5, 43.9, 5.5, 'tower'], [7, 43.9, 2, 'tower'], [6.5, 43.9, 4, 'tower'],
+      [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof'], [4.5, 47.6, -1.5, 'roof'], [5, 45, -2, 'tower']],
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
@@ -5719,35 +5720,43 @@ function botRide(b, dt) {
 }
 // Holding the fort: once two or more of a side are inside it (LV.fortZone), its bots there stop exploring and chasing and each takes a post (LV.fortPosts: the bridge over the
 // gate, the tower's windows, the roof), the nearest free one, and holds it: shooting at whoever it sees from there (out to DEF_SEE), crouching to reload, looking out
-// when there's nobody. Someone close by inside (DEF_CLOSE) it fights as it would anyway. It gives the post up when it dies, or when fewer than two of its side are left inside
+// when there's nobody. Someone close by inside (DEF_CLOSE) it fights as it would anyway. It gives the post up when it dies, when fewer than two of its side are left inside,
+// or when the other side gets in too (contested: no one holds it, and they fight it out)
 const DEF_SEE = 95, DEF_CLOSE = 10;
 let defCache = { t: -1, n: {} }, defPosts = null, defLv = null;
 function fortCount(team) {
-  const now = performance.now();
-  if (now - defCache.t > 200) { defCache = { t: now, n: {} }; for (const e of ents) { const tm = e === P ? myTeam : e.team; if (e.alive && tm && e.pos && inFortZone(e.pos)) defCache.n[tm] = (defCache.n[tm] || 0) + 1; } }
+  const now = last; // (the frame's time)
+  if (now - defCache.t > 200 || now < defCache.t) { defCache = { t: now, n: {} }; for (const e of ents) { const tm = e === P ? myTeam : e.team; if (e.alive && tm && e.pos && inFortZone(e.pos)) defCache.n[tm] = (defCache.n[tm] || 0) + 1; } }
   return defCache.n[team] || 0;
 }
 function fortPostList() { // the level's posts on the walking map, each with the way it looks out (the middle of the directions it can see 25 m or more along)
   if (defLv === LV && defPosts) return defPosts;
   defLv = LV; defPosts = [];
-  for (const [x, y, z] of (LV && LV.fortPosts) || []) {
+  for (const [x, y, z, kind] of (LV && LV.fortPosts) || []) {
     const k = fortNode(new V3(x, y, z), false); if (k === null) continue;
     const n = FN.nodes[k]; let sx = 0, sz = 0;
     for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a); if (tgRay(n.x, n.y + 1.45, n.z, dx, -0.08, dz, 30, true) >= 25) { sx += dx; sz += dz; } }
-    defPosts.push({ p: new V3(n.x, n.y, n.z), face: sx || sz ? Math.atan2(sx, sz) : 0, by: null });
+    defPosts.push({ p: new V3(n.x, n.y, n.z), face: sx || sz ? Math.atan2(sx, sz) : 0, by: null, kind: kind || 'tower' });
   }
   return defPosts;
 }
 // The post b holds, or null (and it lets go of any it held): only on a team level, while its side holds the fort, once it's inside
 function defendPost(b) {
   const ai = b.ai;
-  const held = teamsOn() && b.team && LV && LV.fortZone && LV.fortPosts && fortCount(b.team) >= 2 && !ai.seatV && !ai.boardV;
+  // (held: two or more of its side inside and none of the other side; with both sides in there it's contested, and they fight it out for it)
+  const held = teamsOn() && b.team && LV && LV.fortZone && LV.fortPosts && fortCount(b.team) >= 2 && !Object.keys(TEAMS).some(o => o !== b.team && fortCount(o) > 0) && !ai.seatV && !ai.boardV;
   if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
   if (ai.post && ai.post.by === b) return ai.post;
+  // Spread over the kinds of post: the kind its side has fewest at (in or on the tower first, if nobody of its side is there yet), then the nearest free one of that kind
+  const list = fortPostList(), held1 = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q && q.by.team === b.team;
+  const busy = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q;
+  const have = {}; for (const q of list) if (held1(q)) have[q.kind] = (have[q.kind] || 0) + 1;
+  const towerless = !(have.tower || have.roof);
   let best = null, bd = Infinity;
-  for (const q of fortPostList()) {
-    if (q.by && q.by !== b && q.by.alive && q.by.ai.post === q) continue;
-    const d = Math.hypot(q.p.x - b.pos.x, q.p.z - b.pos.z) + Math.abs(q.p.y - b.pos.y) * 1.5; if (d < bd) { bd = d; best = q; }
+  for (const q of list) {
+    if (busy(q)) continue;
+    const d = Math.hypot(q.p.x - b.pos.x, q.p.z - b.pos.z) + Math.abs(q.p.y - b.pos.y) * 1.5 + (towerless && q.kind === 'bridge' ? 1000 : 0) + (have[q.kind] || 0) * 100;
+    if (d < bd) { bd = d; best = q; }
   }
   if (!best) return null;
   best.by = b; ai.post = best; ai.hpath = null; ai.cov = null; ai.rev = null; ai.flank = null; ai.searchN = 0; ai.routeDone = true;
