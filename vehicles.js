@@ -330,7 +330,7 @@
   function armorRay(o, d, far) {
     let best = null;
     for (const v of list) {
-      if (!v.model || v.layout !== 'truck') continue;
+      if (!v.model || v.kind !== 'truck') continue; // (v.layout until 337b2e1 renamed it: since then nothing stopped at a truck's walls)
       const cx = v.pos.x - o.x, cy = v.pos.y + 2 - o.y, cz = v.pos.z - o.z, along = cx * d.x + cy * d.y + cz * d.z; // skip it unless the ray passes within 4.5 m of its middle
       if (along < -4.5 || along > far + 4.5 || cx * cx + cy * cy + cz * cz - along * along > 20.25) continue;
       if (!v.armM) continue; _ai.copy(v.armInv);
