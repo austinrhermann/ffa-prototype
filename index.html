@@ -655,6 +655,29 @@ vec3 bulbLight(vec3 p, vec3 n) { // the warm glow on a surface at p that faces n
   return vec3(1.0, 0.8, 0.5) * k * 1.3;
 }
 `;
+// Muzzle flashes: every shot lights up what's round the gun for a blink (MUZ_LIFE), a warm point light like a bulb's, up to MUZ_MAX at once (the oldest gives way).
+// Barely there by day; at night and in the dark places, a blip of light at each gun that fires
+const MUZ_MAX = 8, MUZ_LIFE = 0.07, MUZ_R = 4, MUZ = { n: { value: 0 }, pos: { value: [...Array(MUZ_MAX)].map(() => new THREE.Vector4()) }, k: { value: new Array(MUZ_MAX).fill(0) }, list: [] };
+const MUZ_GLSL = `
+uniform float mzN; uniform vec4 mzPos[${MUZ_MAX}]; uniform float mzK[${MUZ_MAX}];
+vec3 muzLight(vec3 p, vec3 n, float face) { // face: how much the way the surface faces counts (0 where there's no normal to go by)
+  float k = 0.0;
+  for (int i = 0; i < ${MUZ_MAX}; i++) {
+    if (float(i) >= mzN) break;
+    vec3 v = mzPos[i].xyz - p; float d2 = dot(v, v), R = mzPos[i].w;
+    if (d2 > R * R) continue;
+    k += mzK[i] * (1.0 - smoothstep(R * R * 0.2, R * R, d2)) / (1.0 + d2 * 0.35) * (1.0 - face + face * (0.15 + 0.85 * max(dot(n, v * inversesqrt(max(d2, 1e-4))), 0.0)));
+  }
+  return vec3(1.0, 0.78, 0.45) * k * 1.6;
+}
+`;
+function muzLight(p, d) { MUZ.list.push({ p: p.clone().addScaledVector(d, 0.2), t: MUZ_LIFE, k: 0.8 + Math.random() * 0.4 }); if (MUZ.list.length > MUZ_MAX) MUZ.list.shift(); }
+function updateMuz(dt) {
+  MUZ.list = MUZ.list.filter(m => (m.t -= dt) > 0);
+  MUZ.list.forEach((m, i) => { MUZ.pos.value[i].set(m.p.x, m.p.y, m.p.z, MUZ_R); MUZ.k.value[i] = m.k * m.t / MUZ_LIFE; });
+  MUZ.n.value = MUZ.list.length;
+}
+function muzAtCPU(p) { let k = 0; for (const m of MUZ.list) { const d2 = m.p.distanceToSquared(p); if (d2 < MUZ_R * MUZ_R) k += m.k * (m.t / MUZ_LIFE) / (1 + d2 * 0.35); } return k; }
 // Dark places (the bunker, its tunnel, the cellar and the stairs up to the fort): boxes in which every toon surface is pitch black, whatever the time of day, so only
 // a flashlight (or a bulb) shows anything there. A box takes in the inside faces of its walls, floor and roof, not their outsides. DARK.all is every box the sets have
 // built, DARK.live the ones in the level being played (darkSync); the shaders skip the lot outside DARK.bounds
@@ -682,14 +705,14 @@ const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.l
 const inDarkCPU = p => darkNear(p);
 const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
-  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
+  Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vec4 sunWp = vec4(transformed, 1.0);
     #ifdef USE_INSTANCING
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + MUZ_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
@@ -697,6 +720,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
     #endif`).replace('#include <tonemapping_fragment>', `
     if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
+    if (mzN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * muzLight(vSunPos, inverseTransformDirection(normal, viewMatrix), 1.0) * (1.0 - 0.7 * sunAt(vSunPos)); // (a shot's flash)
     if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC, flK); }
     #include <tonemapping_fragment>`);
 };
@@ -704,12 +728,13 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
 // they show their own colour, without the bake. (Other unlit things, bulbs and labels, are their own colour already.)
 THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
   if (!this.vertexColors) return;
-  Object.assign(sh.uniforms, FLASH_UNIFORMS());
+  Object.assign(sh.uniforms, FLASH_UNIFORMS(), { mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
-  sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
+  sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
     #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
     if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, flBase * flC, flK); }
+    if (mzN > 0.5) gl_FragColor.rgb += flBase * muzLight(vSunPos, vec3(0.0), 0.0);
     #include <tonemapping_fragment>`);
 };
 // The same grid on the CPU (your gun takes its light from where you stand)
@@ -4180,6 +4205,7 @@ function _puff(tex, p, size, life, opts) {
 // p: muzzle, d: shot direction. own: the local player's shot, whose flash is drawn on the viewmodel instead
 function _muzzleFx(id, p, d, own) {
   const f = GUN_FX[id]; if (!f) return;
+  muzLight(p, d);
   if (!own || bodyOn || tpOn) _puff(f.flash.tex, p, f.flash.size, f.flash.life, { flash: true, additive: true });
   const sm = f.smoke;
   for (let i = 0; i < sm.count; i++) {
@@ -4204,6 +4230,7 @@ function updatePuffs(dt) {
   }
 }
 function updateFx(dt) {
+  updateMuz(dt);
   updatePuffs(dt);
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.life -= dt;
@@ -7768,6 +7795,7 @@ function loop(now) {
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
   vmFill.intensity = (vmFill.userData.k ?? 1) * dk; vmSky.intensity = (vmSky.userData.k ?? 0.9) * dk;
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
+  if (MUZ.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.78, 0.45).multiplyScalar(Math.min(2, muzAtCPU(camera.position) * 2.2))); // (and your own shots' flash)
   if (VIC.on) victoryHide();
   renderer.clear();
   renderWorld();
