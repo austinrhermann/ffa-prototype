@@ -5751,6 +5751,43 @@ function fortPostList() { // the level's posts on the walking map, each with the
   }
   return defPosts;
 }
+// Following a person: on a team level, about half its side's bots (up to FOLLOW_N per person) stick with each person on their side, the nearest ones (picked again
+// every couple of seconds). A follower keeps a few metres behind and to one side of them (its own slot), runs to catch up, shoots at whoever it sees as it goes and fights
+// someone close by (FOLLOW_FIGHT), then falls back in; it rides along when they drive (botRide). With them in the fort it takes a post there; with them out, it leaves it
+const FOLLOW_N = 3, FOLLOW_FIGHT = 22;
+let followT = -1e9;
+function assignFollowers() {
+  if (last - followT < 2000 && last >= followT) return; followT = last;
+  for (const b of bots) if (b.ai) { b.ai.lead = null; b.ai.leadSlot = 0; }
+  if (!teamsOn()) return;
+  const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
+  for (const h of people) {
+    const team = h === P ? myTeam : h.team, mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead);
+    const n = Math.min(FOLLOW_N, Math.ceil(bots.filter(b => b.team === team).length / 2 / Math.max(1, people.filter(o => (o === P ? myTeam : o.team) === team).length)));
+    mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, n).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
+  }
+}
+// Where a follower keeps to: behind its person (the way they're facing, or moving) and out to its slot's side, on ground the walking map has
+function followSpot(b, h) {
+  const v = h.vel ? Math.hypot(h.vel.x, h.vel.z) : 0;
+  const fx = v > 1 ? h.vel.x / v : h.isPlayer ? -Math.sin(h.yaw) : Math.sin(h.yaw), fz = v > 1 ? h.vel.z / v : h.isPlayer ? -Math.cos(h.yaw) : Math.cos(h.yaw);
+  const sl = b.ai.leadSlot, side = sl % 2 ? -1 : 1, back = 3.5 + (sl >> 1) * 2, out = sl ? 2.5 : 0;
+  const p = new V3(h.pos.x - fx * back - fz * side * out, h.pos.y, h.pos.z - fz * back + fx * side * out);
+  const k = fortNode(p, false); return k !== null && !FN.nodes[k].keep ? new V3(FN.nodes[k].x, FN.nodes[k].y, FN.nodes[k].z) : h.pos.clone();
+}
+function followMove(b, h, wish, dt, t, style) {
+  const ai = b.ai, d = Math.hypot(h.pos.x - b.pos.x, h.pos.z - b.pos.z), dy = Math.abs(h.pos.y - b.pos.y);
+  let speed = 4.2;
+  if (d > 2.5 || dy > 2) {
+    if (!ai.hpath || (ai.followT = (ai.followT || 0) - dt) <= 0 || !ai.followP || ai.followP.distanceTo(h.pos) > 2.5) {
+      ai.hpath = fortPath(b.pos, followSpot(b, h), b); ai.hi = 0; ai.followT = 1; ai.followP = h.pos.clone();
+    }
+    if (!walkFine(b, wish, dt, !t)) { ai.hpath = null; if (d > 2.5) wish.set(h.pos.x - b.pos.x, 0, h.pos.z - b.pos.z); }
+    speed = d > 9 ? RUN_BOT : d > 5 ? 5 : 3.5;
+  } else { ai.hpath = null; if (!t) b.yaw = turn(b.yaw, Math.atan2(b.pos.x - h.pos.x, b.pos.z - h.pos.z) + Math.PI, 2 * dt); } // (close enough: by them, looking where they are)
+  if (t) botEngage(b, t, dt, style, false);
+  return speed;
+}
 // A side holds the fort: two or more of it inside and nobody of the other side
 const teamHolds = team => !!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts && fortCount(team) >= 2 && !Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0));
 // Its side holds the fort and it's outside: back onto a way in (its side's road, tunnel or long way round, whichever gets it there soonest from where it is), so it fights its
@@ -5758,7 +5795,7 @@ const teamHolds = team => !!(teamsOn() && team && LV && LV.fortZone && LV.fortPo
 function rejoinFort(b, dt) {
   const ai = b.ai;
   if ((ai.rejoinT = (ai.rejoinT || 0) - dt) > 0) return; ai.rejoinT = 0.8 + Math.random() * 0.4;
-  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) return;
+  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV || (ai.lead && ai.lead.alive)) return;
   if (ai.rev && ai.rev.who.pos.distanceTo(b.pos) > 25) ai.rev = null; // (no rushing off after someone far away: to the fort)
   if (ai.way && !ai.routeDone) return;
   const sp = botSpots(), tw = sp && sp.team[b.team]; if (!tw) return;
@@ -5775,7 +5812,7 @@ function rejoinFort(b, dt) {
 function defendPost(b) {
   const ai = b.ai;
   // (held: two or more of its side inside and none of the other side; with both sides in there it's contested, and they fight it out for it)
-  const held = teamHolds(b.team) && !ai.seatV && !ai.boardV;
+  const held = teamHolds(b.team) && !ai.seatV && !ai.boardV && !(ai.lead && ai.lead.alive && !inFortZone(ai.lead.pos)); // (following someone who's out of the fort: with them)
   if (!held || (!ai.post && !inFortZone(b.pos))) { if (ai.post) { if (ai.post.by === b) ai.post.by = null; ai.post = null; } return null; }
   if (ai.post && ai.post.by === b) return ai.post;
   // Spread over the kinds of post: the kind its side has fewest at (in or on the tower first, if nobody of its side is there yet), then the nearest free one of that kind
@@ -5897,11 +5934,15 @@ function updateBot(b, dt) {
   // Pirates on a team level are the home side: once they're back near their own spawns they hold the base instead of
   // roaming out after whoever they last saw
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
-  if (FN.cells) rejoinFort(b, dt);
+  if (FN.cells) { assignFollowers(); rejoinFort(b, dt); }
   const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
   const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
+  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive ? ai.lead : null;
+  const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
   if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
+  } else if (lead && !fight && !(b.ammo === 0 && b.reserve === 0)) { // with its person
+    ai.cov = null; ai.rev = null; speed = followMove(b, lead, wish, dt, t, style);
   } else if (rv && !(t && t !== rv.who && b.pos.distanceTo(t.pos) < 12) && !huntClose(b, rv.who) && !(b.ammo === 0 && b.reserve === 0)) { // after whoever shot it
     ai.cov = null; hunt(b, rv, wish, dt, t, style); speed = RUN_BOT;
   } else if (ai.boardV && FN.cells) { // a teammate's vehicle to get into: run to it (shooting on the way if there's someone to shoot)
