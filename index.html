@@ -2153,7 +2153,7 @@ function loadLevel(id) {
   const L = buildGrid(id);
   buildWorld(L);
   SPAWNS.length = 0; SPAWN_SETS.pirates.length = SPAWN_SETS.midas.length = 0; AMMO_SPOTS.length = 0; STATIC_PICKUPS.length = 0;
-  FN.nodes = []; FN.cells = null; FN.comp = null; // the fine walking map belongs to the level it was built for
+  FN.nodes = []; FN.cells = null; FN.comp = null; FN.spots = null; // the fine walking map belongs to the level it was built for
   if (L.mesh) {
     // A spawn inside a wall or under a hill would trap whoever lands there
     L.spawns.forEach((p, i) => { const s = settle(p); if (meshBlocked(s.x, s.y, s.z, STAND_H) || hillAbove(s.x, s.y, s.z)) console.warn('Bad spawn', p); else { SPAWNS.push(s); for (const t in SPAWN_SETS) if (L.teamSpawns && L.teamSpawns[t].includes(i)) SPAWN_SETS[t].push(s); } });
@@ -5109,7 +5109,7 @@ function deferFortNav() {
 }
 function finishFortNav() { const job = navJob; navJob = null; if (job) for (const _ of job); }
 function* fortNavSteps() {
-  FN.nodes = []; FN.cells = null; FN.comp = null;
+  FN.nodes = []; FN.cells = null; FN.comp = null; FN.spots = null;
   const A = LV && LV.fortNav; if (!A || !TG || NET.role === 'guest') return;
   const [x0, z0, x1, z1] = A.box, S = A.cell, nx = Math.round((x1 - x0) / S) + 1, nz = Math.round((z1 - z0) / S) + 1;
   const wasOpen = TG.gate && TG.gate.open; FN.gateWant = wasOpen; if (TG.gate) setGateSolid(true); // map the gate passage as open
@@ -5268,19 +5268,41 @@ function fortPath(from, to, who) {
 // ground (ai.seed, for fortPath), the places in the fort it means to look round (LV.explore, shuffled), and on levels with fortRoutes, its way in: the front, the back
 // trail or the tunnel from the bunker, picked at random (40/30/30; until 2026-11-24 they were taken in turn, and everyone walked to the fort in a line), mostly by way of
 // one of the level's vias that isn't far out of its way. Riding along, cover and chasing are cleared
+// The level's spots for bots (fortRoutes, botVias, explore) checked against the walking map as it is (botSpots, once a map): each moves onto the nearest
+// ground that joins up with the rest (within 2 m across and 2 m up or down), or is left out if there's none; a way in with a waypoint left out isn't taken at all.
+// (Levels change under them: since the peninsula, the back trail's start is cut off from everywhere else, and a third of the bots walked off to it and gave up)
+function botSpot(p) {
+  const ci = Math.round((p[0] - FN.x0) / FN.S), cj = Math.round((p[2] - FN.z0) / FN.S); let best = null, bd = Infinity;
+  for (let j = cj - 4; j <= cj + 4; j++) for (let i = ci - 4; i <= ci + 4; i++) {
+    if (i < 0 || j < 0 || i >= FN.nx || j >= FN.nz) continue;
+    for (const k of FN.cells[j * FN.nx + i]) {
+      const n = FN.nodes[k], dy = Math.abs(n.y - p[1]); if (dy > 2 || (FN.comp && FN.comp[k] !== FN.mainComp)) continue;
+      const d = Math.hypot(n.x - p[0], n.z - p[2]); if (d < 2 && d + dy < bd) { bd = d + dy; best = [n.x, n.y, n.z]; }
+    }
+  }
+  return best;
+}
+function botSpots() {
+  if (!LV || !FN.cells || !FN.nodes.length) return null;
+  if (FN.spots && FN.spots.lv === LV) return FN.spots;
+  const keep = a => (a || []).map(botSpot).filter(Boolean), routes = {};
+  for (const [k, r] of Object.entries(LV.fortRoutes || {})) { const w = r.map(botSpot); if (w.every(Boolean)) routes[k] = w; else console.warn('Bot route left out (cut off from the walking map):', k); }
+  return (FN.spots = { lv: LV, routes, vias: keep(LV.botVias), explore: keep(LV.explore) });
+}
 function lifePlan(e) {
   const ai = e.ai;
   Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
     laneOff: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6), seed: [Math.random() * 60, Math.random() * 60] });
-  const ex = (LV && LV.explore || []).map(p => new V3(p[0], p[1], p[2]));
+  const sp = botSpots(), ex = (sp ? sp.explore : []).map(p => new V3(p[0], p[1], p[2])); ai.needPlan = !sp && !!(LV && LV.fortNav); // (no walking map yet: planned once there is one, roamFine)
   for (let i = ex.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [ex[i], ex[j]] = [ex[j], ex[i]]; }
   ai.explore = ex;
-  if (!(LV && LV.fortRoutes && advances(e))) return;
-  const r = Math.random(); ai.route = r < 0.4 ? 'front' : r < 0.7 ? 'back' : 'tunnel';
+  if (!(LV && LV.fortRoutes && advances(e)) || !sp) return;
+  const W = { front: 0.4, back: 0.3, tunnel: 0.3 }, ways = Object.keys(sp.routes); if (!ways.length) return;
+  let r = Math.random() * ways.reduce((t, k) => t + (W[k] || 0.3), 0); ai.route = ways.find(k => (r -= W[k] || 0.3) <= 0) || ways[0];
   // its via: one of the level's, or anywhere on the walking map's main part (a few dozen picked at random), that's no more than 40 m out of its way
-  const st = LV.fortRoutes[ai.route][0], d0 = Math.hypot(e.pos.x - st[0], e.pos.z - st[2]);
+  const st = sp.routes[ai.route][0], d0 = Math.hypot(e.pos.x - st[0], e.pos.z - st[2]);
   const out = v => Math.hypot(e.pos.x - v[0], e.pos.z - v[2]) + Math.hypot(v[0] - st[0], v[2] - st[2]) - d0;
-  const vias = (LV.botVias || []).filter(v => out(v) < 35);
+  const vias = sp.vias.filter(v => out(v) < 35);
   if (FN.nodes.length) for (let k = 0; k < 40; k++) { const j = Math.random() * FN.nodes.length | 0, n = FN.nodes[j]; if ((!FN.comp || FN.comp[j] === FN.mainComp) && !n.door && out([n.x, n.y, n.z]) < 40) vias.push([n.x, n.y, n.z]); }
   if (vias.length && Math.random() < 0.85) ai.via = vias[Math.random() * vias.length | 0];
 }
@@ -5302,6 +5324,7 @@ function routeLeg(b) {
 }
 function roamFine(b, wish, dt, face = true) {
   const ai = b.ai;
+  if (ai.needPlan && botSpots()) lifePlan(b);
   if (ai.hpath && walkFine(b, wish, dt, face)) return;
   ai.hurry = false;
   // After someone: round their side first if told to flank (teamCallout), then where they were last seen, then a look round there; at a run
@@ -5316,7 +5339,7 @@ function roamFine(b, wish, dt, face = true) {
       } else ai.sd = null;
     }
     if (ai.wps && !b.onGround) return; // dropping down the shaft: plan the next leg once it lands
-    if (!ai.wps) { if (inFortZone(b.pos)) ai.routeDone = true; else { ai.wps = ai.via ? [ai.via, ...LV.fortRoutes[ai.route]] : LV.fortRoutes[ai.route]; ai.wpi = 0; } }
+    if (!ai.wps) { if (inFortZone(b.pos)) ai.routeDone = true; else { const way = (botSpots() || { routes: {} }).routes[ai.route] || LV.fortRoutes[ai.route]; ai.wps = ai.via ? [ai.via, ...way] : way; ai.wpi = 0; } }
     if (ai.wps && ai.wpi > 0 && ai.via) ai.via = null; // (past its via: next time it plans, the way in alone)
     if (ai.wps && routeLeg(b)) { walkFine(b, wish, dt, face); return; }
   }
