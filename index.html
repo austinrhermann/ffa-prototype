@@ -5402,7 +5402,7 @@ function botSpots() {
 }
 function lifePlan(e) {
   const ai = e.ai;
-  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
+  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, regroup: false, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
     laneOff: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6), seed: [Math.random() * 60, Math.random() * 60] });
   const sp = botSpots(), ex = (sp ? sp.explore : []).map(p => new V3(p[0], p[1], p[2])); ai.needPlan = !sp && !!(LV && LV.fortNav); // (no walking map yet: planned once there is one, roamFine)
   for (let i = ex.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [ex[i], ex[j]] = [ex[j], ex[i]]; }
@@ -5804,9 +5804,10 @@ function teamHolds(team) {
 function rejoinFort(b, dt) {
   const ai = b.ai;
   if ((ai.rejoinT = (ai.rejoinT || 0) - dt) > 0) return; ai.rejoinT = 0.8 + Math.random() * 0.4;
-  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV || (ai.lead && ai.lead.alive)) return;
+  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) { ai.regroup = false; return; }
   if (ai.rev && ai.rev.who.pos.distanceTo(b.pos) > 25) ai.rev = null; // (no rushing off after someone far away: to the fort)
-  if (ai.way && !ai.routeDone) return;
+  if (ai.regroup && ai.way && !ai.routeDone) return; // (already on the quickest way in: picked once, when its side took the fort, or again once a way runs out)
+  ai.regroup = true;
   const sp = botSpots(), tw = sp && sp.team[b.team]; if (!tw) return;
   let best = null, bk = 0, bc = Infinity;
   for (const [name, w] of Object.entries(tw)) {
@@ -5956,8 +5957,19 @@ function updateBot(b, dt) {
   const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
   const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamHolds(b.team) ? ai.lead : null;
   const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
+  // Its side holds the fort and it's out of it: back to it before anything else, along its way in, never stopping to fight; with someone in sight it turns to shoot
+  // at them and keeps going, walking backwards or sideways as it must
+  const regroup = FN.cells && !post && !ai.boardV && teamHolds(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
   if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
+  } else if (regroup) {
+    ai.cov = null; ai.rev = null; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0;
+    roamFine(b, wish, dt, !t);
+    if (t) {
+      botEngage(b, t, dt, style, false);
+      const wl = Math.hypot(wish.x, wish.z), along = wl > 1e-3 ? (wish.x * Math.sin(b.yaw) + wish.z * Math.cos(b.yaw)) / wl : 1;
+      speed = along > 0.3 ? 4.8 : along > -0.3 ? 4.2 : 3.6; // (forwards, sideways, backwards)
+    } else speed = RUN_BOT;
   } else if (lead && !fight && !(b.ammo === 0 && b.reserve === 0)) { // with its person
     ai.cov = null; ai.rev = null; speed = followMove(b, lead, wish, dt, t, style);
   } else if (rv && !(t && t !== rv.who && b.pos.distanceTo(t.pos) < 12) && !huntClose(b, rv.who) && !(b.ammo === 0 && b.reserve === 0)) { // after whoever shot it
