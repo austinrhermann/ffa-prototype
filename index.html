@@ -3370,7 +3370,7 @@ function spawnCorpseAt(mi, pos, yaw) {
   r.wrap.rotation.order = 'YXZ';
   r.wrap.position.copy(pos); r.wrap.rotation.y = yaw;
   scene.add(r.wrap); corpses.push({ w: r.wrap, t: 0, r });
-  if (corpses.length > 30) scene.remove(corpses.shift().w);
+  if (corpses.length > 30) { const c = corpses.shift(); scene.remove(c.w); if (c.mats) c.mats.forEach(m => m.dispose()); }
   return r;
 }
 // They drop backwards in half a second: the arms and hands fly out and land flat (the library characters; the older ones just
@@ -3418,11 +3418,10 @@ function updateCorpses(dt, list = corpses) {
   }
 }
 function clearCorpses() { corpses.forEach(c => scene.remove(c.w)); corpses.length = 0; }
-// Bodies lie for CORPSE_STAY seconds, fade out over CORPSE_FADE, then leave the map. Each body gets its own copy of its materials
+// Bodies lie for CORPSE_STAY seconds, fade out over CORPSE_FADE, then leave the map (in every game since 2026-11-24; only with ?test before). Each body gets its own copy of its materials
 // when it starts fading (they're shared with the living characters), and stops casting a shadow so no solid shadow is left behind.
 const CORPSE_STAY = 15, CORPSE_FADE = 3;
 function fadeCorpses(dt) {
-  if (!TEST) return; // test switch only for now
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i]; c.age = (c.age || 0) + dt;
     if (c.age < CORPSE_STAY) continue;
