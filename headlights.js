@@ -10,8 +10,8 @@
 (() => {
   const LAMP_FAR = 40, RES = LITE ? 256 : 512, COLS = 4, _white = new V3(1, 1, 1);
   // With LITE graphics: every lamp still lights (up to FLASH_MAX), but people are drawn into a lamp's map only within BODY_NEAR of it, and the glow in the air shows for
-  // only the nearest BEAM_CAP others' lamps (never your own in first person: down a tunnel it covered the whole screen, a shadow lookup on every pixel)
-  const LAMP_CAP = FLASH_MAX, BODY_NEAR = LITE ? 14 : Infinity, BEAM_CAP = LITE ? 2 : FLASH_MAX;
+  // every lamp in view but your own in first person (down a tunnel it covered the whole screen, a shadow lookup on every pixel; see GLOW_MAX)
+  const LAMP_CAP = FLASH_MAX, BODY_NEAR = LITE ? 14 : Infinity;
   // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
   // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
   const SPOT_OUT = 1.6, SPOT_LOW = 0.1, _spotCol = new V3(1, 0.96, 0.86);
@@ -59,13 +59,13 @@
   const BEAM_SEG = 96, cone = new THREE.ConeGeometry(1, 1, BEAM_SEG, 10, true);
   cone.translate(0, -0.5, 0); cone.rotateX(-Math.PI / 2); // (apex at the origin, opening along +z, 1 long and 1 across at the far end)
   const beamMat = i => new THREE.ShaderMaterial({
-    uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 }, bCell: BEAM_CELL }),
+    uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 }, bCell: BEAM_CELL, bPos: { value: new V3() }, bDir: { value: new V3(0, 0, 1) }, bFar: { value: 1 }, bCol: { value: new V3(1, 1, 1) } }),
     vertexShader: `varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() { vec4 w = modelMatrix * vec4(position, 1.0), mv = viewMatrix * w; vW = w.xyz; vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`, // (normalMatrix: right under the cone's stretch)
-    fragmentShader: DARK_GLSL + FLASH_GLSL + `uniform float bIdx; uniform float bK; uniform float bCell; varying vec3 vW; varying vec3 vN; varying vec3 vV;
+    fragmentShader: DARK_GLSL + FLASH_GLSL + `uniform float bIdx; uniform float bK; uniform float bCell; uniform vec3 bPos; uniform vec3 bDir; uniform float bFar; uniform vec3 bCol; varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() {
-        vec3 pos = vec3(0.0), dir = vec3(0.0, 0.0, 1.0), col = vec3(1.0); float far = 1.0, seen = 0.0;
-        for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx) { pos = flPos[i]; dir = flDir[i]; far = flFar[i]; col = flCol[i]; seen = flShad[i] > 0.5 ? flSeen(i, vW, far) : 1.0; }
+        vec3 pos = bPos, dir = bDir, col = bCol; float far = bFar, seen = 1.0; // (its own lamp's numbers; bIdx: its slot among the lamps that light, -1 for one that only glows)
+        for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx && flShad[i] > 0.5) seen = flSeen(i, vW, far);
         float t = clamp(dot(vW - pos, dir) / far, 0.0, 1.0);
         float fall = (1.0 - t) * (1.0 - t) * smoothstep(0.0, 0.04, t);           // bright by the lamp, gone at its reach
         float side = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); // soft at the cone's edges as you see it
@@ -78,18 +78,19 @@
       }`,
     transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, side: THREE.DoubleSide, fog: false,
   });
-  const vols = [...Array(FLASH_MAX)].map((_, i) => { const m = new THREE.Mesh(cone, beamMat(i)); m.visible = false; m.renderOrder = 5; m.raycast = () => {}; m.name = 'Beam'; scene.add(m); return m; });
+  // (GLOW_MAX: every lit lamp in view keeps its glow, near or far, not only the ones lighting things (FLASH_MAX); since 2026-11-25: with LITE only the nearest two
+  // glowed, so a far bot's beam vanished as soon as anyone was nearer)
+  const GLOW_MAX = 16, vols = [...Array(GLOW_MAX)].map((_, i) => { const m = new THREE.Mesh(cone, beamMat(-1)); m.visible = false; m.renderOrder = 5; m.raycast = () => {}; m.name = 'Beam'; scene.add(m); return m; });
   const BEAM_K = 0.4, _ax = new V3(), _proj = new THREE.Matrix4(), _frus = new THREE.Frustum(), _ball = new THREE.Sphere();
-  function beamVols() {
-    const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
-    let kept = 0;
+  function beamVols(glows) {
+    const haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
     BEAM_CELL.value = Math.max(1, Math.floor(renderer.getDrawingBufferSize(_bufSz).y / 300));
-    vols.forEach((m, i) => {
-      if (i >= n) { m.visible = false; return; }
-      const b = beams[i];
-      if (!LAMP_Q.beams || (LITE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP))) { m.visible = false; return; }
-      const far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
-      m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
+    const list = LAMP_Q.beams && haze > 0.01 ? glows.filter(b => !(LITE && b.e === P && !tpOn)) : [];
+    vols.forEach((m, j) => {
+      const b = list[j]; if (!b) { m.visible = false; return; }
+      const far = b.far || LAMP_FAR, cn = b.cone || 0.935, asp = b.asp || 1, r = far * Math.tan(Math.acos(Math.min(0.999, cn))), u = m.material.uniforms;
+      m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * asp, r, far); m.visible = true; // (asp: an oval, wider than tall)
+      u.bIdx.value = beams.indexOf(b); u.bPos.value.copy(b.o); u.bDir.value.copy(b.d); u.bFar.value = far; u.bCol.value.copy(b.col || _white);
       const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
       m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1) * (b.hz || 1); // (yours, looking down it: fainter)
     });
@@ -167,8 +168,9 @@
       _ball.center.copy(b.o).addScaledVector(b.d, far * 0.5); _ball.radius = far * Math.sqrt(0.25 + t * t);
       if (!_frus.intersectsSphere(_ball)) beams.splice(i, 1);
     }
-    if (beams.length > LAMP_CAP || (LITE && beams.length > 1)) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); if (beams.length > LAMP_CAP) beams.length = LAMP_CAP; } // (nearest first, so the glows LITE keeps are the near ones)
-    FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)
+    if (beams.length > 1) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); }
+    const glows = beams.slice(); if (beams.length > LAMP_CAP) beams.length = LAMP_CAP; // (every lamp in view glows, nearest first; the nearest LAMP_CAP also light) // (nearest first, so the glows LITE keeps are the near ones)
+    FLASH.n.value = 0; if (!beams.length) { beamVols(glows); return; } // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
     try {
@@ -195,7 +197,7 @@
       });
     } finally { renderer.setRenderTarget(rt); renderer.shadowMap.autoUpdate = au; renderer.autoClear = ac; }
     FLASH.n.value = beams.length;
-    beamVols();
+    beamVols(glows);
   }
   Object.assign(LAMPS, { after });
 })();
