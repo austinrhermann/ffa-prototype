@@ -533,21 +533,27 @@ const UP = 3.0, WALL_H = 6.5, MAG = 30, START_RES = 60, MAX_RES = 120, RELOAD_T 
 const $ = id => document.getElementById(id);
 
 // ---------- Renderer / scenes ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Retro graphics, on phones and tablets (?gfx=retro anywhere; ?gfx=high turns it off): the picture drawn RETRO_LINES pixels tall, however big the screen, and
+// blown up with hard square pixels, like an old console; no antialiasing; the sun's shadow map a quarter the size; and only your own flashlight casts
+// shadows (LAMP_Q 'own': everyone else's lights its cone without them). All so a phone keeps up at night in the bunker's tunnel
+const GFX_Q = new URLSearchParams(location.search).get('gfx');
+const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)), RETRO_LINES = 270;
+const renderer = new THREE.WebGLRenderer({ antialias: !RETRO });
+if (RETRO) renderer.domElement.style.imageRendering = 'pixelated';
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
 // difference that's hard to see in a moving game
 const MAX_PR = 1.5;
 // Lighter graphics, on every device (phones only, the first day; ?gfx=high turns it off): lighter lamps (headlights.js: smaller shadow maps, fewer glows, only the
 // tunnel's walls for a lamp underground), the sun's shadows held still in the dark places, and the picture drawn at a lower resolution while frames run slow (DYN:
 // steps down to DYN_STEPS' last, back up once it's quick again)
-const GFX_Q = new URLSearchParams(location.search).get('gfx');
 const LITE = GFX_Q !== 'high';
 // How the lamps (flashlights, headlights) light the world (?lamps=): full, each its own shadows; own, only your flashlight casts shadows (everyone else's lights
 // what's in its cone, walls or no walls); flat, no lamp casts shadows; dots, only your flashlight lights anything (everyone else's shows as its lens). The glow
 // in the air along each beam is off (since 2026-11-24, everywhere); ?beams=on brings it back
-const LAMP_Q = { mode: new URLSearchParams(location.search).get('lamps') || 'full', beams: new URLSearchParams(location.search).get('beams') === 'on' };
+const LAMP_Q = { mode: new URLSearchParams(location.search).get('lamps') || (RETRO ? 'own' : 'full'), beams: new URLSearchParams(location.search).get('beams') === 'on' };
 const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
-const dynPR = () => Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
+const dynPR = () => RETRO ? Math.max(0.3, Math.min(devicePixelRatio, RETRO_LINES / innerHeight) * DYN_STEPS[DYN.i]) // (retro: RETRO_LINES tall, and fewer still while slow)
+  : Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
 function dynRes(raw) { // raw: the frame's real length in seconds; called each frame with LITE
   if (!(raw > 0) || raw > 0.25) return; // (a stall or a hidden tab says nothing)
   DYN.ft += (raw - DYN.ft) * 0.05;
@@ -825,7 +831,7 @@ const LOOK_EXTRA = []; // other scenes' lights that follow the look: [fill, sun,
 const sun = new THREE.DirectionalLight(0xffffff, 1);
 const SUN_DIR = new THREE.Vector3();
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(RETRO ? 1024 : 2048, RETRO ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 150 });
 scene.add(sun);
 const boomLight = new THREE.PointLight(0xffaa55, 0, 18); scene.add(boomLight);
@@ -948,7 +954,7 @@ function setSky(on) {
 }
 
 addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
+  setPixelRatio(); // (and the size: retro's resolution goes by the screen's height, which turning the phone changes)
   camera.aspect = vmCam.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix(); vmCam.updateProjectionMatrix();
 });
