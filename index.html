@@ -583,10 +583,11 @@ const MAX_PR = 1.5;
 const LITE = GFX_Q !== 'high';
 // How the lamps (flashlights, headlights) light the world (?lamps=): full, each its own shadows; own, only your flashlight casts shadows (everyone else's lights
 // what's in its cone, walls or no walls); flat, no lamp casts shadows; dots, only your flashlight lights anything (everyone else's shows as its lens). The glow
-// in the air along each beam is off (since 2026-11-24, everywhere); ?beams=on brings it back
-const LAMP_Q = { fixed: new URLSearchParams(location.search).get('lamps'), mode: 'full', beams: new URLSearchParams(location.search).get('beams') === 'on' };
+// in the air along each beam shows above Graphics Medium (it was off everywhere 2026-11-24 to 11-25); ?beams=on or off sets it for every level
+const LAMP_Q = { fixed: new URLSearchParams(location.search).get('lamps'), mode: 'full', beamsQ: new URLSearchParams(location.search).get('beams'), beams: false };
 const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
 LAMP_Q.mode = LAMP_Q.fixed || (GFX.lv <= GFX_LOW_LAMPS ? 'own' : 'full');
+const lampGlow = lv => LAMP_Q.beamsQ ? LAMP_Q.beamsQ === 'on' : lv > GFX_LOW_LAMPS; LAMP_Q.beams = lampGlow(GFX.lv);
 const dynPR = () => gfxLines() ? Math.max(0.15, Math.min(devicePixelRatio, gfxLines() / innerHeight) * DYN_STEPS[DYN.i]) // (a low level: gfxLines() tall, and fewer still while slow)
   : Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
 function dynRes(raw) { // raw: the frame's real length in seconds; called each frame with LITE
@@ -1055,7 +1056,7 @@ const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 1.1; // FL_LOW: how far below their aim others carry the light (radians, 63°: looking level, the light stops just short of their own feet; 31° until 2026-11-25, its middle 2 m out)
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.663; // FL_LOW: how far below their aim others carry the light (radians, 38°: looking level, a long cast from a step in front of them; 31° until 2026-11-25, then 63° for a few hours)
 // Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing). It hangs off the left shoulder
 // bone (mountLamp, for every rig), so it crouches, leans and turns with the body; FL_LEFT and FL_DOWN place it (left of the middle, down from the top of the head,
 // just under the shoulder joints) and each character's own chest and gear (a flare, a bandolier, pouches) set how far out it sits: FL_CLEAR in front of the
@@ -6285,7 +6286,7 @@ function setGfx(lv) {
   GFX.lv = lv; GFX.lines = 0; CTL.gfx = lv; saveCtl();
   $('sgfx').value = lv; $('ogfx').textContent = GFX_NAMES[lv - 1];
   renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
-  LAMP_Q.mode = LAMP_Q.fixed || (lv <= GFX_LOW_LAMPS ? 'own' : 'full');
+  LAMP_Q.mode = LAMP_Q.fixed || (lv <= GFX_LOW_LAMPS ? 'own' : 'full'); LAMP_Q.beams = lampGlow(lv);
   const m = sunMap(); if (sun.shadow.mapSize.x !== m) { sun.shadow.mapSize.set(m, m); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } renderer.shadowMap.needsUpdate = true; }
   DYN.i = 0; setPixelRatio();
 }
