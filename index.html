@@ -4494,7 +4494,7 @@ function damage(t, amt, attacker, weapon, head) {
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
   if (t.isPlayer) hurtFx(felt);
   if (t.health <= 0) {
-    t.health = 0; t.alive = false; t.deaths++; t.respawnT = 3;
+    t.health = 0; t.alive = false; t.deaths++; t.respawnT = t.bot ? BOT_RESPAWN : 3; // (bots wait longer: BOT_RESPAWN)
     dropWeapons(t);
     if (attacker === t) t.kills = Math.max(0, t.kills - 1); else { attacker.kills++; attacker.streak = (attacker.streak || 0) + 1; attacker.best = Math.max(attacker.best || 0, attacker.streak); if (head) attacker.hk = (attacker.hk || 0) + 1; if (weapon === 'knife') attacker.kk = (attacker.kk || 0) + 1; }
     t.streak = 0;
@@ -6686,7 +6686,7 @@ function applySettings() {
 }
 // Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (six a side in a team battle)
 let BOT_LEVEL = 0; // off by default (the difficulty menu still starts at Medium, for when they are switched on)
-const BOT_FILL = 12;
+const BOT_FILL = 12, BOT_RESPAWN = 10; // (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25)
 const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
   const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
