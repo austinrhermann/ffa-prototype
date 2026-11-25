@@ -640,7 +640,7 @@ const TIMES = {
   day: { ...LOOK_DEFAULT },
   // (dusk and night keep the day's haze and its blue, only dimmer, so the fog reads the same at every time)
   dusk: { ...LOOK_DEFAULT, lit: '#c48f72', shadow: '#3b2d40', sky: '#56647c', top: '#1f2f5e' },
-  night: { ...LOOK_DEFAULT, az: 55, el: 18, lit: '#090a11', shadow: '#15232d', sky: '#111318', top: '#0f1f43', haze: 1.05 }, // (tuned 2026-11-23: a low moon, near-black shadows)
+  night: { ...LOOK_DEFAULT, az: 55, el: 18, lit: '#323548', shadow: '#162027', edge: 0.46, soft: 0, sky: '#111318', top: '#0f1f43', haze: 1.55 }, // (Austin's, 2026-11-25: a brighter blue moonlight, hard shadows, thicker haze; 2026-11-23's was lit #090a11, shadow #15232d, haze 1.05)
 };
 const nightOn = () => { const c = new THREE.Color(LOOK.lit); return c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.65; };
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
