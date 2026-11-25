@@ -1055,7 +1055,7 @@ const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 1.1; // FL_LOW: how far below their aim others carry the light (radians, 63°: looking level, the light stops just short of their own feet; 31° until 2026-11-25, its middle 2 m out)
 // Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing). It hangs off the left shoulder
 // bone (mountLamp, for every rig), so it crouches, leans and turns with the body; FL_LEFT and FL_DOWN place it (left of the middle, down from the top of the head,
 // just under the shoulder joints) and each character's own chest and gear (a flare, a bandolier, pouches) set how far out it sits: FL_CLEAR in front of the
