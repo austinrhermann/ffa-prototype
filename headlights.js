@@ -51,30 +51,39 @@
   // far end and at its sides; where the lamp's own depth map says something's in the way, the beam stops (flSeen), and walls in front hide it. Stronger in thicker haze
   // (the Lighting panel's Haze) and darker light; your own flashlight's is fainter, since you look down it. Nothing else sees them: no shadows, no hits, no paint
   // (BEAM_SEG: round the cone; 28 until 2026-11-24 showed as stripes down the beam)
+  // Where beams cross, or you see a cone's near and far sides at once, the brightest one shows (max blending), not their sum: since 2026-11-25 (added up, two
+  // lights crossing glowed white). And the glow is dithered like the PS1 look (a 4x4 ordered dither in BEAM_STEPS steps, coarse so it shows), in cells about as big as a
+  // 300-line picture's pixels (bCell), so it reads as a soft retro haze at any Graphics level
+  const BEAM_STEPS = 6, BEAM_LIFT = '1.4', BEAM_K_MAX = '1.0', BEAM_CELL = { value: 1 }, _bufSz = new THREE.Vector2(); // (BEAM_LIFT: as it now replaces what's behind it where brighter, rather than adding to it, it's drawn that much stronger to show as much over the
+  // dark; BEAM_K_MAX: the glow the steps span, brighter keeps stepping)
   const BEAM_SEG = 96, cone = new THREE.ConeGeometry(1, 1, BEAM_SEG, 10, true);
   cone.translate(0, -0.5, 0); cone.rotateX(-Math.PI / 2); // (apex at the origin, opening along +z, 1 long and 1 across at the far end)
   const beamMat = i => new THREE.ShaderMaterial({
-    uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 } }),
+    uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 }, bCell: BEAM_CELL }),
     vertexShader: `varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() { vec4 w = modelMatrix * vec4(position, 1.0), mv = viewMatrix * w; vW = w.xyz; vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`, // (normalMatrix: right under the cone's stretch)
-    fragmentShader: DARK_GLSL + FLASH_GLSL + `uniform float bIdx; uniform float bK; varying vec3 vW; varying vec3 vN; varying vec3 vV;
+    fragmentShader: DARK_GLSL + FLASH_GLSL + `uniform float bIdx; uniform float bK; uniform float bCell; varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() {
         vec3 pos = vec3(0.0), dir = vec3(0.0, 0.0, 1.0), col = vec3(1.0); float far = 1.0, seen = 0.0;
         for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx) { pos = flPos[i]; dir = flDir[i]; far = flFar[i]; col = flCol[i]; seen = flShad[i] > 0.5 ? flSeen(i, vW, far) : 1.0; }
         float t = clamp(dot(vW - pos, dir) / far, 0.0, 1.0);
         float fall = (1.0 - t) * (1.0 - t) * smoothstep(0.0, 0.04, t);           // bright by the lamp, gone at its reach
         float side = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); // soft at the cone's edges as you see it
-        float k = bK * fall * side * seen;
-        float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453); // a little noise, so the faint glow has no bands
-        gl_FragColor = vec4(max(col * k + (n - 0.5) * 2.0 / 255.0 * step(0.0005, k), 0.0), 1.0);
+        float k = bK * fall * side * seen * ${BEAM_LIFT};
+        vec2 q = mod(floor(gl_FragCoord.xy / bCell), 4.0); // (the 4x4 Bayer matrix, 0-15, by cell)
+        vec4 r = q.y < 1.0 ? vec4(0.0, 8.0, 2.0, 10.0) : q.y < 2.0 ? vec4(12.0, 4.0, 14.0, 6.0) : q.y < 3.0 ? vec4(3.0, 11.0, 1.0, 9.0) : vec4(15.0, 7.0, 13.0, 5.0);
+        float th = (dot(r, vec4(equal(vec4(q.x), vec4(0.0, 1.0, 2.0, 3.0)))) + 0.5) / 16.0;
+        k = floor(k / ${BEAM_K_MAX} * float(${BEAM_STEPS}) + th) / float(${BEAM_STEPS}) * ${BEAM_K_MAX};
+        gl_FragColor = vec4(col * k, 1.0);
       }`,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, side: THREE.DoubleSide, fog: false,
   });
   const vols = [...Array(FLASH_MAX)].map((_, i) => { const m = new THREE.Mesh(cone, beamMat(i)); m.visible = false; m.renderOrder = 5; m.raycast = () => {}; m.name = 'Beam'; scene.add(m); return m; });
   const BEAM_K = 0.4, _ax = new V3(), _proj = new THREE.Matrix4(), _frus = new THREE.Frustum(), _ball = new THREE.Sphere();
   function beamVols() {
     const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
     let kept = 0;
+    BEAM_CELL.value = Math.max(1, Math.floor(renderer.getDrawingBufferSize(_bufSz).y / 300));
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
       const b = beams[i];
