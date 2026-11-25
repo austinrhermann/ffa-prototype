@@ -1215,11 +1215,12 @@ function levelFortress() {
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
-    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the lower tower room's
-    // window and the roof (none in the computer room, the top one: they crowded it, 2026-11-24)
-    // (each [x, y, z, kind]: 'bridge', 'tower' its lower room's window, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
-    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'],
-      [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
+    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the gate passage on the
+    // ground floor, the computer room's south window and the middle of the roof's south edge (2026-11-25: one each in the computer room and on the roof, none at the
+    // tower's south-west corner or the roof's west side)
+    // (each [x, y, z, kind]: 'bridge', 'gate', 'computer', 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
+    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [-2, 33.5, 5, 'gate'],
+      [5.25, 43.94, 5.5, 'computer'], [5.25, 47.6, 6, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
@@ -2336,6 +2337,7 @@ function bodyBlock(e, dt) {
   for (const o of ents) {
     if (o === e || !o.alive || o.pos.y >= e.pos.y + e.h - 0.1 || e.pos.y >= o.pos.y + (o.h || STAND_H) - 0.1) continue;
     if (e.bot && o.bot && e.team === o.team && ((e.ai && e.ai.ghostT > 0) || (o.ai && o.ai.ghostT > 0))) continue; // (bots jammed in a queue walk through their own side for a moment: updateBot)
+    if (e.team && e.team === o.team && ((e.ai && e.ai.rush) || (o.ai && o.ai.rush))) continue; // (and bots in the assault through their own side, people too, in the tunnel: startAssault)
     let dx = e.pos.x - o.pos.x, dz = e.pos.z - o.pos.z, d = Math.hypot(dx, dz);
     const nx = dx + e.vel.x * dt, nz = dz + e.vel.z * dt;
     if (d >= 2 * R && Math.hypot(nx, nz) >= 2 * R) continue;
@@ -5550,7 +5552,7 @@ function botSpots() {
 }
 function lifePlan(e) {
   const ai = e.ai;
-  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, regroup: false, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
+  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, regroup: false, rush: false, solo: Math.random() < SOLO_P, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
     laneOff: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6), seed: [Math.random() * 60, Math.random() * 60] });
   const sp = botSpots(), ex = (sp ? sp.explore : []).map(p => new V3(p[0], p[1], p[2])); ai.needPlan = !sp && !!(LV && LV.fortNav); // (no walking map yet: planned once there is one, roamFine)
   for (let i = ex.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [ex[i], ex[j]] = [ex[j], ex[i]]; }
@@ -5745,6 +5747,34 @@ function obstacleAhead(b, dirx, dirz) {
   const ax = b.pos.x + dirx * 0.6, az = b.pos.z + dirz * 0.6;
   return blockedAt(ax, b.pos.y + 0.15, az, 0.5) && !blockedAt(ax, b.pos.y + 0.95, az, 0.6);
 }
+// A drop ahead in the fort (off the roof, the wall walk, the bridge, the tower's stairs): the ground `d` m on is gone or more than LEDGE_DROP below its feet
+// (2026-11-25: bots at their posts jumped off when someone attacked; now they go down by the stairs, which the walking map takes them along)
+const LEDGE_DROP = 1.4;
+function overLedge(b, fx, fz, d) {
+  const Z = LV && LV.fortZone; if (!Z || !(b.pos.x > Z[0] - 4 && b.pos.x < Z[1] + 4 && b.pos.z > Z[2] - 4 && b.pos.z < Z[3] + 4 && b.pos.y > Z[4])) return false;
+  const g = groundAt(b.pos.x + fx * d, b.pos.z + fz * d, b.pos.y + 1.3); return g === null || b.pos.y - g > LEDGE_DROP; // (up to 1.3 m above its feet: stairs going up aren't a drop)
+}
+// Take out of what a bot wants any step off a ledge: keep what's left of it along x or along z if that's safe, else stand; one strafing turns to strafe back, and
+// it doesn't carry on over the edge (not while climbing, or stepping through the window)
+function ledgeStop(b, wish) {
+  if (!b.onGround || b.pass || b.climb !== undefined) return;
+  const bad = (x, z) => { const l = Math.hypot(x, z); if (l < 1e-3) return false; x /= l; z /= l; return overLedge(b, x, z, 0.45) || overLedge(b, x, z, 0.85); };
+  if (!bad(wish.x, wish.z)) return;
+  const wx = wish.x, wz = wish.z;
+  if (!bad(wx, 0) && Math.abs(wx) > 0.2) wish.set(wx, 0, 0); else if (!bad(0, wz) && Math.abs(wz) > 0.2) wish.set(0, 0, wz); else wish.set(0, 0, 0);
+  const l = Math.hypot(wx, wz), fx = wx / l, fz = wz / l, out = b.vel.x * fx + b.vel.z * fz;
+  if (out > 0) { b.vel.x -= fx * out; b.vel.z -= fz * out; }
+  if (b.ai) { b.ai.strafeDir = -(b.ai.strafeDir || 1); b.ai.strafeT = 0.6 + Math.random() * 0.5; }
+}
+// And whatever else moves it (the kick that frees a stuck bot, being pushed apart from someone): none of its speed carries it off a ledge, though it can still slide along one
+function ledgeHold(b) {
+  if (!b.onGround || b.pass || b.climb !== undefined) return;
+  const vx = b.vel.x, vz = b.vel.z, v = Math.hypot(vx, vz); if (v < 0.05) return;
+  const bad = (x, z) => { const l = Math.hypot(x, z); if (l < 1e-3) return false; x /= l; z /= l; return overLedge(b, x, z, 0.35) || overLedge(b, x, z, 0.35 + v * 0.12); };
+  if (!bad(vx, vz)) return;
+  if (bad(vx, 0)) b.vel.x = 0; if (bad(0, vz)) b.vel.z = 0;
+  if (b.vel.x && b.vel.z && bad(b.vel.x, b.vel.z)) b.vel.x = b.vel.z = 0;
+}
 // Go round whoever is in the way. The walking map has no idea anyone is standing on it, so bots on one path pile up behind the first (or behind one holding its ground, or at the
 // closest spot to somewhere they can't reach), and body block stops them walking through each other: a line of them stuck on a hillside. So each bot steers to the free side of
 // anyone just ahead of it (a fixed side, per bot, for someone dead ahead, so two meeting head on part the opposite ways).
@@ -5906,7 +5936,11 @@ function fortPostList() { // the level's posts on the walking map, each with the
 // Only bots within a sphere round the person take them up (FOLLOW_R), and a follower lets them go once they're further off than FOLLOW_KEEP: so when you die
 // at the fort and come back at your spawn, the bots in the assault keep at it instead of all turning back to you (they took up whoever was nearest, however
 // far, until 2026-11-24)
-const FOLLOW_N = 3, FOLLOW_FIGHT = 22, FOLLOW_R = 20, FOLLOW_KEEP = 35;
+// (2026-11-25: each bot, at each spawn, has a SOLO_P chance of going its own way for that life, its own way in and whatever it meets on it, and never follows
+// anyone; the rest near a person all follow them, up to FOLLOW_N, where it was half the side up to 3)
+// The assault: once a person goes into the bunker (inBunker), their side's bots close by (ASSAULT_R) stop following and rush on ahead of them, at a run, along the
+// tunnel way into the fort, shooting as they go and not stopping to fight (ai.rush), till they're in the fort
+const FOLLOW_N = 6, FOLLOW_FIGHT = 22, FOLLOW_R = 20, FOLLOW_KEEP = 35, SOLO_P = 0.3, ASSAULT_R = 45;
 let followT = -1e9;
 function assignFollowers() {
   if (last - followT < 2000 && last >= followT) return; followT = last;
@@ -5915,11 +5949,24 @@ function assignFollowers() {
   const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
   for (const h of people) {
     const team = h === P ? myTeam : h.team; if (teamHolds(team)) continue; // (holding the fort: they hold it, they don't follow anyone)
-    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead && b.pos.distanceTo(h.pos) < (was.get(b) === h ? FOLLOW_KEEP : FOLLOW_R));
-    const n = Math.min(FOLLOW_N, Math.ceil(bots.filter(b => b.team === team).length / 2 / Math.max(1, people.filter(o => (o === P ? myTeam : o.team) === team).length)));
-    mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, n).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
+    if (inBunker(h.pos)) { startAssault(h, team); continue; }
+    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead && !b.ai.solo && !(b.ai.rush && !b.ai.routeDone) && b.pos.distanceTo(h.pos) < (was.get(b) === h ? FOLLOW_KEEP : FOLLOW_R));
+    mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, FOLLOW_N).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
   }
   for (const [b] of was) if (!b.ai.lead) b.ai.hpath = null; // (let go: not on along its way to them, but back to its own)
+}
+// A person of the team is in the bunker: its bots near them (not going their own way, holding a post, riding, already in the fort or already rushing) onto the tunnel way from the point on it
+// nearest each, ahead of them
+function startAssault(h, team) {
+  const sp = botSpots(), w = sp && ((sp.team[team] && sp.team[team].tunnel) || sp.routes.tunnel); if (!w) return;
+  for (const b of bots) {
+    const ai = b.ai;
+    if (!b.alive || b.team !== team || ai.solo || ai.post || ai.seatV || ai.boardV || (ai.rush && !ai.routeDone) || inFortZone(b.pos) || b.pos.distanceTo(h.pos) > ASSAULT_R) continue;
+    let k0 = 0, bd = Infinity; w.forEach((q, k) => { const d = Math.hypot(q[0] - b.pos.x, q[2] - b.pos.z) + Math.abs(q[1] - b.pos.y); if (d < bd) { bd = d; k0 = k; } });
+    // (one point further on when it's already past the nearest, so it doesn't turn back to it: closer to the next point than the nearest one is)
+    if (k0 + 1 < w.length) { const a = w[k0], n = w[k0 + 1]; if (Math.hypot(n[0] - b.pos.x, n[2] - b.pos.z) < Math.hypot(n[0] - a[0], n[2] - a[2])) k0++; }
+    Object.assign(ai, { rush: true, route: 'tunnel', way: w.slice(k0), routeDone: false, wps: null, via: null, hpath: null, cov: null, rev: null, flank: null, lastSeenT: 0, searchN: 0, lead: null });
+  }
 }
 // Where a follower keeps to: behind its person (the way they're facing, or moving) and out to its slot's side, on ground the walking map has
 function followSpot(b, h) {
@@ -5990,7 +6037,7 @@ function defendPost(b) {
   const list = fortPostList(), held1 = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q && q.by.team === b.team;
   const busy = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q;
   const have = {}; for (const q of list) if (held1(q)) have[q.kind] = (have[q.kind] || 0) + 1;
-  const towerless = !(have.tower || have.roof);
+  const towerless = !(have.tower || have.roof || have.computer);
   let best = null, bd = Infinity;
   for (const q of list) {
     if (busy(q)) continue;
@@ -6113,9 +6160,12 @@ function updateBot(b, dt) {
   // Its side holds the fort and it's out of it: back to it before anything else, along its way in, never stopping to fight; with someone in sight it turns to shoot
   // at them and keeps going, walking backwards or sideways as it must
   const regroup = FN.cells && !post && !ai.boardV && teamHolds(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
+  // In the assault (startAssault): on along the tunnel way at a run, shooting at whoever it sees as it goes, till it's in the fort
+  if (ai.rush && (ai.routeDone || inFortZone(b.pos) || ai.route !== 'tunnel')) ai.rush = false;
+  const rush = FN.cells && ai.rush && !post && !ai.boardV && !(b.ammo === 0 && b.reserve === 0);
   if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
-  } else if (regroup) {
+  } else if (regroup || rush) {
     ai.cov = null; ai.rev = null; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0;
     roamFine(b, wish, dt, !t);
     if (t) {
@@ -6221,7 +6271,7 @@ function updateBot(b, dt) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
     if (moved < 0.3 && wish.lengthSq() > 0.01 && !b.pass && b.climb === undefined) { // stuck: a sideways kick to break free, plus a hop but only over an actual ledge or obstacle, and not too often
       const dir = wish.clone().normalize();
-      if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z)) { b.vel.y = JUMP; ai.jumpCd = 1.2; }
+      if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z) && !(inFortZone(b.pos) && b.pos.y > 35) && ![0.9, 1.3, 1.8, 2.4].some(d => overLedge(b, dir.x, dir.z, d))) { b.vel.y = JUMP; ai.jumpCd = 1.2; } // (not over a parapet with a drop behind it, nor anywhere up on the fort's walls or tower)
       b.vel.x += (Math.random() - 0.5) * 5; b.vel.z += (Math.random() - 0.5) * 5;
       if (ents.some(o => o !== b && o.bot && o.alive && o.team === b.team && Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z) < 1.4 && Math.abs(o.pos.y - b.pos.y) < 1.5)) ai.ghostT = 2.5; // held up by one of its own: through them
       if (++ai.stuckN > 1) { ai.path = null; ai.hpath = null; ai.stuckN = 0; }
@@ -6247,12 +6297,14 @@ function updateBot(b, dt) {
   } else { ai.jamT = 0; ai.jamN = 0; ai.jamP = null; }
   if (ai.ghostT > 0) ai.ghostT -= dt;
   if (wish.lengthSq() > 0.01 && b.onGround) avoidBots(b, wish);
+  if (wish.lengthSq() > 0.01) ledgeStop(b, wish);
   if (wish.lengthSq() > 0) wish.normalize();
   if (b.h < STAND_H) speed *= 0.55;
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
   b.vel.z += (wish.z * speed - b.vel.z) * k;
   bodyBlock(b, dt);
+  ledgeHold(b);
   physics(b, dt);
   VEH.block(b);
   if (b.pos.y < KILL_Y) { damage(b, 999, b, 'fall', false); return; }
