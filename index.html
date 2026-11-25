@@ -448,7 +448,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="100" step="5" value="20" hidden></div>
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
-  <div class="setrow" id="setgfx"><label for="sgfx">Graphics <output id="ogfx"></output></label><input type="range" id="sgfx" min="1" max="9" step="1" value="9"><small>Lower draws fewer, bigger pixels and simpler lamp shadows: smoother at night</small></div>
+  <div class="setrow" id="setgfx"><label for="sgfx">Graphics <output id="ogfx"></output></label><input type="range" id="sgfx" min="1" max="9" step="1" value="9"><small>Lower draws fewer, bigger pixels and simpler lamp shadows: smoother at night. Medium and under look like a PlayStation game</small></div>
   <div class="setrow"><button type="button" class="tog" data-for="sthird" data-off="View: first person" data-on="View: third person (camera behind your shoulder)"></button><input type="checkbox" id="sthird" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sprox" data-off="Proximity voice chat: off (everyone hears everyone)" data-on="Proximity voice chat: on (hear only players nearby)"></button><input type="checkbox" id="sprox" hidden></div>
@@ -537,7 +537,7 @@ const $ = id => document.getElementById(id);
 
 // ---------- Renderer / scenes ----------
 // Retro graphics, on phones and tablets (?gfx=retro anywhere; ?gfx=high turns it off): the picture drawn 270 pixels tall (Settings > Graphics: GFX below), however big the screen, and
-// blown up with hard square pixels, like an old console; no antialiasing; the sun's shadow map a quarter the size; and only your own flashlight casts
+// blown up with hard square pixels, like an old console (the PS1 look, below); the sun's shadow map a quarter the size; and only your own flashlight casts
 // shadows (LAMP_Q 'own': everyone else's lights its cone without them). All so a phone keeps up at night in the bunker's tunnel
 const GFX_Q = new URLSearchParams(location.search).get('gfx');
 const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)); // (the device's default; Settings > Graphics changes it while you play)
@@ -545,14 +545,35 @@ const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointe
 // Phones start at 3 (270 lines), everything else at High; your pick is remembered in this browser (?lines= tries a height for this visit)
 const GFX_LINES = [180, 240, 270, 330, 390, 480, 585, 720, 0], GFX_NAMES = ['Lowest', 'Very low', 'Low', 'Medium low', 'Medium', 'Medium high', 'High', 'Very high', 'Highest'];
 const GFX_LOW_LAMPS = 5; // at this level and under, only your own flashlight casts shadows and the sun's shadow map is a quarter the size (as phones had it)
+// ...and the picture looks like a PlayStation's (PS1 below): no edge smoothing, corners that snap to its big pixels (polygons jitter as they move),
+// textures stretched straight across each triangle with no perspective (they wobble), and colours cut to 15 bits with the PS1's 4x4 dither
 const GFX = (() => {
   const q = +new URLSearchParams(location.search).get('lines'), def = RETRO ? 3 : GFX_LINES.length;
   let lv = def; try { const v = +JSON.parse(localStorage.getItem('tse.controls') || '{}').gfx; if (v >= 1 && v <= GFX_LINES.length && !GFX_Q) lv = v; } catch (e) {}
   return { lv, lines: q ? Math.max(120, q) : 0 };
 })();
 const gfxLines = () => GFX.lines || GFX_LINES[GFX.lv - 1]; // 0: full resolution
-const renderer = new THREE.WebGLRenderer({ antialias: !RETRO });
+const renderer = new THREE.WebGLRenderer({ antialias: true }); // (smoothed edges; the PS1 levels draw into PS1.rt instead, which has none)
 renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
+// The PS1 look. on: (from the level); u: the shaders' uniform (x, y: half the picture's size in pixels, to snap corners to, or 0; z: textures without
+// perspective; w: the dither), a plain object every material shares; rt: the picture, drawn without smoothing, then copied to the screen pixel for pixel
+const PS1 = { on: false, u: { x: 0, y: 0, z: 0, w: 0 }, rt: null, scene: null, cam: null, size: new THREE.Vector2() };
+function ps1Begin() {
+  PS1.on = GFX.lv <= GFX_LOW_LAMPS;
+  if (!PS1.on) { PS1.u.x = PS1.u.y = PS1.u.z = PS1.u.w = 0; return; }
+  const sz = renderer.getDrawingBufferSize(PS1.size);
+  if (!PS1.rt) {
+    PS1.rt = new THREE.WebGLRenderTarget(sz.x, sz.y, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, stencilBuffer: false });
+    PS1.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); PS1.scene = new THREE.Scene();
+    PS1.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: { t: { value: PS1.rt.texture } }, depthTest: false, depthWrite: false,
+      vertexShader: 'varying vec2 u; void main() { u = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D t; varying vec2 u; void main() { gl_FragColor = texture2D(t, u); }' })));
+  }
+  if (PS1.rt.width !== sz.x || PS1.rt.height !== sz.y) PS1.rt.setSize(sz.x, sz.y);
+  PS1.u.x = sz.x / 2; PS1.u.y = sz.y / 2; PS1.u.z = 1; PS1.u.w = 1;
+  renderer.setRenderTarget(PS1.rt);
+}
+function ps1End() { if (PS1.on) { PS1.u.x = PS1.u.y = PS1.u.z = PS1.u.w = 0; renderer.setRenderTarget(null); renderer.render(PS1.scene, PS1.cam); } } // (off again for anything else drawn, like the menu's portraits)
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
 // difference that's hard to see in a moving game
 const MAX_PR = 1.5;
@@ -795,6 +816,25 @@ function sunAtCPU(p) {
 // (The uniforms are plain {x,y,z,w} objects, not three's vectors, so every material shares them: three copies its own.)
 const HAZE = { a: { x: 0, y: 0, z: 0, w: 0 }, b: { x: 0, y: 1, z: 0, w: 0 }, top: { x: 0, y: 0, z: 0 }, sun: { x: 0, y: 1, z: 0 }, sunCol: { x: 0, y: 0, z: 0 }, blk: { x: 0, y: 1 } };
 for (const k in THREE.ShaderLib) { const u = THREE.ShaderLib[k].uniforms; if (u && u.fogColor) Object.assign(u, { hazeA: { value: HAZE.a }, hazeB: { value: HAZE.b }, hazeTop: { value: HAZE.top }, hazeSun: { value: HAZE.sun }, hazeSunCol: { value: HAZE.sunCol }, hazeBlk: { value: HAZE.blk } }); }
+// The PS1 look's shader side (PS1 above): every built-in material gets the shared psOn uniform (not the depth ones the shadow maps draw with)
+for (const k of ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite', 'dashed']) THREE.ShaderLib[k].uniforms.psOn = { value: PS1.u };
+THREE.ShaderChunk.common += '\nuniform vec4 psOn;\n';
+THREE.ShaderChunk.uv_pars_vertex = THREE.ShaderChunk.uv_pars_vertex.replace('varying vec2 vUv;', 'varying vec2 vUvA; varying float vUvW; vec2 vUv;');
+THREE.ShaderChunk.uv_pars_fragment = THREE.ShaderChunk.uv_pars_fragment.replace('varying vec2 vUv;', 'varying vec2 vUvA; varying float vUvW;\n#define vUv (vUvA / vUvW)');
+THREE.ShaderChunk.project_vertex += `
+if (psOn.x > 0.0 && gl_Position.w > 0.0) gl_Position.xy = floor(gl_Position.xy / gl_Position.w * psOn.xy + 0.5) / psOn.xy * gl_Position.w; // (corners on the pixel grid)
+#if defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY )
+  vUvW = psOn.z > 0.5 ? max(gl_Position.w, 1e-4) : 1.0; vUvA = vUv * vUvW; // (times w here and over w per pixel: straight across the screen, no perspective)
+#endif
+`;
+THREE.ShaderChunk.dithering_pars_fragment += `
+vec3 psDither(vec3 c) { // the PS1's own 4x4 dither, then 5 bits a channel
+  vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
+  vec4 r = q.y < 1.0 ? vec4(-4.0, 0.0, -3.0, 1.0) : q.y < 2.0 ? vec4(2.0, -2.0, 3.0, -1.0) : q.y < 3.0 ? vec4(-3.0, 1.0, -4.0, 0.0) : vec4(3.0, -1.0, 2.0, -2.0);
+  float d = dot(r, vec4(equal(vec4(q.x), vec4(0.0, 1.0, 2.0, 3.0))));
+  return floor(clamp(c * 255.0 + d, 0.0, 255.0) / 8.0) * 8.0 / 255.0;
+}`;
+THREE.ShaderChunk.dithering_fragment += '\nif (psOn.w > 0.5) gl_FragColor.rgb = psDither(gl_FragColor.rgb);\n';
 THREE.ShaderChunk.fog_pars_vertex += '\n#ifdef USE_FOG\nvarying vec3 vFogRel;\n#endif\n';
 THREE.ShaderChunk.fog_vertex += '\n#ifdef USE_FOG\nvFogRel = (vec4(mvPosition.xyz, 0.0) * viewMatrix).xyz;\n#endif\n'; // (camera to here, in world axes)
 THREE.ShaderChunk.fog_pars_fragment += `
@@ -8067,10 +8107,12 @@ function loop(now) {
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
   if (MUZ.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.78, 0.45).multiplyScalar(Math.min(3, muzAtCPU(camera.position) * 4))); // (and your own shots' flash)
   if (VIC.on) victoryHide();
+  ps1Begin();
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
   if (!bodyOn && !tpOn && !PREGAME && !VIC.on && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  ps1End();
 }
 requestAnimationFrame(loop);
 </script>
