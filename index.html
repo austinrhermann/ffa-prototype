@@ -3407,6 +3407,7 @@ function measureCrouch(r) {
 function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife, a grenade) instead of the gun
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
+  rig.gunId = obj ? null : id; // (the gun in the hand, for heldMuzzle)
   // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
   const authored = m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id];
   const hold = authored ? m.poses['hold_' + id] : m.procHold;
@@ -3420,7 +3421,7 @@ function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife,
   setHand(rig, fit);
   if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
-    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
+    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]); holder.userData.native = true;
     holder.userData.base = holder.matrix.clone(); rig.gunBone.add(holder); rig.gunVis = holder;
     return;
   }
@@ -4107,7 +4108,7 @@ function _tracer(a, b, color = 0xffe08a, w = 0.02, life = 0.12, own = false) {
   scene.add(m); if (own && life <= 0.2) camera.attach(m);
   fx.push({ o: m, life, max: life, pool: 'tracer' });
 }
-function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l }); }
+function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l, i: own ? P.id : undefined }); } // (i: your own shot, which everyone else starts at the gun in your character's hands)
 // Where a shot's mark goes: a door that swings takes it with it (on the door's own hinge), so it isn't left hanging in the doorway once the door opens or is shot open
 function impactParent(obj, p) {
   const ud = obj && obj.userData; if (!ud) return null;
@@ -5157,7 +5158,7 @@ const shotRay = new THREE.Raycaster();
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
   const mw = P.rig && VMW[P.rig.held];
-  if ((bodyOn || tpOn) && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
+  if ((bodyOn || tpOn) && mw && P.rig.gunVis && !P.rig.hideHeld) { const t = heldMuzzle(P.rig); if (t) return t; } // the barrel end of the gun in your hand
   if ((bodyOn || tpOn) && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
@@ -5192,7 +5193,31 @@ function botMiss(start, aim, marks) {
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
+// Where the barrel of the gun someone is holding ends right now (flash, smoke and tracers start here), in the world: from the gun mesh in
+// their hand as it's posed this frame, aim and recoil and all. null when they hold something else. The tip, in the holder's own frame, is
+// worked out once per gun and kind of hold: a library character's grip holds the centred gun the viewmodel uses (VMW's tip); an authored
+// hold (holder.userData.native) holds the gun as modelled, so its frontmost 2.5 cm along the barrel's axis, plus the same 6 cm out
+const HELD_TIP = {};
+function heldMuzzle(r) {
+  const gv = r && r.gunVis, id = r && r.gunId, w = WEAPONS[id], vw = VMW[id];
+  if (!gv || !w || !vw || !gv.children.length) return null;
+  let t;
+  if (!gv.userData.native) t = _hmT.set(vw.muzzleX, vw.muzzleY, vw.muzzleZ);
+  else t = HELD_TIP[id] || (HELD_TIP[id] = (() => {
+    const axis = new V3(0, 0, -1).applyAxisAngle(new V3(0, 1, 0), -(w.yaw || 0)), pts = [], v = new V3(), c = gv.children[0];
+    c.updateMatrix(); c.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(gv.matrixWorld).invert();
+    c.traverse(o => { if (!o.isMesh) return; const pa = o.geometry.attributes.position, mm = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); for (let i = 0; i < pa.count; i++) pts.push(v.fromBufferAttribute(pa, i).applyMatrix4(mm).clone()); });
+    if (!pts.length) return null;
+    const hi = pts.reduce((m, p) => Math.max(m, p.dot(axis)), -Infinity), tip = pts.filter(p => p.dot(axis) > hi - 0.025);
+    return tip.reduce((a, p) => a.add(p), new V3()).divideScalar(tip.length).addScaledVector(axis, 0.06);
+  })());
+  if (!t) return null;
+  gv.updateWorldMatrix(true, false);
+  return gv.localToWorld(t.clone());
+}
+const _hmT = new V3();
 function botMuzzle(b, w) {
+  if (b.rig && b.rig.gunId === w.id && b.rig.gunVis && b.rig.gunVis.visible !== false) { const t = heldMuzzle(b.rig); if (t) return t; } // (the gun they're holding, as it's posed)
   const m = b.rig.model, g = m.guns && m.guns[w.id] || m.grips && m.grips[w.id];
   const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
   return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
@@ -7473,7 +7498,7 @@ function useLook(o) {
 }
 function applyFx(m) {
   switch (m.t) {
-    case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
+    case 'tr': { const e = m.i != null && ents.find(o => o.id === m.i && o !== P), a = e && e.alive && e.rig && e.rig.gunVis && e.rig.gunVis.visible !== false && heldMuzzle(e.rig); _tracer(a || v3(m.a), v3(m.b), m.c, m.w, m.l); break; } // (someone's own shot: from the gun in their hands, not their eye)
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
     case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1, bazooka: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
     case 'sd': syncShedDoor(levelSheds()[m.k], !!m.o); break;
