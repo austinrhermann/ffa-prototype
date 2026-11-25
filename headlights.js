@@ -8,7 +8,10 @@
 // people). More than FLASH_MAX at once: the ones nearest you.
 // Loaded after the main game script and vehicles.js; it uses the game's globals (scene, renderer, camera, VEH, FLASH, ...).
 (() => {
-  const LAMP_FAR = 40, RES = 512, COLS = 4, _white = new V3(1, 1, 1);
+  const LAMP_FAR = 40, RES = MOBILE ? 256 : 512, COLS = 4, _white = new V3(1, 1, 1);
+  // On a phone (MOBILE): at most LAMP_CAP lamps at once (the nearest), people drawn into a lamp's map only within BODY_NEAR of it, and the glow in the air for
+  // only the nearest BEAM_CAP others' lamps (never your own in first person: down a tunnel it covered the whole screen, a shadow lookup on every pixel)
+  const LAMP_CAP = MOBILE ? 4 : FLASH_MAX, BODY_NEAR = MOBILE ? 14 : Infinity, BEAM_CAP = MOBILE ? 2 : FLASH_MAX;
   // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
   // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
   const SPOT_OUT = 1.6, SPOT_LOW = 0.1, _spotCol = new V3(1, 0.96, 0.86);
@@ -71,9 +74,12 @@
   const BEAM_K = 0.4, _ax = new V3(), _proj = new THREE.Matrix4(), _frus = new THREE.Frustum(), _ball = new THREE.Sphere();
   function beamVols() {
     const n = FLASH.n.value, haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
+    let kept = 0;
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
-      const b = beams[i], far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
+      const b = beams[i];
+      if (MOBILE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP)) { m.visible = false; return; }
+      const far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
       const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
       m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.e === P && !tpOn ? 0.35 : 1) * (b.hz || 1); // (yours, looking down it: fainter)
@@ -119,6 +125,14 @@
     for (; k < lensPool.length; k++) lensPool[k].visible = false;
   }
 
+  // The level's tunnels and rooms underground (tunnelKit's 'Tunnel' groups): all a lamp down there can see
+  let tunKey = null, tunList = [];
+  function tunnelSets() {
+    const k = levelGroup.children[0] || null; if (k === tunKey && tunList.length) return tunList;
+    tunKey = k; tunList = []; levelGroup.traverse(o => { if (o.name === 'Tunnel') tunList.push(o); });
+    return tunList;
+  }
+
   const beams = [];
   function after() {
     beams.length = 0;
@@ -143,7 +157,7 @@
       _ball.center.copy(b.o).addScaledVector(b.d, far * 0.5); _ball.radius = far * Math.sqrt(0.25 + t * t);
       if (!_frus.intersectsSphere(_ball)) beams.splice(i, 1);
     }
-    if (beams.length > FLASH_MAX) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); beams.length = FLASH_MAX; }
+    if (beams.length > LAMP_CAP || (MOBILE && beams.length > 1)) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); if (beams.length > LAMP_CAP) beams.length = LAMP_CAP; } // (nearest first, so the glows a phone keeps are the near ones)
     FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
@@ -155,9 +169,11 @@
         cam.position.copy(b.o); cam.lookAt(b.o.x + b.d.x, b.o.y + b.d.y, b.o.z + b.d.z); cam.updateMatrixWorld();
         target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
-        drawDepth(levelGroup, cam); drawDepth(propGroup, cam);
+        if (MOBILE && darkNear(b.o)) for (const t of tunnelSets()) drawDepth(t, cam); // (a phone's lamp in the bunker or the cellar: only their walls, not the whole level, 300k triangles, again)
+        else drawDepth(levelGroup, cam);
+        drawDepth(propGroup, cam);
         // (only what's within the lamp's reach and not behind it: each one drawn is a pass of its own, and with eight lamps and everyone that was a hundred a frame)
-        const reach = (p, r) => { _ax.copy(p).sub(b.o); const d2 = _ax.lengthSq(); return d2 < (far + r) * (far + r) && (d2 < r * r || _ax.dot(b.d) > -r); };
+        const near = Math.min(far, BODY_NEAR), reach = (p, r) => { _ax.copy(p).sub(b.o); const d2 = _ax.lengthSq(); return d2 < (near + r) * (near + r) && (d2 < r * r || _ax.dot(b.d) > -r); };
         for (const v of VEH.list || []) if (v !== b.v && v.g && reach(v.pos, 4)) drawBody(v.g, cam);
         if (VIC.on) for (const r of VIC.rigs) drawBody(r.wrap, cam); // (the winners on the roof: they throw shadows too; everyone else is out of sight)
         else for (const o of ents) if (o.alive && o !== b.e && reach(o.pos, 2.5)) drawBody(o === P ? P.rig && P.rig.wrap : o.mesh, cam); // (not the one holding the flashlight: the light is in their head)

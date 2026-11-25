@@ -537,7 +537,22 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
 // difference that's hard to see in a moving game
 const MAX_PR = 1.5;
-renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR));
+// Phones and tablets (or ?gfx=low; ?gfx=high turns it off): lighter lamps (headlights.js: fewer at once, smaller shadow maps, fewer glows), the sun's shadows held
+// still in the dark places, and the picture drawn at a lower resolution while frames run slow (DYN_PR: steps down to DYN_STEPS' last, back up once it's quick again)
+const GFX_Q = new URLSearchParams(location.search).get('gfx');
+const MOBILE = GFX_Q === 'low' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0));
+const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
+const dynPR = () => Math.max(MOBILE ? 0.75 : 1, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel; desktop never under 1)
+function dynRes(raw) { // raw: the frame's real length in seconds; called each frame on MOBILE
+  if (!(raw > 0) || raw > 0.25) return; // (a stall or a hidden tab says nothing)
+  DYN.ft += (raw - DYN.ft) * 0.05;
+  DYN.slowT = DYN.ft > 1 / 45 ? DYN.slowT + raw : 0; DYN.fastT = DYN.ft < 1 / 57 ? DYN.fastT + raw : 0;
+  const was = DYN.i;
+  if (DYN.slowT > 1.5 && DYN.i < DYN_STEPS.length - 1) DYN.i++;
+  else if (DYN.fastT > 5 && DYN.i > 0) DYN.i--;
+  if (DYN.i !== was) { DYN.slowT = DYN.fastT = 0; DYN.ft = 1 / 50; setPixelRatio(); }
+}
+renderer.setPixelRatio(dynPR());
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.autoClear = false;
@@ -546,7 +561,7 @@ renderer.domElement.addEventListener('webglcontextlost', e => {
   e.preventDefault();
   GAME_STARTUP.fail('Graphics were interrupted. Reload the game to reconnect. If this happens again, close other tabs and apps first.');
 });
-function setPixelRatio() { renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR)); renderer.setSize(innerWidth, innerHeight); }
+function setPixelRatio() { renderer.setPixelRatio(dynPR()); renderer.setSize(innerWidth, innerHeight); }
 const renderWorld = () => renderer.render(scene, camera);
 
 const scene = new THREE.Scene();
@@ -7955,6 +7970,7 @@ loadModels().then(() => ensureLevel(selLevel)).then(() => {
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  if (MOBILE) dynRes((now - last) / 1000);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (navJob && (locked || away || remotes.length)) finishFortNav(); // the gate and doors are held open while it maps them
   if (NET.role === 'guest') {
@@ -8001,6 +8017,7 @@ function loop(now) {
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   updateSkyDiscs();
   const dk = inDarkCPU(camera.position) ? DARK_VM : 1; // and in the dark with you
+  if (MOBILE) renderer.shadowMap.autoUpdate = dk === 1; // (in a dark place the sun's shadows can't be seen: on a phone, its map isn't drawn again till you're out)
   if (isTouch) TLIGHT.classList.toggle('on', RANGE.lightOn()); // (the touch Light button shows it's on)
   if (dk < 1 && P.alive && !RANGE.lightOn()) hint('dark', isTouch ? 'It\'s pitch black in here: Light (top left) turns your flashlight on' : 'It\'s pitch black in here: L turns your flashlight on', 4);
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
@@ -8018,6 +8035,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=24"></script>
+<script src="headlights.js?v=26"></script>
 </body>
 </html>
