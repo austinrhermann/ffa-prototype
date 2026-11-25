@@ -5811,19 +5811,23 @@ function fortPostList() { // the level's posts on the walking map, each with the
 // Following a person: on a team level, about half its side's bots (up to FOLLOW_N per person) stick with each person on their side, the nearest ones (picked again
 // every couple of seconds). A follower keeps a few metres behind and to one side of them (its own slot), runs to catch up, shoots at whoever it sees as it goes and fights
 // someone close by (FOLLOW_FIGHT), then falls back in; it rides along when they drive (botRide). Only while its side doesn't hold the fort: holding it, they all hold it
-const FOLLOW_N = 3, FOLLOW_FIGHT = 22;
+// Only bots within a sphere round the person take them up (FOLLOW_R), and a follower lets them go once they're further off than FOLLOW_KEEP: so when you die
+// at the fort and come back at your spawn, the bots in the assault keep at it instead of all turning back to you (they took up whoever was nearest, however
+// far, until 2026-11-24)
+const FOLLOW_N = 3, FOLLOW_FIGHT = 22, FOLLOW_R = 20, FOLLOW_KEEP = 35;
 let followT = -1e9;
 function assignFollowers() {
   if (last - followT < 2000 && last >= followT) return; followT = last;
-  for (const b of bots) if (b.ai) { b.ai.lead = null; b.ai.leadSlot = 0; }
+  const was = new Map(); for (const b of bots) if (b.ai) { if (b.ai.lead) was.set(b, b.ai.lead); b.ai.lead = null; b.ai.leadSlot = 0; }
   if (!teamsOn()) return;
   const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
   for (const h of people) {
     const team = h === P ? myTeam : h.team; if (teamHolds(team)) continue; // (holding the fort: they hold it, they don't follow anyone)
-    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead);
+    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead && b.pos.distanceTo(h.pos) < (was.get(b) === h ? FOLLOW_KEEP : FOLLOW_R));
     const n = Math.min(FOLLOW_N, Math.ceil(bots.filter(b => b.team === team).length / 2 / Math.max(1, people.filter(o => (o === P ? myTeam : o.team) === team).length)));
     mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, n).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
   }
+  for (const [b] of was) if (!b.ai.lead) b.ai.hpath = null; // (let go: not on along its way to them, but back to its own)
 }
 // Where a follower keeps to: behind its person (the way they're facing, or moving) and out to its slot's side, on ground the walking map has
 function followSpot(b, h) {
