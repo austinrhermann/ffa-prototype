@@ -8,10 +8,10 @@
 // people). More than FLASH_MAX at once: the ones nearest you.
 // Loaded after the main game script and vehicles.js; it uses the game's globals (scene, renderer, camera, VEH, FLASH, ...).
 (() => {
-  const LAMP_FAR = 40, RES = MOBILE ? 256 : 512, COLS = 4, _white = new V3(1, 1, 1);
-  // On a phone (MOBILE): at most LAMP_CAP lamps at once (the nearest), people drawn into a lamp's map only within BODY_NEAR of it, and the glow in the air for
+  const LAMP_FAR = 40, RES = LITE ? 256 : 512, COLS = 4, _white = new V3(1, 1, 1);
+  // With LITE graphics: every lamp still lights (up to FLASH_MAX), but people are drawn into a lamp's map only within BODY_NEAR of it, and the glow in the air shows for
   // only the nearest BEAM_CAP others' lamps (never your own in first person: down a tunnel it covered the whole screen, a shadow lookup on every pixel)
-  const LAMP_CAP = MOBILE ? 4 : FLASH_MAX, BODY_NEAR = MOBILE ? 14 : Infinity, BEAM_CAP = MOBILE ? 2 : FLASH_MAX;
+  const LAMP_CAP = FLASH_MAX, BODY_NEAR = LITE ? 14 : Infinity, BEAM_CAP = LITE ? 2 : FLASH_MAX;
   // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
   // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
   const SPOT_OUT = 1.6, SPOT_LOW = 0.1, _spotCol = new V3(1, 0.96, 0.86);
@@ -78,7 +78,7 @@
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
       const b = beams[i];
-      if (MOBILE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP)) { m.visible = false; return; }
+      if (LITE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP)) { m.visible = false; return; }
       const far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
       const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
@@ -157,7 +157,7 @@
       _ball.center.copy(b.o).addScaledVector(b.d, far * 0.5); _ball.radius = far * Math.sqrt(0.25 + t * t);
       if (!_frus.intersectsSphere(_ball)) beams.splice(i, 1);
     }
-    if (beams.length > LAMP_CAP || (MOBILE && beams.length > 1)) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); if (beams.length > LAMP_CAP) beams.length = LAMP_CAP; } // (nearest first, so the glows a phone keeps are the near ones)
+    if (beams.length > LAMP_CAP || (LITE && beams.length > 1)) { const c = camera.position; beams.sort((a, b) => a.o.distanceToSquared(c) - b.o.distanceToSquared(c)); if (beams.length > LAMP_CAP) beams.length = LAMP_CAP; } // (nearest first, so the glows LITE keeps are the near ones)
     FLASH.n.value = 0; if (!beams.length) { beamVols(); return; } // (no light while its own map is drawn)
     const rt = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate, ac = renderer.autoClear;
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
@@ -169,7 +169,7 @@
         cam.position.copy(b.o); cam.lookAt(b.o.x + b.d.x, b.o.y + b.d.y, b.o.z + b.d.z); cam.updateMatrixWorld();
         target.viewport.set((i % COLS) * RES, Math.floor(i / COLS) * RES, RES, RES); target.scissor.copy(target.viewport); target.scissorTest = true;
         renderer.setRenderTarget(target); renderer.clear(false, true, false);
-        if (MOBILE && darkNear(b.o)) for (const t of tunnelSets()) drawDepth(t, cam); // (a phone's lamp in the bunker or the cellar: only their walls, not the whole level, 300k triangles, again)
+        if (LITE && darkNear(b.o)) for (const t of tunnelSets()) drawDepth(t, cam); // (a lamp in the bunker or the cellar: only their walls, not the whole level, 300k triangles, again)
         else drawDepth(levelGroup, cam);
         drawDepth(propGroup, cam);
         // (only what's within the lamp's reach and not behind it: each one drawn is a pass of its own, and with eight lamps and everyone that was a hundred a frame)
