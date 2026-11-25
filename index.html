@@ -659,6 +659,7 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
     // (soft: instead, a fade evenly out from the very middle to the edge, by angle, to that power: a spotlight's long falloff)
     float c = (flSoft[i] > 0.0 ? pow(clamp(1.0 - acos(clamp(a, -1.0, 1.0)) / acos(flCone[i]), 0.0, 1.0), flSoft[i]) : smoothstep(flCone[i], flCone[i] + flBand[i], a)) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (flSoft[i] != 0.0 && dot(flNrm, flNrm) > 0.25) c *= smoothstep(0.0, 0.35, dot(flNrm, -u)); // (soft below 0: the usual hard edge, but lighting only what faces it)
+    if (flShad[i] < 0.5 && inDark(p) != (flShad[i] < -0.5)) c = 0.0; // (a lamp with no shadows of its own lights only its own side of a dark place's walls: none from outside in, none from inside out)
     if (c > 0.0) { float s = c * (flShad[i] > 0.5 ? flSeen(i, p, flFar[i]) : 1.0); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
@@ -730,7 +731,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -739,7 +740,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + MUZ_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + DARK_GLSL + FLASH_GLSL + BULB_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
@@ -758,7 +759,7 @@ THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
   Object.assign(sh.uniforms, FLASH_UNIFORMS(), { mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
-  sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
+  sh.fragmentShader = 'varying vec3 vSunPos;\n' + DARK_GLSL + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
     #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
     if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
     if (mzN > 0.5) gl_FragColor.rgb += flBase * muzLight(vSunPos, vec3(0.0), 0.0);
@@ -8050,6 +8051,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=29"></script>
+<script src="headlights.js?v=30"></script>
 </body>
 </html>

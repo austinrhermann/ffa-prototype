@@ -57,7 +57,7 @@
     uniforms: Object.assign(FLASH_UNIFORMS(), { bIdx: { value: i }, bK: { value: 0 } }),
     vertexShader: `varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() { vec4 w = modelMatrix * vec4(position, 1.0), mv = viewMatrix * w; vW = w.xyz; vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`, // (normalMatrix: right under the cone's stretch)
-    fragmentShader: FLASH_GLSL + `uniform float bIdx; uniform float bK; varying vec3 vW; varying vec3 vN; varying vec3 vV;
+    fragmentShader: DARK_GLSL + FLASH_GLSL + `uniform float bIdx; uniform float bK; varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() {
         vec3 pos = vec3(0.0), dir = vec3(0.0, 0.0, 1.0), col = vec3(1.0); float far = 1.0, seen = 0.0;
         for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx) { pos = flPos[i]; dir = flDir[i]; far = flFar[i]; col = flCol[i]; seen = flShad[i] > 0.5 ? flSeen(i, vW, far) : 1.0; }
@@ -164,7 +164,7 @@
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
     try {
       beams.forEach((b, i) => {
-        const shad = LAMP_Q.mode === 'full' || b.vic || (LAMP_Q.mode !== 'flat' && b.e === P); FLASH.shad.value[i] = shad ? 1 : 0;
+        const shad = LAMP_Q.mode === 'full' || b.vic || (LAMP_Q.mode !== 'flat' && b.e === P); FLASH.shad.value[i] = shad ? 1 : darkNear(b.o) ? -1 : 0; // (-1: a shadowless lamp inside a dark place, 0: one outside)
         if (!shad) { FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = b.far || LAMP_FAR; FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; FLASH.soft.value[i] = b.soft || 0; return; } // (no map of its own to draw)
         const cam = cams[i], far = b.far || LAMP_FAR, fov = b.fov || 46;
         const asp = b.asp || 1; // (an oval lamp: its map as much wider as the oval is)
