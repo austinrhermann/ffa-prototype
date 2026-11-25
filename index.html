@@ -117,6 +117,8 @@ body.newmenu #overlay{background:linear-gradient(rgba(0,0,0,.05),rgba(0,0,0,.3))
 .setrow>span,.setrow>label{display:block;margin-bottom:7px;font-size:14px;opacity:.85}
 .setrow small{margin-top:6px}
 .step{display:flex;align-items:center;gap:6px}
+#sgfx{display:block;width:100%;margin:4px 0 0;accent-color:#f2c14e}
+.setrow>label output{float:right;opacity:1;font-weight:600}
 .step button{width:48px;padding:11px 0;font-size:20px}
 .step output{min-width:72px;text-align:center;font:600 17px system-ui,sans-serif;padding:8px 4px;border-radius:4px;outline:none;cursor:text}
 .step output:focus{background:rgba(255,255,255,.12);box-shadow:0 0 0 2px #fff}
@@ -446,6 +448,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="100" step="5" value="20" hidden></div>
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
+  <div class="setrow" id="setgfx"><label for="sgfx">Graphics <output id="ogfx"></output></label><input type="range" id="sgfx" min="1" max="9" step="1" value="9"><small>Lower draws fewer, bigger pixels and simpler lamp shadows: smoother at night</small></div>
   <div class="setrow"><button type="button" class="tog" data-for="sthird" data-off="View: first person" data-on="View: third person (camera behind your shoulder)"></button><input type="checkbox" id="sthird" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sprox" data-off="Proximity voice chat: off (everyone hears everyone)" data-on="Proximity voice chat: on (hear only players nearby)"></button><input type="checkbox" id="sprox" hidden></div>
@@ -533,13 +536,23 @@ const UP = 3.0, WALL_H = 6.5, MAG = 30, START_RES = 60, MAX_RES = 120, RELOAD_T 
 const $ = id => document.getElementById(id);
 
 // ---------- Renderer / scenes ----------
-// Retro graphics, on phones and tablets (?gfx=retro anywhere; ?gfx=high turns it off): the picture drawn RETRO_LINES pixels tall, however big the screen, and
+// Retro graphics, on phones and tablets (?gfx=retro anywhere; ?gfx=high turns it off): the picture drawn 270 pixels tall (Settings > Graphics: GFX below), however big the screen, and
 // blown up with hard square pixels, like an old console; no antialiasing; the sun's shadow map a quarter the size; and only your own flashlight casts
 // shadows (LAMP_Q 'own': everyone else's lights its cone without them). All so a phone keeps up at night in the bunker's tunnel
 const GFX_Q = new URLSearchParams(location.search).get('gfx');
-const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)), RETRO_LINES = Math.max(120, +new URLSearchParams(location.search).get('lines') || 270); // (?lines=: how tall, to try others)
+const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)); // (the device's default; Settings > Graphics changes it while you play)
+// Settings > Graphics, Low to High: how many pixels tall the picture is drawn (GFX_LINES[level - 1]); the top level, Highest, is the full resolution with smooth pixels.
+// Phones start at 3 (270 lines), everything else at High; your pick is remembered in this browser (?lines= tries a height for this visit)
+const GFX_LINES = [180, 240, 270, 330, 390, 480, 585, 720, 0], GFX_NAMES = ['Lowest', 'Very low', 'Low', 'Medium low', 'Medium', 'Medium high', 'High', 'Very high', 'Highest'];
+const GFX_LOW_LAMPS = 5; // at this level and under, only your own flashlight casts shadows and the sun's shadow map is a quarter the size (as phones had it)
+const GFX = (() => {
+  const q = +new URLSearchParams(location.search).get('lines'), def = RETRO ? 3 : GFX_LINES.length;
+  let lv = def; try { const v = +JSON.parse(localStorage.getItem('tse.controls') || '{}').gfx; if (v >= 1 && v <= GFX_LINES.length && !GFX_Q) lv = v; } catch (e) {}
+  return { lv, lines: q ? Math.max(120, q) : 0 };
+})();
+const gfxLines = () => GFX.lines || GFX_LINES[GFX.lv - 1]; // 0: full resolution
 const renderer = new THREE.WebGLRenderer({ antialias: !RETRO });
-if (RETRO) renderer.domElement.style.imageRendering = 'pixelated';
+renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
 // difference that's hard to see in a moving game
 const MAX_PR = 1.5;
@@ -550,9 +563,10 @@ const LITE = GFX_Q !== 'high';
 // How the lamps (flashlights, headlights) light the world (?lamps=): full, each its own shadows; own, only your flashlight casts shadows (everyone else's lights
 // what's in its cone, walls or no walls); flat, no lamp casts shadows; dots, only your flashlight lights anything (everyone else's shows as its lens). The glow
 // in the air along each beam is off (since 2026-11-24, everywhere); ?beams=on brings it back
-const LAMP_Q = { mode: new URLSearchParams(location.search).get('lamps') || (RETRO ? 'own' : 'full'), beams: new URLSearchParams(location.search).get('beams') === 'on' };
+const LAMP_Q = { fixed: new URLSearchParams(location.search).get('lamps'), mode: 'full', beams: new URLSearchParams(location.search).get('beams') === 'on' };
 const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
-const dynPR = () => RETRO ? Math.max(0.3, Math.min(devicePixelRatio, RETRO_LINES / innerHeight) * DYN_STEPS[DYN.i]) // (retro: RETRO_LINES tall, and fewer still while slow)
+LAMP_Q.mode = LAMP_Q.fixed || (GFX.lv <= GFX_LOW_LAMPS ? 'own' : 'full');
+const dynPR = () => gfxLines() ? Math.max(0.15, Math.min(devicePixelRatio, gfxLines() / innerHeight) * DYN_STEPS[DYN.i]) // (a low level: gfxLines() tall, and fewer still while slow)
   : Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
 function dynRes(raw) { // raw: the frame's real length in seconds; called each frame with LITE
   if (!(raw > 0) || raw > 0.25) return; // (a stall or a hidden tab says nothing)
@@ -832,7 +846,8 @@ const LOOK_EXTRA = []; // other scenes' lights that follow the look: [fill, sun,
 const sun = new THREE.DirectionalLight(0xffffff, 1);
 const SUN_DIR = new THREE.Vector3();
 sun.castShadow = true;
-sun.shadow.mapSize.set(RETRO ? 1024 : 2048, RETRO ? 1024 : 2048);
+const sunMap = () => GFX.lv <= GFX_LOW_LAMPS ? 1024 : 2048;
+sun.shadow.mapSize.set(sunMap(), sunMap());
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 150 });
 scene.add(sun);
 const boomLight = new THREE.PointLight(0xffaa55, 0, 18); scene.add(boomLight);
@@ -6200,6 +6215,17 @@ function saveCtl() { try { localStorage.setItem('tse.controls', JSON.stringify(C
 $('ssens').value = CTL.sens; $('osens').textContent = (+CTL.sens).toFixed(1) + '×'; $('saimtog').checked = CTL.aimTog;
 $('ssens').oninput = e => { CTL.sens = +e.target.value; $('osens').textContent = CTL.sens.toFixed(1) + '×'; saveCtl(); };
 $('saimtog').onchange = e => { CTL.aimTog = e.target.checked; tAim = false; mouseRight = false; saveCtl(); };
+// Graphics, Low to High: changes the picture straight away
+function setGfx(lv) {
+  GFX.lv = lv; GFX.lines = 0; CTL.gfx = lv; saveCtl();
+  $('sgfx').value = lv; $('ogfx').textContent = GFX_NAMES[lv - 1];
+  renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
+  LAMP_Q.mode = LAMP_Q.fixed || (lv <= GFX_LOW_LAMPS ? 'own' : 'full');
+  const m = sunMap(); if (sun.shadow.mapSize.x !== m) { sun.shadow.mapSize.set(m, m); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } renderer.shadowMap.needsUpdate = true; }
+  DYN.i = 0; setPixelRatio();
+}
+$('sgfx').value = GFX.lv; $('ogfx').textContent = GFX_NAMES[GFX.lv - 1];
+$('sgfx').oninput = e => setGfx(+e.target.value);
 $('sthird').checked = !!CTL.third; $('sthird').onchange = e => { CTL.third = e.target.checked; saveCtl(); }; // View: first or third person
 // Hints: a short prompt the moment it matters, shown a few times per browser and then never again
 const HINTS = (() => { try { return JSON.parse(localStorage.getItem('tse.hints') || '{}'); } catch (e) { return {}; } })(), hintSeen = new Set();
