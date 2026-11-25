@@ -542,6 +542,10 @@ const MAX_PR = 1.5;
 // steps down to DYN_STEPS' last, back up once it's quick again)
 const GFX_Q = new URLSearchParams(location.search).get('gfx');
 const LITE = GFX_Q !== 'high';
+// How the lamps (flashlights, headlights) light the world (?lamps=): full, each its own shadows; own, only your flashlight casts shadows (everyone else's lights
+// what's in its cone, walls or no walls); flat, no lamp casts shadows; dots, only your flashlight lights anything (everyone else's shows as its lens). ?beams=off:
+// no glow in the air
+const LAMP_Q = { mode: new URLSearchParams(location.search).get('lamps') || 'full', beams: new URLSearchParams(location.search).get('beams') !== 'off' };
 const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
 const dynPR = () => Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
 function dynRes(raw) { // raw: the frame's real length in seconds; called each frame with LITE
@@ -625,9 +629,9 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, shad: { value: Array(FLASH_MAX).fill(1) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform float flShad[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -649,7 +653,7 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
     // (soft: instead, a fade evenly out from the very middle to the edge, by angle, to that power: a spotlight's long falloff)
     float c = (flSoft[i] > 0.0 ? pow(clamp(1.0 - acos(clamp(a, -1.0, 1.0)) / acos(flCone[i]), 0.0, 1.0), flSoft[i]) : smoothstep(flCone[i], flCone[i] + flBand[i], a)) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (flSoft[i] != 0.0 && dot(flNrm, flNrm) > 0.25) c *= smoothstep(0.0, 0.35, dot(flNrm, -u)); // (soft below 0: the usual hard edge, but lighting only what faces it)
-    if (c > 0.0) { float s = c * flSeen(i, p, flFar[i]); if (s > k) { k = s; col = flCol[i]; } }
+    if (c > 0.0) { float s = c * (flShad[i] > 0.5 ? flSeen(i, p, flFar[i]) : 1.0); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
 }
@@ -720,7 +724,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, flDepth: FLASH.depth, flTexel: FLASH.texel });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -8040,6 +8044,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=27"></script>
+<script src="headlights.js?v=28"></script>
 </body>
 </html>

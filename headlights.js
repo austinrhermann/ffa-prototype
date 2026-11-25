@@ -60,7 +60,7 @@
     fragmentShader: FLASH_GLSL + `uniform float bIdx; uniform float bK; varying vec3 vW; varying vec3 vN; varying vec3 vV;
       void main() {
         vec3 pos = vec3(0.0), dir = vec3(0.0, 0.0, 1.0), col = vec3(1.0); float far = 1.0, seen = 0.0;
-        for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx) { pos = flPos[i]; dir = flDir[i]; far = flFar[i]; col = flCol[i]; seen = flSeen(i, vW, far); }
+        for (int i = 0; i < ${FLASH_MAX}; i++) if (float(i) == bIdx) { pos = flPos[i]; dir = flDir[i]; far = flFar[i]; col = flCol[i]; seen = flShad[i] > 0.5 ? flSeen(i, vW, far) : 1.0; }
         float t = clamp(dot(vW - pos, dir) / far, 0.0, 1.0);
         float fall = (1.0 - t) * (1.0 - t) * smoothstep(0.0, 0.04, t);           // bright by the lamp, gone at its reach
         float side = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); // soft at the cone's edges as you see it
@@ -78,7 +78,7 @@
     vols.forEach((m, i) => {
       if (i >= n) { m.visible = false; return; }
       const b = beams[i];
-      if (LITE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP)) { m.visible = false; return; }
+      if (!LAMP_Q.beams || (LITE && ((b.e === P && !tpOn) || kept++ >= BEAM_CAP))) { m.visible = false; return; }
       const far = FLASH.far.value[i], r = far * Math.tan(Math.acos(Math.min(0.999, FLASH.cone.value[i])));
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * FLASH.asp.value[i], r, far); m.visible = haze > 0.01; // (asp: an oval, wider than tall)
       const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
@@ -148,6 +148,7 @@
     // flashlights: anyone who has switched theirs on (people, day or night, since 2026-11-24); the bots' at dusk and night, and by day in (or at the door of) a dark place, the bunker
     for (const e of ents) { const b = flashBeam(e); if (b && (night || e.isPlayer || e.isRemote || e.isReplica || darkNear(b.o, 2))) beams.push(b); }
     lenses(); // (every lit flashlight shows its lens, even the ones past FLASH_MAX)
+    if (LAMP_Q.mode === 'dots') for (let i = beams.length - 1; i >= 0; i--) if (beams[i].e !== P && !beams[i].vic) beams.splice(i, 1); // (only yours lights anything)
     // Only lamps that light something in view: a cone whose bounding ball is off the screen lights nothing you can see and has no glow there either (since 2026-11-24:
     // every lamp drew its map of the level each frame, behind you or not). The victory spotlight always stays
     _proj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _frus.setFromProjectionMatrix(_proj);
@@ -163,6 +164,8 @@
     renderer.shadowMap.autoUpdate = false; renderer.autoClear = false;
     try {
       beams.forEach((b, i) => {
+        const shad = LAMP_Q.mode === 'full' || b.vic || (LAMP_Q.mode !== 'flat' && b.e === P); FLASH.shad.value[i] = shad ? 1 : 0;
+        if (!shad) { FLASH.pos.value[i].copy(b.o); FLASH.dir.value[i].copy(b.d); FLASH.far.value[i] = b.far || LAMP_FAR; FLASH.col.value[i].copy(b.col || _white); FLASH.cone.value[i] = b.cone || 0.935; FLASH.band.value[i] = b.band || 0.035; FLASH.asp.value[i] = b.asp || 1; FLASH.soft.value[i] = b.soft || 0; return; } // (no map of its own to draw)
         const cam = cams[i], far = b.far || LAMP_FAR, fov = b.fov || 46;
         const asp = b.asp || 1; // (an oval lamp: its map as much wider as the oval is)
         if (cam.far !== far || cam.fov !== fov || cam.aspect !== asp) { cam.far = far; cam.fov = fov; cam.aspect = asp; cam.updateProjectionMatrix(); }
