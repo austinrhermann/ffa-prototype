@@ -537,7 +537,7 @@ const $ = id => document.getElementById(id);
 // blown up with hard square pixels, like an old console; no antialiasing; the sun's shadow map a quarter the size; and only your own flashlight casts
 // shadows (LAMP_Q 'own': everyone else's lights its cone without them). All so a phone keeps up at night in the bunker's tunnel
 const GFX_Q = new URLSearchParams(location.search).get('gfx');
-const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)), RETRO_LINES = 270;
+const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)), RETRO_LINES = Math.max(120, +new URLSearchParams(location.search).get('lines') || 270); // (?lines=: how tall, to try others)
 const renderer = new THREE.WebGLRenderer({ antialias: !RETRO });
 if (RETRO) renderer.domElement.style.imageRendering = 'pixelated';
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
