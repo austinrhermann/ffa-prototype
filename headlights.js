@@ -10,8 +10,7 @@
 (() => {
   const LAMP_FAR = 40, RES = LITE ? 256 : 512, COLS = 4, _white = new V3(1, 1, 1);
   // With LITE graphics: every lamp still lights (up to FLASH_MAX), but people are drawn into a lamp's map only within BODY_NEAR of it. The glow in the air shows for
-  // every lamp in view, your own in first person too (since 2026-11-25; down a tunnel it covers the screen, so it skips the shadow lookup: from your eyes, the
-  // depth test alone stops it at walls, as the lamp's own map would; see beamVols)
+  // every lamp in view but your own in first person (by your eyes it only showed as dots round your spot; the dither is on the light it casts instead: flDither)
   const LAMP_CAP = FLASH_MAX, BODY_NEAR = LITE ? 14 : Infinity;
   // The victory spotlight: a small hard lamp just off the front of the roof (SPOT_OUT ahead of the top scorer, toward the view, SPOT_LOW up), aimed up at
   // their middle (SPOT_AIM of their height): a sharp-edged oval (SPOT_EDGE up and down, SPOT_ASP as wide) that takes in all of them, full bright, and a little of those beside them
@@ -50,12 +49,12 @@
 
   // The beams in the air: each lamp's cone drawn as a soft glow, added over the scene (light in the haze). Brightest down its middle and near the lamp, fading out to its
   // far end and at its sides; where the lamp's own depth map says something's in the way, the beam stops (flSeen), and walls in front hide it. Stronger in thicker haze
-  // (the Lighting panel's Haze) and darker light; your own flashlight's too, in first person as well. Nothing else sees them: no shadows, no hits, no paint
+  // (the Lighting panel's Haze) and darker light; your own flashlight's in third person. Nothing else sees them: no shadows, no hits, no paint
   // (BEAM_SEG: round the cone; 28 until 2026-11-24 showed as stripes down the beam)
   // Where beams cross, or you see a cone's near and far sides at once, the brightest one shows (max blending), not their sum: since 2026-11-25 (added up, two
   // lights crossing glowed white). And the glow is dithered like the PS1 look (a 4x4 ordered dither in BEAM_STEPS steps, coarse so it shows), in cells about as big as a
   // 300-line picture's pixels (bCell), so it reads as a soft retro haze at any Graphics level
-  const BEAM_STEPS = 6, BEAM_LIFT = '1.4', BEAM_K_MAX = '1.0', BEAM_CELL = { value: 1 }, _bufSz = new THREE.Vector2(); // (BEAM_LIFT: as it now replaces what's behind it where brighter, rather than adding to it, it's drawn that much stronger to show as much over the
+  const BEAM_STEPS = 6, BEAM_LIFT = '1.4', BEAM_K_MAX = '1.0', BEAM_CELL = FLASH.cell, _bufSz = new THREE.Vector2(); // (BEAM_LIFT: as it now replaces what's behind it where brighter, rather than adding to it, it's drawn that much stronger to show as much over the
   // dark; BEAM_K_MAX: the glow the steps span, brighter keeps stepping)
   const BEAM_SEG = 96, cone = new THREE.ConeGeometry(1, 1, BEAM_SEG, 10, true);
   cone.translate(0, -0.5, 0); cone.rotateX(-Math.PI / 2); // (apex at the origin, opening along +z, 1 long and 1 across at the far end)
@@ -86,14 +85,14 @@
   function beamVols(glows) {
     const haze = typeof LOOK === 'object' && LOOK.haze != null ? LOOK.haze : 1, night = nightOn();
     BEAM_CELL.value = Math.max(1, Math.floor(renderer.getDrawingBufferSize(_bufSz).y / 300));
-    const list = LAMP_Q.beams && haze > 0.01 ? glows : [];
+    const list = LAMP_Q.beams && haze > 0.01 ? glows.filter(b => !(b.e === P && !tpOn)) : [];
     vols.forEach((m, j) => {
       const b = list[j]; if (!b) { m.visible = false; return; }
       const far = b.far || LAMP_FAR, cn = b.cone || 0.935, asp = b.asp || 1, r = far * Math.tan(Math.acos(Math.min(0.999, cn))), u = m.material.uniforms;
       m.position.copy(b.o); _ax.copy(b.o).add(b.d); m.lookAt(_ax); m.scale.set(r * asp, r, far); m.visible = true; // (asp: an oval, wider than tall)
-      u.bIdx.value = b.e === P && !tpOn ? -1 : beams.indexOf(b); u.bPos.value.copy(b.o); u.bDir.value.copy(b.d); u.bFar.value = far; u.bCol.value.copy(b.col || _white);
+      u.bIdx.value = beams.indexOf(b); u.bPos.value.copy(b.o); u.bDir.value.copy(b.d); u.bFar.value = far; u.bCol.value.copy(b.col || _white);
       const dark = night ? 1 : darkNear(b.o, 2) ? 0.55 : 0.2; // (by day out in the open, only a faint shaft in the haze)
-      m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.hz || 1); // (yours as strong as anyone's: looking down it, at a third it only showed at its rim, 2026-11-25)
+      m.material.uniforms.bK.value = BEAM_K * haze * dark * (b.hz || 1); 
     });
   }
 

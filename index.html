@@ -671,9 +671,17 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, shad: { value: Array(FLASH_MAX).fill(1) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, shad: { value: Array(FLASH_MAX).fill(1) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) }, cell: { value: 1 } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform float flShad[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform float flShad[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel; uniform float flCell;
+// The cast light dithered like the PS1 look, at every Graphics level (Austin, 2026-11-25: as Medium shows it, on the spot a lamp throws): its strength in 6 steps, a 4x4
+// ordered dither between them, in cells about as big as a 300-line picture's pixels (flCell), so its soft edge and falloff break into the retro pattern
+float flDither(float k) {
+  vec2 q = mod(floor(gl_FragCoord.xy / flCell), 4.0);
+  vec4 r = q.y < 1.0 ? vec4(0.0, 8.0, 2.0, 10.0) : q.y < 2.0 ? vec4(12.0, 4.0, 14.0, 6.0) : q.y < 3.0 ? vec4(3.0, 11.0, 1.0, 9.0) : vec4(15.0, 7.0, 13.0, 5.0);
+  float th = (dot(r, vec4(equal(vec4(q.x), vec4(0.0, 1.0, 2.0, 3.0)))) + 0.5) / 16.0;
+  return floor(k * 6.0 + th) / 6.0;
+}
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -767,7 +775,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, flDepth: FLASH.depth, flTexel: FLASH.texel, flCell: FLASH.cell });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -785,7 +793,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
     if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (mzN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * muzLight(vSunPos, inverseTransformDirection(normal, viewMatrix), 1.0) * (1.0 - 0.7 * sunAt(vSunPos)); // (a shot's flash)
-    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC), flK); } // (never darker than it was: by day a lamp only lifts the shade)
+    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flDither(flashAt(vSunPos, flC)); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC), flK); } // (never darker than it was: by day a lamp only lifts the shade)
     #include <tonemapping_fragment>`);
 };
 // Unlit materials whose vertex colours are their light (the fort's tunnel and cellar, tunnelKit's bake): in a flashlight
@@ -797,7 +805,7 @@ THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
     vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
   sh.fragmentShader = 'varying vec3 vSunPos;\n' + DARK_GLSL + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
     #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
-    if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
+    if (flN > 0.5) { vec3 flC; float flK = flDither(flashAt(vSunPos, flC)); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
     if (mzN > 0.5) gl_FragColor.rgb += flBase * muzLight(vSunPos, vec3(0.0), 0.0);
     #include <tonemapping_fragment>`);
 };
@@ -8197,6 +8205,6 @@ requestAnimationFrame(loop);
 <script src="vehicles.js?v=51"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=34"></script>
+<script src="headlights.js?v=35"></script>
 </body>
 </html>
