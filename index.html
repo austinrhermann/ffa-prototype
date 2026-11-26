@@ -1360,6 +1360,8 @@ function clearHalls(boxes, draw, col, both) {
     const pa = o.geometry.attributes.position, ix = o.geometry.index, tri = ix ? ix.count : pa.count, at = k => ix ? ix.getX(k) : k; let n = 0;
     for (let t = 0; t < tri; t += 3) {
       for (let k = 0; k < 3; k++) w[k].fromBufferAttribute(pa, at(t + k)).applyMatrix4(o.matrixWorld);
+      const bx0 = Math.min(w[0].x, w[1].x, w[2].x), bx1 = Math.max(w[0].x, w[1].x, w[2].x), by0 = Math.min(w[0].y, w[1].y, w[2].y), by1 = Math.max(w[0].y, w[1].y, w[2].y), bz0 = Math.min(w[0].z, w[1].z, w[2].z), bz1 = Math.max(w[0].z, w[1].z, w[2].z);
+      if (!boxes.some(q => bx1 > q[0] && bx0 < q[1] && by1 > q[2] && by0 < q[3] && bz1 > q[4] && bz0 < q[5])) continue; // (nowhere near a hall: the quick test)
       const m = Math.min(10, Math.ceil(Math.max(w[0].distanceTo(w[1]), w[1].distanceTo(w[2]), w[2].distanceTo(w[0])) / 0.25)); let hit = false;
       for (let u = 0; u <= m && !hit; u++) for (let v = 0; v <= m - u && !hit; v++) { p.copy(w[0]).multiplyScalar(1 - (u + v) / m).addScaledVector(w[1], u / m).addScaledVector(w[2], v / m); hit = inside(p); }
       if (!hit) continue;
@@ -2028,6 +2030,7 @@ function smoothGround(L, draw, col) {
     let w = sm(Math.min(x - X0, X1 - x, z - Z0, Z1 - z) / 4);
     for (const B of S.keep || []) w *= sm(boxD(x, z, B) / 4);
     if (L.range) w *= sm((rangeFoot(L.range, x) - 8 - z) / 4);
+    if (w <= 0) continue; // (kept as it is: the tests below needn't run)
     let rd = 1e9; for (const pts of lines) for (let q = 0; q + 1 < pts.length; q++) rd = Math.min(rd, segD(x, z, pts[q], pts[q + 1])); w *= sm((rd - flat) / 2.5);
     let lo = 1e9, hi = -1e9; for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) continue; const h = H[jj * NX + ii]; if (h < -1e8) { lo = -1e9; continue; } lo = Math.min(lo, h); hi = Math.max(hi, h); }
     w *= sm((S.cliff - (hi - lo)) / 3); // (a drop of S.cliff or more within 3 m: a cliff, left alone)
@@ -2066,13 +2069,13 @@ function smoothGround(L, draw, col) {
     pos.needsUpdate = true; g.computeBoundingSphere(); g.computeBoundingBox();
     const nrm = g.attributes.normal; if (!nrm) continue; // (normals made again for what moved only, smooth: the faces round each point, however the mesh splits its vertices)
     const ix = g.index, tri = ix ? ix.count : pos.count, key = i => Math.round(pos.getX(i) * 50) + ',' + Math.round(pos.getY(i) * 50) + ',' + Math.round(pos.getZ(i) * 50), acc = new Map(), e1 = new V3(), e2 = new V3();
-    const keys = new Array(pos.count); for (let i = 0; i < pos.count; i++) keys[i] = key(i);
+    const keys = new Array(pos.count), kOf = i => keys[i] || (keys[i] = key(i)); // (only for the points of faces that moved)
     for (let t = 0; t < tri; t += 3) {
       const i0 = ix ? ix.getX(t) : t, i1 = ix ? ix.getX(t + 1) : t + 1, i2 = ix ? ix.getX(t + 2) : t + 2; if (!(moved[i0] || moved[i1] || moved[i2])) continue;
       a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2); e1.subVectors(b, a); e2.subVectors(c, a); e1.cross(e2);
-      for (const i of [i0, i1, i2]) { const q = acc.get(keys[i]) || [0, 0, 0]; q[0] += e1.x; q[1] += e1.y; q[2] += e1.z; acc.set(keys[i], q); }
+      for (const i of [i0, i1, i2]) { const kk = kOf(i), q = acc.get(kk) || [0, 0, 0]; q[0] += e1.x; q[1] += e1.y; q[2] += e1.z; acc.set(kk, q); }
     }
-    for (let i = 0; i < pos.count; i++) { if (!moved[i]) continue; const q = acc.get(keys[i]); if (!q) continue; const l = Math.hypot(q[0], q[1], q[2]) || 1; nrm.setXYZ(i, q[0] / l, q[1] / l, q[2] / l); }
+    for (let i = 0; i < pos.count; i++) { if (!moved[i]) continue; const q = acc.get(kOf(i)); if (!q) continue; const l = Math.hypot(q[0], q[1], q[2]) || 1; nrm.setXYZ(i, q[0] / l, q[1] / l, q[2] / l); }
     nrm.needsUpdate = true;
   }
 }
@@ -6923,6 +6926,7 @@ function setPlaying(on) {
   if (on) applySettings();
   if (on && PREGAME) { PREGAME = false; document.body.classList.remove('pregame'); }
   locked = on;
+  if (on && LV && LV.core && mapLevel !== curLevel) setTimeout(prepMap, 400); // (the radar's map made as the game starts, not when someone first uses the computer)
   $('overlay').style.display = on || matchOver ? 'none' : 'flex'; $('overlay').classList.add('ingame');
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
   if (!on) {
@@ -7766,8 +7770,9 @@ function levelShot(cv) {
     g.putImageData(id, 0, 0); c.shot = true; return c;
   } catch (err) { console.warn('map picture', err); return null; }
 }
+function prepMap() { if (LV && LV.core && mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; } }
 function drawMap() {
-  if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
+  prepMap();
   const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
