@@ -1246,6 +1246,9 @@ function levelFortress() {
       [20.5, 120.7], [25.6, 121.8], [31.8, 121.3], [36.4, 120.1], [53.4, 122.4], [52.3, 129.2], [56.8, 130.3], [49.4, 135.5], [20.5, 135.2], [24.4, 134.3]],
     // The trees' leaves and trunks, solid to walking, sight and shots (solidFoliage): the round trees, the dark ones and the tall ones on the hill and round the fort
     solidFoliage: ['M_tree_balls001', 'M_Material002', 'M_Material005', 'M_Material006', 'M_Material_13'],
+    // Halls kept clear [x0, x1, y0, y1, z0, z1] (clearHalls): the one on the fort's upper floor to the walkway over the gate, which the big tree's trunk, the hill's
+    // ground and a rock poked into, drawn and solid. Their pieces there are taken out, and the hall gets a plain wall on the hill side (west) and a plain ceiling
+    clearHalls: [[-8.62, -5.53, 36.95, 40.06, -7.05, 4.3]],
     // Smooth the hills where people and vehicles got stuck (smoothGround): [x0, x1, z0, z1] of the island inside the coast's cliffs, the steepest slope left (rise per metre),
     // how often earth slides, the most any spot moves (m), how big a drop within 3 m is a cliff to keep, and what stays put: the fort and the bunker's mound
     smoothGround: { box: [-62, 76, 8, 124], slope: 0.75, passes: 120, max: 4, cliff: 14, keep: [[-16, 13, -16, 10], [-30, -8, -4, 16]] },
@@ -1345,6 +1348,31 @@ function clearAlong(draw, line, r, meshes) {
     o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
   }
 }
+// The ground and rocks poking into a hall (L.clearHalls: boxes [x0, x1, y0, y1, z0, z1] just inside its walls, floor and ceiling): every triangle of theirs that
+// reaches into it is taken out, drawn and solid alike, and the hall gets a plain wall on its hill side and a plain ceiling, which hide the gaps that leaves
+function clearHalls(boxes, draw, col, both) {
+  const w = [new V3(), new V3(), new V3()], p = new V3();
+  const inside = v => boxes.some(q => v.x > q[0] && v.x < q[1] && v.y > q[2] && v.y < q[3] && v.z > q[4] && v.z < q[5]);
+  const fix = o => {
+    if (!o.isMesh || !/^(Terrain|M_Material001|M_Rock|Ground_ext)/.test(o.name)) return;
+    o.updateMatrixWorld(true);
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, tri = ix ? ix.count : pa.count, at = k => ix ? ix.getX(k) : k; let n = 0;
+    for (let t = 0; t < tri; t += 3) {
+      for (let k = 0; k < 3; k++) w[k].fromBufferAttribute(pa, at(t + k)).applyMatrix4(o.matrixWorld);
+      const m = Math.min(10, Math.ceil(Math.max(w[0].distanceTo(w[1]), w[1].distanceTo(w[2]), w[2].distanceTo(w[0])) / 0.25)); let hit = false;
+      for (let u = 0; u <= m && !hit; u++) for (let v = 0; v <= m - u && !hit; v++) { p.copy(w[0]).multiplyScalar(1 - (u + v) / m).addScaledVector(w[1], u / m).addScaledVector(w[2], v / m); hit = inside(p); }
+      if (!hit) continue;
+      n++; if (ix) { const i = ix.getX(t); ix.setX(t + 1, i); ix.setX(t + 2, i); } else for (let k = 1; k < 3; k++) pa.setXYZ(t + k, pa.getX(t), pa.getY(t), pa.getZ(t)); // (squashed to a point)
+    }
+    if (n) { if (ix) ix.needsUpdate = true; pa.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere(); }
+  };
+  draw.traverse(fix); if (col !== draw) col.traverse(fix);
+  const plain = toonMat({ color: 0x8f8689 });
+  for (const [x0, x1, y0, y1, z0, z1] of boxes) {
+    both(x0 - 0.2, x0, y0, y1 + 0.1, z0 - 0.1, z1 + 0.1, plain); // the hill side
+    both(x0 - 0.2, x1, y1 - 0.02, y1 + 0.18, z0 - 0.1, z1 + 0.1, plain); // the ceiling
+  }
+}
 function solidifyTrees(col, draw, cm, L) {
   draw.updateMatrixWorld(true);
   const v = new V3(), shapes = [];
@@ -1365,7 +1393,7 @@ function solidifyTrees(col, draw, cm, L) {
     return [...boxes.values()];
   };
   // (the trees: solid to everything, below: solidFoliage. Until 2026-11-25 their leaves were a cone that stopped walking only, and bots saw and shot through them)
-  if (L && L.solidFoliage) solidFoliage(col, draw, cm, L.solidFoliage);
+  if (L && L.solidFoliage) solidFoliage(col, draw, cm, L.solidFoliage, L.clearHalls || []);
   // the bushes are thousands of tiny pieces: merge the ones within a grid cell of each other, then merge the boxes that touch
   const bush = pieces('M_Material004', 1.5), merged = [];
   for (const b of bush) {
@@ -1383,9 +1411,20 @@ function solidifyTrees(col, draw, cm, L) {
 // trunk) reach through, sampled over their triangles, a round column from the lowest to the highest of them, as wide as they spread from the cell's middle (a trunk:
 // narrow; inside the leaves: the whole cell, overlapping its neighbours), and pointed at the top (narrowing no flatter than a wall's slope, so no ledge on it is a
 // floor). Shots leave no holes on it (they'd hang in the air round the leaves). All in one mesh
-function solidFoliage(col, draw, cm, names) {
+function solidFoliage(col, draw, cm, names, clear) {
   draw.updateMatrixWorld(true);
   const CELL = 1.5, RMAX = CELL * 0.75, SEG = 6, a = new V3(), b = new V3(), c = new V3(), p = new V3(), cells = new Map();
+  const inClear = (v, m = 0) => clear.some(q => v.x > q[0] - m && v.x < q[1] + m && v.y > q[2] - m && v.y < q[3] + m && v.z > q[4] - m && v.z < q[5] + m);
+  if (clear.length) for (const name of names) { // (the drawn leaves and trunks reaching into a cleared box: their triangles there taken out)
+    const o = draw.getObjectByName(name); if (!o || !o.isMesh || !o.geometry.index) continue;
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, keep = []; let cut = 0;
+    for (let t = 0; t < ix.count; t += 3) {
+      const i0 = ix.getX(t), i1 = ix.getX(t + 1), i2 = ix.getX(t + 2);
+      a.fromBufferAttribute(pa, i0).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pa, i1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pa, i2).applyMatrix4(o.matrixWorld);
+      if (inClear(a, 0.1) || inClear(b, 0.1) || inClear(c, 0.1)) cut++; else keep.push(i0, i1, i2);
+    }
+    if (cut) o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
+  }
   const add = (x, y, z) => { const i = Math.floor(x / CELL), j = Math.floor(z / CELL), k = i + ',' + j; let e = cells.get(k); if (!e) cells.set(k, e = { i, j, y0: 1e9, y1: -1e9, d: 0 });
     e.y0 = Math.min(e.y0, y); e.y1 = Math.max(e.y1, y); e.d = Math.max(e.d, Math.hypot(x - (i + 0.5) * CELL, z - (j + 0.5) * CELL)); };
   for (const name of names) {
@@ -1408,10 +1447,16 @@ function solidFoliage(col, draw, cm, names) {
     }
     for (const e of add2) cells.set(e.i + ',' + e.j, e);
   }
-  const out = [];
-  for (const e of cells.values()) {
+  const out = [], parts = [];
+  for (const e of cells.values()) { // a column crossing a cleared box: the part below it and the part above it
+    const cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL, q = clear.find(q => cx > q[0] - CELL && cx < q[1] + CELL && cz > q[4] - CELL && cz < q[5] + CELL && e.y0 < q[3] && e.y1 > q[2]);
+    if (!q) { parts.push(e); continue; }
+    if (q[2] - 0.05 - e.y0 >= 0.5) parts.push({ ...e, y1: q[2] - 0.05, cap: true });
+    if (e.y1 - q[3] - 0.05 >= 0.5) parts.push({ ...e, y0: q[3] + 0.05 });
+  }
+  for (const e of parts) {
     const h = e.y1 - e.y0; if (h < 0.5) continue;
-    const r = Math.min(RMAX, Math.max(0.3, e.d * 0.85 + 0.25)), tip = r * 1.3, y1 = Math.max(e.y1, e.y0 + tip), cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL; // (tip: its point, steep enough to be wall)
+    const r = Math.min(RMAX, Math.max(0.3, e.d * 0.85 + 0.25)), tip = Math.min(r * 1.3, e.cap ? h : Infinity), y1 = e.cap ? e.y1 : Math.max(e.y1, e.y0 + tip), cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL; // (tip: its point, steep enough to be wall)
     const g = new THREE.LatheGeometry([new THREE.Vector2(0, e.y0), new THREE.Vector2(r, e.y0), new THREE.Vector2(r, y1 - tip), new THREE.Vector2(0.001, y1)], SEG).toNonIndexed();
     g.translate(cx, 0, cz); out.push(g.attributes.position.array); g.dispose();
   }
@@ -2212,6 +2257,7 @@ function addSetExtras(L) {
   if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.tracks) for (const pts of L.tracks) clearAlong(draw, trackDense(pts), 3.4, ['M_tree_balls001', 'M_Material004', 'M_Material_2', 'M_Material008', 'M_Material_0', 'M_Material007']); // (before solidifyTrees)
+  if (L.clearHalls) clearHalls(L.clearHalls, draw, col, both);
   if (L.clearTrees) solidifyTrees(col, draw, cm, L); // what's left of the trees and bushes can't be walked through
   if (L.range) buildRange(L, draw, col, cm);
   if (L.tracks || L.hideRoads) buildTracks(L, draw, col);
