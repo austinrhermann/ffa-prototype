@@ -1064,7 +1064,7 @@ const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82).multiplyScalar(0.6), FL_FAR = 18, FL_LOW = 0.663; // (brightness and reach (FL_FAR) 40% down, 2026-11-25: from full and 30 m)
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82).multiplyScalar(0.72), FL_FAR = 15, FL_LOW = 0.663; // (brightness 72% of what it was and reach (FL_FAR) 15 m, 2026-11-25: full and 30 m before, then 60% and 18 m for a bit)
 // // FL_LOW: how far below their aim others carry the light (radians, 38°: looking level, a long cast from a step in front of them; 31° until 2026-11-25, then 63° for a few hours)
 // Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing). It hangs off the left shoulder
 // bone (mountLamp, for every rig), so it crouches, leans and turns with the body; FL_LEFT and FL_DOWN place it (left of the middle, down from the top of the head,
@@ -6687,7 +6687,7 @@ function applySettings() {
 }
 // Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (six a side in a team battle)
 let BOT_LEVEL = 0; // off by default (the difficulty menu still starts at Medium, for when they are switched on)
-const BOT_FILL = 12, BOT_RESPAWN = 10; // (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25)
+const BOT_FILL = 12, BOT_RESPAWN = 20; // (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25, then 10)
 const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
   const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
