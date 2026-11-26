@@ -7728,23 +7728,58 @@ function buildMapBg() {
   let w = c1 - c0 + 5, h = r1 - r0 + 5; if (w / h > aspect) h = w / aspect; else w = h * aspect;
   const mc = (c0 + c1 + 1) / 2, mr = (r0 + r1 + 1) / 2;
   mapBox = { x: GW - mc - w / 2, y: GD - mr - h / 2, w, h }; // in background pixels (flipped grid)
-  return c;
+  return levelShot(cv) || c;
+}
+// The map's picture: the level itself seen from straight above, over the same ground as mapBox (2026-11-26; till then the walking grid's heights, 3 m squares, which
+// knew nothing of the fort, the roads, the trees or the smoothed hills), with nothing but the level drawn, no fog, its brightness stretched so it reads at night too
+function levelShot(cv) {
+  try {
+    const B = mapBox, W = cv.width * 2, Hh = cv.height * 2, hw = CS * B.w / 2, hh = CS * B.h / 2;
+    const cx = OX + CS * (GW - B.x - B.w / 2), cz = OZ + CS * (GD - B.y - B.h / 2);
+    const cam = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 1, 800); cam.position.set(cx, 400, cz); cam.up.set(0, 0, 1); cam.lookAt(cx, 0, cz); cam.updateMatrixWorld(); // (screen right: -x, up: +z, as the map has it)
+    const hid = scene.children.filter(o => o !== levelGroup && !o.isLight && o.visible); hid.forEach(o => { o.visible = false; });
+    const fog = scene.fog, bg = scene.background; scene.fog = null; scene.background = new THREE.Color(0x16262e);
+    const rt = new THREE.WebGLRenderTarget(W, Hh), was = renderer.getRenderTarget();
+    renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, cam);
+    const px = new Uint8Array(W * Hh * 4); renderer.readRenderTargetPixels(rt, 0, 0, W, Hh, px);
+    renderer.setRenderTarget(was); rt.dispose(); scene.fog = fog; scene.background = bg; hid.forEach(o => { o.visible = true; });
+    // brightness stretched: the darkest 2% to black, the brightest 2% to full (the sea left as it is)
+    const lum = []; for (let i = 0; i < px.length; i += 16) lum.push(px[i] + px[i + 1] + px[i + 2]); lum.sort((a, b) => a - b);
+    const lo = lum[lum.length * 0.02 | 0], hi = Math.max(lo + 30, lum[lum.length * 0.98 | 0]), k = 235 / ((hi - lo) / 3); // (per channel)
+    const c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d'), id = g.createImageData(W, Hh);
+    for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+      const i = ((Hh - 1 - y) * W + x) * 4, o = (y * W + x) * 4;
+      const v = [0, 1, 2].map(ch => Math.max(0, Math.min(255, (px[i + ch] - lo / 3) * k))), gr = (v[0] + v[1] + v[2]) / 3;
+      for (let ch = 0; ch < 3; ch++) id.data[o + ch] = (gr + (v[ch] - gr) * 0.45) * 0.7 + 8; // (half the colour and dimmed, so the side's coloured dots stand out on it)
+      id.data[o + 3] = 255;
+    }
+    g.putImageData(id, 0, 0); c.shot = true; return c;
+  } catch (err) { console.warn('map picture', err); return null; }
 }
 function drawMap() {
   if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
   const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
-  g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
-  const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
-  let n = 0;
+  if (mapBg.shot) { g.imageSmoothingEnabled = true; g.drawImage(mapBg, 0, 0, cv.width, cv.height); }
+  else { g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height); }
+  const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 3, Z(cz0) - 3, 6, 6);
+  // Everyone, in their side's colour in a team battle (red for everyone else in a free for all); you a bigger dot ringed in white, on top
+  const teams = teamsOn(), count = {}; let n = 0;
+  const dot = (e, r, ring) => {
+    const tm = e === P ? myTeam : e.team;
+    g.fillStyle = teams && TEAMS[tm] ? TEAMS[tm].color : e === P ? '#ffffff' : '#ff4b3a';
+    g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), r, 0, Math.PI * 2); g.fill();
+    g.lineWidth = ring ? 2 : 1.2; g.strokeStyle = ring ? '#ffffff' : 'rgba(0,0,0,.85)'; g.stroke();
+  };
   for (const e of ents) {
-    if (!e.alive) continue;
-    const atk = e !== P; if (atk) n++; // everyone else
-    g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
-    g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
+    if (!e.alive || e === P || !e.pos) continue;
+    n++; const tm = e.team; if (tm) count[tm] = (count[tm] || 0) + 1;
+    dot(e, 3.5, false);
   }
-  $('cpuinfo').textContent = `Radar · Others on the map ${n}`;
+  if (P.alive) { dot(P, 5, true); if (myTeam) count[myTeam] = (count[myTeam] || 0) + 1; }
+  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${t.color}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
+    : `Radar · Others on the map ${n}`;
 }
 
 
