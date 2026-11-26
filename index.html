@@ -4686,7 +4686,7 @@ function damage(t, amt, attacker, weapon, head) {
   // a bot that's hit knows it, and where from: under fire (it may make for cover: updateBot), and with nobody in sight, after whoever it was
   if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') {
     t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; }
-    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && !(teamHolds(t.team) && !inFortZone(t.pos) && t.pos.distanceTo(attacker.pos) > 25) && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
+    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && !(teamAtFort(t.team) && !inFortZone(t.pos) && t.pos.distanceTo(attacker.pos) > 25) && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
   }
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
@@ -6154,7 +6154,7 @@ function assignFollowers() {
   if (!teamsOn()) return;
   const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
   for (const h of people) {
-    const team = h === P ? myTeam : h.team; if (teamHolds(team)) continue; // (holding the fort: they hold it, they don't follow anyone)
+    const team = h === P ? myTeam : h.team; if (teamAtFort(team)) continue; // (any of the side in the fort, a person or a bot: they all go to hold it, they don't follow anyone)
     if (inBunker(h.pos)) { startAssault(h, team); continue; }
     const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead && !b.ai.solo && !(b.ai.rush && !b.ai.routeDone) && b.pos.distanceTo(h.pos) < (was.get(b) === h ? FOLLOW_KEEP : FOLLOW_R));
     mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, FOLLOW_N).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
@@ -6195,14 +6195,17 @@ function followMove(b, h, wish, dt, t, style) {
   if (t) botEngage(b, t, dt, style, false);
   return speed;
 }
-// A side holds the fort: it takes it with two or more of it inside and nobody of the other side, and keeps it while any of it is left inside (the last one holds on
+// A side holds the fort: it takes it with one or more of it inside (a person or a bot) and nobody of the other side, and keeps it while any of it is left inside (the last one holds on
 // alone) and nobody of the other side gets in. fortHolder: which side holds it now
 let fortHolder = null;
+// Any of the side in the fort, a person or a bot, holding it or fighting for it with the other side in there too: the rest of the side make their way there to help
+// (rejoinFort) rather than following anyone or going their own way (2026-11-26)
+const teamAtFort = team => teamsOn() && !!team && !!LV && !!LV.fortZone && !!LV.fortPosts && (teamHolds(team) || fortCount(team) > 0);
 function teamHolds(team) {
   if (!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts)) return false;
   const foeIn = Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0), mine = fortCount(team);
   if (fortHolder === team && (foeIn || mine < 1)) fortHolder = null;          // lost it: the other side got in, or nobody's left
-  if (fortHolder !== team && !foeIn && mine >= 2 && (!fortHolder || fortCount(fortHolder) < 1)) fortHolder = team; // taken
+  if (fortHolder !== team && !foeIn && mine >= 1 && (!fortHolder || fortCount(fortHolder) < 1)) fortHolder = team; // taken (by one of it alone, a person or a bot, since 2026-11-26; two before)
   return fortHolder === team;
 }
 // Its side holds the fort and it's outside: back onto a way in (its side's road, tunnel or long way round, whichever gets it there soonest from where it is), so it fights its
@@ -6210,7 +6213,7 @@ function teamHolds(team) {
 function rejoinFort(b, dt) {
   const ai = b.ai;
   if ((ai.rejoinT = (ai.rejoinT || 0) - dt) > 0) return; ai.rejoinT = 0.8 + Math.random() * 0.4;
-  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) { ai.regroup = false; return; }
+  if (!teamAtFort(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) { ai.regroup = false; return; }
   if (ai.rev && ai.rev.who.pos.distanceTo(b.pos) > 25) ai.rev = null; // (no rushing off after someone far away: to the fort)
   if (ai.regroup && ai.way && !ai.routeDone) return; // (already on the quickest way in: picked once, when its side took the fort, or again once a way runs out)
   ai.regroup = true;
@@ -6382,11 +6385,11 @@ function updateBot(b, dt) {
   if (alarm && (!ai.rev || ai.rev.who !== alarm)) { ai.rev = { who: alarm, until: performance.now() + REV_T, side: Math.random() < 0.5 ? -1 : 1, behind: false }; ai.huntT = 0; ai.huntG = null; ai.hpath = null; }
   if (!!alarm !== !!ai.alarmed) { ai.alarmed = !!alarm; ai.hpath = null; if (!alarm) ai.rev = null; } // (back to its post: a fresh way there)
   const rv = FN.cells && !ai.boardV && (!post || alarm) ? huntOn(b) : null;
-  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamHolds(b.team) ? ai.lead : null;
+  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamAtFort(b.team) ? ai.lead : null;
   const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
   // Its side holds the fort and it's out of it: back to it before anything else, along its way in, never stopping to fight; with someone in sight it turns to shoot
   // at them and keeps going, walking backwards or sideways as it must
-  const regroup = FN.cells && !post && !ai.boardV && teamHolds(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
+  const regroup = FN.cells && !post && !ai.boardV && teamAtFort(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
   // In the assault (startAssault): on along the tunnel way at a run, shooting at whoever it sees as it goes, till it's in the fort
   if (ai.rush && (ai.routeDone || inFortZone(b.pos) || ai.route !== 'tunnel')) ai.rush = false;
   const rush = FN.cells && ai.rush && !post && !ai.boardV && !(b.ammo === 0 && b.reserve === 0);
