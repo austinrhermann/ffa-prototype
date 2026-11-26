@@ -182,28 +182,29 @@ body.victory #hud,body.victory #touch{display:none!important}
 .rt th{text-align:left;opacity:.7;font-weight:500;padding:4px 6px}
 .rt td{padding:5px 6px;font-variant-numeric:tabular-nums}
 .rt tr.me td{color:var(--accent)}
-#touch{position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#touch{--rx:calc(env(safe-area-inset-right,0px) * .35 - 14px);position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
 body.touch #touch{display:block}
 .tb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;transform:scale(.8);background:rgba(14,18,22,.45);border:2px solid rgba(238,243,234,.35);color:var(--hud);font-size:12px;font-weight:600}
 .tb.on{background:var(--accent);color:#0d1a08}
-#tfire{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));border-color:var(--accent);font-size:14px}
-#treload{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
-#taim{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
-#tnade{width:52px;height:52px;right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
-#tuse{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
-#tswap{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
+#tfire{width:86px;height:86px;right:calc(26px + var(--rx));bottom:calc(90px + env(safe-area-inset-bottom,0px));border-color:var(--accent);font-size:14px}
+#treload{width:52px;height:52px;right:calc(124px + var(--rx));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+#taim{width:56px;height:56px;right:calc(34px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tnade{width:52px;height:52px;right:calc(108px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tuse{width:52px;height:52px;right:calc(196px + var(--rx));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+#tswap{width:52px;height:52px;right:calc(196px + var(--rx));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
 .tt{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));height:34px;padding:0 12px;border-radius:17px;background:var(--panel);border:1px solid rgba(238,243,234,.25);color:var(--hud);font-size:13px;display:flex;align-items:center}
 #tpause{left:calc(12px + env(safe-area-inset-left,0px))}
 /* At the wheel: the gun buttons give way to Brake (handbrake, where Fire is), Reset (back on its wheels) and View; Use gets you out */
-#tbrake{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
-#treset{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
-#tview{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tbrake{width:86px;height:86px;right:calc(26px + var(--rx));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
+#treset{width:52px;height:52px;right:calc(124px + var(--rx));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+#tview{width:56px;height:56px;right:calc(34px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 #touch .drv{display:none}
 body.driving #touch .drv{display:flex}
 body.driving #touch .gun,body.riding.noguns #touch .gun{display:none}
 #joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(238,243,234,.35);background:rgba(14,18,22,.3);display:none}
 #knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(238,243,234,.55)}
-#touch .tb,#touch .tt,#joy{opacity:.8}
+#touch .tb,#touch .tt,#joy{opacity:.56} /* (.8 till 2026-11-26) */
+/* (--rx: the right-hand buttons sit nearer the edge than the safe area asks, 2026-11-26) */
 body.touch #top{display:none} /* (the score bar: not on a phone) */
 body.touch #ammo{right:50%;transform:translateX(calc(100% + 6px));bottom:calc(12px + env(safe-area-inset-bottom,0px));gap:6px}
 body.touch #hpbar{width:112px;height:14px}
@@ -1224,11 +1225,11 @@ function levelFortress() {
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
-    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the gate passage on the
-    // ground floor, the computer room's south window and the middle of the roof's south edge (2026-11-25: one each in the computer room and on the roof, none at the
+    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate (one of them, 'gate',
+    // the middle of it: on the ground floor in the gate passage till 2026-11-26), the computer room's south window and the middle of the roof's south edge (2026-11-25: one each in the computer room and on the roof, none at the
     // tower's south-west corner or the roof's west side)
     // (each [x, y, z, kind]: 'bridge', 'gate', 'computer', 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
-    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [-2, 33.5, 5, 'gate'],
+    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [-0.5, 37.1, 4.5, 'gate'],
       [5.25, 43.94, 5.5, 'computer'], [5.25, 47.6, 6, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
@@ -5439,7 +5440,7 @@ function botShoot(b, t, dist) {
   let total = 0, head = false; const marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
     const base = w.pellets ? 0.75 - dist * 0.05 : 0.55 - dist * (0.011 + (w.rangeSpread ? 0.006 : 0));
-    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1))); // only a head showing: a smaller target
+    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1) * (b.h < STAND_H ? 1.25 : 1))); // (crouched: steadier, 2026-11-26) // only a head showing: a smaller target
     const hit = Math.random() < acc, hd = hit && !seen.part && Math.random() < (w.pellets ? 0.05 : 0.1);
     let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
@@ -6253,6 +6254,19 @@ function defendPost(b) {
   best.by = b; ai.post = best; ai.hpath = null; ai.cov = null; ai.rev = null; ai.flank = null; ai.searchN = 0; ai.routeDone = true;
   return best;
 }
+// The fort attacked: someone of the other side inside it (LV.fortZone, the courtyard included) draws up to ALARM_N of the side's bots at posts, the nearest, off them to
+// fight them, by the stairs and ladders like anyone (hunt), back to their posts once they're dead or gone. Picked again twice a second
+const ALARM_N = 3;
+let alarmCache = { t: -1, m: new Map() };
+function fortAlarm(b) {
+  if (!teamsOn() || !LV || !LV.fortZone) return null;
+  if (last - alarmCache.t > 500 || last < alarmCache.t) {
+    alarmCache = { t: last, m: new Map() };
+    const inside = ents.filter(e => e.alive && e.pos && !isArtist(e) && inFortZone(e.pos)), posted = bots.filter(o => o.alive && o.ai && o.ai.post && o.ai.post.by === o);
+    for (const f of inside) posted.filter(o => !alarmCache.m.has(o) && o !== f && o.team !== (f === P ? myTeam : f.team)).sort((a, c) => a.pos.distanceTo(f.pos) - c.pos.distanceTo(f.pos)).slice(0, ALARM_N).forEach(o => alarmCache.m.set(o, f));
+  }
+  const f = alarmCache.m.get(b); return f && f.alive ? f : null;
+}
 function defendMove(b, post, wish, dt, t, style) {
   const ai = b.ai, p = post.p, at = Math.hypot(p.x - b.pos.x, p.z - b.pos.z) < 0.7 && Math.abs(p.y - b.pos.y) < 1.2;
   let speed = 3.5;
@@ -6264,6 +6278,11 @@ function defendMove(b, post, wish, dt, t, style) {
     ai.hpath = null;
     if (!t) { b.yaw = turn(b.yaw, postFace(post, b.team), 3 * dt); b.pitch += (-0.12 - b.pitch) * Math.min(1, dt * 3); }
     if (b.reloading > 0) ai.crouchHold = 0.4; // (down behind the sill to reload)
+    // Crouched to shoot, steadier (botShoot), whenever it can still see them from down there; checked a few times a second (standing up to look when it can't)
+    if (t && b.reloading <= 0) {
+      if ((ai.postCrT = (ai.postCrT || 0) - dt) <= 0) { ai.postCrT = 0.4; const h = b.h; b.h = CROUCH_H; ai.postCr = !!seenAt(b, t); b.h = h; }
+      if (ai.postCr) ai.crouchHold = 0.4;
+    } else if (!t) ai.postCr = false;
   }
   if (t) botEngage(b, t, dt, style, false);
   return speed;
@@ -6359,7 +6378,10 @@ function updateBot(b, dt) {
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
   if (FN.cells) { assignFollowers(); rejoinFort(b, dt); }
   const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
-  const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
+  const alarm = post ? fortAlarm(b) : null; // (the fort attacked: off its post after them)
+  if (alarm && (!ai.rev || ai.rev.who !== alarm)) { ai.rev = { who: alarm, until: performance.now() + REV_T, side: Math.random() < 0.5 ? -1 : 1, behind: false }; ai.huntT = 0; ai.huntG = null; ai.hpath = null; }
+  if (!!alarm !== !!ai.alarmed) { ai.alarmed = !!alarm; ai.hpath = null; if (!alarm) ai.rev = null; } // (back to its post: a fresh way there)
+  const rv = FN.cells && !ai.boardV && (!post || alarm) ? huntOn(b) : null;
   const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamHolds(b.team) ? ai.lead : null;
   const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
   // Its side holds the fort and it's out of it: back to it before anything else, along its way in, never stopping to fight; with someone in sight it turns to shoot
@@ -6368,7 +6390,7 @@ function updateBot(b, dt) {
   // In the assault (startAssault): on along the tunnel way at a run, shooting at whoever it sees as it goes, till it's in the fort
   if (ai.rush && (ai.routeDone || inFortZone(b.pos) || ai.route !== 'tunnel')) ai.rush = false;
   const rush = FN.cells && ai.rush && !post && !ai.boardV && !(b.ammo === 0 && b.reserve === 0);
-  if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
+  if (post && !alarm && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
   } else if (regroup || rush) {
     ai.cov = null; ai.rev = null; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0;
@@ -6881,16 +6903,17 @@ function applySettings() {
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
 }
-// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (six a side in a team battle)
+// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (TEAM_BOTS a side in a team battle)
 let BOT_LEVEL = 0; // off by default (the difficulty menu still starts at Medium, for when they are switched on)
-const BOT_FILL = 12, BOT_RESPAWN = 20; // (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25, then 10)
+const BOT_FILL = 12, TEAM_BOTS = 5, BOT_RESPAWN = 20; // (TEAM_BOTS: players a side in a team battle, bots filling the places people don't; 6 till 2026-11-26)
+// (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25, then 10)
 const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
   const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
   if (!BOT_LEVEL || mode === 'drive' || mode === 'range') return [];
   const humans = ents.filter(e => !e.bot && !e.isReplica);
   if (!GAME_TEAMS) return Array(Math.max(0, BOT_FILL - humans.length)).fill(undefined);
-  const side = t => Math.max(0, BOT_FILL / 2 - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
+  const side = t => Math.max(0, TEAM_BOTS - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
   return [...Array(side('midas')).fill('midas'), ...Array(side('pirates')).fill('pirates')];
 }
 function setPlaying(on) {
@@ -7222,7 +7245,7 @@ function renderHost() {
   $('htime').querySelectorAll('button').forEach(b => b.classList.toggle('on', TIMES[b.dataset.v].lit === LOOK.lit));
   $('hgame').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'teams') === GAME_TEAMS));
   $('hbots').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === BOT_LEVEL));
-  $('hbotnote').textContent = BOT_LEVEL ? `Bots fill the empty places, up to ${BOT_FILL} players${GAME_TEAMS ? ` (${BOT_FILL / 2} a side)` : ''}.` : 'Only people, no bots.';
+  $('hbotnote').textContent = BOT_LEVEL ? `Bots fill the empty places, up to ${BOT_FILL} players${GAME_TEAMS ? ` (${TEAM_BOTS} a side)` : ''}.` : 'Only people, no bots.';
 }
 // Go! leaves the menu: it needs a name and a character (and the level loaded)
 const canGo = () => READY && PICKED && !!$('pname').value.trim() && !$('play').disabled && (NET.role !== 'guest' || !!(NET.conn && NET.conn.open));
