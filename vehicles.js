@@ -444,7 +444,8 @@
   function drive(v, dt, inp) {
     const p = v.p, top = p.top / 3.6, rev = p.rev / 3.6, G = p.gravity;
     let [fx, fz] = fwdOfYaw(v.yaw), vf = v.vel.x * fx + v.vel.z * fz;
-    if (v.onGround) {
+    const near = v.onGround || v.pos.y - (v.gcPrev === undefined ? -1e3 : v.gcPrev) < 0.3; // (skimming a crest, a hand's breadth up: it still steers)
+    if (near) {
       const sMax = p.steer * Math.PI / 180 / (1 + Math.abs(vf) / (p.steerFall / 3.6));
       v.steer += (inp.steer * sMax - v.steer) * Math.min(1, dt * p.steerRate);
       let yr = vf * Math.tan(v.steer) / p.wheelbase;
@@ -461,13 +462,13 @@
     } else { v.steer *= 1 - Math.min(1, dt * 3); v.steerVis = v.steer; }
     [fx, fz] = fwdOfYaw(v.yaw); const rx = -fz, rz = fx;
     vf = v.vel.x * fx + v.vel.z * fz; let vr = v.vel.x * rx + v.vel.z * rz;
-    const touching = v.onGround || v.pos.y - (v.gcPrev === undefined ? -1e3 : v.gcPrev) < 0.3; // a hop over a bump still has the tyres on the ground
+    const touching = near; // a hop over a bump still has the tyres on the ground
     if (touching) {
       const up = Math.sin(v.pitch) > 0; // (rolling back down a hill on the gas, the engine pulls as well as the brakes)
       if (inp.thr > 0 && !inp.hand) vf += (vf < -0.5 ? Math.max(p.brake, up ? p.power : 0) : p.power * Math.max(0, 1 - (vf / top) ** 2)) * inp.thr * dt; // the handbrake cuts the engine
       else if (inp.thr < 0) vf -= (vf > 0.5 ? p.brake : p.power * 0.5 * Math.max(0, 1 + vf / rev)) * -inp.thr * dt;
       const sl = G * Math.sin(v.pitch); // rolling up and down slopes and ramps (before the brakes, so a handbrake holds on a hill)
-      vf -= (sl > 0 && inp.thr > 0 ? Math.min(sl, p.power * 0.75) : sl) * dt; // (on the gas, a climb never takes more than 3/4 of the engine: every vehicle gets up every hill)
+      vf -= (sl > 0 && inp.thr > 0 ? Math.min(sl, p.power * 0.5) : sl) * dt; // (on the gas, a climb never takes more than half the engine: every vehicle gets up every hill, the truck too at a fair pace; 3/4 until 2026-11-25, when it crawled up the island's hills)
       const res = (0.5 + (inp.hand ? p.hand : 0)) * dt; vf -= Math.sign(vf) * Math.min(Math.abs(vf), res);
       vr *= Math.exp(-(inp.hand ? p.slide : p.grip) * dt);
     }
@@ -501,8 +502,15 @@
     const FR = corner(1, 1), FL = corner(1, -1), BR = corner(-1, 1), BL = corner(-1, -1);
     const hf = Math.max(FR, FL), hb = Math.max(BR, BL);
     const gc = Math.max((hf + hb) / 2, Math.min(hf, hb) + 0.02), pT = Math.atan2(hf - hb, 2 * L), rT = v.kind === 'motorcycle' ? 0 : Math.atan2(Math.max(FL, BL) - Math.max(FR, BR), 2 * W);
+    // Momentum (Austin, 2026-11-25: the truck followed the ground up and down however fast it went): it leaves the ground wherever the ground falls away faster than
+    // gravity can bring it down, going on along the way it was moving, up off a crest or a ramp, out over a drop. Not slower than LAUNCH_V, where it just rolls over
+    // (and the motorcycle, lighter on its springs, a little sooner than the truck: LIFT)
+    const hs = Math.hypot(v.vel.x, v.vel.z), free = v.pos.y + v.vy * dt - 0.5 * G * dt * dt, lift = v.kind === 'motorcycle' ? 0.004 : 0.012;
     if (v.onGround) {
-      if (gc < v.pos.y - 0.6 || (v.vy > 3 && gc < v.pos.y + v.vy * dt - 0.12)) { v.onGround = false; v.pitchRate = Math.max(-1.5, Math.min(1.5, v.pitchRate)); } // off a ramp's lip, or a real drop (not every bump)
+      if (gc < v.pos.y - 0.6 || (v.vy > 3 && gc < v.pos.y + v.vy * dt - 0.12) || (hs > LAUNCH_V && gc < free - lift)) { // off a crest, a ramp's lip, or a real drop
+        v.onGround = false; v.pitchRate = Math.max(-1.5, Math.min(1.5, v.pitchRate));
+        if (v.vy > 0) v.vy = Math.min(v.vy, hs * Math.tan(Math.max(0, Math.min(0.8, v.pitch))), hs * 0.6, LAUNCH_VY); // (up only as steeply as the body was climbing: a jolt in the ground doesn't fire it into the sky)
+      }
       else {
         const vy = (gc - v.pos.y) / Math.max(dt, 1e-3); v.vy += (Math.min(25, vy) - v.vy) * Math.min(1, dt * 20); v.pos.y = gc;
         const np = v.pitch + (pT - v.pitch) * Math.min(1, dt * 12); v.pitchRate = (np - v.pitch) / Math.max(dt, 1e-3); v.pitch = np;
@@ -513,7 +521,7 @@
       v.vy -= G * dt; v.pos.y += v.vy * dt;
       v.pitchRate += (-inp.thr * p.airPitch - v.pitchRate * 0.6) * dt; v.pitch = Math.max(-1.1, Math.min(1.1, v.pitch + v.pitchRate * dt));
       if (v.pos.y <= gc) {
-        const hit = -v.vy; v.pos.y = gc; v.vy = 0; v.onGround = true; v.pitch += (pT - v.pitch) * 0.6;
+        const gv = vf * Math.tan(pT), hit = Math.max(0, gv - v.vy); v.pos.y = gc; v.vy = gv; v.onGround = true; v.pitch += (pT - v.pitch) * 0.6; // (the hit: how fast it meets the ground, not just how fast it falls: landing on a down slope is soft)
         v.susp.hv -= Math.min(4, hit * 0.25) * p.travel; // the body dips on landing
         if (hit > 5) { if (v === cur) shake = Math.max(shake, Math.min(0.09, hit * 0.006)); v.vel.multiplyScalar(Math.max(0.75, 1 - hit * 0.012)); thud(v, hit); }
       }
@@ -637,7 +645,7 @@
   // A wheel that skids leaves a black line on the ground (art.js's spray in black, as wide as the tyre: everyone sees it, like paint): every wheel braking hard
   // on S or sliding sideways, the back ones on the handbrake (they lock). A burnout (drive) lays a fat streak under the back tyre(s), and the next few metres
   // after its launch keep laying one. Only the machine that runs the vehicle draws them; its smoke and spinning wheels everyone works out (burnOf)
-  const BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
+  const LAUNCH_V = 7, LAUNCH_VY = 10, BURN_V = 2.5, BURN_SPIN = 32, BURN_TRAIL = 3.5, LAUNCH_T = 0.6, SKID_V = 2.5, SLIDE_V = 3.5, BURN_FAT = 1.5;
   const BURN_TURN = 0.45; // how fast a burnout turns at full steer, radians a second: slow, a full circle in about 14 s (1.8 until 2026-11-22)
   const wheelSpots = v => { const L = v.p.wheelbase / 2, T = v.p.track / 2; return v.kind === 'motorcycle' ? [[0, L], [0, -L]] : [[T, L], [-T, L], [T, -L], [-T, -L]]; }; // front first, as the wheels are built
   const rearFrom = v => (v.kind === 'motorcycle' ? 1 : 2);

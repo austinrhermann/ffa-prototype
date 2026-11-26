@@ -117,6 +117,8 @@ body.newmenu #overlay{background:linear-gradient(rgba(0,0,0,.05),rgba(0,0,0,.3))
 .setrow>span,.setrow>label{display:block;margin-bottom:7px;font-size:14px;opacity:.85}
 .setrow small{margin-top:6px}
 .step{display:flex;align-items:center;gap:6px}
+#sgfx{display:block;width:100%;margin:4px 0 0;accent-color:#f2c14e}
+.setrow>label output{float:right;opacity:1;font-weight:600}
 .step button{width:48px;padding:11px 0;font-size:20px}
 .step output{min-width:72px;text-align:center;font:600 17px system-ui,sans-serif;padding:8px 4px;border-radius:4px;outline:none;cursor:text}
 .step output:focus{background:rgba(255,255,255,.12);box-shadow:0 0 0 2px #fff}
@@ -143,8 +145,8 @@ body.guest .hostonly{display:none!important}
 #lookcard .row button{flex:1;padding:10px 6px;font-size:14px}
 #charcard{width:280px}
 #teams{margin-bottom:12px}
-#teams button[data-team=midas].on{background:#f2c230;color:#000}
-#teams button[data-team=pirates].on{background:#4aa8ff;color:#000}
+#teams button[data-team=midas].on{background:#4aa8ff;color:#000}
+#teams button[data-team=pirates].on{background:#f2c230;color:#000}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
@@ -180,28 +182,29 @@ body.victory #hud,body.victory #touch{display:none!important}
 .rt th{text-align:left;opacity:.7;font-weight:500;padding:4px 6px}
 .rt td{padding:5px 6px;font-variant-numeric:tabular-nums}
 .rt tr.me td{color:var(--accent)}
-#touch{position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#touch{--rx:calc(env(safe-area-inset-right,0px) * .35 - 14px);position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
 body.touch #touch{display:block}
 .tb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;transform:scale(.8);background:rgba(14,18,22,.45);border:2px solid rgba(238,243,234,.35);color:var(--hud);font-size:12px;font-weight:600}
 .tb.on{background:var(--accent);color:#0d1a08}
-#tfire{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));border-color:var(--accent);font-size:14px}
-#treload{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
-#taim{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
-#tnade{width:52px;height:52px;right:calc(108px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
-#tuse{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
-#tswap{width:52px;height:52px;right:calc(196px + env(safe-area-inset-right,0px));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
+#tfire{width:86px;height:86px;right:calc(26px + var(--rx));bottom:calc(90px + env(safe-area-inset-bottom,0px));border-color:var(--accent);font-size:14px}
+#treload{width:52px;height:52px;right:calc(124px + var(--rx));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+#taim{width:56px;height:56px;right:calc(34px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tnade{width:52px;height:52px;right:calc(108px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tuse{width:52px;height:52px;right:calc(196px + var(--rx));bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+#tswap{width:52px;height:52px;right:calc(196px + var(--rx));bottom:calc(172px + env(safe-area-inset-bottom,0px))}
 .tt{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));height:34px;padding:0 12px;border-radius:17px;background:var(--panel);border:1px solid rgba(238,243,234,.25);color:var(--hud);font-size:13px;display:flex;align-items:center}
 #tpause{left:calc(12px + env(safe-area-inset-left,0px))}
 /* At the wheel: the gun buttons give way to Brake (handbrake, where Fire is), Reset (back on its wheels) and View; Use gets you out */
-#tbrake{width:86px;height:86px;right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
-#treset{width:52px;height:52px;right:calc(124px + env(safe-area-inset-right,0px));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
-#tview{width:56px;height:56px;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
+#tbrake{width:86px;height:86px;right:calc(26px + var(--rx));bottom:calc(90px + env(safe-area-inset-bottom,0px));font-size:14px}
+#treset{width:52px;height:52px;right:calc(124px + var(--rx));bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+#tview{width:56px;height:56px;right:calc(34px + var(--rx));bottom:calc(196px + env(safe-area-inset-bottom,0px))}
 #touch .drv{display:none}
 body.driving #touch .drv{display:flex}
 body.driving #touch .gun,body.riding.noguns #touch .gun{display:none}
 #joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(238,243,234,.35);background:rgba(14,18,22,.3);display:none}
 #knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(238,243,234,.55)}
-#touch .tb,#touch .tt,#joy{opacity:.8}
+#touch .tb,#touch .tt,#joy{opacity:.56} /* (.8 till 2026-11-26) */
+/* (--rx: the right-hand buttons sit nearer the edge than the safe area asks, 2026-11-26) */
 body.touch #top{display:none} /* (the score bar: not on a phone) */
 body.touch #ammo{right:50%;transform:translateX(calc(100% + 6px));bottom:calc(12px + env(safe-area-inset-bottom,0px));gap:6px}
 body.touch #hpbar{width:112px;height:14px}
@@ -446,6 +449,7 @@ body.fshint.titleon #fshint,body.fshint.guest.pregame #fshint{display:flex}
   <div class="setrow hostonly" id="setlimit"><span>Score limit</span><div class="step" data-for="sglimit"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="oglimit">20</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="sglimit" min="5" max="100" step="5" value="20" hidden></div>
   <div class="setrow kb" id="setsens"><span>Mouse sensitivity</span><div class="step" data-for="ssens"><button type="button" data-d="-1" aria-label="Lower">−</button><output id="osens">1.0×</output><button type="button" data-d="1" aria-label="Higher">+</button></div><input type="range" id="ssens" min="0.3" max="2.5" step="0.1" value="1" hidden></div>
   <div class="setrow kb"><button type="button" class="tog" data-for="saimtog" data-off="Right click: hold to aim" data-on="Right click: click to aim, click again to stop"></button><input type="checkbox" id="saimtog" hidden></div>
+  <div class="setrow" id="setgfx"><label for="sgfx">Graphics <output id="ogfx"></output></label><input type="range" id="sgfx" min="1" max="9" step="1" value="9"><small>Lower draws fewer, bigger pixels and simpler lamp shadows: smoother at night. Medium and under look like a PlayStation game</small></div>
   <div class="setrow"><button type="button" class="tog" data-for="sthird" data-off="View: first person" data-on="View: third person (camera behind your shoulder)"></button><input type="checkbox" id="sthird" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sgod" data-off="God mode: off" data-on="God mode: on (you take no damage)"></button><input type="checkbox" id="sgod" hidden></div>
   <div class="setrow hostonly"><button type="button" class="tog" data-for="sprox" data-off="Proximity voice chat: off (everyone hears everyone)" data-on="Proximity voice chat: on (hear only players nearby)"></button><input type="checkbox" id="sprox" hidden></div>
@@ -533,11 +537,70 @@ const UP = 3.0, WALL_H = 6.5, MAG = 30, START_RES = 60, MAX_RES = 120, RELOAD_T 
 const $ = id => document.getElementById(id);
 
 // ---------- Renderer / scenes ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Retro graphics, on phones and tablets (?gfx=retro anywhere; ?gfx=high turns it off): the picture drawn 270 pixels tall (Settings > Graphics: GFX below), however big the screen, and
+// blown up with hard square pixels, like an old console (the PS1 look, below); the sun's shadow map a quarter the size; and only your own flashlight casts
+// shadows (LAMP_Q 'own': everyone else's lights its cone without them). All so a phone keeps up at night in the bunker's tunnel
+const GFX_Q = new URLSearchParams(location.search).get('gfx');
+const RETRO = GFX_Q === 'retro' || (GFX_Q !== 'high' && (matchMedia('(any-pointer: coarse)').matches || navigator.maxTouchPoints > 0)); // (the device's default; Settings > Graphics changes it while you play)
+// Settings > Graphics, Low to High: how many pixels tall the picture is drawn (GFX_LINES[level - 1]); the top level, Highest, is the full resolution with smooth pixels.
+// Phones start at 3 (270 lines), everything else at High; your pick is remembered in this browser (?lines= tries a height for this visit)
+const GFX_LINES = [180, 240, 270, 330, 390, 480, 585, 720, 0], GFX_NAMES = ['Lowest', 'Very low', 'Low', 'Medium low', 'Medium', 'Medium high', 'High', 'Very high', 'Highest'];
+const GFX_LOW_LAMPS = 5; // at this level and under, only your own flashlight casts shadows and the sun's shadow map is a quarter the size (as phones had it)
+// ...and the picture looks like a PlayStation's (PS1 below): no edge smoothing, corners that snap to its big pixels (polygons jitter as they move),
+// textures stretched straight across each triangle with no perspective (they wobble), and colours cut to 15 bits with the PS1's 4x4 dither
+const GFX = (() => {
+  const q = +new URLSearchParams(location.search).get('lines'), def = RETRO ? 3 : GFX_LINES.length;
+  let lv = def; try { const v = +JSON.parse(localStorage.getItem('tse.controls') || '{}').gfx; if (v >= 1 && v <= GFX_LINES.length && !GFX_Q) lv = v; } catch (e) {}
+  return { lv, lines: q ? Math.max(120, q) : 0 };
+})();
+const gfxLines = () => GFX.lines || GFX_LINES[GFX.lv - 1]; // 0: full resolution
+const renderer = new THREE.WebGLRenderer({ antialias: true }); // (smoothed edges; the PS1 levels draw into PS1.rt instead, which has none)
+renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
+// The PS1 look. on: (from the level); u: the shaders' uniform (x, y: half the picture's size in pixels, to snap corners to, or 0; z: textures without
+// perspective; w: the dither), a plain object every material shares; rt: the picture, drawn without smoothing, then copied to the screen pixel for pixel
+const PS1 = { on: false, u: { x: 0, y: 0, z: 0, w: 0 }, rt: null, scene: null, cam: null, size: new THREE.Vector2() };
+function ps1Begin() {
+  PS1.on = GFX.lv <= GFX_LOW_LAMPS;
+  if (!PS1.on) { PS1.u.x = PS1.u.y = PS1.u.z = PS1.u.w = 0; return; }
+  const sz = renderer.getDrawingBufferSize(PS1.size);
+  if (!PS1.rt) {
+    PS1.rt = new THREE.WebGLRenderTarget(sz.x, sz.y, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, stencilBuffer: false });
+    PS1.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); PS1.scene = new THREE.Scene();
+    PS1.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: { t: { value: PS1.rt.texture } }, depthTest: false, depthWrite: false,
+      vertexShader: 'varying vec2 u; void main() { u = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D t; varying vec2 u; void main() { gl_FragColor = texture2D(t, u); }' })));
+  }
+  if (PS1.rt.width !== sz.x || PS1.rt.height !== sz.y) PS1.rt.setSize(sz.x, sz.y);
+  PS1.u.x = sz.x / 2; PS1.u.y = sz.y / 2; PS1.u.z = 1; PS1.u.w = 1;
+  renderer.setRenderTarget(PS1.rt);
+}
+function ps1End() { if (PS1.on) { PS1.u.x = PS1.u.y = PS1.u.z = PS1.u.w = 0; renderer.setRenderTarget(null); renderer.render(PS1.scene, PS1.cam); } } // (off again for anything else drawn, like the menu's portraits)
 // At most 1.5 screen pixels per CSS pixel: a Retina screen at 2 draws 78% more pixels (with antialiasing on top) for a
 // difference that's hard to see in a moving game
 const MAX_PR = 1.5;
-renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR));
+// Lighter graphics, on every device (phones only, the first day; ?gfx=high turns it off): lighter lamps (headlights.js: smaller shadow maps, fewer glows, only the
+// tunnel's walls for a lamp underground), the sun's shadows held still in the dark places, and the picture drawn at a lower resolution while frames run slow (DYN:
+// steps down to DYN_STEPS' last, back up once it's quick again)
+const LITE = GFX_Q !== 'high';
+// How the lamps (flashlights, headlights) light the world (?lamps=): full, each its own shadows; own, only your flashlight casts shadows (everyone else's lights
+// what's in its cone, walls or no walls); flat, no lamp casts shadows; dots, only your flashlight lights anything (everyone else's shows as its lens). The glow
+// in the air along each beam shows at every Graphics level (it was off everywhere 2026-11-24 to 11-25); ?beams=off turns it off
+const LAMP_Q = { fixed: new URLSearchParams(location.search).get('lamps'), mode: 'full', beamsQ: new URLSearchParams(location.search).get('beams'), beams: false };
+const DYN_STEPS = [1, 0.85, 0.72, 0.6], DYN = { i: 0, ft: 1 / 60, slowT: 0, fastT: 0 };
+LAMP_Q.mode = LAMP_Q.fixed || (GFX.lv <= GFX_LOW_LAMPS ? 'own' : 'full');
+const lampGlow = () => LAMP_Q.beamsQ !== 'off'; LAMP_Q.beams = lampGlow(GFX.lv);
+const dynPR = () => gfxLines() ? Math.max(0.15, Math.min(devicePixelRatio, gfxLines() / innerHeight) * DYN_STEPS[DYN.i]) // (a low level: gfxLines() tall, and fewer still while slow)
+  : Math.max(0.75, Math.min(devicePixelRatio, MAX_PR) * DYN_STEPS[DYN.i]); // (never under 0.75 of a CSS pixel)
+function dynRes(raw) { // raw: the frame's real length in seconds; called each frame with LITE
+  if (!(raw > 0) || raw > 0.25) return; // (a stall or a hidden tab says nothing)
+  DYN.ft += (raw - DYN.ft) * 0.05;
+  DYN.slowT = DYN.ft > 1 / 45 ? DYN.slowT + raw : 0; DYN.fastT = DYN.ft < 1 / 57 ? DYN.fastT + raw : 0;
+  const was = DYN.i;
+  if (DYN.slowT > 1.5 && DYN.i < DYN_STEPS.length - 1) DYN.i++;
+  else if (DYN.fastT > 5 && DYN.i > 0) DYN.i--;
+  if (DYN.i !== was) { DYN.slowT = DYN.fastT = 0; DYN.ft = 1 / 50; setPixelRatio(); }
+}
+renderer.setPixelRatio(dynPR());
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.autoClear = false;
@@ -546,7 +609,7 @@ renderer.domElement.addEventListener('webglcontextlost', e => {
   e.preventDefault();
   GAME_STARTUP.fail('Graphics were interrupted. Reload the game to reconnect. If this happens again, close other tabs and apps first.');
 });
-function setPixelRatio() { renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PR)); renderer.setSize(innerWidth, innerHeight); }
+function setPixelRatio() { renderer.setPixelRatio(dynPR()); renderer.setSize(innerWidth, innerHeight); }
 const renderWorld = () => renderer.render(scene, camera);
 
 const scene = new THREE.Scene();
@@ -578,7 +641,7 @@ const TIMES = {
   day: { ...LOOK_DEFAULT },
   // (dusk and night keep the day's haze and its blue, only dimmer, so the fog reads the same at every time)
   dusk: { ...LOOK_DEFAULT, lit: '#c48f72', shadow: '#3b2d40', sky: '#56647c', top: '#1f2f5e' },
-  night: { ...LOOK_DEFAULT, az: 55, el: 18, lit: '#090a11', shadow: '#15232d', sky: '#111318', top: '#0f1f43', haze: 1.05 }, // (tuned 2026-11-23: a low moon, near-black shadows)
+  night: { ...LOOK_DEFAULT, az: 55, el: 18, lit: '#323548', shadow: '#162027', edge: 0.46, soft: 0, sky: '#111318', top: '#0f1f43', haze: 1.55 }, // (Austin's, 2026-11-25: a brighter blue moonlight, hard shadows, thicker haze; 2026-11-23's was lit #090a11, shadow #15232d, haze 1.05)
 };
 const nightOn = () => { const c = new THREE.Color(LOOK.lit); return c.r * 0.3 + c.g * 0.59 + c.b * 0.11 < 0.65; };
 const RAMP = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
@@ -609,9 +672,17 @@ float sunAt(vec3 p) {
 // little shadow map (headlights.js renders what the light can see into one of the eight tiles of FLASH.depth, four across and
 // two down; mat: its camera), so it stops at whatever is really in the way: walls, corners, people, vehicles. far: how far
 // they reach. With none on (n = 0) nothing changes.
-const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) } };
+const FLASH_MAX = 8, FLASH_NEAR = 0.35, FLASH = { n: { value: 0 }, pos: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3()) }, dir: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(0, 0, -1)) }, far: { value: Array(FLASH_MAX).fill(0) }, col: { value: [...Array(FLASH_MAX)].map(() => new THREE.Vector3(1, 1, 1)) }, cone: { value: Array(FLASH_MAX).fill(0.935) }, band: { value: Array(FLASH_MAX).fill(0.035) }, asp: { value: Array(FLASH_MAX).fill(1) }, soft: { value: Array(FLASH_MAX).fill(0) }, mat: { value: [...Array(FLASH_MAX)].map(() => new THREE.Matrix4()) }, shad: { value: Array(FLASH_MAX).fill(1) }, depth: { value: null }, texel: { value: new THREE.Vector2(1 / 1024, 1 / 512) }, cell: { value: 1 } };
 const FLASH_GLSL = `
-uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel;
+uniform float flN; uniform vec3 flPos[${FLASH_MAX}]; uniform vec3 flDir[${FLASH_MAX}]; uniform float flFar[${FLASH_MAX}]; uniform vec3 flCol[${FLASH_MAX}]; uniform float flCone[${FLASH_MAX}]; uniform float flBand[${FLASH_MAX}]; uniform float flAsp[${FLASH_MAX}]; uniform float flSoft[${FLASH_MAX}]; uniform mat4 flMat[${FLASH_MAX}]; uniform float flShad[${FLASH_MAX}]; uniform sampler2D flDepth; uniform vec2 flTexel; uniform float flCell;
+// The cast light dithered like the PS1 look, at every Graphics level (Austin, 2026-11-25: as Medium shows it, on the spot a lamp throws): its strength in 6 steps, a 4x4
+// ordered dither between them, in cells about as big as a 300-line picture's pixels (flCell), so its soft edge and falloff break into the retro pattern
+float flDither(float k) {
+  vec2 q = mod(floor(gl_FragCoord.xy / flCell), 4.0);
+  vec4 r = q.y < 1.0 ? vec4(0.0, 8.0, 2.0, 10.0) : q.y < 2.0 ? vec4(12.0, 4.0, 14.0, 6.0) : q.y < 3.0 ? vec4(3.0, 11.0, 1.0, 9.0) : vec4(15.0, 7.0, 13.0, 5.0);
+  float th = (dot(r, vec4(equal(vec4(q.x), vec4(0.0, 1.0, 2.0, 3.0)))) + 0.5) / 16.0;
+  return floor(k * 6.0 + th) / 6.0;
+}
 float flLin(float z, float f) { float n = ${FLASH_NEAR.toFixed(2)}, c = z * 2.0 - 1.0; return 2.0 * n * f / (f + n - c * (f - n)); }
 float flSeen(int i, vec3 p, float f) { // how much of the light gets to p (four taps, for a soft edge)
   vec4 lp = flMat[i] * vec4(p, 1.0); if (lp.w <= 0.0) return 0.0;
@@ -633,7 +704,8 @@ float flashAt(vec3 p, out vec3 col) { // how much a lamp lights p (0-1), and tha
     // (soft: instead, a fade evenly out from the very middle to the edge, by angle, to that power: a spotlight's long falloff)
     float c = (flSoft[i] > 0.0 ? pow(clamp(1.0 - acos(clamp(a, -1.0, 1.0)) / acos(flCone[i]), 0.0, 1.0), flSoft[i]) : smoothstep(flCone[i], flCone[i] + flBand[i], a)) * (1.0 - smoothstep(flFar[i] * 0.6, flFar[i], d));
     if (flSoft[i] != 0.0 && dot(flNrm, flNrm) > 0.25) c *= smoothstep(0.0, 0.35, dot(flNrm, -u)); // (soft below 0: the usual hard edge, but lighting only what faces it)
-    if (c > 0.0) { float s = c * flSeen(i, p, flFar[i]); if (s > k) { k = s; col = flCol[i]; } }
+    if (flShad[i] < 0.5 && inDark(p) != (flShad[i] < -0.5)) c = 0.0; // (a lamp with no shadows of its own lights only its own side of a dark place's walls: none from outside in, none from inside out)
+    if (c > 0.0) { float s = c * (flShad[i] > 0.5 ? flSeen(i, p, flFar[i]) : 1.0); if (s > k) { k = s; col = flCol[i]; } }
   }
   return k;
 }
@@ -704,7 +776,7 @@ function darkSync() {
 }
 const darkNear = (p, r = 0) => DARK.live.some(b => p.x > b.lo.x - r && p.y > b.lo.y - r && p.z > b.lo.z - r && p.x < b.hi.x + r && p.y < b.hi.y + r && p.z < b.hi.z + r); // in a dark place, or within r of one
 const inDarkCPU = p => darkNear(p);
-const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flDepth: FLASH.depth, flTexel: FLASH.texel });
+const FLASH_UNIFORMS = () => ({ flN: FLASH.n, flPos: FLASH.pos, flDir: FLASH.dir, flFar: FLASH.far, flCol: FLASH.col, flCone: FLASH.cone, flBand: FLASH.band, flAsp: FLASH.asp, flSoft: FLASH.soft, flMat: FLASH.mat, flShad: FLASH.shad, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, flDepth: FLASH.depth, flTexel: FLASH.texel, flCell: FLASH.cell });
 THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
   Object.assign(sh.uniforms, { sunOn: SUN.on, sunMap: SUN.map, sunLo: SUN.lo, sunSize: SUN.size, sunGrid: SUN.grid, blN: BULB.n, blPos: BULB.pos, mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k, dkN: DARK.n, dkLo: DARK.lo, dkHi: DARK.hi, dkBLo: DARK.bLo, dkBHi: DARK.bHi, ...FLASH_UNIFORMS() });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -713,7 +785,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
       sunWp = instanceMatrix * sunWp;
     #endif
     vSunPos = (modelMatrix * sunWp).xyz;`);
-  sh.fragmentShader = SUN_GLSL + FLASH_GLSL + BULB_GLSL + MUZ_GLSL + DARK_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
+  sh.fragmentShader = SUN_GLSL + DARK_GLSL + FLASH_GLSL + BULB_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <aomap_fragment>', `
     #ifdef USE_AOMAP
       reflectedLight.directDiffuse *= texture2D(aoMap, vUv2).r;
     #else
@@ -722,7 +794,7 @@ THREE.MeshToonMaterial.prototype.onBeforeCompile = sh => {
     if (dkN > 0.5 && inDark(vSunPos)) gl_FragColor.rgb = diffuseColor.rgb * ${DARK_GLOW.toFixed(3)} + totalEmissiveRadiance; // (a dark place: no sun, sky or fill, at any time of day)
     if (blN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * bulbLight(vSunPos, inverseTransformDirection(normal, viewMatrix)) * (1.0 - 0.9 * sunAt(vSunPos)); // (bulbs light what the sun doesn't)
     if (mzN > 0.5) gl_FragColor.rgb += diffuseColor.rgb * muzLight(vSunPos, inverseTransformDirection(normal, viewMatrix), 1.0) * (1.0 - 0.7 * sunAt(vSunPos)); // (a shot's flash)
-    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC), flK); } // (never darker than it was: by day a lamp only lifts the shade)
+    if (flN > 0.5) { vec3 flC; flNrm = inverseTransformDirection(normal, viewMatrix); float flK = flDither(flashAt(vSunPos, flC)); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, (diffuseColor.rgb + totalEmissiveRadiance) * flC), flK); } // (never darker than it was: by day a lamp only lifts the shade)
     #include <tonemapping_fragment>`);
 };
 // Unlit materials whose vertex colours are their light (the fort's tunnel and cellar, tunnelKit's bake): in a flashlight
@@ -732,9 +804,9 @@ THREE.MeshBasicMaterial.prototype.onBeforeCompile = function (sh) {
   Object.assign(sh.uniforms, FLASH_UNIFORMS(), { mzN: MUZ.n, mzPos: MUZ.pos, mzK: MUZ.k });
   sh.vertexShader = 'varying vec3 vSunPos;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
     vSunPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
-  sh.fragmentShader = 'varying vec3 vSunPos;\n' + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
+  sh.fragmentShader = 'varying vec3 vSunPos;\n' + DARK_GLSL + FLASH_GLSL + MUZ_GLSL + sh.fragmentShader.replace('#include <color_fragment>', `vec3 flBase = diffuseColor.rgb;
     #include <color_fragment>`).replace('#include <tonemapping_fragment>', `
-    if (flN > 0.5) { vec3 flC; float flK = flashAt(vSunPos, flC); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
+    if (flN > 0.5) { vec3 flC; float flK = flDither(flashAt(vSunPos, flC)); gl_FragColor.rgb = mix(gl_FragColor.rgb, max(gl_FragColor.rgb, flBase * flC), flK); }
     if (mzN > 0.5) gl_FragColor.rgb += flBase * muzLight(vSunPos, vec3(0.0), 0.0);
     #include <tonemapping_fragment>`);
 };
@@ -754,6 +826,25 @@ function sunAtCPU(p) {
 // (The uniforms are plain {x,y,z,w} objects, not three's vectors, so every material shares them: three copies its own.)
 const HAZE = { a: { x: 0, y: 0, z: 0, w: 0 }, b: { x: 0, y: 1, z: 0, w: 0 }, top: { x: 0, y: 0, z: 0 }, sun: { x: 0, y: 1, z: 0 }, sunCol: { x: 0, y: 0, z: 0 }, blk: { x: 0, y: 1 } };
 for (const k in THREE.ShaderLib) { const u = THREE.ShaderLib[k].uniforms; if (u && u.fogColor) Object.assign(u, { hazeA: { value: HAZE.a }, hazeB: { value: HAZE.b }, hazeTop: { value: HAZE.top }, hazeSun: { value: HAZE.sun }, hazeSunCol: { value: HAZE.sunCol }, hazeBlk: { value: HAZE.blk } }); }
+// The PS1 look's shader side (PS1 above): every built-in material gets the shared psOn uniform (not the depth ones the shadow maps draw with)
+for (const k of ['basic', 'lambert', 'phong', 'standard', 'physical', 'toon', 'matcap', 'points', 'sprite', 'dashed']) THREE.ShaderLib[k].uniforms.psOn = { value: PS1.u };
+THREE.ShaderChunk.common += '\nuniform vec4 psOn;\n';
+THREE.ShaderChunk.uv_pars_vertex = THREE.ShaderChunk.uv_pars_vertex.replace('varying vec2 vUv;', 'varying vec2 vUvA; varying float vUvW; vec2 vUv;');
+THREE.ShaderChunk.uv_pars_fragment = THREE.ShaderChunk.uv_pars_fragment.replace('varying vec2 vUv;', 'varying vec2 vUvA; varying float vUvW;\n#define vUv (vUvA / vUvW)');
+THREE.ShaderChunk.project_vertex += `
+if (psOn.x > 0.0 && gl_Position.w > 0.0) gl_Position.xy = floor(gl_Position.xy / gl_Position.w * psOn.xy + 0.5) / psOn.xy * gl_Position.w; // (corners on the pixel grid)
+#if defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY )
+  vUvW = psOn.z > 0.5 ? max(gl_Position.w, 1e-4) : 1.0; vUvA = vUv * vUvW; // (times w here and over w per pixel: straight across the screen, no perspective)
+#endif
+`;
+THREE.ShaderChunk.dithering_pars_fragment += `
+vec3 psDither(vec3 c) { // the PS1's own 4x4 dither (3 times as strong, so it shows on a phone's small sharp screen), then 5 bits a channel
+  vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
+  vec4 r = q.y < 1.0 ? vec4(-4.0, 0.0, -3.0, 1.0) : q.y < 2.0 ? vec4(2.0, -2.0, 3.0, -1.0) : q.y < 3.0 ? vec4(-3.0, 1.0, -4.0, 0.0) : vec4(3.0, -1.0, 2.0, -2.0);
+  float d = dot(r, vec4(equal(vec4(q.x), vec4(0.0, 1.0, 2.0, 3.0))));
+  return floor(clamp(c * 255.0 + d * 3.0, 0.0, 255.0) / 8.0) * 8.0 / 255.0;
+}`;
+THREE.ShaderChunk.dithering_fragment += '\nif (psOn.w > 0.5) gl_FragColor.rgb = psDither(gl_FragColor.rgb);\n';
 THREE.ShaderChunk.fog_pars_vertex += '\n#ifdef USE_FOG\nvarying vec3 vFogRel;\n#endif\n';
 THREE.ShaderChunk.fog_vertex += '\n#ifdef USE_FOG\nvFogRel = (vec4(mvPosition.xyz, 0.0) * viewMatrix).xyz;\n#endif\n'; // (camera to here, in world axes)
 THREE.ShaderChunk.fog_pars_fragment += `
@@ -805,7 +896,8 @@ const LOOK_EXTRA = []; // other scenes' lights that follow the look: [fill, sun,
 const sun = new THREE.DirectionalLight(0xffffff, 1);
 const SUN_DIR = new THREE.Vector3();
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+const sunMap = () => GFX.lv <= GFX_LOW_LAMPS ? 1024 : 2048;
+sun.shadow.mapSize.set(sunMap(), sunMap());
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 150 });
 scene.add(sun);
 const boomLight = new THREE.PointLight(0xffaa55, 0, 18); scene.add(boomLight);
@@ -928,7 +1020,7 @@ function setSky(on) {
 }
 
 addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
+  setPixelRatio(); // (and the size: retro's resolution goes by the screen's height, which turning the phone changes)
   camera.aspect = vmCam.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix(); vmCam.updateProjectionMatrix();
 });
@@ -973,7 +1065,8 @@ const RANGE = { on: false, hot: false, hotDown() {}, hotUp() {}, quickKnife() {}
 const LAMPS = { after() {} }; // the headlights and flashlights (headlights.js fills it in)
 // Everyone's flashlight (L), as a lamp for headlights.js: from just by your eyes along your aim. Yours follows the camera; others' their head
 // and where they look. Off in a vehicle (the headlights do that job) and while dead
-const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82), FL_LOW = 0.55; // FL_LOW: how far below their aim others carry the light (radians, 31°)
+const _flO = new V3(), _flD = new V3(), FLASHLIGHT_COL = new V3(1, 0.95, 0.82).multiplyScalar(0.72), FL_FAR = 15, FL_LOW = 0.663; // (brightness 72% of what it was and reach (FL_FAR) 15 m, 2026-11-25: full and 30 m before, then 60% and 18 m for a bit)
+// // FL_LOW: how far below their aim others carry the light (radians, 38°: looking level, a long cast from a step in front of them; 31° until 2026-11-25, then 63° for a few hours)
 // Where a flashlight is clipped on: the top of the chest, where the left shoulder meets it (an angle-head light on the webbing). It hangs off the left shoulder
 // bone (mountLamp, for every rig), so it crouches, leans and turns with the body; FL_LEFT and FL_DOWN place it (left of the middle, down from the top of the head,
 // just under the shoulder joints) and each character's own chest and gear (a flare, a bandolier, pouches) set how far out it sits: FL_CLEAR in front of the
@@ -1029,7 +1122,7 @@ function flashBeam(e) {
   // cone: the cosine of its half angle, 28°, and band: it fades in from there, gradually, to full brightness 10° out from the middle (half bright at 21°, a little out from
   // the 20° edge it had before 2026-11-21, which faded over just 3°); fov: its shadow map's view, a little over the cone
   // your own, in first person, fades all the way to the very middle (band 0.117): brightest dead ahead, half bright at 20°
-  return { o, d, far: 30, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e, face };
+  return { o, d, far: FL_FAR, fov: 60, cone: 0.883, band: e.isPlayer && !tpOn ? 0.117 : 0.102, col: FLASHLIGHT_COL, e, face };
 }
 const ART = { on: false, safe: false, toggle() {}, update() {}, after() {}, skid() {}, skidEnd() {}, key() { return false; }, swap() {}, armTurn: () => null, fpvTool() {}, held: () => null, state: () => 0, colour: () => 0, pose() {}, heldObject: () => null, net() {}, welcome() {}, joinLog() {}, toCorpse() {}, clear() {}, hold() {}, release() {} };
 const EDGE = new Uint8Array(N), LEVEL_SCENES = {};
@@ -1132,11 +1225,12 @@ function levelFortress() {
     botBunker: [[-19.3, 26.3], [-23.0, 19.7], [-25.5, 13.9]],
     // The open slope between the bunker branch and the bunker's door, under the fort's west wall: bots that stopped to fight there were shot from the walls and died
     // in heaps. A bot in a fight there goes on into the bunker and through the tunnel instead, shooting as it runs (bunkerPush). [x0, x1, z0, z1], and the bunker inside
-    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate, the lower tower room's
-    // window and the roof (none in the computer room, the top one: they crowded it, 2026-11-24)
-    // (each [x, y, z, kind]: 'bridge', 'tower' its lower room's window, 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
-    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [1.5, 37.6, 3.5, 'tower'],
-      [4.5, 47.6, 5.5, 'roof'], [7, 47.6, 6, 'roof'], [3, 47.6, 2, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
+    // Where a side holding the fort (two or more of them inside it) stands to defend it, looking out (fortDefend): the bridge over the gate (one of them, 'gate',
+    // the middle of it: on the ground floor in the gate passage till 2026-11-26), the computer room's south window and the middle of the roof's south edge (2026-11-25: one each in the computer room and on the roof, none at the
+    // tower's south-west corner or the roof's west side)
+    // (each [x, y, z, kind]: 'bridge', 'gate', 'computer', 'roof'; a side spreads its defenders over the kinds, and always has one in or on the tower)
+    fortPosts: [[-2, 37.1, 4, 'bridge'], [-4.5, 37.1, 4.5, 'bridge'], [2, 37.1, 3, 'bridge'], [-0.5, 37.1, 4.5, 'gate'],
+      [5.25, 43.94, 5.5, 'computer'], [5.25, 47.6, 6, 'roof']], // (none at the back of the tower, its roof's back corner or the balcony: no view of the spawns)
     bunkerSlope: [-27, -14, 11, 22], bunkerInside: [-21, -9.8, -0.5, 12.2, 29.6],
     // Bots' own ways (lifePlan, free for all): most go by one of these on the way to their way in (the hills, the valley, the roads), each its own, so they spread over the island
     // instead of walking to the fort in a line; then, once in, they look round these (the tower's floors, the walls, the courtyard, the cellar and the tunnel, the hill)
@@ -1151,6 +1245,14 @@ function levelFortress() {
       // the southern lobe (the second drawing)
       [-24.4, 119.3], [-21.0, 123.0], [-11.4, 122.7], [11.4, 105.9], [13.9, 115.0], [12.8, 123.4], [22.7, 115.6], [27.0, 116.2], [34.7, 112.7], [41.5, 116.7],
       [20.5, 120.7], [25.6, 121.8], [31.8, 121.3], [36.4, 120.1], [53.4, 122.4], [52.3, 129.2], [56.8, 130.3], [49.4, 135.5], [20.5, 135.2], [24.4, 134.3]],
+    // The trees' leaves and trunks, solid to walking, sight and shots (solidFoliage): the round trees, the dark ones and the tall ones on the hill and round the fort
+    solidFoliage: ['M_tree_balls001', 'M_Material002', 'M_Material005', 'M_Material006', 'M_Material_13'],
+    // Halls kept clear [x0, x1, y0, y1, z0, z1] (clearHalls): the one on the fort's upper floor to the walkway over the gate, which the big tree's trunk, the hill's
+    // ground and a rock poked into, drawn and solid. Their pieces there are taken out, and the hall gets a plain wall on the hill side (west) and a plain ceiling
+    clearHalls: [[-8.62, -5.53, 36.95, 40.06, -7.05, 4.3]],
+    // Smooth the hills where people and vehicles got stuck (smoothGround): [x0, x1, z0, z1] of the island inside the coast's cliffs, the steepest slope left (rise per metre),
+    // how often earth slides, the most any spot moves (m), how big a drop within 3 m is a cliff to keep, and what stays put: the fort and the bunker's mound
+    smoothGround: { box: [-62, 76, 8, 124], slope: 0.75, passes: 120, max: 4, cliff: 14, keep: [[-16, 13, -16, 10], [-30, -8, -4, 16]] },
     paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
@@ -1247,7 +1349,34 @@ function clearAlong(draw, line, r, meshes) {
     o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
   }
 }
-function solidifyTrees(col, draw, cm) {
+// The ground and rocks poking into a hall (L.clearHalls: boxes [x0, x1, y0, y1, z0, z1] just inside its walls, floor and ceiling): every triangle of theirs that
+// reaches into it is taken out, drawn and solid alike, and the hall gets a plain wall on its hill side and a plain ceiling, which hide the gaps that leaves
+function clearHalls(boxes, draw, col, both) {
+  const w = [new V3(), new V3(), new V3()], p = new V3();
+  const inside = v => boxes.some(q => v.x > q[0] && v.x < q[1] && v.y > q[2] && v.y < q[3] && v.z > q[4] && v.z < q[5]);
+  const fix = o => {
+    if (!o.isMesh || !/^(Terrain|M_Material001|M_Rock|Ground_ext)/.test(o.name)) return;
+    o.updateMatrixWorld(true);
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, tri = ix ? ix.count : pa.count, at = k => ix ? ix.getX(k) : k; let n = 0;
+    for (let t = 0; t < tri; t += 3) {
+      for (let k = 0; k < 3; k++) w[k].fromBufferAttribute(pa, at(t + k)).applyMatrix4(o.matrixWorld);
+      const bx0 = Math.min(w[0].x, w[1].x, w[2].x), bx1 = Math.max(w[0].x, w[1].x, w[2].x), by0 = Math.min(w[0].y, w[1].y, w[2].y), by1 = Math.max(w[0].y, w[1].y, w[2].y), bz0 = Math.min(w[0].z, w[1].z, w[2].z), bz1 = Math.max(w[0].z, w[1].z, w[2].z);
+      if (!boxes.some(q => bx1 > q[0] && bx0 < q[1] && by1 > q[2] && by0 < q[3] && bz1 > q[4] && bz0 < q[5])) continue; // (nowhere near a hall: the quick test)
+      const m = Math.min(10, Math.ceil(Math.max(w[0].distanceTo(w[1]), w[1].distanceTo(w[2]), w[2].distanceTo(w[0])) / 0.25)); let hit = false;
+      for (let u = 0; u <= m && !hit; u++) for (let v = 0; v <= m - u && !hit; v++) { p.copy(w[0]).multiplyScalar(1 - (u + v) / m).addScaledVector(w[1], u / m).addScaledVector(w[2], v / m); hit = inside(p); }
+      if (!hit) continue;
+      n++; if (ix) { const i = ix.getX(t); ix.setX(t + 1, i); ix.setX(t + 2, i); } else for (let k = 1; k < 3; k++) pa.setXYZ(t + k, pa.getX(t), pa.getY(t), pa.getZ(t)); // (squashed to a point)
+    }
+    if (n) { if (ix) ix.needsUpdate = true; pa.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere(); }
+  };
+  draw.traverse(fix); if (col !== draw) col.traverse(fix);
+  const plain = toonMat({ color: 0x8f8689 });
+  for (const [x0, x1, y0, y1, z0, z1] of boxes) {
+    both(x0 - 0.2, x0, y0, y1 + 0.1, z0 - 0.1, z1 + 0.1, plain); // the hill side
+    both(x0 - 0.2, x1, y1 - 0.02, y1 + 0.18, z0 - 0.1, z1 + 0.1, plain); // the ceiling
+  }
+}
+function solidifyTrees(col, draw, cm, L) {
   draw.updateMatrixWorld(true);
   const v = new V3(), shapes = [];
   const pieces = (name, grid) => { // [x0, x1, y0, y1, z0, z1] of each connected piece (or, with grid, each cluster of nearby pieces) still drawn
@@ -1266,7 +1395,8 @@ function solidifyTrees(col, draw, cm) {
     }
     return [...boxes.values()];
   };
-  for (const b of pieces('M_tree_balls001')) shapes.push(b);
+  // (the trees: solid to everything, below: solidFoliage. Until 2026-11-25 their leaves were a cone that stopped walking only, and bots saw and shot through them)
+  if (L && L.solidFoliage) solidFoliage(col, draw, cm, L.solidFoliage, L.clearHalls || []);
   // the bushes are thousands of tiny pieces: merge the ones within a grid cell of each other, then merge the boxes that touch
   const bush = pieces('M_Material004', 1.5), merged = [];
   for (const b of bush) {
@@ -1278,6 +1408,65 @@ function solidifyTrees(col, draw, cm) {
     const h = y1 - y0, r = Math.max(x1 - x0, z1 - z0) / 2 * 0.9; if (h < 0.4 || r < 0.15) continue;
     const o = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.15, r, h, 8), cm); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.userData.noShot = true; o.userData.thru = true; col.add(o); o.updateMatrixWorld(); // stops walking only: the shape is a rough cone, the air round the foliage is open
   }
+}
+// The level's trees (L.solidFoliage: the drawn meshes their leaves and trunks are in) made solid: an invisible shape that stops walking, sight and shots alike, so a
+// tree you'd take for cover is cover, and bots can't see or shoot you through it (Austin, 2026-11-25). Built in columns on a CELL grid: in each cell the leaves (or
+// trunk) reach through, sampled over their triangles, a round column from the lowest to the highest of them, as wide as they spread from the cell's middle (a trunk:
+// narrow; inside the leaves: the whole cell, overlapping its neighbours), and pointed at the top (narrowing no flatter than a wall's slope, so no ledge on it is a
+// floor). Shots leave no holes on it (they'd hang in the air round the leaves). All in one mesh
+function solidFoliage(col, draw, cm, names, clear) {
+  draw.updateMatrixWorld(true);
+  const CELL = 1.5, RMAX = CELL * 0.75, SEG = 6, a = new V3(), b = new V3(), c = new V3(), p = new V3(), cells = new Map();
+  const inClear = (v, m = 0) => clear.some(q => v.x > q[0] - m && v.x < q[1] + m && v.y > q[2] - m && v.y < q[3] + m && v.z > q[4] - m && v.z < q[5] + m);
+  if (clear.length) for (const name of names) { // (the drawn leaves and trunks reaching into a cleared box: their triangles there taken out)
+    const o = draw.getObjectByName(name); if (!o || !o.isMesh || !o.geometry.index) continue;
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, keep = []; let cut = 0;
+    for (let t = 0; t < ix.count; t += 3) {
+      const i0 = ix.getX(t), i1 = ix.getX(t + 1), i2 = ix.getX(t + 2);
+      a.fromBufferAttribute(pa, i0).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pa, i1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pa, i2).applyMatrix4(o.matrixWorld);
+      if (inClear(a, 0.1) || inClear(b, 0.1) || inClear(c, 0.1)) cut++; else keep.push(i0, i1, i2);
+    }
+    if (cut) o.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(keep), 1));
+  }
+  const add = (x, y, z) => { const i = Math.floor(x / CELL), j = Math.floor(z / CELL), k = i + ',' + j; let e = cells.get(k); if (!e) cells.set(k, e = { i, j, y0: 1e9, y1: -1e9, d: 0 });
+    e.y0 = Math.min(e.y0, y); e.y1 = Math.max(e.y1, y); e.d = Math.max(e.d, Math.hypot(x - (i + 0.5) * CELL, z - (j + 0.5) * CELL)); };
+  for (const name of names) {
+    const o = draw.getObjectByName(name); if (!o || !o.isMesh) continue;
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, tri = ix ? ix.count : pa.count;
+    for (let t = 0; t < tri; t += 3) {
+      a.fromBufferAttribute(pa, ix ? ix.getX(t) : t).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pa, ix ? ix.getX(t + 1) : t + 1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pa, ix ? ix.getX(t + 2) : t + 2).applyMatrix4(o.matrixWorld);
+      const n = Math.min(12, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / 0.5)); // (points over the triangle about every half metre)
+      for (let u = 0; u <= n; u++) for (let w = 0; w <= n - u; w++) { p.copy(a).multiplyScalar(1 - (u + w) / n).addScaledVector(b, u / n).addScaledVector(c, w / n); add(p.x, p.y, p.z); }
+    }
+  }
+  // gaps inside a tree (a cell its leaves only graze, or skip): filled from the cells round it, so nothing can wedge itself into the middle of one
+  for (let pass = 0; pass < 2; pass++) {
+    const add2 = [];
+    const solid = (i, j) => { const e = cells.get(i + ',' + j); return e && e.y1 - e.y0 >= 0.5 ? e : null; };
+    const seen = new Set(); for (const e of cells.values()) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const i = e.i + di, j = e.j + dj, k = i + ',' + j; if (seen.has(k) || solid(i, j)) continue; seen.add(k);
+      let n = 0, y0 = 0, y1 = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const q = (a || b) && solid(i + a, j + b); if (q) { n++; y0 += q.y0; y1 += q.y1; } }
+      if (n >= 5) add2.push({ i, j, y0: y0 / n, y1: y1 / n, d: CELL });
+    }
+    for (const e of add2) cells.set(e.i + ',' + e.j, e);
+  }
+  const out = [], parts = [];
+  for (const e of cells.values()) { // a column crossing a cleared box: the part below it and the part above it
+    const cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL, q = clear.find(q => cx > q[0] - CELL && cx < q[1] + CELL && cz > q[4] - CELL && cz < q[5] + CELL && e.y0 < q[3] && e.y1 > q[2]);
+    if (!q) { parts.push(e); continue; }
+    if (q[2] - 0.05 - e.y0 >= 0.5) parts.push({ ...e, y1: q[2] - 0.05, cap: true });
+    if (e.y1 - q[3] - 0.05 >= 0.5) parts.push({ ...e, y0: q[3] + 0.05 });
+  }
+  for (const e of parts) {
+    const h = e.y1 - e.y0; if (h < 0.5) continue;
+    const r = Math.min(RMAX, Math.max(0.3, e.d * 0.85 + 0.25)), tip = Math.min(r * 1.3, e.cap ? h : Infinity), y1 = e.cap ? e.y1 : Math.max(e.y1, e.y0 + tip), cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL; // (tip: its point, steep enough to be wall)
+    const g = new THREE.LatheGeometry([new THREE.Vector2(0, e.y0), new THREE.Vector2(r, e.y0), new THREE.Vector2(r, y1 - tip), new THREE.Vector2(0.001, y1)], SEG).toNonIndexed();
+    g.translate(cx, 0, cz); out.push(g.attributes.position.array); g.dispose();
+  }
+  if (!out.length) return;
+  const all = new Float32Array(out.reduce((t, q) => t + q.length, 0)); let off = 0; for (const q of out) { all.set(q, off); off += q.length; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(all, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, cm); m.name = 'Foliage'; m.userData.noHole = true; col.add(m); m.updateMatrixWorld();
 }
 const SHEDS = [];
 // Doors: E opens and shuts the one you're at the door of; the picture swings to follow
@@ -1794,6 +1983,102 @@ function buildTracks(L, draw, col) {
   // the main road on into the pass, the colour of the drawn roads
   if (R && R.pass) { const P = R.pass, pts = [[P.at[0], P.at[1] - 4]]; for (let z = P.at[1]; z <= P.saddle + 30; z += 6) pts.push([rangePassX(P, z), z]); strip(pts, [[-2.6, 0x8d8478], [2.6, 0x8d8478]], 0.1, 'Road_pass'); }
 }
+// Smooth the island's hills (L.smoothGround, Austin 2026-11-25: you got stuck on and in them, on foot and driving). The ground's top surface on a GRID, then a
+// thermal erosion: wherever it's steeper than SLOPE between neighbours, earth slides from the high one to the low one, over and over, till nothing is (bumps, creases
+// and steep little banks soften; the hills stay hills). Only inside the area given and away from what must stay put: the fort, the bunker's mound, the roads'
+// level tops, the mountains, and anywhere the ground drops a lot within a few metres (the cliffs along the coast and the valley: real cliffs stay cliffs). The change
+// fades out over the edges of all that and is never more than MAXD; every vertex of the ground as drawn and as collided with that lies on the top surface moves by
+// it, so the two stay together. Before the trees are planted, so they stand on the new ground
+function smoothGround(L, draw, col) {
+  const S = L.smoothGround, [X0, X1, Z0, Z1] = S.box, G = 1, SLOPE = S.slope, MAXD = S.max, NX = Math.ceil((X1 - X0) / G) + 1, NZ = Math.ceil((Z1 - Z0) / G) + 1;
+  const sm = u => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+  const grounds = [], draws = []; col.updateMatrixWorld(true); draw.updateMatrixWorld(true);
+  col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) grounds.push(o); });
+  for (const n of ['M_Material001', 'Ground_ext']) { const o = draw.getObjectByName(n); if (o && o.isMesh) draws.push(o); }
+  // the top surface: every ground triangle laid onto the grid, the highest one at each point
+  const H = new Float32Array(NX * NZ).fill(-1e9), a = new V3(), b = new V3(), c = new V3();
+  for (const o of grounds) {
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, n = ix ? ix.count : pa.count;
+    for (let t = 0; t < n; t += 3) {
+      a.fromBufferAttribute(pa, ix ? ix.getX(t) : t).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pa, ix ? ix.getX(t + 1) : t + 1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pa, ix ? ix.getX(t + 2) : t + 2).applyMatrix4(o.matrixWorld);
+      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x, c.x) - X0) / G)), i1 = Math.min(NX - 1, Math.floor((Math.max(a.x, b.x, c.x) - X0) / G));
+      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z, c.z) - Z0) / G)), j1 = Math.min(NZ - 1, Math.floor((Math.max(a.z, b.z, c.z) - Z0) / G));
+      const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Math.abs(d) < 1e-9) continue;
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const x = X0 + i * G, z = Z0 + j * G, u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, w = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, v = 1 - u - w;
+        if (u < -1e-6 || w < -1e-6 || v < -1e-6) continue;
+        const y = u * a.y + w * b.y + v * c.y, k = j * NX + i; if (y > H[k]) H[k] = y;
+      }
+    }
+  }
+  // what stands on the ground (trees, rocks, anything drawn but the ground and the roads): the ground under it stays as it is, so nothing floats or sinks
+  const pin = new Uint8Array(NX * NZ), skip = new Set([...draws, ...grounds]);
+  draw.traverse(o => {
+    if (!o.isMesh || skip.has(o) || /^Road/.test(o.name)) return;
+    const pa = o.geometry.attributes.position; if (!pa) return;
+    for (let i = 0; i < pa.count; i++) {
+      a.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const ii = Math.round((a.x - X0) / G), jj = Math.round((a.z - Z0) / G);
+      if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) continue; const k = jj * NX + ii; if (H[k] > -1e8 && a.y < H[k] + 0.4) pin[k] = 1; // (where it meets the ground: a trunk's foot, a rock's base)
+    }
+  });
+  // where it may change (0 to 1): inside the box, off the fort, the mound, the roads' tops and the mountains, not by a big drop, nor under what stands on it
+  const keep = new Float32Array(NX * NZ), R = L.roads, lines = [...(R ? R.roads : []), ...(L.tracks || [])], flat = (R ? R.flat : 2) + 1.5;
+  const segD = (x, z, p, q) => { const dx = q[0] - p[0], dz = q[1] - p[1], t = Math.max(0, Math.min(1, ((x - p[0]) * dx + (z - p[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - p[0] - dx * t, z - p[1] - dz * t); };
+  const boxD = (x, z, B) => Math.hypot(Math.max(B[0] - x, 0, x - B[1]), Math.max(B[2] - z, 0, z - B[3])); // (0 inside)
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const k = j * NX + i, x = X0 + i * G, z = Z0 + j * G; if (H[k] < -1e8) continue;
+    let w = sm(Math.min(x - X0, X1 - x, z - Z0, Z1 - z) / 4);
+    for (const B of S.keep || []) w *= sm(boxD(x, z, B) / 4);
+    if (L.range) w *= sm((rangeFoot(L.range, x) - 8 - z) / 4);
+    if (w <= 0) continue; // (kept as it is: the tests below needn't run)
+    let rd = 1e9; for (const pts of lines) for (let q = 0; q + 1 < pts.length; q++) rd = Math.min(rd, segD(x, z, pts[q], pts[q + 1])); w *= sm((rd - flat) / 2.5);
+    let lo = 1e9, hi = -1e9; for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) continue; const h = H[jj * NX + ii]; if (h < -1e8) { lo = -1e9; continue; } lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    w *= sm((S.cliff - (hi - lo)) / 3); // (a drop of S.cliff or more within 3 m: a cliff, left alone)
+    let pd = 9; for (let dj = -3; dj <= 3 && pd > 0; dj++) for (let di = -3; di <= 3; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < NX && jj < NZ && pin[jj * NX + ii]) pd = Math.min(pd, Math.hypot(di, dj)); }
+    w *= sm((pd - 0.5) / 1.5);
+    keep[k] = w;
+  }
+  // the erosion
+  const E = Float32Array.from(H), dl = new Float32Array(NX * NZ), N4 = [[1, 0], [0, 1]];
+  for (let it = 0; it < S.passes; it++) {
+    dl.fill(0);
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+      const k = j * NX + i; if (keep[k] <= 0) continue;
+      for (const [di, dj] of N4) {
+        const ii = i + di, jj = j + dj; if (ii >= NX || jj >= NZ) continue; const m = jj * NX + ii; if (keep[m] <= 0) continue;
+        const d = E[k] - E[m], ex = Math.abs(d) - SLOPE * G; if (ex <= 0) continue;
+        const mv = ex * 0.2 * Math.min(keep[k], keep[m]) * Math.sign(d); dl[k] -= mv; dl[m] += mv;
+      }
+    }
+    for (let k = 0; k < E.length; k++) E[k] += dl[k];
+  }
+  const D = new Float32Array(NX * NZ); for (let k = 0; k < D.length; k++) D[k] = keep[k] > 0 ? Math.max(-MAXD, Math.min(MAXD, E[k] - H[k])) * Math.min(1, keep[k] * 1.5) : 0;
+  const at = (A, x, z) => { const fx = (x - X0) / G, fz = (z - Z0) / G, i = Math.floor(fx), j = Math.floor(fz); if (i < 0 || j < 0 || i >= NX - 1 || j >= NZ - 1) return null; const u = fx - i, v = fz - j, k = j * NX + i;
+    if (A === H && (H[k] < -1e8 || H[k + 1] < -1e8 || H[k + NX] < -1e8 || H[k + NX + 1] < -1e8)) return null;
+    return (A[k] * (1 - u) + A[k + 1] * u) * (1 - v) + (A[k + NX] * (1 - u) + A[k + NX + 1] * u) * v; };
+  // move the vertices on the top surface (both meshes), and make their normals again
+  const v = new V3();
+  for (const o of [...grounds, ...draws]) {
+    const g = o.geometry, pos = g.attributes.position, m = o.matrixWorld, inv = m.clone().invert(), moved = new Uint8Array(pos.count); let n = 0;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m); const d = at(D, v.x, v.z); if (!d || Math.abs(d) < 1e-3) continue;
+      const top = at(H, v.x, v.z); if (top === null || v.y < top - 0.8) continue; // (a cliff's face below the top: as it was)
+      v.y += d; v.applyMatrix4(inv); pos.setXYZ(i, v.x, v.y, v.z); moved[i] = 1; n++;
+    }
+    if (!n) continue;
+    pos.needsUpdate = true; g.computeBoundingSphere(); g.computeBoundingBox();
+    const nrm = g.attributes.normal; if (!nrm) continue; // (normals made again for what moved only, smooth: the faces round each point, however the mesh splits its vertices)
+    const ix = g.index, tri = ix ? ix.count : pos.count, key = i => Math.round(pos.getX(i) * 50) + ',' + Math.round(pos.getY(i) * 50) + ',' + Math.round(pos.getZ(i) * 50), acc = new Map(), e1 = new V3(), e2 = new V3();
+    const keys = new Array(pos.count), kOf = i => keys[i] || (keys[i] = key(i)); // (only for the points of faces that moved)
+    for (let t = 0; t < tri; t += 3) {
+      const i0 = ix ? ix.getX(t) : t, i1 = ix ? ix.getX(t + 1) : t + 1, i2 = ix ? ix.getX(t + 2) : t + 2; if (!(moved[i0] || moved[i1] || moved[i2])) continue;
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2); e1.subVectors(b, a); e2.subVectors(c, a); e1.cross(e2);
+      for (const i of [i0, i1, i2]) { const kk = kOf(i), q = acc.get(kk) || [0, 0, 0]; q[0] += e1.x; q[1] += e1.y; q[2] += e1.z; acc.set(kk, q); }
+    }
+    for (let i = 0; i < pos.count; i++) { if (!moved[i]) continue; const q = acc.get(kOf(i)); if (!q) continue; const l = Math.hypot(q[0], q[1], q[2]) || 1; nrm.setXYZ(i, q[0] / l, q[1] / l, q[2] / l); }
+    nrm.needsUpdate = true;
+  }
+}
 // Level the old ground along the new roads, and heap the hill over the bunker: the vertices of the ground as drawn and as collided with move (both by the same rule, so
 // they stay together), with the normals of what moved made again. Done once, before the level's triangles are read.
 function regradeGround(L, draw, col) {
@@ -1852,6 +2137,12 @@ function regradeGround(L, draw, col) {
   if (extSegs.length) for (const o of [draw.getObjectByName('Ground_ext'), col.getObjectByName('Terrain_ext')]) if (o && o.isMesh) edit(o, true);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
+// A tree's trunk (or a pine's post) to collide with: a round post with a point on top instead of a flat cap, steep enough to be wall, so nothing lands and sits on top of
+// it (a motorcycle jumping into a tree's leaves came to rest on its trunk's top, 2026-11-25)
+function solidPost(col, cm, rTop, rBot, h, at) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 8, 1, true), cm); c.position.copy(at); col.add(c); c.updateMatrixWorld();
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(rTop, rTop * 1.3, 8, 1, true), cm); tip.position.set(at.x, at.y + h / 2 + rTop * 0.65, at.z); col.add(tip); tip.updateMatrixWorld();
+}
 // Trees for cover (L.trees: [x, z] each, where Austin drew them) and a denser forest around them. Every drawn tree gets a companion a few metres away (a tall pine
 // or another round one, in turn), and every tree has a few clumps of the spiky plant growing from the ground round its foot. A round tree is a thick trunk that stops
 // shots and people (it is in the collision set too, so bots walk round it) and a few faceted balls of leaves overhead; a pine is a tall dark spire standing from the
@@ -1904,7 +2195,7 @@ function addTrees(L, draw, col, cm) {
     const u = (i * 0.618034 + 0.17) % 1, th = 3 + 3.2 * u, s = (0.85 + 0.35 * u) * (0.94 + 0.12 * rnd(i * 5 + 1)), a0 = rnd(i * 5 + 2) * Math.PI * 2, bot = low - 0.25;
     const geo = new THREE.CylinderGeometry(0.3 * s, 0.48 * s, y + th - bot, 8), at = new V3(x, (y + th + bot) / 2, z);
     emit('bark', bark, geo, new THREE.Matrix4().makeTranslation(at.x, at.y, at.z), 0xffffff);
-    const c = new THREE.Mesh(geo, cm); c.position.copy(at); col.add(c); c.updateMatrixWorld();
+    solidPost(col, cm, 0.3 * s, 0.48 * s, y + th - bot, at);
     const ball = (r, dx, dy, dz, k) => emit('leaf' + (k % 3), leaves[k % 3], new THREE.IcosahedronGeometry(r, 1), new THREE.Matrix4().makeTranslation(x + dx, y + th + dy, z + dz), 0xffffff, { paint: true, shadow: true });
     ball(2.3 * s, 0, 0.9 * s, 0, i); ball(1.4 * s, 0, 2.7 * s, 0, i + 1);
     for (let k = 0; k < 3; k++) { const a = a0 + k * 2.1 + rnd(i * 5 + 3 + k) * 0.6; ball((1.2 + 0.35 * rnd(i * 5 + 4 + k)) * s, Math.cos(a) * 1.5 * s, (0.2 + 0.35 * k) * s, Math.sin(a) * 1.5 * s, i + k + 2); }
@@ -1913,7 +2204,7 @@ function addTrees(L, draw, col, cm) {
     const h = 7 + 5 * rnd(i * 5 + 6), R = (1.25 + 0.55 * rnd(i * 5 + 7)) * (0.85 + 0.3 * (h - 7) / 5), a0 = rnd(i * 5 + 8) * Math.PI * 2, base = low - 0.35;
     const prof = [[0.001, 0], [0.86, 0], [1, 0.16], [0.96, 0.38], [0.8, 0.6], [0.55, 0.8], [0.26, 0.94], [0.001, 1]].map(([r, t]) => new THREE.Vector2(r * R, t * h));
     emit('pine', pineMat, new THREE.LatheGeometry(prof, 8), new THREE.Matrix4().makeRotationY(a0).setPosition(x, base, z), PINES[i % 3], { paint: true, shadow: true });
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * R, 0.75 * R, h, 8), cm); c.position.set(x, base + h / 2, z); col.add(c); c.updateMatrixWorld();
+    solidPost(col, cm, 0.3 * R, 0.75 * R, h, new V3(x, base + h / 2, z));
   };
   sites.forEach(([x, z, kind], i) => {
     const y = groundAt(x, z); if (y === null) return;
@@ -1958,6 +2249,7 @@ function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
   if (!col || col.userData.extras) return; col.userData.extras = true;
   regradeGround(L, draw, col);
+  if (L.smoothGround && params.get('smooth') !== 'off') smoothGround(L, draw, col); // (after the roads are levelled, before the trees are planted on it; ?smooth=off: the ground as modelled)
   const cm = new THREE.MeshBasicMaterial({ visible: false }), wood = toonMat({ color: 0x6b4a2e }), dark = toonMat({ color: 0x3e2a1a });
   const box = (g, m, x0, x1, y0, y1, z0, z1) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.castShadow = o.receiveShadow = true; g.add(o); o.updateMatrixWorld(); return o; };
   const both = (x0, x1, y0, y1, z0, z1, m = wood) => { box(col, cm, x0, x1, y0, y1, z0, z1); box(draw, m, x0, x1, y0, y1, z0, z1); };
@@ -1969,7 +2261,8 @@ function addSetExtras(L) {
   if (L.dropCollision) for (const n of L.dropCollision) { const o = col.getObjectByName(n); if (o && o.parent) o.parent.remove(o); }
   if (L.clearTrees) for (const [x, z, r, mesh] of L.clearTrees) clearTrees(draw, x, z, r, mesh);
   if (L.tracks) for (const pts of L.tracks) clearAlong(draw, trackDense(pts), 3.4, ['M_tree_balls001', 'M_Material004', 'M_Material_2', 'M_Material008', 'M_Material_0', 'M_Material007']); // (before solidifyTrees)
-  if (L.clearTrees) solidifyTrees(col, draw, cm); // what's left of the trees and bushes can't be walked through
+  if (L.clearHalls) clearHalls(L.clearHalls, draw, col, both);
+  if (L.clearTrees) solidifyTrees(col, draw, cm, L); // what's left of the trees and bushes can't be walked through
   if (L.range) buildRange(L, draw, col, cm);
   if (L.tracks || L.hideRoads) buildTracks(L, draw, col);
   if (L.trees) addTrees(L, draw, col, cm);
@@ -2253,6 +2546,7 @@ function bodyBlock(e, dt) {
   for (const o of ents) {
     if (o === e || !o.alive || o.pos.y >= e.pos.y + e.h - 0.1 || e.pos.y >= o.pos.y + (o.h || STAND_H) - 0.1) continue;
     if (e.bot && o.bot && e.team === o.team && ((e.ai && e.ai.ghostT > 0) || (o.ai && o.ai.ghostT > 0))) continue; // (bots jammed in a queue walk through their own side for a moment: updateBot)
+    if (e.team && e.team === o.team && ((e.ai && e.ai.rush) || (o.ai && o.ai.rush))) continue; // (and bots in the assault through their own side, people too, in the tunnel: startAssault)
     let dx = e.pos.x - o.pos.x, dz = e.pos.z - o.pos.z, d = Math.hypot(dx, dz);
     const nx = dx + e.vel.x * dt, nz = dz + e.vel.z * dt;
     if (d >= 2 * R && Math.hypot(nx, nz) >= 2 * R) continue;
@@ -3325,6 +3619,7 @@ function measureCrouch(r) {
 function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife, a grenade) instead of the gun
   const m = rig.model; if (!rig.gunBone) return;
   if (rig.gunVis) rig.gunBone.remove(rig.gunVis);
+  rig.gunId = obj ? null : id; // (the gun in the hand, for heldMuzzle)
   // Each weapon uses its own authored hold and socket, or the original procedural hold and grip.
   const authored = m.poses && m.poses['hold_' + id] && m.sockets && m.sockets[id];
   const hold = authored ? m.poses['hold_' + id] : m.procHold;
@@ -3338,7 +3633,7 @@ function setRigWeapon(rig, id, obj) { // obj: something else to hold (the knife,
   setHand(rig, fit);
   if (authored) {
     const w = WEAPONS[id], holder = new THREE.Group(); holder.add(w.scene.clone(true));
-    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]);
+    holder.matrixAutoUpdate = false; holder.matrix.copy(m.sockets[id]); holder.userData.native = true;
     holder.userData.base = holder.matrix.clone(); rig.gunBone.add(holder); rig.gunVis = holder;
     return;
   }
@@ -3891,7 +4186,7 @@ function fpvReload(r) {
 }
 
 // Team free for all (levels with teams: true): Midas against the Pirates. Friendly fire is on; bots only hunt the other side.
-const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, pirates: { name: 'Pirates', color: '#4aa8ff' } };
+const TEAMS = { midas: { name: 'Midas', color: '#4aa8ff' }, pirates: { name: 'Pirates', color: '#f2c230' } }; // (Midas blue, Pirates yellow since 2026-11-26; the other way round before)
 let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
 const teamsOn = () => !!LV && GAME_TEAMS;
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
@@ -4025,7 +4320,7 @@ function _tracer(a, b, color = 0xffe08a, w = 0.02, life = 0.12, own = false) {
   scene.add(m); if (own && life <= 0.2) camera.attach(m);
   fx.push({ o: m, life, max: life, pool: 'tracer' });
 }
-function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l }); }
+function tracer(a, b, c = 0xffe08a, w = 0.02, l = 0.12, own = false) { _tracer(a, b, c, w, l, own); netFx({ t: 'tr', a: arr(a), b: arr(b), c, w, l, i: own ? P.id : undefined }); } // (i: your own shot, which everyone else starts at the gun in your character's hands)
 // Where a shot's mark goes: a door that swings takes it with it (on the door's own hinge), so it isn't left hanging in the doorway once the door opens or is shot open
 function impactParent(obj, p) {
   const ud = obj && obj.userData; if (!ud) return null;
@@ -4323,7 +4618,7 @@ function updateChatbox() {
 let matchOver = false;
 const isAtk = e => !!e.bot; // the bots: they batter a locked tower door, and only players can lock it
 const HP = 120; // everyone's health (was 100, then 150: people died too fast; 20% less since 2026-11-03)
-const maxHp = e => RANGE.on ? RANGE.life : HP; // in the new weapon system everyone has its LIFE (32)
+const maxHp = e => RANGE.on ? RANGE.life : HP; // in the new weapon system everyone has its LIFE (20)
 const maxNades = e => MAX_NADES;
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
 // The fort's gate: how whole it is while shut, a percentage (damageGate wears it down; shutting it again mends it)
@@ -4394,13 +4689,13 @@ function damage(t, amt, attacker, weapon, head) {
   // a bot that's hit knows it, and where from: under fire (it may make for cover: updateBot), and with nobody in sight, after whoever it was
   if (t.bot && t.ai && attacker && attacker !== t && weapon !== 'fall') {
     t.ai.hitT = performance.now(); if (!t.ai.target && !t.ai.seatV) { t.ai.lastSeen = attacker.pos.clone(); t.ai.lastSeenT = 6; t.ai.hpath = null; t.ai.hurry = true; }
-    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && !(teamHolds(t.team) && !inFortZone(t.pos) && t.pos.distanceTo(attacker.pos) > 25) && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
+    if (!sameTeam(t, attacker) && attacker.alive !== false && !t.ai.post && !(teamAtFort(t.team) && !inFortZone(t.pos) && t.pos.distanceTo(attacker.pos) > 25) && (!attacker.bot || t.pos.distanceTo(attacker.pos) < 40)) revenge(t, attacker); // (a bot shooting it from afar: not worth leaving its post for)
   }
   const felt = amt * HP / maxHp(t); // the red flash, as if out of the usual health (4 of 40 shows like 15 of 150)
   if (t.isRemote) sendTo(t, { t: 'hurt', a: felt });
   if (t.isPlayer) hurtFx(felt);
   if (t.health <= 0) {
-    t.health = 0; t.alive = false; t.deaths++; t.respawnT = 3;
+    t.health = 0; t.alive = false; t.deaths++; t.respawnT = t.bot ? BOT_RESPAWN : 3; // (bots wait longer: BOT_RESPAWN)
     dropWeapons(t);
     if (attacker === t) t.kills = Math.max(0, t.kills - 1); else { attacker.kills++; attacker.streak = (attacker.streak || 0) + 1; attacker.best = Math.max(attacker.best || 0, attacker.streak); if (head) attacker.hk = (attacker.hk || 0) + 1; if (weapon === 'knife') attacker.kk = (attacker.kk || 0) + 1; }
     t.streak = 0;
@@ -5075,7 +5370,7 @@ const shotRay = new THREE.Raycaster();
 // and start the tracer on the main camera's ray through that same point, about as far away
 function vmMuzzleWorld() {
   const mw = P.rig && VMW[P.rig.held];
-  if ((bodyOn || tpOn) && mw && P.rig.gunVis && !P.rig.hideHeld) return P.rig.gunVis.localToWorld(new V3(mw.muzzleX, mw.muzzleY, mw.muzzleZ)); // the barrel end of the gun in your hand
+  if ((bodyOn || tpOn) && mw && P.rig.gunVis && !P.rig.hideHeld) { const t = heldMuzzle(P.rig); if (t) return t; } // the barrel end of the gun in your hand
   if ((bodyOn || tpOn) && P.rig && P.rig.gunVis) return P.rig.gunVis.getWorldPosition(new V3()).addScaledVector(new V3(0, 0, -1).applyQuaternion(camera.quaternion), 0.45); // the gun in your character's hands
   vm.updateMatrixWorld(true);
   const p = flash.getWorldPosition(new V3()), dist = p.length(), ndc = p.project(vmCam);
@@ -5110,7 +5405,31 @@ function botMiss(start, aim, marks) {
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
+// Where the barrel of the gun someone is holding ends right now (flash, smoke and tracers start here), in the world: from the gun mesh in
+// their hand as it's posed this frame, aim and recoil and all. null when they hold something else. The tip, in the holder's own frame, is
+// worked out once per gun and kind of hold: a library character's grip holds the centred gun the viewmodel uses (VMW's tip); an authored
+// hold (holder.userData.native) holds the gun as modelled, so its frontmost 2.5 cm along the barrel's axis, plus the same 6 cm out
+const HELD_TIP = {};
+function heldMuzzle(r) {
+  const gv = r && r.gunVis, id = r && r.gunId, w = WEAPONS[id], vw = VMW[id];
+  if (!gv || !w || !vw || !gv.children.length) return null;
+  let t;
+  if (!gv.userData.native) t = _hmT.set(vw.muzzleX, vw.muzzleY, vw.muzzleZ);
+  else t = HELD_TIP[id] || (HELD_TIP[id] = (() => {
+    const axis = new V3(0, 0, -1).applyAxisAngle(new V3(0, 1, 0), -(w.yaw || 0)), pts = [], v = new V3(), c = gv.children[0];
+    c.updateMatrix(); c.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(gv.matrixWorld).invert();
+    c.traverse(o => { if (!o.isMesh) return; const pa = o.geometry.attributes.position, mm = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); for (let i = 0; i < pa.count; i++) pts.push(v.fromBufferAttribute(pa, i).applyMatrix4(mm).clone()); });
+    if (!pts.length) return null;
+    const hi = pts.reduce((m, p) => Math.max(m, p.dot(axis)), -Infinity), tip = pts.filter(p => p.dot(axis) > hi - 0.025);
+    return tip.reduce((a, p) => a.add(p), new V3()).divideScalar(tip.length).addScaledVector(axis, 0.06);
+  })());
+  if (!t) return null;
+  gv.updateWorldMatrix(true, false);
+  return gv.localToWorld(t.clone());
+}
+const _hmT = new V3();
 function botMuzzle(b, w) {
+  if (b.rig && b.rig.gunId === w.id && b.rig.gunVis && b.rig.gunVis.visible !== false) { const t = heldMuzzle(b.rig); if (t) return t; } // (the gun they're holding, as it's posed)
   const m = b.rig.model, g = m.guns && m.guns[w.id] || m.grips && m.grips[w.id];
   const local = g ? g.muzzle.clone() : m.gunDir ? m.gunHand.clone().addScaledVector(m.gunDir, (w.len || 0.8) * 0.8) : m.muzzle.clone();
   return b.mesh.localToWorld(local.applyMatrix4(b.rig.root.matrix));
@@ -5124,7 +5443,7 @@ function botShoot(b, t, dist) {
   let total = 0, head = false; const marks = [];
   for (let i = 0; i < (w.pellets || 1); i++) {
     const base = w.pellets ? 0.75 - dist * 0.05 : 0.55 - dist * (0.011 + (w.rangeSpread ? 0.006 : 0));
-    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1))); // only a head showing: a smaller target
+    const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1) * (b.h < STAND_H ? 1.25 : 1))); // (crouched: steadier, 2026-11-26) // only a head showing: a smaller target
     const hit = Math.random() < acc, hd = hit && !seen.part && Math.random() < (w.pellets ? 0.05 : 0.1);
     let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
     if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
@@ -5442,7 +5761,7 @@ function botSpots() {
 }
 function lifePlan(e) {
   const ai = e.ai;
-  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, regroup: false, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
+  Object.assign(ai, { wps: null, routeDone: false, via: null, route: null, way: null, regroup: false, rush: false, solo: Math.random() < SOLO_P, flank: null, hurry: false, cov: null, coverCd: 0, repathT: 0, boardV: null, boardT: 0, searchN: 0,
     laneOff: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6), seed: [Math.random() * 60, Math.random() * 60] });
   const sp = botSpots(), ex = (sp ? sp.explore : []).map(p => new V3(p[0], p[1], p[2])); ai.needPlan = !sp && !!(LV && LV.fortNav); // (no walking map yet: planned once there is one, roamFine)
   for (let i = ex.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [ex[i], ex[j]] = [ex[j], ex[i]]; }
@@ -5637,6 +5956,34 @@ function obstacleAhead(b, dirx, dirz) {
   const ax = b.pos.x + dirx * 0.6, az = b.pos.z + dirz * 0.6;
   return blockedAt(ax, b.pos.y + 0.15, az, 0.5) && !blockedAt(ax, b.pos.y + 0.95, az, 0.6);
 }
+// A drop ahead in the fort (off the roof, the wall walk, the bridge, the tower's stairs): the ground `d` m on is gone or more than LEDGE_DROP below its feet
+// (2026-11-25: bots at their posts jumped off when someone attacked; now they go down by the stairs, which the walking map takes them along)
+const LEDGE_DROP = 1.4;
+function overLedge(b, fx, fz, d) {
+  const Z = LV && LV.fortZone; if (!Z || !(b.pos.x > Z[0] - 4 && b.pos.x < Z[1] + 4 && b.pos.z > Z[2] - 4 && b.pos.z < Z[3] + 4 && b.pos.y > Z[4])) return false;
+  const g = groundAt(b.pos.x + fx * d, b.pos.z + fz * d, b.pos.y + 1.3); return g === null || b.pos.y - g > LEDGE_DROP; // (up to 1.3 m above its feet: stairs going up aren't a drop)
+}
+// Take out of what a bot wants any step off a ledge: keep what's left of it along x or along z if that's safe, else stand; one strafing turns to strafe back, and
+// it doesn't carry on over the edge (not while climbing, or stepping through the window)
+function ledgeStop(b, wish) {
+  if (!b.onGround || b.pass || b.climb !== undefined) return;
+  const bad = (x, z) => { const l = Math.hypot(x, z); if (l < 1e-3) return false; x /= l; z /= l; return overLedge(b, x, z, 0.45) || overLedge(b, x, z, 0.85); };
+  if (!bad(wish.x, wish.z)) return;
+  const wx = wish.x, wz = wish.z;
+  if (!bad(wx, 0) && Math.abs(wx) > 0.2) wish.set(wx, 0, 0); else if (!bad(0, wz) && Math.abs(wz) > 0.2) wish.set(0, 0, wz); else wish.set(0, 0, 0);
+  const l = Math.hypot(wx, wz), fx = wx / l, fz = wz / l, out = b.vel.x * fx + b.vel.z * fz;
+  if (out > 0) { b.vel.x -= fx * out; b.vel.z -= fz * out; }
+  if (b.ai) { b.ai.strafeDir = -(b.ai.strafeDir || 1); b.ai.strafeT = 0.6 + Math.random() * 0.5; }
+}
+// And whatever else moves it (the kick that frees a stuck bot, being pushed apart from someone): none of its speed carries it off a ledge, though it can still slide along one
+function ledgeHold(b) {
+  if (!b.onGround || b.pass || b.climb !== undefined) return;
+  const vx = b.vel.x, vz = b.vel.z, v = Math.hypot(vx, vz); if (v < 0.05) return;
+  const bad = (x, z) => { const l = Math.hypot(x, z); if (l < 1e-3) return false; x /= l; z /= l; return overLedge(b, x, z, 0.35) || overLedge(b, x, z, 0.35 + v * 0.12); };
+  if (!bad(vx, vz)) return;
+  if (bad(vx, 0)) b.vel.x = 0; if (bad(0, vz)) b.vel.z = 0;
+  if (b.vel.x && b.vel.z && bad(b.vel.x, b.vel.z)) b.vel.x = b.vel.z = 0;
+}
 // Go round whoever is in the way. The walking map has no idea anyone is standing on it, so bots on one path pile up behind the first (or behind one holding its ground, or at the
 // closest spot to somewhere they can't reach), and body block stops them walking through each other: a line of them stuck on a hillside. So each bot steers to the free side of
 // anyone just ahead of it (a fixed side, per bot, for someone dead ahead, so two meeting head on part the opposite ways).
@@ -5795,18 +6142,39 @@ function fortPostList() { // the level's posts on the walking map, each with the
 // Following a person: on a team level, about half its side's bots (up to FOLLOW_N per person) stick with each person on their side, the nearest ones (picked again
 // every couple of seconds). A follower keeps a few metres behind and to one side of them (its own slot), runs to catch up, shoots at whoever it sees as it goes and fights
 // someone close by (FOLLOW_FIGHT), then falls back in; it rides along when they drive (botRide). Only while its side doesn't hold the fort: holding it, they all hold it
-const FOLLOW_N = 3, FOLLOW_FIGHT = 22;
+// Only bots within a sphere round the person take them up (FOLLOW_R), and a follower lets them go once they're further off than FOLLOW_KEEP: so when you die
+// at the fort and come back at your spawn, the bots in the assault keep at it instead of all turning back to you (they took up whoever was nearest, however
+// far, until 2026-11-24)
+// (2026-11-25: each bot, at each spawn, has a SOLO_P chance of going its own way for that life, its own way in and whatever it meets on it, and never follows
+// anyone; the rest near a person all follow them, up to FOLLOW_N, where it was half the side up to 3)
+// The assault: once a person goes into the bunker (inBunker), their side's bots close by (ASSAULT_R) stop following and rush on ahead of them, at a run, along the
+// tunnel way into the fort, shooting as they go and not stopping to fight (ai.rush), till they're in the fort
+const FOLLOW_N = 6, FOLLOW_FIGHT = 22, FOLLOW_R = 20, FOLLOW_KEEP = 35, SOLO_P = 0.3, ASSAULT_R = 45;
 let followT = -1e9;
 function assignFollowers() {
   if (last - followT < 2000 && last >= followT) return; followT = last;
-  for (const b of bots) if (b.ai) { b.ai.lead = null; b.ai.leadSlot = 0; }
+  const was = new Map(); for (const b of bots) if (b.ai) { if (b.ai.lead) was.set(b, b.ai.lead); b.ai.lead = null; b.ai.leadSlot = 0; }
   if (!teamsOn()) return;
   const people = ents.filter(e => !e.bot && !e.isReplica && e.alive && e.pos && (e === P ? myTeam : e.team));
   for (const h of people) {
-    const team = h === P ? myTeam : h.team; if (teamHolds(team)) continue; // (holding the fort: they hold it, they don't follow anyone)
-    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead);
-    const n = Math.min(FOLLOW_N, Math.ceil(bots.filter(b => b.team === team).length / 2 / Math.max(1, people.filter(o => (o === P ? myTeam : o.team) === team).length)));
-    mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, n).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
+    const team = h === P ? myTeam : h.team; if (teamAtFort(team)) continue; // (any of the side in the fort, a person or a bot: they all go to hold it, they don't follow anyone)
+    if (inBunker(h.pos)) { startAssault(h, team); continue; }
+    const mine = bots.filter(b => b.alive && b.team === team && !b.ai.lead && !b.ai.solo && !(b.ai.rush && !b.ai.routeDone) && b.pos.distanceTo(h.pos) < (was.get(b) === h ? FOLLOW_KEEP : FOLLOW_R));
+    mine.sort((a, c) => a.pos.distanceTo(h.pos) - c.pos.distanceTo(h.pos)).slice(0, FOLLOW_N).forEach((b, i) => { b.ai.lead = h; b.ai.leadSlot = i; });
+  }
+  for (const [b] of was) if (!b.ai.lead) b.ai.hpath = null; // (let go: not on along its way to them, but back to its own)
+}
+// A person of the team is in the bunker: its bots near them (not going their own way, holding a post, riding, already in the fort or already rushing) onto the tunnel way from the point on it
+// nearest each, ahead of them
+function startAssault(h, team) {
+  const sp = botSpots(), w = sp && ((sp.team[team] && sp.team[team].tunnel) || sp.routes.tunnel); if (!w) return;
+  for (const b of bots) {
+    const ai = b.ai;
+    if (!b.alive || b.team !== team || ai.solo || ai.post || ai.seatV || ai.boardV || (ai.rush && !ai.routeDone) || inFortZone(b.pos) || b.pos.distanceTo(h.pos) > ASSAULT_R) continue;
+    let k0 = 0, bd = Infinity; w.forEach((q, k) => { const d = Math.hypot(q[0] - b.pos.x, q[2] - b.pos.z) + Math.abs(q[1] - b.pos.y); if (d < bd) { bd = d; k0 = k; } });
+    // (one point further on when it's already past the nearest, so it doesn't turn back to it: closer to the next point than the nearest one is)
+    if (k0 + 1 < w.length) { const a = w[k0], n = w[k0 + 1]; if (Math.hypot(n[0] - b.pos.x, n[2] - b.pos.z) < Math.hypot(n[0] - a[0], n[2] - a[2])) k0++; }
+    Object.assign(ai, { rush: true, route: 'tunnel', way: w.slice(k0), routeDone: false, wps: null, via: null, hpath: null, cov: null, rev: null, flank: null, lastSeenT: 0, searchN: 0, lead: null });
   }
 }
 // Where a follower keeps to: behind its person (the way they're facing, or moving) and out to its slot's side, on ground the walking map has
@@ -5830,14 +6198,17 @@ function followMove(b, h, wish, dt, t, style) {
   if (t) botEngage(b, t, dt, style, false);
   return speed;
 }
-// A side holds the fort: it takes it with two or more of it inside and nobody of the other side, and keeps it while any of it is left inside (the last one holds on
+// A side holds the fort: it takes it with one or more of it inside (a person or a bot) and nobody of the other side, and keeps it while any of it is left inside (the last one holds on
 // alone) and nobody of the other side gets in. fortHolder: which side holds it now
 let fortHolder = null;
+// Any of the side in the fort, a person or a bot, holding it or fighting for it with the other side in there too: the rest of the side make their way there to help
+// (rejoinFort) rather than following anyone or going their own way (2026-11-26)
+const teamAtFort = team => teamsOn() && !!team && !!LV && !!LV.fortZone && !!LV.fortPosts && (teamHolds(team) || fortCount(team) > 0);
 function teamHolds(team) {
   if (!(teamsOn() && team && LV && LV.fortZone && LV.fortPosts)) return false;
   const foeIn = Object.keys(TEAMS).some(o => o !== team && fortCount(o) > 0), mine = fortCount(team);
   if (fortHolder === team && (foeIn || mine < 1)) fortHolder = null;          // lost it: the other side got in, or nobody's left
-  if (fortHolder !== team && !foeIn && mine >= 2 && (!fortHolder || fortCount(fortHolder) < 1)) fortHolder = team; // taken
+  if (fortHolder !== team && !foeIn && mine >= 1 && (!fortHolder || fortCount(fortHolder) < 1)) fortHolder = team; // taken (by one of it alone, a person or a bot, since 2026-11-26; two before)
   return fortHolder === team;
 }
 // Its side holds the fort and it's outside: back onto a way in (its side's road, tunnel or long way round, whichever gets it there soonest from where it is), so it fights its
@@ -5845,7 +6216,7 @@ function teamHolds(team) {
 function rejoinFort(b, dt) {
   const ai = b.ai;
   if ((ai.rejoinT = (ai.rejoinT || 0) - dt) > 0) return; ai.rejoinT = 0.8 + Math.random() * 0.4;
-  if (!teamHolds(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) { ai.regroup = false; return; }
+  if (!teamAtFort(b.team) || inFortZone(b.pos) || ai.seatV || ai.boardV) { ai.regroup = false; return; }
   if (ai.rev && ai.rev.who.pos.distanceTo(b.pos) > 25) ai.rev = null; // (no rushing off after someone far away: to the fort)
   if (ai.regroup && ai.way && !ai.routeDone) return; // (already on the quickest way in: picked once, when its side took the fort, or again once a way runs out)
   ai.regroup = true;
@@ -5878,7 +6249,7 @@ function defendPost(b) {
   const list = fortPostList(), held1 = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q && q.by.team === b.team;
   const busy = q => q.by && q.by !== b && q.by.alive && q.by.ai.post === q;
   const have = {}; for (const q of list) if (held1(q)) have[q.kind] = (have[q.kind] || 0) + 1;
-  const towerless = !(have.tower || have.roof);
+  const towerless = !(have.tower || have.roof || have.computer);
   let best = null, bd = Infinity;
   for (const q of list) {
     if (busy(q)) continue;
@@ -5888,6 +6259,19 @@ function defendPost(b) {
   if (!best) return null;
   best.by = b; ai.post = best; ai.hpath = null; ai.cov = null; ai.rev = null; ai.flank = null; ai.searchN = 0; ai.routeDone = true;
   return best;
+}
+// The fort attacked: someone of the other side inside it (LV.fortZone, the courtyard included) draws up to ALARM_N of the side's bots at posts, the nearest, off them to
+// fight them, by the stairs and ladders like anyone (hunt), back to their posts once they're dead or gone. Picked again twice a second
+const ALARM_N = 3;
+let alarmCache = { t: -1, m: new Map() };
+function fortAlarm(b) {
+  if (!teamsOn() || !LV || !LV.fortZone) return null;
+  if (last - alarmCache.t > 500 || last < alarmCache.t) {
+    alarmCache = { t: last, m: new Map() };
+    const inside = ents.filter(e => e.alive && e.pos && !isArtist(e) && inFortZone(e.pos)), posted = bots.filter(o => o.alive && o.ai && o.ai.post && o.ai.post.by === o);
+    for (const f of inside) posted.filter(o => !alarmCache.m.has(o) && o !== f && o.team !== (f === P ? myTeam : f.team)).sort((a, c) => a.pos.distanceTo(f.pos) - c.pos.distanceTo(f.pos)).slice(0, ALARM_N).forEach(o => alarmCache.m.set(o, f));
+  }
+  const f = alarmCache.m.get(b); return f && f.alive ? f : null;
 }
 function defendMove(b, post, wish, dt, t, style) {
   const ai = b.ai, p = post.p, at = Math.hypot(p.x - b.pos.x, p.z - b.pos.z) < 0.7 && Math.abs(p.y - b.pos.y) < 1.2;
@@ -5900,6 +6284,11 @@ function defendMove(b, post, wish, dt, t, style) {
     ai.hpath = null;
     if (!t) { b.yaw = turn(b.yaw, postFace(post, b.team), 3 * dt); b.pitch += (-0.12 - b.pitch) * Math.min(1, dt * 3); }
     if (b.reloading > 0) ai.crouchHold = 0.4; // (down behind the sill to reload)
+    // Crouched to shoot, steadier (botShoot), whenever it can still see them from down there; checked a few times a second (standing up to look when it can't)
+    if (t && b.reloading <= 0) {
+      if ((ai.postCrT = (ai.postCrT || 0) - dt) <= 0) { ai.postCrT = 0.4; const h = b.h; b.h = CROUCH_H; ai.postCr = !!seenAt(b, t); b.h = h; }
+      if (ai.postCr) ai.crouchHold = 0.4;
+    } else if (!t) ai.postCr = false;
   }
   if (t) botEngage(b, t, dt, style, false);
   return speed;
@@ -5995,15 +6384,21 @@ function updateBot(b, dt) {
   const home = teamsOn() && b.team === 'pirates' && !(LV && LV.piratesAdvance) ? teamHomeInfo('pirates') : null;
   if (FN.cells) { assignFollowers(); rejoinFort(b, dt); }
   const post = FN.cells ? defendPost(b) : null, near = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < DEF_CLOSE && Math.abs(t.pos.y - b.pos.y) < 3;
-  const rv = FN.cells && !ai.boardV && !post ? huntOn(b) : null;
-  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamHolds(b.team) ? ai.lead : null;
+  const alarm = post ? fortAlarm(b) : null; // (the fort attacked: off its post after them)
+  if (alarm && (!ai.rev || ai.rev.who !== alarm)) { ai.rev = { who: alarm, until: performance.now() + REV_T, side: Math.random() < 0.5 ? -1 : 1, behind: false }; ai.huntT = 0; ai.huntG = null; ai.hpath = null; }
+  if (!!alarm !== !!ai.alarmed) { ai.alarmed = !!alarm; ai.hpath = null; if (!alarm) ai.rev = null; } // (back to its post: a fresh way there)
+  const rv = FN.cells && !ai.boardV && (!post || alarm) ? huntOn(b) : null;
+  const lead = FN.cells && !post && !ai.boardV && ai.lead && ai.lead.alive && !teamAtFort(b.team) ? ai.lead : null;
   const fight = t && Math.hypot(t.pos.x - b.pos.x, t.pos.z - b.pos.z) < FOLLOW_FIGHT && lead && b.pos.distanceTo(lead.pos) < 30; // (someone close, and its person isn't far off: fight them)
   // Its side holds the fort and it's out of it: back to it before anything else, along its way in, never stopping to fight; with someone in sight it turns to shoot
   // at them and keeps going, walking backwards or sideways as it must
-  const regroup = FN.cells && !post && !ai.boardV && teamHolds(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
-  if (post && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
+  const regroup = FN.cells && !post && !ai.boardV && teamAtFort(b.team) && !inFortZone(b.pos) && !(b.ammo === 0 && b.reserve === 0);
+  // In the assault (startAssault): on along the tunnel way at a run, shooting at whoever it sees as it goes, till it's in the fort
+  if (ai.rush && (ai.routeDone || inFortZone(b.pos) || ai.route !== 'tunnel')) ai.rush = false;
+  const rush = FN.cells && ai.rush && !post && !ai.boardV && !(b.ammo === 0 && b.reserve === 0);
+  if (post && !alarm && !near && !(b.ammo === 0 && b.reserve === 0)) { // holding the fort: at its post
     ai.cov = null; speed = defendMove(b, post, wish, dt, t, style);
-  } else if (regroup) {
+  } else if (regroup || rush) {
     ai.cov = null; ai.rev = null; ai.flank = null; ai.lastSeenT = 0; ai.searchN = 0;
     roamFine(b, wish, dt, !t);
     if (t) {
@@ -6109,7 +6504,7 @@ function updateBot(b, dt) {
     const moved = Math.hypot(b.pos.x - ai.lastPos.x, b.pos.z - ai.lastPos.z);
     if (moved < 0.3 && wish.lengthSq() > 0.01 && !b.pass && b.climb === undefined) { // stuck: a sideways kick to break free, plus a hop but only over an actual ledge or obstacle, and not too often
       const dir = wish.clone().normalize();
-      if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z)) { b.vel.y = JUMP; ai.jumpCd = 1.2; }
+      if (b.onGround && ai.jumpCd <= 0 && obstacleAhead(b, dir.x, dir.z) && !(inFortZone(b.pos) && b.pos.y > 35) && ![0.9, 1.3, 1.8, 2.4].some(d => overLedge(b, dir.x, dir.z, d))) { b.vel.y = JUMP; ai.jumpCd = 1.2; } // (not over a parapet with a drop behind it, nor anywhere up on the fort's walls or tower)
       b.vel.x += (Math.random() - 0.5) * 5; b.vel.z += (Math.random() - 0.5) * 5;
       if (ents.some(o => o !== b && o.bot && o.alive && o.team === b.team && Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z) < 1.4 && Math.abs(o.pos.y - b.pos.y) < 1.5)) ai.ghostT = 2.5; // held up by one of its own: through them
       if (++ai.stuckN > 1) { ai.path = null; ai.hpath = null; ai.stuckN = 0; }
@@ -6135,12 +6530,14 @@ function updateBot(b, dt) {
   } else { ai.jamT = 0; ai.jamN = 0; ai.jamP = null; }
   if (ai.ghostT > 0) ai.ghostT -= dt;
   if (wish.lengthSq() > 0.01 && b.onGround) avoidBots(b, wish);
+  if (wish.lengthSq() > 0.01) ledgeStop(b, wish);
   if (wish.lengthSq() > 0) wish.normalize();
   if (b.h < STAND_H) speed *= 0.55;
   const k = Math.min(1, (b.onGround ? 10 : 2) * dt);
   b.vel.x += (wish.x * speed - b.vel.x) * k;
   b.vel.z += (wish.z * speed - b.vel.z) * k;
   bodyBlock(b, dt);
+  ledgeHold(b);
   physics(b, dt);
   VEH.block(b);
   if (b.pos.y < KILL_Y) { damage(b, 999, b, 'fall', false); return; }
@@ -6169,6 +6566,17 @@ function saveCtl() { try { localStorage.setItem('tse.controls', JSON.stringify(C
 $('ssens').value = CTL.sens; $('osens').textContent = (+CTL.sens).toFixed(1) + '×'; $('saimtog').checked = CTL.aimTog;
 $('ssens').oninput = e => { CTL.sens = +e.target.value; $('osens').textContent = CTL.sens.toFixed(1) + '×'; saveCtl(); };
 $('saimtog').onchange = e => { CTL.aimTog = e.target.checked; tAim = false; mouseRight = false; saveCtl(); };
+// Graphics, Low to High: changes the picture straight away
+function setGfx(lv) {
+  GFX.lv = lv; GFX.lines = 0; CTL.gfx = lv; saveCtl();
+  $('sgfx').value = lv; $('ogfx').textContent = GFX_NAMES[lv - 1];
+  renderer.domElement.style.imageRendering = gfxLines() ? 'pixelated' : '';
+  LAMP_Q.mode = LAMP_Q.fixed || (lv <= GFX_LOW_LAMPS ? 'own' : 'full'); LAMP_Q.beams = lampGlow(lv);
+  const m = sunMap(); if (sun.shadow.mapSize.x !== m) { sun.shadow.mapSize.set(m, m); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } renderer.shadowMap.needsUpdate = true; }
+  DYN.i = 0; setPixelRatio();
+}
+$('sgfx').value = GFX.lv; $('ogfx').textContent = GFX_NAMES[GFX.lv - 1];
+$('sgfx').oninput = e => setGfx(+e.target.value);
 $('sthird').checked = !!CTL.third; $('sthird').onchange = e => { CTL.third = e.target.checked; saveCtl(); }; // View: first or third person
 // Hints: a short prompt the moment it matters, shown a few times per browser and then never again
 const HINTS = (() => { try { return JSON.parse(localStorage.getItem('tse.hints') || '{}'); } catch (e) { return {}; } })(), hintSeen = new Set();
@@ -6501,22 +6909,24 @@ function applySettings() {
   if (+$('schar').value !== playerModelIdx) setPlayerModel(+$('schar').value);
   if (botKind() !== botSig) { buildBots(botPlan()); resetMatch(); } else fitBots();
 }
-// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (six a side in a team battle)
+// Bots (Host Options): No, or Easy / Medium / Hard, which fill the game up to BOT_FILL players (TEAM_BOTS a side in a team battle)
 let BOT_LEVEL = 0; // off by default (the difficulty menu still starts at Medium, for when they are switched on)
-const BOT_FILL = 12;
+const BOT_FILL = 12, TEAM_BOTS = 5, BOT_RESPAWN = 20; // (TEAM_BOTS: players a side in a team battle, bots filling the places people don't; 6 till 2026-11-26)
+// (BOT_RESPAWN: seconds a bot waits after dying before it's back; people wait 3. 3 for bots too until 2026-11-25, then 10)
 const botKind = () => (GAME_TEAMS ? 'teams' : 'ffa') + (BOT_LEVEL ? '+bots' : '');
 function botPlan() {
   const mode = LEVEL_DEFS[selLevel] ? LEVEL_DEFS[selLevel]().mode : MODE;
   if (!BOT_LEVEL || mode === 'drive' || mode === 'range') return [];
   const humans = ents.filter(e => !e.bot && !e.isReplica);
   if (!GAME_TEAMS) return Array(Math.max(0, BOT_FILL - humans.length)).fill(undefined);
-  const side = t => Math.max(0, BOT_FILL / 2 - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
+  const side = t => Math.max(0, TEAM_BOTS - humans.filter(e => (e === P ? myTeam : e.team) === t).length);
   return [...Array(side('midas')).fill('midas'), ...Array(side('pirates')).fill('pirates')];
 }
 function setPlaying(on) {
   if (on) applySettings();
   if (on && PREGAME) { PREGAME = false; document.body.classList.remove('pregame'); }
   locked = on;
+  if (on && LV && LV.core && mapLevel !== curLevel) setTimeout(prepMap, 400); // (the radar's map made as the game starts, not when someone first uses the computer)
   $('overlay').style.display = on || matchOver ? 'none' : 'flex'; $('overlay').classList.add('ingame');
   $('play').textContent = 'Resume'; if (NET.role === 'host') $('restart').style.display = ''; $('tomenu').style.display = '';
   if (!on) {
@@ -6842,7 +7252,7 @@ function renderHost() {
   $('htime').querySelectorAll('button').forEach(b => b.classList.toggle('on', TIMES[b.dataset.v].lit === LOOK.lit));
   $('hgame').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'teams') === GAME_TEAMS));
   $('hbots').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === BOT_LEVEL));
-  $('hbotnote').textContent = BOT_LEVEL ? `Bots fill the empty places, up to ${BOT_FILL} players${GAME_TEAMS ? ` (${BOT_FILL / 2} a side)` : ''}.` : 'Only people, no bots.';
+  $('hbotnote').textContent = BOT_LEVEL ? `Bots fill the empty places, up to ${BOT_FILL} players${GAME_TEAMS ? ` (${TEAM_BOTS} a side)` : ''}.` : 'Only people, no bots.';
 }
 // Go! leaves the menu: it needs a name and a character (and the level loaded)
 const canGo = () => READY && PICKED && !!$('pname').value.trim() && !$('play').disabled && (NET.role !== 'guest' || !!(NET.conn && NET.conn.open));
@@ -7325,23 +7735,66 @@ function buildMapBg() {
   let w = c1 - c0 + 5, h = r1 - r0 + 5; if (w / h > aspect) h = w / aspect; else w = h * aspect;
   const mc = (c0 + c1 + 1) / 2, mr = (r0 + r1 + 1) / 2;
   mapBox = { x: GW - mc - w / 2, y: GD - mr - h / 2, w, h }; // in background pixels (flipped grid)
-  return c;
+  return levelShot(cv) || c;
 }
+// The map's picture: the level itself seen from straight above, over the same ground as mapBox, no fog, nothing but the level drawn, then cut into MAP_BLOCK-metre blocks
+// and shaded in the radar's greens by how bright each block is, the sea and beyond it the dark of the screen (2026-11-26: as the first map looked, blocky and green,
+// but of the level as it is now; till then the blocks were the walking grid's heights, 3 m squares, which knew nothing of the fort, the roads, the trees or the smoothed hills)
+const MAP_BLOCK = 2;
+function levelShot(cv) {
+  try {
+    const B = mapBox, hw = CS * B.w / 2, hh = CS * B.h / 2, BW = Math.round(hw * 2 / MAP_BLOCK), BH = Math.round(hh * 2 / MAP_BLOCK), SS = 4, W = BW * SS, Hh = BH * SS;
+    const cx = OX + CS * (GW - B.x - B.w / 2), cz = OZ + CS * (GD - B.y - B.h / 2);
+    const cam = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 1, 800); cam.position.set(cx, 400, cz); cam.up.set(0, 0, 1); cam.lookAt(cx, 0, cz); cam.updateMatrixWorld(); // (screen right: -x, up: +z, as the map has it)
+    const hid = scene.children.filter(o => o !== levelGroup && !o.isLight && o.visible); hid.forEach(o => { o.visible = false; });
+    const fog = scene.fog, bg = scene.background; scene.fog = null; scene.background = new THREE.Color(0x000000);
+    const rt = new THREE.WebGLRenderTarget(W, Hh), was = renderer.getRenderTarget();
+    renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, cam);
+    const px = new Uint8Array(W * Hh * 4); renderer.readRenderTargetPixels(rt, 0, 0, W, Hh, px);
+    renderer.setRenderTarget(was); rt.dispose(); scene.fog = fog; scene.background = bg; hid.forEach(o => { o.visible = true; });
+    // each block: the average of its pixels; sea (blue over the rest) and nothing (black) count as water
+    const lumB = new Float32Array(BW * BH), wet = new Uint8Array(BW * BH);
+    for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+      let r = 0, gg = 0, b = 0;
+      for (let y = 0; y < SS; y++) for (let x = 0; x < SS; x++) { const i = ((by * SS + y) * W + bx * SS + x) * 4; r += px[i]; gg += px[i + 1]; b += px[i + 2]; }
+      const k = (BH - 1 - by) * BW + bx; r /= SS * SS; gg /= SS * SS; b /= SS * SS;
+      wet[k] = (b > r + 12 && b > gg + 4) || r + gg + b < 6 ? 1 : 0; lumB[k] = r * 0.3 + gg * 0.59 + b * 0.11;
+    }
+    const dry = []; for (let k = 0; k < lumB.length; k++) if (!wet[k]) dry.push(lumB[k]); dry.sort((a, b) => a - b);
+    const lo = dry.length ? dry[dry.length * 0.03 | 0] : 0, hi = dry.length ? Math.max(lo + 10, dry[dry.length * 0.97 | 0]) : 255;
+    const c = document.createElement('canvas'); c.width = BW; c.height = BH; const g = c.getContext('2d'), id = g.createImageData(BW, BH);
+    for (let k = 0; k < lumB.length; k++) {
+      const t = Math.max(0, Math.min(1, (lumB[k] - lo) / (hi - lo)));
+      id.data.set(wet[k] ? [22, 38, 46, 255] : [40 + 110 * t, 70 + 120 * t, 50 + 80 * t, 255], k * 4); // (the first map's colours)
+    }
+    g.putImageData(id, 0, 0); c.shot = true; return c;
+  } catch (err) { console.warn('map picture', err); return null; }
+}
+function prepMap() { if (LV && LV.core && mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; } }
 function drawMap() {
-  if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
+  prepMap();
   const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
-  g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height);
-  const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 4, Z(cz0) - 4, 8, 8);
-  let n = 0;
+  if (mapBg.shot) { g.imageSmoothingEnabled = false; g.drawImage(mapBg, 0, 0, cv.width, cv.height); }
+  else { g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height); }
+  const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 3, Z(cz0) - 3, 6, 6);
+  // Everyone, in their side's colour in a team battle (red for everyone else in a free for all); you a bigger dot ringed in white, on top
+  const teams = teamsOn(), count = {}; let n = 0;
+  const dot = (e, r, ring) => {
+    const tm = e === P ? myTeam : e.team;
+    g.fillStyle = teams && TEAMS[tm] ? TEAMS[tm].color : e === P ? '#ffffff' : '#ff4b3a';
+    g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), r, 0, Math.PI * 2); g.fill();
+    g.lineWidth = ring ? 2 : 1.2; g.strokeStyle = ring ? '#ffffff' : 'rgba(0,0,0,.85)'; g.stroke();
+  };
   for (const e of ents) {
-    if (!e.alive) continue;
-    const atk = e !== P; if (atk) n++; // everyone else
-    g.fillStyle = atk ? '#ff4b3a' : e === P ? '#ffffff' : '#57e07a';
-    g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), atk ? 3 : 4.5, 0, Math.PI * 2); g.fill();
+    if (!e.alive || e === P || !e.pos) continue;
+    n++; const tm = e.team; if (tm) count[tm] = (count[tm] || 0) + 1;
+    dot(e, 3.5, false);
   }
-  $('cpuinfo').textContent = `Radar · Others on the map ${n}`;
+  if (P.alive) { dot(P, 5, true); if (myTeam) count[myTeam] = (count[myTeam] || 0) + 1; }
+  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${t.color}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
+    : `Radar · Others on the map ${n}`;
 }
 
 
@@ -7376,7 +7829,7 @@ function useLook(o) {
 }
 function applyFx(m) {
   switch (m.t) {
-    case 'tr': _tracer(v3(m.a), v3(m.b), m.c, m.w, m.l); break;
+    case 'tr': { const e = m.i != null && ents.find(o => o.id === m.i && o !== P), a = e && e.alive && e.rig && e.rig.gunVis && e.rig.gunVis.visible !== false && heldMuzzle(e.rig); _tracer(a || v3(m.a), v3(m.b), m.c, m.w, m.l); break; } // (someone's own shot: from the gun in their hands, not their eye)
     case 'bm': { const p = v3(m.p); _boomFx(p, m.s); sBoom(vol(p, 90)); const pd = P.pos.distanceTo(p); if (pd < 14) punch += 0.06 * (1 - pd / 14); break; }
     case 'sf': if (m.k in { gun: 1, laser: 1, rifle: 1, shotgun: 1, uzi: 1, bazooka: 1 }) sfx(m.k, vol(v3(m.p), m.r || 60) * (m.g || 1)); break;
     case 'sd': syncShedDoor(levelSheds()[m.k], !!m.o); break;
@@ -7955,6 +8408,7 @@ loadModels().then(() => ensureLevel(selLevel)).then(() => {
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  if (LITE) dynRes((now - last) / 1000);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; // never backwards (a frame stamped before the last one)
   if (navJob && (locked || away || remotes.length)) finishFortNav(); // the gate and doors are held open while it maps them
   if (NET.role === 'guest') {
@@ -8001,6 +8455,7 @@ function loop(now) {
   if (TG) { sun.position.copy(camera.position).addScaledVector(SUN_DIR, 60); sun.target.position.copy(camera.position); sun.target.updateMatrixWorld(); }
   updateSkyDiscs();
   const dk = inDarkCPU(camera.position) ? DARK_VM : 1; // and in the dark with you
+  if (LITE) renderer.shadowMap.autoUpdate = dk === 1; // (in a dark place the sun's shadows can't be seen: its map isn't drawn again till you're out)
   if (isTouch) TLIGHT.classList.toggle('on', RANGE.lightOn()); // (the touch Light button shows it's on)
   if (dk < 1 && P.alive && !RANGE.lightOn()) hint('dark', isTouch ? 'It\'s pitch black in here: Light (top left) turns your flashlight on' : 'It\'s pitch black in here: L turns your flashlight on', 4);
   vmLight.color.copy(vmLight.userData.lit || vmLight.color).multiplyScalar(sunAtCPU(camera.position) * dk); // your gun is in the shade with you
@@ -8008,16 +8463,18 @@ function loop(now) {
   if (BULB.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.8, 0.5).multiplyScalar(Math.min(1.2, bulbAtCPU(camera.position)))); // (or in the bulbs' light)
   if (MUZ.n.value) vmLight.color.add(_bulbCol.setRGB(1, 0.78, 0.45).multiplyScalar(Math.min(3, muzAtCPU(camera.position) * 4))); // (and your own shots' flash)
   if (VIC.on) victoryHide();
+  ps1Begin();
   renderer.clear();
   renderWorld();
   renderer.clearDepth();
   if (!bodyOn && !tpOn && !PREGAME && !VIC.on && $('title').style.display === 'none') renderer.render(vmScene, vmCam); // the gun in front of you is only for first person
+  ps1End();
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=51"></script>
-<script src="range.js?v=33"></script>
+<script src="vehicles.js?v=55"></script>
+<script src="range.js?v=34"></script>
 <script src="art.js?v=13"></script>
-<script src="headlights.js?v=24"></script>
+<script src="headlights.js?v=35"></script>
 </body>
 </html>
