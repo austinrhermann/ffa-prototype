@@ -12,7 +12,7 @@
 // The game calls into RANGE (declared in index.html) from its loop, input, pickups, bots and blasts.
 (() => {
   // ---------------------------------------------------------------- the weapons and their settings
-  const LIFE0 = 29; let LIFE = LIFE0; // everyone's health: the host's setting (game.life), 32 by default. Was 40 until 2026-11-03: 20% less (before that 20 until 2026-11-02, and 7, then 10)
+  const LIFE0 = 20; let LIFE = LIFE0; // everyone's health: the host's setting (game.life), 20 by default (29 until 2026-11-26). Was 40 until 2026-11-03: 20% less (before that 20 until 2026-11-02, and 7, then 10)
   // Health colours, from 1 left (red) to full (blue), James's ten; the health in between gets a blend of its two neighbours
   const HEALTH = ['#e51c1c', '#ff3300', '#ff6600', '#ff9900', '#ffcc00', '#9cc00d', '#4da823', '#289751', '#0d88aa', '#0066cc'].map(c => new THREE.Color(c));
   const _hc = new THREE.Color();
@@ -59,7 +59,7 @@
     throw: { fuse: 2.25 },                   // seconds from pulling the pin (hold to cook)
     mine: { arm: 1.5, radius: 2, warn: 1 },  // arms after placing; anyone within radius sets it off, then it beeps for warn seconds
     tube: { launch: 40, reload: 1.6, slow: 1 }, // launch: how hard it lobs the shell (the grenade throw is 25); slow: your speed while you carry it
-    knife: { front: 4, back: 29, reach: 2 },
+    knife: { front: 4, back: 20, reach: 2 }, // (back: a stab in the back kills, all of everyone's health)
     move: { walk: 5, run: 20.5, jump: 12, crouch: 0.5 }, // spread added walking, running, in the air; crouching multiplies it
     targets: { strafe: 0.5, heal: 3 },       // strafe: lane dummies pace side to side at this speed (m/s); heal: your damage wears off after this long
     cross: { ease: 0.2, opacity: 45 },       // ease: how long the crosshair circle takes to catch up with the spread (s); opacity: 0-100 (yours alone: the host's value isn't sent on)
@@ -67,13 +67,14 @@
     ammo: { A: { pack: 4, max: 4 }, D: { pack: 4, max: 8 }, F: { pack: 2, max: 4 }, R: { pack: 1, max: 2 }, respawn: 5, infinite: false }, // (A: no longer used; R: rifle clips of 5, and only the rifle itself brings them)
     // In a game: you spawn with the Pistol and the Carbine loaded, startD D batteries and startF F batteries; packs come back after packs seconds (rifle
     // rounds after rifle), weapons on their spots after weapons seconds. dropD, dropF: the most of each the dead drop (half what they carried, rounded up; all of it until 2026-11-21)
-    game: { startD: 4, startF: 2, dropD: 2, dropF: 1, dropLife: 20, packs: 30, rifle: 60, weapons: 25, life: 29, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
+    game: { startD: 4, startF: 2, dropD: 2, dropF: 1, dropLife: 20, packs: 30, rifle: 60, weapons: 25, life: 20, gateHp: 900, doorHp: 240 }, // life: everyone's health; gateHp, doorHp: the fort's gate and the bunker door
   };
   const MAXLIFE = 200;
   const clone = o => JSON.parse(JSON.stringify(o));
   const merge = (base, over) => { for (const k in base) if (over && over[k] !== undefined) { if (typeof base[k] === 'object') merge(base[k], over[k]); else if (typeof over[k] === typeof base[k]) base[k] = over[k]; } return base; };
   const SAVE = 'tse.range.v5', SAVE_X = 'tse.range.cross';
   const S = (() => { try { return merge(clone(DEFAULTS), JSON.parse(localStorage.getItem(SAVE) || 'null')); } catch (e) { return clone(DEFAULTS); } })();
+  if (S.game.life === 29) { S.game.life = 20; if (S.knife.back === 29) S.knife.back = 20; } // (health saved at the old default: the new one, 2026-11-26)
   try { merge(S.cross, JSON.parse(localStorage.getItem(SAVE_X) || 'null')); } catch (e) {} // (a guest's own crosshair, kept apart from the host's numbers)
   if (S.knife.back === 20) S.knife.back = LIFE0; // a knife from behind saved at the old full health still kills
   // damage saved when health was bigger can't be more than the health now (more than all of it kills just the same; the sliders stop at LIFE)

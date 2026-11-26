@@ -4618,7 +4618,7 @@ function updateChatbox() {
 let matchOver = false;
 const isAtk = e => !!e.bot; // the bots: they batter a locked tower door, and only players can lock it
 const HP = 120; // everyone's health (was 100, then 150: people died too fast; 20% less since 2026-11-03)
-const maxHp = e => RANGE.on ? RANGE.life : HP; // in the new weapon system everyone has its LIFE (32)
+const maxHp = e => RANGE.on ? RANGE.life : HP; // in the new weapon system everyone has its LIFE (20)
 const maxNades = e => MAX_NADES;
 const gateOpen = () => !!(TG && TG.gate && TG.gate.open);
 // The fort's gate: how whole it is while shut, a percentage (damageGate wears it down; shutting it again mends it)
@@ -8473,7 +8473,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 </script>
 <script src="vehicles.js?v=55"></script>
-<script src="range.js?v=33"></script>
+<script src="range.js?v=34"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=35"></script>
 </body>
