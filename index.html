@@ -145,8 +145,8 @@ body.guest .hostonly{display:none!important}
 #lookcard .row button{flex:1;padding:10px 6px;font-size:14px}
 #charcard{width:280px}
 #teams{margin-bottom:12px}
-#teams button[data-team=midas].on{background:#f2c230;color:#000}
-#teams button[data-team=pirates].on{background:#4aa8ff;color:#000}
+#teams button[data-team=midas].on{background:#4aa8ff;color:#000}
+#teams button[data-team=pirates].on{background:#f2c230;color:#000}
 #charcard label{display:block;font-size:14px;opacity:.85;margin-bottom:6px}
 #charcard input,#charcard select{width:100%;box-sizing:border-box;padding:9px 10px;margin-bottom:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:4px;font:15px system-ui,sans-serif}
 #cprev{display:block;margin:0 auto;width:220px;height:257px;border-radius:6px;background:rgba(255,255,255,.05)}
@@ -4183,7 +4183,7 @@ function fpvReload(r) {
 }
 
 // Team free for all (levels with teams: true): Midas against the Pirates. Friendly fire is on; bots only hunt the other side.
-const TEAMS = { midas: { name: 'Midas', color: '#f2c230' }, pirates: { name: 'Pirates', color: '#4aa8ff' } };
+const TEAMS = { midas: { name: 'Midas', color: '#4aa8ff' }, pirates: { name: 'Pirates', color: '#f2c230' } }; // (Midas blue, Pirates yellow since 2026-11-26; the other way round before)
 let GAME_TEAMS = true; // the host's Game Type: Team battle (true) or Free for all
 const teamsOn = () => !!LV && GAME_TEAMS;
 const sameTeam = (a, b) => a !== b && teamsOn() && !!a.team && a.team === b.team;
@@ -7763,7 +7763,6 @@ function levelShot(cv) {
     g.putImageData(id, 0, 0); c.shot = true; return c;
   } catch (err) { console.warn('map picture', err); return null; }
 }
-const RADAR_COL = { midas: '#4aa8ff', pirates: '#f2c230' }; // (the radar's colours for the sides: Midas blue, Pirates yellow, 2026-11-26; the other way round before)
 function drawMap() {
   if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
   const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
@@ -7776,7 +7775,7 @@ function drawMap() {
   const teams = teamsOn(), count = {}; let n = 0;
   const dot = (e, r, ring) => {
     const tm = e === P ? myTeam : e.team;
-    g.fillStyle = teams && RADAR_COL[tm] ? RADAR_COL[tm] : e === P ? '#ffffff' : '#ff4b3a';
+    g.fillStyle = teams && TEAMS[tm] ? TEAMS[tm].color : e === P ? '#ffffff' : '#ff4b3a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), r, 0, Math.PI * 2); g.fill();
     g.lineWidth = ring ? 2 : 1.2; g.strokeStyle = ring ? '#ffffff' : 'rgba(0,0,0,.85)'; g.stroke();
   };
@@ -7786,7 +7785,7 @@ function drawMap() {
     dot(e, 3.5, false);
   }
   if (P.alive) { dot(P, 5, true); if (myTeam) count[myTeam] = (count[myTeam] || 0) + 1; }
-  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${RADAR_COL[k]}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
+  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${t.color}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
     : `Radar · Others on the map ${n}`;
 }
 
