@@ -7730,45 +7730,53 @@ function buildMapBg() {
   mapBox = { x: GW - mc - w / 2, y: GD - mr - h / 2, w, h }; // in background pixels (flipped grid)
   return levelShot(cv) || c;
 }
-// The map's picture: the level itself seen from straight above, over the same ground as mapBox (2026-11-26; till then the walking grid's heights, 3 m squares, which
-// knew nothing of the fort, the roads, the trees or the smoothed hills), with nothing but the level drawn, no fog, its brightness stretched so it reads at night too
+// The map's picture: the level itself seen from straight above, over the same ground as mapBox, no fog, nothing but the level drawn, then cut into MAP_BLOCK-metre blocks
+// and shaded in the radar's greens by how bright each block is, the sea and beyond it the dark of the screen (2026-11-26: as the first map looked, blocky and green,
+// but of the level as it is now; till then the blocks were the walking grid's heights, 3 m squares, which knew nothing of the fort, the roads, the trees or the smoothed hills)
+const MAP_BLOCK = 2;
 function levelShot(cv) {
   try {
-    const B = mapBox, W = cv.width * 2, Hh = cv.height * 2, hw = CS * B.w / 2, hh = CS * B.h / 2;
+    const B = mapBox, hw = CS * B.w / 2, hh = CS * B.h / 2, BW = Math.round(hw * 2 / MAP_BLOCK), BH = Math.round(hh * 2 / MAP_BLOCK), SS = 4, W = BW * SS, Hh = BH * SS;
     const cx = OX + CS * (GW - B.x - B.w / 2), cz = OZ + CS * (GD - B.y - B.h / 2);
     const cam = new THREE.OrthographicCamera(-hw, hw, hh, -hh, 1, 800); cam.position.set(cx, 400, cz); cam.up.set(0, 0, 1); cam.lookAt(cx, 0, cz); cam.updateMatrixWorld(); // (screen right: -x, up: +z, as the map has it)
     const hid = scene.children.filter(o => o !== levelGroup && !o.isLight && o.visible); hid.forEach(o => { o.visible = false; });
-    const fog = scene.fog, bg = scene.background; scene.fog = null; scene.background = new THREE.Color(0x16262e);
+    const fog = scene.fog, bg = scene.background; scene.fog = null; scene.background = new THREE.Color(0x000000);
     const rt = new THREE.WebGLRenderTarget(W, Hh), was = renderer.getRenderTarget();
     renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, cam);
     const px = new Uint8Array(W * Hh * 4); renderer.readRenderTargetPixels(rt, 0, 0, W, Hh, px);
     renderer.setRenderTarget(was); rt.dispose(); scene.fog = fog; scene.background = bg; hid.forEach(o => { o.visible = true; });
-    // brightness stretched: the darkest 2% to black, the brightest 2% to full (the sea left as it is)
-    const lum = []; for (let i = 0; i < px.length; i += 16) lum.push(px[i] + px[i + 1] + px[i + 2]); lum.sort((a, b) => a - b);
-    const lo = lum[lum.length * 0.02 | 0], hi = Math.max(lo + 30, lum[lum.length * 0.98 | 0]), k = 235 / ((hi - lo) / 3); // (per channel)
-    const c = document.createElement('canvas'); c.width = W; c.height = Hh; const g = c.getContext('2d'), id = g.createImageData(W, Hh);
-    for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
-      const i = ((Hh - 1 - y) * W + x) * 4, o = (y * W + x) * 4;
-      const v = [0, 1, 2].map(ch => Math.max(0, Math.min(255, (px[i + ch] - lo / 3) * k))), gr = (v[0] + v[1] + v[2]) / 3;
-      for (let ch = 0; ch < 3; ch++) id.data[o + ch] = (gr + (v[ch] - gr) * 0.45) * 0.7 + 8; // (half the colour and dimmed, so the side's coloured dots stand out on it)
-      id.data[o + 3] = 255;
+    // each block: the average of its pixels; sea (blue over the rest) and nothing (black) count as water
+    const lumB = new Float32Array(BW * BH), wet = new Uint8Array(BW * BH);
+    for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+      let r = 0, gg = 0, b = 0;
+      for (let y = 0; y < SS; y++) for (let x = 0; x < SS; x++) { const i = ((by * SS + y) * W + bx * SS + x) * 4; r += px[i]; gg += px[i + 1]; b += px[i + 2]; }
+      const k = (BH - 1 - by) * BW + bx; r /= SS * SS; gg /= SS * SS; b /= SS * SS;
+      wet[k] = (b > r + 12 && b > gg + 4) || r + gg + b < 6 ? 1 : 0; lumB[k] = r * 0.3 + gg * 0.59 + b * 0.11;
+    }
+    const dry = []; for (let k = 0; k < lumB.length; k++) if (!wet[k]) dry.push(lumB[k]); dry.sort((a, b) => a - b);
+    const lo = dry.length ? dry[dry.length * 0.03 | 0] : 0, hi = dry.length ? Math.max(lo + 10, dry[dry.length * 0.97 | 0]) : 255;
+    const c = document.createElement('canvas'); c.width = BW; c.height = BH; const g = c.getContext('2d'), id = g.createImageData(BW, BH);
+    for (let k = 0; k < lumB.length; k++) {
+      const t = Math.max(0, Math.min(1, (lumB[k] - lo) / (hi - lo)));
+      id.data.set(wet[k] ? [22, 38, 46, 255] : [40 + 110 * t, 70 + 120 * t, 50 + 80 * t, 255], k * 4); // (the first map's colours)
     }
     g.putImageData(id, 0, 0); c.shot = true; return c;
   } catch (err) { console.warn('map picture', err); return null; }
 }
+const RADAR_COL = { midas: '#4aa8ff', pirates: '#f2c230' }; // (the radar's colours for the sides: Midas blue, Pirates yellow, 2026-11-26; the other way round before)
 function drawMap() {
   if (mapLevel !== curLevel) { mapBg = buildMapBg(); mapLevel = curLevel; }
   const cv = $('cmap'), g = cv.getContext('2d'), B = mapBox, sx = cv.width / B.w, sz = cv.height / B.h;
   const X = x => (GW - (x - OX) / CS - B.x) * sx, Z = z => (GD - (z - OZ) / CS - B.y) * sz;
   g.fillStyle = 'rgb(22,38,46)'; g.fillRect(0, 0, cv.width, cv.height);
-  if (mapBg.shot) { g.imageSmoothingEnabled = true; g.drawImage(mapBg, 0, 0, cv.width, cv.height); }
+  if (mapBg.shot) { g.imageSmoothingEnabled = false; g.drawImage(mapBg, 0, 0, cv.width, cv.height); }
   else { g.imageSmoothingEnabled = false; g.drawImage(mapBg, B.x, B.y, B.w, B.h, 0, 0, cv.width, cv.height); }
   const [cx0, , cz0] = LV.core.at; g.fillStyle = '#5ff0ff'; g.fillRect(X(cx0) - 3, Z(cz0) - 3, 6, 6);
   // Everyone, in their side's colour in a team battle (red for everyone else in a free for all); you a bigger dot ringed in white, on top
   const teams = teamsOn(), count = {}; let n = 0;
   const dot = (e, r, ring) => {
     const tm = e === P ? myTeam : e.team;
-    g.fillStyle = teams && TEAMS[tm] ? TEAMS[tm].color : e === P ? '#ffffff' : '#ff4b3a';
+    g.fillStyle = teams && RADAR_COL[tm] ? RADAR_COL[tm] : e === P ? '#ffffff' : '#ff4b3a';
     g.beginPath(); g.arc(X(e.pos.x), Z(e.pos.z), r, 0, Math.PI * 2); g.fill();
     g.lineWidth = ring ? 2 : 1.2; g.strokeStyle = ring ? '#ffffff' : 'rgba(0,0,0,.85)'; g.stroke();
   };
@@ -7778,7 +7786,7 @@ function drawMap() {
     dot(e, 3.5, false);
   }
   if (P.alive) { dot(P, 5, true); if (myTeam) count[myTeam] = (count[myTeam] || 0) + 1; }
-  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${t.color}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
+  $('cpuinfo').innerHTML = teams ? 'Radar · ' + Object.entries(TEAMS).map(([k, t]) => `<span style="color:${RADAR_COL[k]}">● ${t.name} ${count[k] || 0}</span>`).join(' &nbsp;') + ' &nbsp;<span style="color:#fff">○ You</span>'
     : `Radar · Others on the map ${n}`;
 }
 
