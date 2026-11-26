@@ -1246,6 +1246,9 @@ function levelFortress() {
       [20.5, 120.7], [25.6, 121.8], [31.8, 121.3], [36.4, 120.1], [53.4, 122.4], [52.3, 129.2], [56.8, 130.3], [49.4, 135.5], [20.5, 135.2], [24.4, 134.3]],
     // The trees' leaves and trunks, solid to walking, sight and shots (solidFoliage): the round trees, the dark ones and the tall ones on the hill and round the fort
     solidFoliage: ['M_tree_balls001', 'M_Material002', 'M_Material005', 'M_Material006', 'M_Material_13'],
+    // Smooth the hills where people and vehicles got stuck (smoothGround): [x0, x1, z0, z1] of the island inside the coast's cliffs, the steepest slope left (rise per metre),
+    // how often earth slides, the most any spot moves (m), how big a drop within 3 m is a cliff to keep, and what stays put: the fort and the bunker's mound
+    smoothGround: { box: [-62, 76, 8, 124], slope: 0.75, passes: 120, max: 4, cliff: 14, keep: [[-16, 13, -16, 10], [-30, -8, -4, 16]] },
     paintOnly: ['Road_ext', 'M_Rock', 'M_tree_balls001', 'M_Material002', 'M_Material004', 'M_Material005', 'M_Material006', 'M_Material_13'],
     dropCollision: ['Cube037'], // a big empty box in the courtyard (beside the barrel) that people stuck on and shots stopped at
     // Trees to take away: [x, z, radius, mesh]: a few leftover pieces floating where the shed used to be, the bush and the tree beside the road up to the gate, the tree in the courtyard
@@ -1393,6 +1396,17 @@ function solidFoliage(col, draw, cm, names) {
       const n = Math.min(12, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / 0.5)); // (points over the triangle about every half metre)
       for (let u = 0; u <= n; u++) for (let w = 0; w <= n - u; w++) { p.copy(a).multiplyScalar(1 - (u + w) / n).addScaledVector(b, u / n).addScaledVector(c, w / n); add(p.x, p.y, p.z); }
     }
+  }
+  // gaps inside a tree (a cell its leaves only graze, or skip): filled from the cells round it, so nothing can wedge itself into the middle of one
+  for (let pass = 0; pass < 2; pass++) {
+    const add2 = [];
+    const solid = (i, j) => { const e = cells.get(i + ',' + j); return e && e.y1 - e.y0 >= 0.5 ? e : null; };
+    const seen = new Set(); for (const e of cells.values()) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const i = e.i + di, j = e.j + dj, k = i + ',' + j; if (seen.has(k) || solid(i, j)) continue; seen.add(k);
+      let n = 0, y0 = 0, y1 = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const q = (a || b) && solid(i + a, j + b); if (q) { n++; y0 += q.y0; y1 += q.y1; } }
+      if (n >= 5) add2.push({ i, j, y0: y0 / n, y1: y1 / n, d: CELL });
+    }
+    for (const e of add2) cells.set(e.i + ',' + e.j, e);
   }
   const out = [];
   for (const e of cells.values()) {
@@ -1921,6 +1935,101 @@ function buildTracks(L, draw, col) {
   // the main road on into the pass, the colour of the drawn roads
   if (R && R.pass) { const P = R.pass, pts = [[P.at[0], P.at[1] - 4]]; for (let z = P.at[1]; z <= P.saddle + 30; z += 6) pts.push([rangePassX(P, z), z]); strip(pts, [[-2.6, 0x8d8478], [2.6, 0x8d8478]], 0.1, 'Road_pass'); }
 }
+// Smooth the island's hills (L.smoothGround, Austin 2026-11-25: you got stuck on and in them, on foot and driving). The ground's top surface on a GRID, then a
+// thermal erosion: wherever it's steeper than SLOPE between neighbours, earth slides from the high one to the low one, over and over, till nothing is (bumps, creases
+// and steep little banks soften; the hills stay hills). Only inside the area given and away from what must stay put: the fort, the bunker's mound, the roads'
+// level tops, the mountains, and anywhere the ground drops a lot within a few metres (the cliffs along the coast and the valley: real cliffs stay cliffs). The change
+// fades out over the edges of all that and is never more than MAXD; every vertex of the ground as drawn and as collided with that lies on the top surface moves by
+// it, so the two stay together. Before the trees are planted, so they stand on the new ground
+function smoothGround(L, draw, col) {
+  const S = L.smoothGround, [X0, X1, Z0, Z1] = S.box, G = 1, SLOPE = S.slope, MAXD = S.max, NX = Math.ceil((X1 - X0) / G) + 1, NZ = Math.ceil((Z1 - Z0) / G) + 1;
+  const sm = u => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+  const grounds = [], draws = []; col.updateMatrixWorld(true); draw.updateMatrixWorld(true);
+  col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) grounds.push(o); });
+  for (const n of ['M_Material001', 'Ground_ext']) { const o = draw.getObjectByName(n); if (o && o.isMesh) draws.push(o); }
+  // the top surface: every ground triangle laid onto the grid, the highest one at each point
+  const H = new Float32Array(NX * NZ).fill(-1e9), a = new V3(), b = new V3(), c = new V3();
+  for (const o of grounds) {
+    const pa = o.geometry.attributes.position, ix = o.geometry.index, n = ix ? ix.count : pa.count;
+    for (let t = 0; t < n; t += 3) {
+      a.fromBufferAttribute(pa, ix ? ix.getX(t) : t).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(pa, ix ? ix.getX(t + 1) : t + 1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(pa, ix ? ix.getX(t + 2) : t + 2).applyMatrix4(o.matrixWorld);
+      const i0 = Math.max(0, Math.ceil((Math.min(a.x, b.x, c.x) - X0) / G)), i1 = Math.min(NX - 1, Math.floor((Math.max(a.x, b.x, c.x) - X0) / G));
+      const j0 = Math.max(0, Math.ceil((Math.min(a.z, b.z, c.z) - Z0) / G)), j1 = Math.min(NZ - 1, Math.floor((Math.max(a.z, b.z, c.z) - Z0) / G));
+      const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Math.abs(d) < 1e-9) continue;
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const x = X0 + i * G, z = Z0 + j * G, u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, w = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, v = 1 - u - w;
+        if (u < -1e-6 || w < -1e-6 || v < -1e-6) continue;
+        const y = u * a.y + w * b.y + v * c.y, k = j * NX + i; if (y > H[k]) H[k] = y;
+      }
+    }
+  }
+  // what stands on the ground (trees, rocks, anything drawn but the ground and the roads): the ground under it stays as it is, so nothing floats or sinks
+  const pin = new Uint8Array(NX * NZ), skip = new Set([...draws, ...grounds]);
+  draw.traverse(o => {
+    if (!o.isMesh || skip.has(o) || /^Road/.test(o.name)) return;
+    const pa = o.geometry.attributes.position; if (!pa) return;
+    for (let i = 0; i < pa.count; i++) {
+      a.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); const ii = Math.round((a.x - X0) / G), jj = Math.round((a.z - Z0) / G);
+      if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) continue; const k = jj * NX + ii; if (H[k] > -1e8 && a.y < H[k] + 0.4) pin[k] = 1; // (where it meets the ground: a trunk's foot, a rock's base)
+    }
+  });
+  // where it may change (0 to 1): inside the box, off the fort, the mound, the roads' tops and the mountains, not by a big drop, nor under what stands on it
+  const keep = new Float32Array(NX * NZ), R = L.roads, lines = [...(R ? R.roads : []), ...(L.tracks || [])], flat = (R ? R.flat : 2) + 1.5;
+  const segD = (x, z, p, q) => { const dx = q[0] - p[0], dz = q[1] - p[1], t = Math.max(0, Math.min(1, ((x - p[0]) * dx + (z - p[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - p[0] - dx * t, z - p[1] - dz * t); };
+  const boxD = (x, z, B) => Math.hypot(Math.max(B[0] - x, 0, x - B[1]), Math.max(B[2] - z, 0, z - B[3])); // (0 inside)
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const k = j * NX + i, x = X0 + i * G, z = Z0 + j * G; if (H[k] < -1e8) continue;
+    let w = sm(Math.min(x - X0, X1 - x, z - Z0, Z1 - z) / 4);
+    for (const B of S.keep || []) w *= sm(boxD(x, z, B) / 4);
+    if (L.range) w *= sm((rangeFoot(L.range, x) - 8 - z) / 4);
+    let rd = 1e9; for (const pts of lines) for (let q = 0; q + 1 < pts.length; q++) rd = Math.min(rd, segD(x, z, pts[q], pts[q + 1])); w *= sm((rd - flat) / 2.5);
+    let lo = 1e9, hi = -1e9; for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NX || jj >= NZ) continue; const h = H[jj * NX + ii]; if (h < -1e8) { lo = -1e9; continue; } lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    w *= sm((S.cliff - (hi - lo)) / 3); // (a drop of S.cliff or more within 3 m: a cliff, left alone)
+    let pd = 9; for (let dj = -3; dj <= 3 && pd > 0; dj++) for (let di = -3; di <= 3; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < NX && jj < NZ && pin[jj * NX + ii]) pd = Math.min(pd, Math.hypot(di, dj)); }
+    w *= sm((pd - 0.5) / 1.5);
+    keep[k] = w;
+  }
+  // the erosion
+  const E = Float32Array.from(H), dl = new Float32Array(NX * NZ), N4 = [[1, 0], [0, 1]];
+  for (let it = 0; it < S.passes; it++) {
+    dl.fill(0);
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+      const k = j * NX + i; if (keep[k] <= 0) continue;
+      for (const [di, dj] of N4) {
+        const ii = i + di, jj = j + dj; if (ii >= NX || jj >= NZ) continue; const m = jj * NX + ii; if (keep[m] <= 0) continue;
+        const d = E[k] - E[m], ex = Math.abs(d) - SLOPE * G; if (ex <= 0) continue;
+        const mv = ex * 0.2 * Math.min(keep[k], keep[m]) * Math.sign(d); dl[k] -= mv; dl[m] += mv;
+      }
+    }
+    for (let k = 0; k < E.length; k++) E[k] += dl[k];
+  }
+  const D = new Float32Array(NX * NZ); for (let k = 0; k < D.length; k++) D[k] = keep[k] > 0 ? Math.max(-MAXD, Math.min(MAXD, E[k] - H[k])) * Math.min(1, keep[k] * 1.5) : 0;
+  const at = (A, x, z) => { const fx = (x - X0) / G, fz = (z - Z0) / G, i = Math.floor(fx), j = Math.floor(fz); if (i < 0 || j < 0 || i >= NX - 1 || j >= NZ - 1) return null; const u = fx - i, v = fz - j, k = j * NX + i;
+    if (A === H && (H[k] < -1e8 || H[k + 1] < -1e8 || H[k + NX] < -1e8 || H[k + NX + 1] < -1e8)) return null;
+    return (A[k] * (1 - u) + A[k + 1] * u) * (1 - v) + (A[k + NX] * (1 - u) + A[k + NX + 1] * u) * v; };
+  // move the vertices on the top surface (both meshes), and make their normals again
+  const v = new V3();
+  for (const o of [...grounds, ...draws]) {
+    const g = o.geometry, pos = g.attributes.position, m = o.matrixWorld, inv = m.clone().invert(), moved = new Uint8Array(pos.count); let n = 0;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m); const d = at(D, v.x, v.z); if (!d || Math.abs(d) < 1e-3) continue;
+      const top = at(H, v.x, v.z); if (top === null || v.y < top - 0.8) continue; // (a cliff's face below the top: as it was)
+      v.y += d; v.applyMatrix4(inv); pos.setXYZ(i, v.x, v.y, v.z); moved[i] = 1; n++;
+    }
+    if (!n) continue;
+    pos.needsUpdate = true; g.computeBoundingSphere(); g.computeBoundingBox();
+    const nrm = g.attributes.normal; if (!nrm) continue; // (normals made again for what moved only, smooth: the faces round each point, however the mesh splits its vertices)
+    const ix = g.index, tri = ix ? ix.count : pos.count, key = i => Math.round(pos.getX(i) * 50) + ',' + Math.round(pos.getY(i) * 50) + ',' + Math.round(pos.getZ(i) * 50), acc = new Map(), e1 = new V3(), e2 = new V3();
+    const keys = new Array(pos.count); for (let i = 0; i < pos.count; i++) keys[i] = key(i);
+    for (let t = 0; t < tri; t += 3) {
+      const i0 = ix ? ix.getX(t) : t, i1 = ix ? ix.getX(t + 1) : t + 1, i2 = ix ? ix.getX(t + 2) : t + 2; if (!(moved[i0] || moved[i1] || moved[i2])) continue;
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2); e1.subVectors(b, a); e2.subVectors(c, a); e1.cross(e2);
+      for (const i of [i0, i1, i2]) { const q = acc.get(keys[i]) || [0, 0, 0]; q[0] += e1.x; q[1] += e1.y; q[2] += e1.z; acc.set(keys[i], q); }
+    }
+    for (let i = 0; i < pos.count; i++) { if (!moved[i]) continue; const q = acc.get(keys[i]); if (!q) continue; const l = Math.hypot(q[0], q[1], q[2]) || 1; nrm.setXYZ(i, q[0] / l, q[1] / l, q[2] / l); }
+    nrm.needsUpdate = true;
+  }
+}
 // Level the old ground along the new roads, and heap the hill over the bunker: the vertices of the ground as drawn and as collided with move (both by the same rule, so
 // they stay together), with the normals of what moved made again. Done once, before the level's triangles are read.
 function regradeGround(L, draw, col) {
@@ -1979,6 +2088,12 @@ function regradeGround(L, draw, col) {
   if (extSegs.length) for (const o of [draw.getObjectByName('Ground_ext'), col.getObjectByName('Terrain_ext')]) if (o && o.isMesh) edit(o, true);
   draw.updateMatrixWorld(true); col.updateMatrixWorld(true);
 }
+// A tree's trunk (or a pine's post) to collide with: a round post with a point on top instead of a flat cap, steep enough to be wall, so nothing lands and sits on top of
+// it (a motorcycle jumping into a tree's leaves came to rest on its trunk's top, 2026-11-25)
+function solidPost(col, cm, rTop, rBot, h, at) {
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 8, 1, true), cm); c.position.copy(at); col.add(c); c.updateMatrixWorld();
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(rTop, rTop * 1.3, 8, 1, true), cm); tip.position.set(at.x, at.y + h / 2 + rTop * 0.65, at.z); col.add(tip); tip.updateMatrixWorld();
+}
 // Trees for cover (L.trees: [x, z] each, where Austin drew them) and a denser forest around them. Every drawn tree gets a companion a few metres away (a tall pine
 // or another round one, in turn), and every tree has a few clumps of the spiky plant growing from the ground round its foot. A round tree is a thick trunk that stops
 // shots and people (it is in the collision set too, so bots walk round it) and a few faceted balls of leaves overhead; a pine is a tall dark spire standing from the
@@ -2031,7 +2146,7 @@ function addTrees(L, draw, col, cm) {
     const u = (i * 0.618034 + 0.17) % 1, th = 3 + 3.2 * u, s = (0.85 + 0.35 * u) * (0.94 + 0.12 * rnd(i * 5 + 1)), a0 = rnd(i * 5 + 2) * Math.PI * 2, bot = low - 0.25;
     const geo = new THREE.CylinderGeometry(0.3 * s, 0.48 * s, y + th - bot, 8), at = new V3(x, (y + th + bot) / 2, z);
     emit('bark', bark, geo, new THREE.Matrix4().makeTranslation(at.x, at.y, at.z), 0xffffff);
-    const c = new THREE.Mesh(geo, cm); c.position.copy(at); col.add(c); c.updateMatrixWorld();
+    solidPost(col, cm, 0.3 * s, 0.48 * s, y + th - bot, at);
     const ball = (r, dx, dy, dz, k) => emit('leaf' + (k % 3), leaves[k % 3], new THREE.IcosahedronGeometry(r, 1), new THREE.Matrix4().makeTranslation(x + dx, y + th + dy, z + dz), 0xffffff, { paint: true, shadow: true });
     ball(2.3 * s, 0, 0.9 * s, 0, i); ball(1.4 * s, 0, 2.7 * s, 0, i + 1);
     for (let k = 0; k < 3; k++) { const a = a0 + k * 2.1 + rnd(i * 5 + 3 + k) * 0.6; ball((1.2 + 0.35 * rnd(i * 5 + 4 + k)) * s, Math.cos(a) * 1.5 * s, (0.2 + 0.35 * k) * s, Math.sin(a) * 1.5 * s, i + k + 2); }
@@ -2040,7 +2155,7 @@ function addTrees(L, draw, col, cm) {
     const h = 7 + 5 * rnd(i * 5 + 6), R = (1.25 + 0.55 * rnd(i * 5 + 7)) * (0.85 + 0.3 * (h - 7) / 5), a0 = rnd(i * 5 + 8) * Math.PI * 2, base = low - 0.35;
     const prof = [[0.001, 0], [0.86, 0], [1, 0.16], [0.96, 0.38], [0.8, 0.6], [0.55, 0.8], [0.26, 0.94], [0.001, 1]].map(([r, t]) => new THREE.Vector2(r * R, t * h));
     emit('pine', pineMat, new THREE.LatheGeometry(prof, 8), new THREE.Matrix4().makeRotationY(a0).setPosition(x, base, z), PINES[i % 3], { paint: true, shadow: true });
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * R, 0.75 * R, h, 8), cm); c.position.set(x, base + h / 2, z); col.add(c); c.updateMatrixWorld();
+    solidPost(col, cm, 0.3 * R, 0.75 * R, h, new V3(x, base + h / 2, z));
   };
   sites.forEach(([x, z, kind], i) => {
     const y = groundAt(x, z); if (y === null) return;
@@ -2085,6 +2200,7 @@ function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
   if (!col || col.userData.extras) return; col.userData.extras = true;
   regradeGround(L, draw, col);
+  if (L.smoothGround && params.get('smooth') !== 'off') smoothGround(L, draw, col); // (after the roads are levelled, before the trees are planted on it; ?smooth=off: the ground as modelled)
   const cm = new THREE.MeshBasicMaterial({ visible: false }), wood = toonMat({ color: 0x6b4a2e }), dark = toonMat({ color: 0x3e2a1a });
   const box = (g, m, x0, x1, y0, y1, z0, z1) => { const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m); o.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); o.castShadow = o.receiveShadow = true; g.add(o); o.updateMatrixWorld(); return o; };
   const both = (x0, x1, y0, y1, z0, z1, m = wood) => { box(col, cm, x0, x1, y0, y1, z0, z1); box(draw, m, x0, x1, y0, y1, z0, z1); };
@@ -8237,7 +8353,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=51"></script>
+<script src="vehicles.js?v=55"></script>
 <script src="range.js?v=33"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=35"></script>
