@@ -1156,19 +1156,33 @@ function levelFortress() {
     // Team free for all: both sides start far from the fort, in the two clearings the island now has to the south, a mountain between them: the Pirates in A,
     // Midas in B. The fort is in the middle for whoever gets there first (the road behind the hill, where Midas used to start, is a free-for-all spawn now)
     teamSpawns: { pirates: [23, 24, 25, 26, 27, 28, 29, 30], midas: [31, 32, 33, 34, 35, 36, 37, 38] },
-    ammo: [[-3.9, 34, 2.2], [2.2, 37.5, 3.9], [-0.5, 37.5, -5.3], [4.8, 37.5, 5.4], [6.4, 44.5, 3.4], [3.6, 37.5, -5.3, 1], [-0.2, 37.5, 3.7, 1],
-      [-8, 30, 16], [-22, 26, 26], [10, 32.5, 40], [28, 35, 44, 1], [6, 23.5, 55],
-      [-36, 26.8, 99], [-43, 26.9, 92.5], [-39.5, 26.8, 89.5], [-34.5, 26.9, 95.4, 1], [50, 24.9, 100], [42, 24.9, 92], [47, 25.0, 89.5], [52, 24.9, 97, 1], [-27.7, 25.4, 58.2], [33.9, 25.6, 85.9]],
-    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 42], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5]],
-    // Everyone starts with the Pistol and the Carbine, so the rest are the prizes, few of each (and a spot doesn't fill again while its weapon is still
-    // about: PICKUP_LIMIT): the Master Rifle beside the Computer in the tower room, the F tube on the hilltop beside the truck, two Izus (the back
-    // corridor, the hill across the valley) and two Battery Guns (the courtyard, the valley floor by the road). No Pistols or Carbines lie about: you scavenge the dead's
-    pickups: [['rifle', 4.4, 44.3, 2.6], ['bazooka', 28, 33.9, 50],
-      ['uzi', 0.3, 37.5, -5.3], ['uzi', 10, 32.5, 40],
-      ['shotgun', -1.0, 34, 2.3], ['shotgun', 2, 24.5, 56]], // (the valley floor's at 24.07 there: at 23.5 the gun lay under it once it stopped hovering)
-    // A motorcycle in the courtyard facing the gate, and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
+    // Battery packs and weapons where Austin drew them (the pickup sheet, docs/map-renders/fortress_pickup_map_2026-11-25.png, 2026-11-26): ammo [x, y, z, F],
+    // F 1 for an F pack (grenades, mines, the F tube's rockets), else a D pack
+    ammo: [
+      [0.0, 34, 2.0], [1.1, 34, 2.0, 1],                                    // the courtyard, by the Battery Gun
+      [-10.4, 28.3, -3.6, 1],                                               // the cellar, by the Izu
+      [0.35, 37.5, -5.9, 1], [1.5, 37.5, -5.9],                             // the wall walk on the north side, by the Izu
+      [-2.9, 37.5, 3.4, 1], [-3.7, 37.5, 4.0],                              // the bridge over the gate, by the Master Rifle
+      [6.25, 44.5, 2.5, 1], [5.85, 44.5, 3.45],                             // the computer room
+      [5.9, 47.9, 1.1],                                                     // the roof (beside the pipe along it)
+      [-19.95, 26.7, 21.37, 1], [-19.67, 26.7, 21.66],                      // in the back of the crashed truck on the hill (placeWreck), by the Battery Gun
+      [12.8, 23.4, 52.6, 1], [14.75, 23.4, 53.4],                           // the valley floor, by the F tube
+      [-37.3, 27.6, 66.75], [-34.9, 26.4, 69.0, 1],                         // west of the valley road, by the Battery Gun (the D pack drawn in on its uphill side: pileUp)
+      [46.25, 25.1, 80.9], [44.1, 24.9, 83.5, 1],                           // east, by the Battery Gun
+      [-3.5, 46.4, 99.25], [-1.0, 45.2, 98.75, 1]],                         // on the mountain between the clearings, with the F tube, the Master Rifle and the Izu
+    heals: [[1.9, 34, 1.9], [-4.3, 37.5, 4.4], [1.0, 37.5, -5.3], [6.1, 44.5, 2.6], [-10, 30.5, 18], [16, 33, 41.4], [-14, 26.5, 52], [-41.5, 26.9, 100.5], [43, 25.1, 101.5]],
+    // Everyone starts with the Pistol and the Carbine, so the rest are the prizes (and a spot doesn't fill again while its weapon is still about: PICKUP_LIMIT). Where
+    // Austin drew them (2026-11-26): Master Rifles on the bridge over the gate and on the mountain between the clearings; F tubes on the valley floor and the mountain;
+    // Izus in the cellar, on the north wall walk and on the mountain; Battery Guns in the courtyard, in the crashed truck, and west and east of the valley road.
+    // No Pistols or Carbines lie about: you scavenge the dead's
+    pickups: [['rifle', -1.85, 37.5, 3.55], ['rifle', 0.6, 45.0, 104.6],
+      ['bazooka', 10.75, 24.3, 50.9], ['bazooka', -1.6, 46.1, 103.2],
+      ['uzi', -9.6, 28.3, -2.8], ['uzi', -0.95, 37.5, -5.9], ['uzi', -2.0, 45.4, 106.9],
+      ['shotgun', 0.4, 34, 0.65], ['shotgun', -19.18, 26.8, 21.77], ['shotgun', -36.8, 27.6, 65.9], ['shotgun', 42.7, 25.4, 80.25]],
+    // A motorcycle in the courtyard facing the gate, another on the dirt track under the mountains facing east along it (Austin's drawing, 2026-11-26), and a jeep (the truck) on the road behind the hill, in a widened part of the valley (FORT_EXT.pads) with room for the bots to get round it
     // (the walking map leaves out the spot it stands on: buildFortNav). (The dock and its truck and motorcycle went with the sea to the south, 2026-11-23: mountains now)
-    vehicles: [['motorcycle', -2.6, -2.2, 0], ['truck', 15, 57.5, -2.03]],
+    vehicles: [['motorcycle', -1.6, -1.7, 0], ['motorcycle', -0.75, 123.2, Math.PI / 2], ['truck', 15, 57.5, -2.03]],
+    wreck: { at: [-17.6, 19.05], yaw: 2.47, sink: 0.5, flat: 0.2, door: [0.8, 3.2], doorYaw: 0.7 },
     // The roof: out of the computer room's back window (E) onto a balcony, then up a ladder beside the window
     ladders: [{ box: [6.05, 6.85, -2.25, -1.6, 44.95, 47.72], dir: [0, 1] }],
     window: { inside: [5.29, 43.94, -0.45], outside: [5.29, 44.95, -2.25], sill: [5.29, 44.97, -1.42] },
@@ -2245,6 +2259,46 @@ function addTrees(L, draw, col, cm) {
   tg.updateMatrixWorld(true);
 }
 // Pieces the level adds to its set (once): the tower door's collision box, and the balcony outside the tower window
+// The wrecked truck stuck in the hill (Austin's drawing, 2026-11-26: tools/build_crashed_truck.py): its middle at [x, z], turned yaw (its front along (sin yaw, cos yaw)),
+// its rear wheels on the ground (leant over with it, tyres flat by flat), its front, both wheels gone, down on its chassis and into the slope by sink. The left door lies on the ground at door
+// ([along, across] from the truck's middle, in its own frame: +across is its left; turned doorYaw). Solid where it's drawn, for cover: the cab, the chassis, and the container's
+// floor, walls and roof, open at the back, where the ammo and guns lie (the level's lists: the container's floor is a floor). WRECK.at: the truck's frame, once placed
+const WRECK = { m: null };
+function placeWreck(D, sc, draw, col, cm) {
+  const ground = []; col.updateMatrixWorld(true); col.traverse(o => { if (o.isMesh && /^Terrain/.test(o.name)) ground.push(o); });
+  const rc = new THREE.Raycaster(), gy = (x, z) => { rc.set(new V3(x, 100, z), new V3(0, -1, 0)); rc.far = 200; const h = rc.intersectObjects(ground, false)[0]; return h ? h.point.y : 0; };
+  const get = n => sc.getObjectByName(n), wr = get('Wheel_RL').position, under = get('Box_Under'), fx = Math.sin(D.yaw), fz = Math.cos(D.yaw), lx = fz, lz = -fx; // (its left: +x in its frame)
+  const w = (a, c) => [D.at[0] + fx * a + lx * c, D.at[1] + fz * a + lz * c], at = (a, c) => gy(...w(a, c));
+  const rz = wr.z, fzA = -rz, low = under.position.y - under.scale.y + D.sink; // the rear axle (its z), the front one, and the point on the truck that's at ground level there (the chassis's underside, sunk by sink)
+  const gR = (at(rz, wr.x) + at(rz, -wr.x)) / 2, gF = at(fzA, 0), roll = Math.atan2(at(rz, wr.x) - at(rz, -wr.x), 2 * wr.x);
+  let up = 0; for (let k = 0; k < 20; k++) up = Math.asin(Math.max(-0.6, Math.min(0.6, (gF - gR - low * Math.cos(up)) / (fzA - rz)))); // nose up by this much, so the chassis's front rests where the ground is
+  const m = new THREE.Matrix4().compose(new V3(D.at[0], 0, D.at[1]), new THREE.Quaternion().setFromEuler(new THREE.Euler(-up, D.yaw, roll, 'YXZ')), new V3(1, 1, 1));
+  const y0 = gR - new V3(0, 0, rz).applyMatrix4(m).y - (D.flat || 0); // the rear axle's middle on the ground (its tyres flat by flat: down in the dirt, and the back lower to climb into)
+  m.setPosition(D.at[0], y0, D.at[1]); WRECK.m = m;
+  const g = new THREE.Group(); g.name = 'Wreck'; g.matrixAutoUpdate = false; g.matrix.copy(m); draw.add(g);
+  const truck = get('Truck').clone(); truck.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); g.add(truck);
+  const cg = new THREE.Group(); cg.matrixAutoUpdate = false; cg.matrix.copy(m); col.add(cg);
+  const B = get('Box_Back'), bx = B.scale.x, by0 = B.position.y - B.scale.y, by1 = B.position.y + B.scale.y, bz0 = B.position.z - B.scale.z, bz1 = B.position.z + B.scale.z, fl = get('Tailgate').position.y, t = 0.09;
+  const C = get('Box_Cab'), cz1 = C.position.z + C.scale.z;
+  for (const [x0, x1, y0b, y1, z0, z1] of [
+    [-bx, bx, -0.6, fl, bz0, bz1], [-0.95, 0.95, -0.6, C.position.y + C.scale.y, bz1, cz1], // the chassis under the container's floor (down into the ground), the cab
+    [bx - t, bx, by0, by1, bz0, bz1], [-bx, -bx + t, by0, by1, bz0, bz1], [-bx, bx, by1 - t, by1, bz0, bz1], [-bx, bx, by0, by1, bz1 - t, bz1]]) { // the container's sides, roof and front wall
+    const o = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0b, z1 - z0), cm); o.position.set((x0 + x1) / 2, (y0b + y1) / 2, (z0 + z1) / 2); cg.add(o);
+  }
+  { // a crate spilled out of the back onto the ground behind it: a step up into the back (halfway between the ground and the container's floor at its edge), for bots too
+    const [x, z] = w(rz - 1.79 - 0.55, 0.15), g0 = gy(x, z), edge = new V3(0, fl, bz0).applyMatrix4(m).y, h = Math.max(0.3, Math.min(0.55, (edge - g0) / 2)), s = 0.8;
+    for (const [grp, mat] of [[draw, MAT.crate], [col, cm]]) {
+      const o = new THREE.Mesh(new THREE.BoxGeometry(s, h + 0.3, s), mat); o.position.set(x, g0 + (h - 0.3) / 2, z); o.rotation.y = D.yaw + 0.15; o.castShadow = o.receiveShadow = true; grp.add(o); o.updateMatrixWorld();
+    }
+  }
+  if (D.door) { // the door it lost, flat on the ground, tipped to the slope
+    const [a, c] = D.door, [x, z] = w(a, c), d = get('Door').clone(), e = 0.6, sx = (at(a, c + e) - at(a, c - e)) / (2 * e), sz = (at(a + e, c) - at(a - e, c)) / (2 * e);
+    d.position.set(x, gy(x, z) + 0.02, z); d.rotation.set(0, D.yaw + (D.doorYaw || 0), 0); d.updateMatrix();
+    const n = new V3(-(sx * lx + sz * fx), 1, -(sx * lz + sz * fz)).normalize(); d.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), n));
+    d.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); draw.add(d);
+  }
+  g.updateMatrixWorld(true); cg.updateMatrixWorld(true); draw.updateMatrixWorld(true);
+}
 function addSetExtras(L) {
   const col = LEVEL_SCENES[L.collide || L.mesh], draw = LEVEL_SCENES[L.mesh];
   if (!col || col.userData.extras) return; col.userData.extras = true;
@@ -2267,6 +2321,7 @@ function addSetExtras(L) {
   if (L.tracks || L.hideRoads) buildTracks(L, draw, col);
   if (L.trees) addTrees(L, draw, col, cm);
   if (L.bunker) buildBunker(L.bunker, L.cellar, col, draw, cm);
+  if (L.wreck && LEVEL_SCENES.Crashed_Truck) placeWreck(L.wreck, LEVEL_SCENES.Crashed_Truck, draw, col, cm);
   // The tower door's walking shape (shut or open with the door). Bullets don't test it: they hit the door you see (TDOOR.shot),
   // which swings with the door, so only a shut door stops them
 
@@ -3525,7 +3580,7 @@ function loadModels() {
 }
 // Level sets: the drawn version (textured) and the collision version (never drawn), fetched the first time a level needs them.
 // Water bounds the island but isn't solid.
-const SET_FILES = { Fortress_v5: ['Fortress_v5_col', 'Fortress_ext', 'Fortress_ext_col'] };
+const SET_FILES = { Fortress_v5: ['Fortress_v5_col', 'Fortress_ext', 'Fortress_ext_col', 'Crashed_Truck'] }; // (Crashed_Truck: the wreck on the hill, tools/build_crashed_truck.py: placeWreck)
 const setLoads = {};
 const levelSet = id => { const m = LEVEL_DEFS[id] && LEVEL_DEFS[id]().mesh; return SET_FILES[m] ? m : null; };
 const levelReady = id => { const d = levelSet(id); return !d || !!LEVEL_SCENES[d]; };
@@ -3533,7 +3588,8 @@ const ensureLevel = id => { const d = levelSet(id); return d ? loadSet(d) : Prom
 function loadSet(d) {
   if (setLoads[d]) return setLoads[d];
   const isWater = o => o.name === 'Water' || (o.parent && o.parent.name === 'Water'), [c] = SET_FILES[d];
-  return setLoads[d] = Promise.all([d, ...SET_FILES[d]].map(parseGLB)).then(([sc, col, ext, extCol]) => {
+  return setLoads[d] = Promise.all([d, ...SET_FILES[d]].map(parseGLB)).then(([sc, col, ext, extCol, wreck]) => {
+    if (wreck) LEVEL_SCENES.Crashed_Truck = wreck;
     if (ext) { // the new ground south of the old island (tools/build_fortress_ext.py) and its roads, drawn and collided with like the rest of the set
       ext.traverse(o => { if (o.isMesh && o.name === 'Road_ext') { o.castShadow = false; o.material.polygonOffset = true; o.material.polygonOffsetFactor = o.material.polygonOffsetUnits = -2; } });
       sc.add(ext); col.add(extCol);
@@ -5079,7 +5135,7 @@ function buildAmmoBoxes() {
   if (RANGE.on) {
     const spots = AMMO_SPOTS.map(a => ({ pos: a.pos, cell: a.cell, kind: a.nade ? 'F' : 'D', yaw: a.yaw })); // (just the two kinds, D and F; the ones by a weapon lie alongside it: pileUp)
     for (const { pos: p, cell, kind, yaw } of spots) {
-      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); g.rotation.y = yaw ?? lieYaw(p); scene.add(g); // (on the ground)
+      const g = RANGE.packMesh(kind); g.position.set(p.x, p.y + 0.01, p.z); g.rotation.y = yaw ?? lieYaw(p); tiltTo(g, p); scene.add(g); // (on the ground, along its slope)
       ammoBoxes.push({ pos: p, cell: cell !== undefined ? cell : cellOf(p), mesh: g, active: true, t: 0, nade: kind === 'F', kind });
     }
   }
@@ -5116,6 +5172,14 @@ let PICKUP_KEY = 0;
 function clearPickups() { PICKUPS.forEach(pk => scene.remove(pk.mesh)); PICKUPS.length = 0; PICKUP_KEY = 0; }
 const PICKUPS = [];
 // Where something lying on the ground points: a turn from where it lies, so it's the same on every machine and every round
+// The way up of the floor under something lying at p: the slope from the floor r either side of it, so whatever lies there lies along the ground instead of level with one end in
+// it (on the hills, and in the crashed truck's back). Floor that isn't there, or is a step up or down (a wall, an edge), counts as level on that side
+function floorUp(p, r = 0.3) {
+  const h = (x, z) => { const g = TG ? groundAt(x, z, p.y + 0.4) : null; return g === null || Math.abs(g - p.y) > 0.3 ? null : g; };
+  const sl = (a, b) => (a !== null && b !== null ? (a - b) / (2 * r) : a !== null ? (a - p.y) / r : b !== null ? (p.y - b) / r : 0);
+  return new V3(-sl(h(p.x + r, p.z), h(p.x - r, p.z)), 1, -sl(h(p.x, p.z + r), h(p.x, p.z - r))).normalize();
+}
+const tiltTo = (o, p) => { o.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(Y_UP, floorUp(p))); return o; };
 const lieYaw = p => { const h = Math.sin(p.x * 12.9898 + p.z * 78.233) * 43758.5453; return (h - Math.floor(h)) * Math.PI * 2; };
 // A weapon on the ground, as if someone set it down: on its side (its thinnest way up), resting on the floor, turned lieYaw, or the next way round from there
 // (a twelfth of a turn at a time) that keeps both its ends out of the walls. (They stood up, spun and bobbed until 2026-11-21)
@@ -5127,7 +5191,7 @@ function lyingGun(id, pos) {
   m.position.y -= b.min.y - 0.01; // its lowest point on the floor
   const y0 = lieYaw(pos), clear = yaw => { const dx = alongX ? Math.cos(yaw) : Math.sin(yaw), dz = alongX ? -Math.sin(yaw) : Math.cos(yaw); return [1, -1].every(sg => !meshWallPt(pos.x + dx * hl * sg, pos.y + 0.08, pos.z + dz * hl * sg, 0.07)); };
   let yaw = y0; if (TG) for (let k = 0; k < 12; k++) if (clear(y0 + k * Math.PI / 6)) { yaw = y0 + k * Math.PI / 6; break; }
-  g.rotation.y = yaw; g.position.copy(pos); return g;
+  g.rotation.y = yaw; g.position.copy(pos); return tiltTo(g, pos);
 }
 function addPickup(id, pos, opt) {
   const mesh = lyingGun(id, pos); scene.add(mesh);
@@ -5195,8 +5259,8 @@ function placeProps() {
   for (const spot of LV.heals || []) {
     const p = settle(spot), g = new THREE.Group(), box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.45), HEAL_MAT);
     const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.1), CROSS_MAT), bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.34), CROSS_MAT);
-    bar1.position.y = bar2.position.y = 0.18; box.castShadow = box.receiveShadow = bar1.receiveShadow = bar2.receiveShadow = true; g.add(box, bar1, bar2);
-    g.position.set(p.x, p.y + 0.18, p.z); propGroup.add(g);
+    box.position.y = 0.18; bar1.position.y = bar2.position.y = 0.36; box.castShadow = box.receiveShadow = bar1.receiveShadow = bar2.receiveShadow = true; g.add(box, bar1, bar2);
+    g.position.set(p.x, p.y + 0.005, p.z); tiltTo(g, p); propGroup.add(g); // (along the floor's slope)
     registerHeal([g], p);
   }
 }
