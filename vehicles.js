@@ -219,7 +219,7 @@
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
-    v.heads = v.tails = v.lens = null; // (a model's lenses, or none for one built from boxes)
+    v.heads = v.tails = v.lens = v.tailLens = v.dome = null; // (a model's lenses, or none for one built from boxes)
     Object.assign(v, v.kind === 'motorcycle' ? buildMotorcycle(v) : buildTruck(v));
     v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
@@ -252,12 +252,9 @@
     const M = new THREE.Matrix4().copy(o.matrixWorld).invert().multiply(v.g.matrixWorld);
     const dip = LAMP_DIP[v.kind], ahead = new V3(0, -Math.sin(dip), Math.cos(dip)).transformDirection(M);
     const head = p => ({ o, p, d: ahead.clone(), far: moto ? 30 : 40, cone: 0.92, fov: 46, asp: LAMP_ASP[v.kind] || 1, col: HEAD_COL });
-    if (v.heads && v.heads.length) { // the truck, from its model's lenses
-      const out = lensSpots(v.heads, o, true, true).map(head);
-      return out;
-    }
-    let at;
-    if (v.model && v.kind === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
+    let at, lamps = null;
+    if (v.heads && v.heads.length) lamps = lensSpots(v.heads, o, true, true).map(head); // the truck, from its model's lenses
+    else if (v.model && v.kind === 'truck') at = [[0.62, 1.76, 3.6], [-0.62, 1.76, 3.6]];
     else if (moto && MODELS[v.key] && MODELS[v.key].motorcycle) at = [[0, 1.085, 0.655]]; // the middle of the model's headlight lens
     else if (moto) at = [[0, v.p.wheelR + 0.5, v.p.wheelbase / 2 + 0.2]];
     else {
@@ -266,11 +263,20 @@
       if (b.isEmpty()) return [];
       at = [1, -1].map(sd => [sd * (b.max.x - b.min.x) * 0.3, b.min.y + (b.max.y - b.min.y) * 0.3, b.max.z + 0.05]);
     }
-    const lamps = at.map(a => head(new V3(a[0], a[1], a[2]).applyMatrix4(M)));
+    if (!lamps) lamps = at.map(a => head(new V3(a[0], a[1], a[2]).applyMatrix4(M)));
     if (moto) { // the motorcycle's lens: a disc over the model's own, which glows at night
       const lens = new THREE.Mesh(new THREE.CircleGeometry(0.072, 20), new THREE.MeshBasicMaterial({ color: 0x5a5648, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
       lens.position.copy(lamps[0].p); lens.lookAt(lens.position.clone().add(new V3(0, 0, 1).transformDirection(M))); o.add(lens);
       v.lens = lens;
+    }
+    if (moto && MODELS[v.key] && MODELS[v.key].motorcycle) { // a tail light on the tip of the back mudguard (the model has none): red, dim with the headlights, bright on the brakes
+      v.body.updateMatrixWorld(true);
+      const Mb = new THREE.Matrix4().copy(v.body.matrixWorld).invert().multiply(v.g.matrixWorld), tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.03), new THREE.MeshBasicMaterial({ color: TAIL_OFF }));
+      tail.position.set(0, 0.94, -1.315).applyMatrix4(Mb); v.body.add(tail); v.tailLens = tail;
+    }
+    if (v.model && v.kind === 'truck') { // a dome light under the container's roof, on with the headlights, that lights the back
+      const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.05, 14), new THREE.MeshBasicMaterial({ color: DOME_OFF }));
+      dome.position.set(0, 3.615, -1.2); v.body.add(dome); v.dome = dome;
     }
     return lamps;
   }
@@ -292,6 +298,7 @@
   // the driver, the whole time S (back) or Space is held; everyone else gets the driver's word (brakeOn, in the vehicle's
   // network state)
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
+  const TAIL_OFF = 0x3a1210, TAIL_DIM = 0x8a1a12, TAIL_ON = 0xff3020, DOME_OFF = 0x5a5650, DOME_ON = 0xfff0c8;
   function lampGlow(v) {
     const lit = !v.dead && !!v.lightsOn; // (day or night, since 2026-11-24)
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
@@ -299,7 +306,24 @@
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
     for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : _off);
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
+    if (v.tailLens) v.tailLens.material.color.setHex(v.brakeOn ? TAIL_ON : lit ? TAIL_DIM : TAIL_OFF);
+    if (v.dome) v.dome.material.color.setHex(lit ? DOME_ON : DOME_OFF);
   }
+  // Their glows (index.html's GLOW): the dome light fills the truck's back with warm light; a brake light throws red on the ground behind (a little with only the
+  // headlights on). Stronger at night, faint by day
+  const _gp = new V3();
+  GLOW_SRC.push(() => {
+    const out = [], k = nightOn() ? 1 : 0.3;
+    for (const v of list) {
+      if (v.dead) continue;
+      if (v.dome && v.lightsOn) out.push({ p: v.dome.getWorldPosition(new V3()).add(_gp.set(0, -0.35, 0)), c: new V3(1, 0.82, 0.55).multiplyScalar(1.5 * k), r: 3.4 });
+      if (v.tailLens && (v.brakeOn || v.lightsOn)) {
+        const p = v.tailLens.getWorldPosition(new V3()).add(_gp.set(-Math.sin(v.yaw) * 0.3, 0, -Math.cos(v.yaw) * 0.3));
+        out.push({ p, c: new V3(1, 0.06, 0.04).multiplyScalar((v.brakeOn ? 1.1 : 0.3) * k), r: 3 });
+      }
+    }
+    return out;
+  });
 
   // L at the wheel: the headlights on or off (they stay that way when you get out)
   function toggleLights() { const v = cur; if (!v) return; v.lightsOn = !v.lightsOn; v.lightsSet = true; note(`Headlights ${v.lightsOn ? 'on' : 'off'}`, 1); }
