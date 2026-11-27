@@ -219,7 +219,7 @@
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
-    v.heads = v.tails = v.lens = v.tailLens = v.dome = null; // (a model's lenses, or none for one built from boxes)
+    v.heads = v.tails = v.lens = v.tailLens = v.tailAt = v.dome = null; // (a model's lenses, or none for one built from boxes)
     Object.assign(v, v.kind === 'motorcycle' ? buildMotorcycle(v) : buildTruck(v));
     v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
@@ -274,6 +274,7 @@
       const Mb = new THREE.Matrix4().copy(v.body.matrixWorld).invert().multiply(v.g.matrixWorld), tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.03), new THREE.MeshBasicMaterial({ color: TAIL_OFF }));
       tail.position.set(0, 0.94, -1.315).applyMatrix4(Mb); v.body.add(tail); v.tailLens = tail;
     }
+    if (v.tails && v.tails.length) v.tailAt = lensSpots(v.tails, v.body, false, false)[0]; // the truck's brake lights: the middle of the two, just behind them (their glow)
     if (v.model && v.kind === 'truck') { // a dome light under the container's roof, on with the headlights, that lights the back
       const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.05, 14), new THREE.MeshBasicMaterial({ color: DOME_OFF }));
       dome.position.set(0, 3.615, -1.2); v.body.add(dome); v.dome = dome;
@@ -297,20 +298,20 @@
   // The lenses: headlights glow white when they're on; the brake lights glow red only while braking, day or night: for
   // the driver, the whole time S (back) or Space is held; everyone else gets the driver's word (brakeOn, in the vehicle's
   // network state)
-  const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _off = new THREE.Color(0x000000);
+  const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _tailDim = new THREE.Color(0x5a0a06), _off = new THREE.Color(0x000000);
   const TAIL_OFF = 0x3a1210, TAIL_DIM = 0x8a1a12, TAIL_ON = 0xff3020, DOME_OFF = 0x5a5650, DOME_ON = 0xfff0c8;
   function lampGlow(v) {
     const lit = !v.dead && !!v.lightsOn; // (day or night, since 2026-11-24)
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
     else v.brakeOn = !!v.owner && !!v.netBrake;
     for (const m of v.heads || []) m.material.emissive.copy(lit ? _lampOn : _off);
-    for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : _off);
+    for (const m of v.tails || []) m.material.emissive.copy(v.brakeOn ? _tailOn : lit ? _tailDim : _off); // (dim with the headlights on, like the motorcycle's)
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
     if (v.tailLens) v.tailLens.material.color.setHex(v.brakeOn ? TAIL_ON : lit ? TAIL_DIM : TAIL_OFF);
     if (v.dome) v.dome.material.color.setHex(lit ? DOME_ON : DOME_OFF);
   }
-  // Their glows (index.html's GLOW): the dome light fills the truck's back with warm light; a brake light throws red on the ground behind (a little with only the
-  // headlights on). Stronger at night, faint by day
+  // Their glows (index.html's GLOW): the dome light fills the truck's back with warm light; the brake lights (the motorcycle's and the truck's) throw red on the ground
+  // behind (a little with only the headlights on). Stronger at night, faint by day
   const _gp = new V3();
   GLOW_SRC.push(() => {
     const out = [], k = nightOn() ? 1 : 0.3;
@@ -320,6 +321,10 @@
       if (v.tailLens && (v.brakeOn || v.lightsOn)) {
         const p = v.tailLens.getWorldPosition(new V3()).add(_gp.set(-Math.sin(v.yaw) * 0.3, 0, -Math.cos(v.yaw) * 0.3));
         out.push({ p, c: new V3(1, 0.06, 0.04).multiplyScalar((v.brakeOn ? 1.1 : 0.3) * k), r: 3 });
+      }
+      if (v.tailAt && (v.brakeOn || v.lightsOn)) { // the truck's, the same, wider for its two lamps
+        const p = v.tailAt.clone().applyMatrix4(v.body.matrixWorld).add(_gp.set(-Math.sin(v.yaw) * 0.3, 0, -Math.cos(v.yaw) * 0.3));
+        out.push({ p, c: new V3(1, 0.06, 0.04).multiplyScalar((v.brakeOn ? 1.3 : 0.35) * k), r: 3.8 });
       }
     }
     return out;
