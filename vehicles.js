@@ -219,7 +219,7 @@
   function rebuild(v) {
     if (v.g) scene.remove(v.g);
     v.model = v.shell = v.wreckMesh = null;
-    v.heads = v.tails = v.lens = v.tailLens = v.tailAt = v.dome = null; // (a model's lenses, or none for one built from boxes)
+    v.heads = v.tails = v.lens = v.tailLens = v.tailAt = v.dome = v.cabDome = null; // (a model's lenses, or none for one built from boxes)
     Object.assign(v, v.kind === 'motorcycle' ? buildMotorcycle(v) : buildTruck(v));
     v.lamps = lampsOf(v);
     if (!v.occ || v.occ.length !== v.seats.length) v.occ = v.seats.map((_, k) => (v.occ && v.occ[k]) || null); // occ[k]: who's in seat k (0 is the driver's, kept in owner)
@@ -278,6 +278,8 @@
     if (v.model && v.kind === 'truck') { // a dome light under the container's roof, on with the headlights, that lights the back
       const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.05, 14), new THREE.MeshBasicMaterial({ color: DOME_OFF }));
       dome.position.set(0, 3.615, -1.2); v.body.add(dome); v.dome = dome;
+      const cab = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.03, 12), new THREE.MeshBasicMaterial({ color: DOME_OFF })); // and a small dim one on the cab's ceiling, between the two seats
+      cab.position.set(0, 2.785, 1.55); v.body.add(cab); v.cabDome = cab;
     }
     return lamps;
   }
@@ -299,7 +301,7 @@
   // the driver, the whole time S (back) or Space is held; everyone else gets the driver's word (brakeOn, in the vehicle's
   // network state)
   const _lampOn = new THREE.Color(0xfff2c8), _tailOn = new THREE.Color(0xff1a10), _tailDim = new THREE.Color(0x5a0a06), _off = new THREE.Color(0x000000);
-  const TAIL_OFF = 0x3a1210, TAIL_DIM = 0x8a1a12, TAIL_ON = 0xff3020, DOME_OFF = 0x5a5650, DOME_ON = 0xfff0c8;
+  const TAIL_OFF = 0x3a1210, TAIL_DIM = 0x8a1a12, TAIL_ON = 0xff3020, DOME_OFF = 0x5a5650, DOME_ON = 0xfff0c8, CAB_ON = 0xd8c8a0;
   function lampGlow(v) {
     const lit = !v.dead && !!v.lightsOn; // (day or night, since 2026-11-24)
     if (v === cur) { const inp = input(); v.brakeOn = inp.hand || inp.thr < 0; }
@@ -309,14 +311,16 @@
     if (v.lens) v.lens.material.color.setHex(lit ? 0xfff6d8 : 0x5a5648);
     if (v.tailLens) v.tailLens.material.color.setHex(v.brakeOn ? TAIL_ON : lit ? TAIL_DIM : TAIL_OFF);
     if (v.dome) v.dome.material.color.setHex(lit ? DOME_ON : DOME_OFF);
+    if (v.cabDome) v.cabDome.material.color.setHex(lit ? CAB_ON : DOME_OFF);
   }
-  // Their glows (index.html's GLOW): the dome light fills the truck's back with warm light; the brake lights (the motorcycle's and the truck's) throw red on the ground
+  // Their glows (index.html's GLOW): the dome light fills the truck's back with warm light, and a dim one lights the cab; the brake lights (the motorcycle's and the truck's) throw red on the ground
   // behind (a little with only the headlights on). Stronger at night, faint by day
   const _gp = new V3();
   GLOW_SRC.push(() => {
     const out = [], k = nightOn() ? 1 : 0.3;
     for (const v of list) {
       if (v.dead) continue;
+      if (v.cabDome && v.lightsOn) out.push({ p: v.cabDome.getWorldPosition(new V3()).add(_gp.set(0, -0.2, 0)), c: new V3(1, 0.84, 0.6).multiplyScalar(0.7 * k), r: 1.8 }); // (dim: just enough to see the dash and your hands by)
       if (v.dome && v.lightsOn) out.push({ p: v.dome.getWorldPosition(new V3()).add(_gp.set(0, -0.35, 0)), c: new V3(1, 0.82, 0.55).multiplyScalar(1.5 * k), r: 3.4 });
       if (v.tailLens && (v.brakeOn || v.lightsOn)) {
         const p = v.tailLens.getWorldPosition(new V3()).add(_gp.set(-Math.sin(v.yaw) * 0.3, 0, -Math.cos(v.yaw) * 0.3));
