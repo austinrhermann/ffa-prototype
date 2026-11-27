@@ -38,7 +38,7 @@
     ['hp', 'Health', 20, 1000, 10, '', 'all', 'Damage'],
   ];
   const HELP = {
-    hp: 'How much damage wrecks it. A Carbine hit does 6, a Battery Gun pellet 5; a grenade or F tube shell does up to 25 to a person and 2.5 times that to a vehicle. It smokes at half health, badly at a quarter. Changing it repairs it.',
+    hp: 'How much damage wrecks it. A Carbine hit does 6, a Battery Gun pellet 5; a grenade or F tube shell does up to 25 to a person and 2.5 times that to a vehicle. It smokes from 60% health, thick and black from a third. Changing it repairs it.',
     steerFall: 'The steering lock fades as you go faster; this is the speed where you get half of it. Max it for full lock at any speed (grip still limits the turn).',
     steerRate: 'How quickly the wheels turn when you press A or D. Higher is twitchier.',
     downforce: 'Extra grip that grows with speed, like a race car\'s wings (0 is none): this many g more at 62 mph, four times as much at 124.',
@@ -349,10 +349,10 @@
 
   // ---------------------------------------------------------------- damage (Austin, 2026-11-26): each vehicle has health (p.hp, in the same units as people's), that
   // shots into its body (armorRay: the truck's armour, the motorcycle's frame) and blasts (BLAST_K times what a person would take) wear down. The host keeps the count; a
-  // guest's hits go to it ('vdmg'), and everyone learns how hurt each one is from the host's vehicle state (status: dmg). It smokes from half health, thick and dark from a
-  // quarter; at nothing it blows up (as big a blast as a grenade's, which hurts whoever's near, aboard or not; anyone aboard bails out) and is wrecked: the truck swaps to
+  // guest's hits go to it ('vdmg'), and everyone learns how hurt each one is from the host's vehicle state (status: dmg). It smokes from 60% health, thick and black from a
+  // third; at nothing it blows up (as big a blast as a grenade's, which hurts whoever's near, aboard or not; anyone aboard bails out) and is wrecked: the truck swaps to
   // its wreck, the motorcycle's front wheel flies off and it falls on its side. A wreck smoulders, and stays a wreck till the round starts again (onLevel: the lot again)
-  const BLAST_K = 2.5, SMOKE_AT = 0.5, BLACK_AT = 0.75;
+  const BLAST_K = 2.5, SMOKE_AT = 0.4, BLACK_AT = 0.67; // (smoke from 60% health, thick and black from a third)
   const hurt = v => (v.dead ? 1 : NET.role === 'guest' ? v.netDmg || 0 : Math.max(0, Math.min(1, 1 - v.hp / v.p.hp))); // 0 whole .. 1 wrecked
   function damageV(v, d, by) { // by: whoever did it (the wreck's blast is theirs)
     if (!v || v.dead || !(d > 0) || matchOver) return;
@@ -371,7 +371,7 @@
     }
   }
   // Where the engine is, in the body's frame (the smoke comes from there, and the blast)
-  const engineAt = v => (v.kind === 'motorcycle' ? new V3(0, 0.7, 0.15) : v.model ? new V3(0, 2.1, 2.7) : new V3(0, 0.9, v.p.wheelbase / 2));
+  const engineAt = v => (v.kind === 'motorcycle' ? new V3(0, 0.7, 0.15) : v.model ? new V3(0, 2.45, 2.6) : new V3(0, 0.9, v.p.wheelbase / 2));
   const engineWorld = v => { if (!v.armM) bodyMatrix(v); return engineAt(v).applyMatrix4(v.armM); };
   function wreckFx(v) {
     const p = engineWorld(v);
@@ -414,12 +414,12 @@
   function smokeTick(v, dt) {
     const h = hurt(v); if (h < SMOKE_AT) return;
     if (v.dead) v.smokeDeadT = (v.smokeDeadT || 0) + dt;
-    const heavy = h >= BLACK_AT, every = v.dead ? (v.smokeDeadT < 25 ? 0.06 : 0.35) : heavy ? 0.08 : 0.2;
+    const heavy = h >= BLACK_AT, every = v.dead ? (v.smokeDeadT < 25 ? 0.05 : 0.3) : heavy ? 0.06 : 0.12;
     if ((v.dmgSmokeT = (v.dmgSmokeT || 0) - dt) > 0) return; v.dmgSmokeT = every;
     const tex = GUN_FX.shotgun && GUN_FX.shotgun.smoke.tex; if (!tex) return;
     const p = engineWorld(v), dark = v.dead || heavy;
-    _puff(tex, p.add(new V3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)), (dark ? 0.7 : 0.45) + Math.random() * 0.3, (dark ? 2.4 : 1.6) + Math.random() * 0.8,
-      { color: dark ? 0x2b2927 : 0x9c9a96, grow: dark ? 2.6 : 1.8, rise: dark ? 1.5 : 1.0, opacity: dark ? 0.6 : 0.38, spin: 0.8, vel: new V3((Math.random() - 0.5) * 0.4, 0.6, (Math.random() - 0.5) * 0.4) });
+    _puff(tex, p.add(new V3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)), (dark ? 1.1 : 0.8) + Math.random() * 0.4, (dark ? 3.4 : 2.4) + Math.random() * 0.8,
+      { color: dark ? 0x1e1c1b : 0xa8a6a2, grow: dark ? 3.6 : 2.6, rise: dark ? 2 : 1.4, opacity: dark ? 0.85 : 0.6, spin: 0.8, vel: new V3((Math.random() - 0.5) * 0.4, 0.9, (Math.random() - 0.5) * 0.4) });
   }
   // Back as good as new, where it started the round (a guest, when the host's vehicles say so)
   function revive(v) {

@@ -862,6 +862,12 @@ if (psOn.x > 0.0 && gl_Position.w > 0.0) gl_Position.xy = floor(gl_Position.xy /
   vUvW = psOn.z > 0.5 ? max(gl_Position.w, 1e-4) : 1.0; vUvA = vUv * vUvW; // (times w here and over w per pixel: straight across the screen, no perspective)
 #endif
 `;
+// Sprites (smoke, flashes) place their corners themselves, not through project_vertex, so they'd never set vUvA and vUvW, and every pixel read the same texel of
+// their picture: till 2026-11-26 the smoke puffs (gun smoke, burnouts, a hurt vehicle's) didn't show at all. Plain screen-space UVs for them
+THREE.ShaderLib.sprite.vertexShader = THREE.ShaderLib.sprite.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+#if defined( USE_UV ) && ! defined( UVS_VERTEX_ONLY )
+  vUvW = 1.0; vUvA = vUv;
+#endif`);
 THREE.ShaderChunk.dithering_pars_fragment += `
 vec3 psDither(vec3 c) { // the PS1's own 4x4 dither (3 times as strong, so it shows on a phone's small sharp screen), then 5 bits a channel
   vec2 q = mod(floor(gl_FragCoord.xy), 4.0);
@@ -8639,7 +8645,7 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=61"></script>
+<script src="vehicles.js?v=62"></script>
 <script src="range.js?v=36"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=35"></script>
