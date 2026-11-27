@@ -230,7 +230,7 @@
     addScorch(pos, Math.min(4, R * 0.3)); _boomFx(pos, src === 'tube' ? 6.5 : R * 0.6); sBoom(vol(pos, 90));
     const o = pos.clone(); o.y += 0.3;
     showRings(o);
-    const name = { throw: 'grenade', mine: 'mine', tube: 'F tube' }[src] || 'blast';
+    const name = { throw: 'grenade', mine: 'mine', tube: 'F tube', wreck: 'blast' }[src] || 'blast';
     const gap = e => Math.hypot(Math.max(0, Math.abs(o.x - e.pos.x) - 0.3), Math.max(0, e.pos.y - o.y, o.y - (e.pos.y + e.h)), Math.max(0, Math.abs(o.z - e.pos.z) - 0.3));
     const seen = e => losPts(o, new V3(e.pos.x, e.pos.y + e.h * 0.6, e.pos.z));
     {
@@ -242,7 +242,8 @@
         if (owner === P && e !== P) hitFeedback(false, kill);
       }
       netFx({ t: 'bm', p: arr(pos), s: R * 0.6 });
-      if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too
+      if (NET.role !== 'guest') { // the shut gate and the locked bunker door wear down too, and vehicles (vehicles.js: more than a person would take)
+        VEH.blast(o, d => ringDmg(d) * K(), owner || P);
         if (gateSiegeOn()) { const dr = LV.gate.doors, dd = Math.max(0, new V3((dr.x0 + dr.x1) / 2, dr.y0 + 1.5, dr.z).distanceTo(o) - 1.5), dm = ringDmg(dd); if (dm > 0) damageGate(dm * K() * DOOR_BLAST_K); }
         const bs = lockableDoor();
         if (bs && bs.locked) {
@@ -284,7 +285,7 @@
     if (DOORS && DOORS.hit && gateSiegeOn()) targets.push(DOORS.hit);
     const bdh = lockedDoorHit(); if (bdh) targets.push(bdh);
     for (const m of mines) targets.push(m.hit); // a shot sets a mine off
-    let gateDmg = 0, bdoorDmg = 0; const minesHit = new Set();
+    let gateDmg = 0, bdoorDmg = 0; const minesHit = new Set(), vehHit = new Map();
     for (let i = 0; i < g.count; i++) {
       const r = half * Math.sqrt(Math.random()), th = Math.random() * Math.PI * 2;
       const [o, dir] = shotLine(new V3(Math.cos(th) * r, Math.sin(th) * r, -1).normalize().applyQuaternion(q), targets);
@@ -299,11 +300,13 @@
       else if (ud.bdoor) { bdoorDmg += g.body * fk * K() * DOOR_K; impact(hit.point, hit.object); }
       else if (ud.bulb) { bulbShot(hit); }
       else if (ud.mine) { minesHit.add(ud.mine); impact(hit.point, hit.object); }
+      else if (hit.veh) { vehHit.set(hit.veh, (vehHit.get(hit.veh) || 0) + g.body * fk); impact(hit.point, hit.object); } // a vehicle's body: its health (vehicles.js)
       else { const h = holeFromHit(hit, dir); if (h) holes.push(h); else impact(hit.point, hit.object); }
     }
     addHoles(holes);
     if (gateDmg) shootGateAmt(gateDmg); if (bdoorDmg) shootBunker(bdoorDmg);
     for (const id of minesHit) shootMine(id, P);
+    for (const [v, d] of vehHit) VEH.damage(v, d * K(), P);
     let kill = false;
     for (const [e, a] of byE) { kill = e.health - a.d * K() <= 0 || kill; damage(e, a.d * K(), P, 'gun', a.head); }
     if (byE.size) hitFeedback([...byE.values()].some(a => a.head), kill);

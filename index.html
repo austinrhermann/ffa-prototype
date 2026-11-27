@@ -3034,7 +3034,7 @@ const _shotRest = [], _shotN = new THREE.Matrix3();
 const ARMOR_HIT = new THREE.Object3D(); ARMOR_HIT.userData.noHole = true;
 function castShot(ray, targets) {
   const hit = castShotLevel(ray, targets), a = VEH.armorRay(ray.ray.origin, ray.ray.direction, hit ? hit.distance : ray.far);
-  const r = a ? { distance: a.t, point: ray.ray.origin.clone().addScaledVector(ray.ray.direction, a.t), object: ARMOR_HIT, face: { normal: a.n } } : hit;
+  const r = a ? { distance: a.t, point: ray.ray.origin.clone().addScaledVector(ray.ray.direction, a.t), object: ARMOR_HIT, face: { normal: a.n }, veh: a.v } : hit; // (veh: which vehicle, for its damage)
   return (BULB.n.value && bulbRay(ray.ray.origin, ray.ray.direction, r ? r.distance : ray.far)) || r; // (a bulb in the way stops it)
 }
 function castShotLevel(ray, targets) {
@@ -5558,12 +5558,13 @@ const BOT_DMG = 0.55;
 const BW = id => RANGE.botW(id); // a bot's gun: the weapon numbers (range.js)
 // A missed bot bullet flies on past the aim point: the hole goes where it lands, and the tracer ends there
 const botRay = new THREE.Raycaster();
-function botMiss(start, aim, marks) {
+function botMiss(start, aim, marks, onVeh) {
   const dir = aim.clone().sub(start).normalize();
   botRay.set(start, dir); botRay.far = 200;
   const hit = castShot(botRay, [...W.meshes, ...W.floors]);
   if (!hit) return start.clone().addScaledVector(dir, 200);
   if (bulbShot(hit)) return hit.point;
+  if (hit.veh) { if (onVeh) onVeh(hit.veh); impact(hit.point, hit.object); return hit.point; } // into a vehicle's body: it takes the hit (vehicles.js)
   const h = holeFromHit(hit, dir); if (h) marks.push(h);
   return hit.point;
 }
@@ -5602,17 +5603,20 @@ function botShoot(b, t, dist) {
   const tMoving = Math.hypot(t.vel.x, t.vel.z) > 3, start = botMuzzle(b, w);
   muzzleFx(b.wpn, start, seen.p.clone().sub(start).normalize(), false, b.id);
   sfx(w.sound, vol(b.pos) * 0.55); netFx({ t: 'sf', k: w.sound, p: arr(b.pos), r: 60, g: 0.55 });
-  let total = 0, head = false; const marks = [];
+  let total = 0, head = false; const marks = [], tv = VEH.carrying(t.id), vd = new Map(); // tv: the vehicle the target's in (a miss that hits it, and half the misses aimed at it, hurt it)
+  const vHit = v => vd.set(v, (vd.get(v) || 0) + w.dmg * falloffAt(w, dist));
   for (let i = 0; i < (w.pellets || 1); i++) {
     const base = w.pellets ? 0.75 - dist * 0.05 : 0.55 - dist * (0.011 + (w.rangeSpread ? 0.006 : 0));
     const acc = Math.max(0.03, Math.min(0.75, (base - (tMoving ? 0.12 : 0) - (t.h < STAND_H ? 0.08 : 0)) * D.acc * (w.botAcc || 1) * (seen.part ? 0.5 : 1) * (b.h < STAND_H ? 1.25 : 1))); // (crouched: steadier, 2026-11-26) // only a head showing: a smaller target
     const hit = Math.random() < acc, hd = hit && !seen.part && Math.random() < (w.pellets ? 0.05 : 0.1);
     let aim = seen.part ? seen.p.clone() : new V3(t.pos.x, t.pos.y + (hd ? t.h - 0.1 : t.h * 0.65), t.pos.z);
-    if (!hit) aim = botMiss(start, aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks);
+    if (!hit) aim = botMiss(start, tv && Math.random() < 0.5 ? new V3(tv.pos.x + (Math.random() - 0.5) * 1.2, tv.pos.y + (tv.kind === 'motorcycle' ? 0.6 : 1.4) + (Math.random() - 0.5) * 0.8, tv.pos.z + (Math.random() - 0.5) * 1.2)
+      : aim.add(new V3((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 1.6)), marks, vHit);
     if (i < 3) tracer(start, aim, w.tracer, w.trW, w.trLife);
     if (hit) { total += (hd ? (w.botHead || w.head) : w.dmg) * falloffAt(w, dist); head = head || hd; }
   }
   addHoles(marks);
+  for (const [v, d] of vd) VEH.damage(v, w.live ? d : d * BOT_DMG, b);
   // the rifle: a headshot kills, and so does about half of the body hits (the middle of the chest); the rest take half your health
   if (total) damage(t, w.live ? total : w.zones ? (head || Math.random() < 0.5 ? 999 : Math.ceil(maxHp(t) / 2)) : w.oneShot ? 999 : Math.round(total * BOT_DMG), b, 'gun', head); // (the new numbers: bots hit as hard as you)
 }
@@ -6712,7 +6716,7 @@ function updateBot(b, dt) {
 }
 
 // ---------- Vehicles (vehicles.js fills this in; Test Drive) ----------
-const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, onLevel() {}, update() {}, block() {}, armorRay() { return null; }, inArmour() { return false; }, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
+const VEH = { rides: () => false, cur: null, riding: null, noGuns: false, tuneOpen: false, spawn() { return null; }, remove() {}, wreck() {}, damage() {}, blast() {}, carrying() { return null; }, onLevel() {}, update() {}, block() {}, armorRay() { return null; }, inArmour() { return false; }, mouse() { return false; }, key() { return false; }, tab() { return false; }, camera() {}, after() {}, exit() {},
   netSnapshot() { return null; }, myState() { return null; }, applyNet() {}, remoteState() {}, welcome() {}, onLeave() {}, onGuestMsg() {}, onHostMsg() { return false; },
   lampBeams: () => [], toggleLights: () => false, driving: () => null };
 
@@ -8635,8 +8639,8 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 </script>
-<script src="vehicles.js?v=58"></script>
-<script src="range.js?v=34"></script>
+<script src="vehicles.js?v=61"></script>
+<script src="range.js?v=36"></script>
 <script src="art.js?v=13"></script>
 <script src="headlights.js?v=35"></script>
 </body>

@@ -35,8 +35,10 @@
     ['gravity', 'Gravity', 2, 40, 0.5, 'm/s²', 'all', 'Air and crashes'],
     ['airPitch', 'Nose control in the air', 0, 10, 0.1, '', 'all', 'Air and crashes'],
     ['bounce', 'Bounce off walls', 0, 1.5, 0.05, '', 'all', 'Air and crashes'],
+    ['hp', 'Health', 20, 1000, 10, '', 'all', 'Damage'],
   ];
   const HELP = {
+    hp: 'How much damage wrecks it. A Carbine hit does 6, a Battery Gun pellet 5; a grenade or F tube shell does up to 25 to a person and 2.5 times that to a vehicle. It smokes at half health, badly at a quarter. Changing it repairs it.',
     steerFall: 'The steering lock fades as you go faster; this is the speed where you get half of it. Max it for full lock at any speed (grip still limits the turn).',
     steerRate: 'How quickly the wheels turn when you press A or D. Higher is twitchier.',
     downforce: 'Extra grip that grows with speed, like a race car\'s wings (0 is none): this many g more at 62 mph, four times as much at 124.',
@@ -54,11 +56,12 @@
   const PRESETS = {
     // Austin's tuning (2026-11-22). It never goes faster than its top speed setting, downhill included (a fixed 42 mph until then).
     // Its wheelbase and wheel size come from the Motorcycle model once that has loaded (setMotorcycleModel).
-    motorcycle: { kind: 'motorcycle', name: 'Motorcycle', color: 0xc9342b, p: { power: 13.5, top: 80, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 210, grip: 10, maxLat: 3.7, mass: 230, wheelbase: 1.5832, track: 0.3, wheelR: 0.3689, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.1, steerRate: 19, downforce: 0 } },
+    motorcycle: { kind: 'motorcycle', name: 'Motorcycle', color: 0xc9342b, p: { power: 13.5, top: 80, brake: 10, rev: 10, hand: 7, slide: 2.4, steer: 40, steerFall: 210, grip: 10, maxLat: 3.7, mass: 230, wheelbase: 1.5832, track: 0.3, wheelR: 0.3689, spring: 2.4, damp: 0.5, travel: 0.8, lean: 1, gravity: 14, airPitch: 2.2, bounce: 0.1, steerRate: 19, downforce: 0, hp: 120 } },
     // The truck (Austin's tuning, 2026-11-03, on James's jeep): two seats in front, six on benches in the back. Drawn from the Cargo Truck
     // model once it has loaded (setModel), which also sets its wheelbase, track and wheel size; until then built from boxes.
-    truck: { kind: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0 } },
+    truck: { kind: 'truck', name: 'Truck', color: 0x5b6142, p: { power: 6.5, top: 55, brake: 2, rev: 40, hand: 9, slide: 4.3, steer: 34, steerFall: 65, grip: 3, maxLat: 2.75, mass: 4460, wheelbase: 3.0433, track: 1.9286, wheelR: 0.5704, spring: 1.6, damp: 0.6, travel: 0.5, lean: 0, gravity: 14, airPitch: 2.2, bounce: 0.25, steerRate: 9, downforce: 0, hp: 480 } },
   };
+  const DEAD_LEAN = 1.32; // a wrecked motorcycle lies on its side
   const LEAN_MAX = 0.85 * 0.7; // the furthest a motorcycle leans in a turn, radians (~34°; 0.85, ~49°, until 2026-11-22: cut by 30%)
   const defaults = key => Object.assign({}, PRESETS[key].kind === 'motorcycle' ? BASE_MOTORCYCLE : BASE_TRUCK, PRESETS[key].p);
 
@@ -340,7 +343,89 @@
   // Wrecked: a model swaps to its wreck (burnt darker, on its own wheels); anything else just goes dark
   function darken(v) {
     if (v.wreckMesh) { v.shell.visible = false; v.wreckMesh.visible = true; v.steerWheel.parent.visible = false; v.wheels.forEach(w => { w.piv.visible = false; }); }
-    (v.wreckMesh || v.g).traverse(o => { if (o.isMesh && o.material.color && !o.userData.dark) { o.material = o.material.clone(); o.material.color.multiplyScalar(v.wreckMesh ? 0.55 : 0.25); o.userData.dark = true; } });
+    if (v.kind === 'motorcycle' && v.wheels[0]) v.wheels[0].piv.visible = false; // its front wheel blew off (blowWheel)
+    (v.wreckMesh || v.g).traverse(o => { if (o.isMesh && o.material.color && !o.userData.dark) { o.material = o.material.clone(); o.material.color.multiplyScalar(v.wreckMesh ? 0.55 : v.kind === 'motorcycle' ? 0.4 : 0.25); o.userData.dark = true; } });
+  }
+
+  // ---------------------------------------------------------------- damage (Austin, 2026-11-26): each vehicle has health (p.hp, in the same units as people's), that
+  // shots into its body (armorRay: the truck's armour, the motorcycle's frame) and blasts (BLAST_K times what a person would take) wear down. The host keeps the count; a
+  // guest's hits go to it ('vdmg'), and everyone learns how hurt each one is from the host's vehicle state (status: dmg). It smokes from half health, thick and dark from a
+  // quarter; at nothing it blows up (as big a blast as a grenade's, which hurts whoever's near, aboard or not; anyone aboard bails out) and is wrecked: the truck swaps to
+  // its wreck, the motorcycle's front wheel flies off and it falls on its side. A wreck smoulders, and stays a wreck till the round starts again (onLevel: the lot again)
+  const BLAST_K = 2.5, SMOKE_AT = 0.5, BLACK_AT = 0.75;
+  const hurt = v => (v.dead ? 1 : NET.role === 'guest' ? v.netDmg || 0 : Math.max(0, Math.min(1, 1 - v.hp / v.p.hp))); // 0 whole .. 1 wrecked
+  function damageV(v, d, by) { // by: whoever did it (the wreck's blast is theirs)
+    if (!v || v.dead || !(d > 0) || matchOver) return;
+    if (NET.role === 'guest') { if (NET.conn && NET.conn.open) NET.conn.send({ t: 'vdmg', i: v.i, d: Math.round(d * 100) / 100 }); return; }
+    if (by) v.lastBy = by;
+    v.hp -= d; if (v.hp <= 0) { v.hp = 0; VEH.wreck(v); }
+  }
+  // A blast at o: how far it is to the nearest of the body's boxes, and the damage at that distance (dmgAt, what a person there would take) times BLAST_K
+  const _bo2 = new V3();
+  function blastV(o, dmgAt, by) {
+    for (const v of list) {
+      if (v.dead || !v.armInv) continue;
+      _bo2.copy(o).applyMatrix4(v.armInv); let gap = Infinity;
+      for (const b of armorOf(v) || [[-0.5, 0.5, 0, 1.2, -1, 1]]) gap = Math.min(gap, Math.hypot(Math.max(0, b[0] - _bo2.x, _bo2.x - b[1]), Math.max(0, b[2] - _bo2.y, _bo2.y - b[3]), Math.max(0, b[4] - _bo2.z, _bo2.z - b[5])));
+      const d = dmgAt(gap); if (d > 0) damageV(v, d * BLAST_K, by);
+    }
+  }
+  // Where the engine is, in the body's frame (the smoke comes from there, and the blast)
+  const engineAt = v => (v.kind === 'motorcycle' ? new V3(0, 0.7, 0.15) : v.model ? new V3(0, 2.1, 2.7) : new V3(0, 0.9, v.p.wheelbase / 2));
+  const engineWorld = v => { if (!v.armM) bodyMatrix(v); return engineAt(v).applyMatrix4(v.armM); };
+  function wreckFx(v) {
+    const p = engineWorld(v);
+    if (NET.role !== 'guest') RANGE.boom(p, v.lastBy || null, 'wreck'); // a grenade's blast (its flash, its sound and its damage, to people and vehicles near; guests see it from the host)
+    for (let i = 0; i < 6; i++) _puff(GUN_FX.shotgun.flash.tex, p.clone().add(new V3((Math.random() - 0.5) * 1.2, Math.random() * 0.8, (Math.random() - 0.5) * 1.2)), 1.2 + Math.random(), 0.3, { flash: true, additive: true });
+    if (simulated(v)) v.vy = (v.vy || 0) + (v.kind === 'motorcycle' ? 2.5 : 1.5); // it jumps a little
+    v.smokeDeadT = 0;
+    if (v.kind === 'motorcycle') blowWheel(v);
+  }
+  // The motorcycle's front wheel, off and away: forward and up, spinning, bouncing on the ground until it lies flat
+  function blowWheel(v) {
+    const w = v.wheels[0]; if (!w) return; dropWheel(v);
+    w.spin.updateWorldMatrix(true, false);
+    const g = new THREE.Group(), c = w.spin.clone(); g.add(c); c.position.set(0, 0, 0); c.quaternion.identity();
+    w.spin.getWorldPosition(g.position); w.spin.getWorldQuaternion(g.quaternion); c.scale.copy(w.spin.getWorldScale(new V3()));
+    c.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.45); o.castShadow = true; } });
+    scene.add(g); w.piv.visible = false;
+    const [fx, fz] = fwdOfYaw(v.yaw), side = Math.random() < 0.5 ? -1 : 1;
+    v.loose = { g, vel: new V3(fx * 3 + fz * side * 1.5, 5 + Math.random() * 2, fz * 3 - fx * side * 1.5), spin: new V3(8 + Math.random() * 6, Math.random() * 4, Math.random() * 3), r: v.p.wheelR, rest: false };
+  }
+  function dropWheel(v) { if (v.loose) { scene.remove(v.loose.g); v.loose = null; } }
+  function wheelTick(v, dt) { // (it bounces off walls and floors like a grenade: small steps, one axis at a time)
+    const L = v.loose; if (!L || L.rest) return;
+    const P0 = L.g.position, sub = Math.max(1, Math.ceil(L.vel.length() * dt / 0.1)), h = dt / sub, rr = Math.min(0.3, L.r * 0.6);
+    for (let k = 0; k < sub; k++) {
+      L.vel.y -= 14 * h;
+      for (const ax of ['x', 'y', 'z']) {
+        const q = P0.clone(); q[ax] += L.vel[ax] * h;
+        if (!solidPt(q.x, q.y, q.z, rr)) { P0[ax] = q[ax]; continue; }
+        if (ax === 'y' && L.vel.y < 0 && Math.abs(L.vel.y) < 2 && Math.hypot(L.vel.x, L.vel.z) < 0.8) { // down and slow: it falls flat (its axle upright)
+          L.rest = true; const g = groundAt(P0.x, P0.z, P0.y + 0.3); L.g.rotation.set(0, L.g.rotation.y, Math.PI / 2, 'YXZ'); P0.y = (g === null ? P0.y - rr : g) + 0.09; return;
+        }
+        L.vel[ax] *= -0.35; for (const o of ['x', 'y', 'z']) if (o !== ax) L.vel[o] *= 0.7; L.spin.multiplyScalar(0.6);
+      }
+    }
+    L.g.rotation.x += L.spin.x * dt; L.g.rotation.y += L.spin.y * dt; L.g.rotation.z += L.spin.z * dt;
+    if (P0.y < KILL_Y) dropWheel(v);
+  }
+  // Smoke off a hurt vehicle's engine (and a wreck's, thick for a while, then a wisp)
+  function smokeTick(v, dt) {
+    const h = hurt(v); if (h < SMOKE_AT) return;
+    if (v.dead) v.smokeDeadT = (v.smokeDeadT || 0) + dt;
+    const heavy = h >= BLACK_AT, every = v.dead ? (v.smokeDeadT < 25 ? 0.06 : 0.35) : heavy ? 0.08 : 0.2;
+    if ((v.dmgSmokeT = (v.dmgSmokeT || 0) - dt) > 0) return; v.dmgSmokeT = every;
+    const tex = GUN_FX.shotgun && GUN_FX.shotgun.smoke.tex; if (!tex) return;
+    const p = engineWorld(v), dark = v.dead || heavy;
+    _puff(tex, p.add(new V3((Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3)), (dark ? 0.7 : 0.45) + Math.random() * 0.3, (dark ? 2.4 : 1.6) + Math.random() * 0.8,
+      { color: dark ? 0x2b2927 : 0x9c9a96, grow: dark ? 2.6 : 1.8, rise: dark ? 1.5 : 1.0, opacity: dark ? 0.6 : 0.38, spin: 0.8, vel: new V3((Math.random() - 0.5) * 0.4, 0.6, (Math.random() - 0.5) * 0.4) });
+  }
+  // Back as good as new, where it started the round (a guest, when the host's vehicles say so)
+  function revive(v) {
+    if (v === cur) leave(true); if (v === ride) unride(true);
+    v.dead = false; v.hp = v.p.hp; v.netDmg = 0; v.smokeDeadT = 0; v.lastBy = null; dropWheel(v); v.occ = v.occ.map(() => null); v.owner = null; v.net = null;
+    rebuild(v); if (NET.role !== 'guest') respawn(v);
   }
 
   // ---------------------------------------------------------------- armour: the parts of a body bullets and eyes can't get through
@@ -357,18 +442,21 @@
     [-1.17, 1.17, 3.64, 3.72, -3.31, 0.87], [-1.17, 1.17, 1.47, 3.72, 0.79, 0.87], // its roof and front wall
     [-1.14, 1.14, 0.6, 1.6, -3.17, 2.64], // the chassis and the container's floor
   ];
+  // The motorcycle: one box round its frame, tank and engine, below the saddle (a rider above it is shot as a rider)
+  const MOTO_ARMOR = [[-0.22, 0.22, 0.3, 0.95, -1.0, 0.95]];
+  const armorOf = v => (v.model && v.kind === 'truck' ? TRUCK_ARMOR : v.kind === 'motorcycle' ? MOTO_ARMOR : null);
   const _ai = new THREE.Matrix4(), _ao = new V3(), _ad = new V3(), _an = new V3();
   // First armour along a ray within far: { t, n (the face's normal, world), v }, or null. A box the ray starts inside doesn't
   // count, so whoever sits in a seat shoots (and sees) out through the windows, and the open back.
   function armorRay(o, d, far) {
     let best = null;
     for (const v of list) {
-      if (!v.model || v.kind !== 'truck') continue; // (v.layout until 337b2e1 renamed it: since then nothing stopped at a truck's walls)
+      const boxes = armorOf(v); if (!boxes) continue; // (v.layout until 337b2e1 renamed it: since then nothing stopped at a truck's walls)
       const cx = v.pos.x - o.x, cy = v.pos.y + 2 - o.y, cz = v.pos.z - o.z, along = cx * d.x + cy * d.y + cz * d.z; // skip it unless the ray passes within 4.5 m of its middle
       if (along < -4.5 || along > far + 4.5 || cx * cx + cy * cy + cz * cz - along * along > 20.25) continue;
       if (!v.armM) continue; _ai.copy(v.armInv);
       _ao.copy(o).applyMatrix4(_ai); _ad.copy(d).transformDirection(_ai);
-      for (const b of TRUCK_ARMOR) {
+      for (const b of boxes) {
         let t0 = -Infinity, t1 = Infinity, ax = -1, inside = true;
         for (let a = 0; a < 3; a++) {
           const oa = a === 0 ? _ao.x : a === 1 ? _ao.y : _ao.z, da = a === 0 ? _ad.x : a === 1 ? _ad.y : _ad.z, lo = b[a * 2], hi = b[a * 2 + 1];
@@ -399,13 +487,13 @@
     const pr = PRESETS[key];
     const v = { i: list.length, key, kind: pr.kind, name: pr.name, color: pr.color, p: defaults(key), home: [x, z, yaw], pos: new V3(), vel: new V3(), yaw, pitch: 0, roll: 0, lean: 0, vy: 0,
       pitchRate: 0, steer: 0, spin: 0, onGround: true, owner: null, net: null, dead: false, susp: { h: 0, hv: 0, p: 0, pv: 0, r: 0, rv: 0 }, prevV: new V3(), prevYaw: yaw, speed: 0, slip: 0 };
-    list.push(v); rebuild(v); place(v); return v;
+    v.hp = v.p.hp; list.push(v); rebuild(v); place(v); return v;
   }
-  function clearAll() { for (const v of list) scene.remove(v.g); list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
+  function clearAll() { for (const v of list) { scene.remove(v.g); dropWheel(v); } list.length = 0; if (cur) soundStop(); cur = null; ride = null; setTune(false); }
   function spawnLot(lot) { clearAll(); for (const [key, x, z, yaw] of lot) make(key, x, z, yaw); }
   // Take vehicles out: anyone in them gets out first; the rest keep their order
   function removeVehicles(vs) {
-    for (const v of vs) { if (v === cur) leave(true); if (v === ride) unride(true); scene.remove(v.g); }
+    for (const v of vs) { if (v === cur) leave(true); if (v === ride) unride(true); scene.remove(v.g); dropWheel(v); }
     for (let k = list.length - 1; k >= 0; k--) if (vs.includes(list[k])) list.splice(k, 1);
     list.forEach((v, k) => { v.i = k; });
   }
@@ -563,7 +651,8 @@
     if (v.onGround) { v.safe = v.safe || {}; Object.assign(v.safe, { x: v.pos.x, z: v.pos.z, yaw: v.yaw }); v.lastGround = [+v.pos.x.toFixed(1), +v.pos.y.toFixed(1), +v.pos.z.toFixed(1)]; }
     if (v.kind === 'motorcycle') { // lean into turns (what keeps a motorcycle up), never past LEAN_MAX; on the kickstand when stopped
       const yawRate = vf * Math.tan(v.steer) / p.wheelbase, want = Math.abs(vf) > 1.5 ? Math.atan(vf * yawRate / 9.8) * p.lean : 0.22;
-      v.lean += (Math.max(-LEAN_MAX, Math.min(LEAN_MAX, want)) - v.lean) * Math.min(1, dt * 6);
+      if (v.dead) v.lean += (DEAD_LEAN - v.lean) * Math.min(1, dt * 2.5); // wrecked: down on its side
+      else v.lean += (Math.max(-LEAN_MAX, Math.min(LEAN_MAX, want)) - v.lean) * Math.min(1, dt * 6);
       v.roll = v.lean;
     }
     if (inp.reset) unstick(v); // R: onto the nearest flat, open ground
@@ -859,7 +948,9 @@
   #vtune .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
   #vtune button{flex:1 1 auto;padding:8px 10px;border-radius:4px;border:1px solid #3a4450;background:#232a33;color:#e8ece6;font:600 13px system-ui,sans-serif;cursor:pointer}
   #vtune button.go{background:#f0874d;color:#1a1208;border-color:#f0874d}
-  #vtune .info{color:#9aa5b1;font-size:12px;margin-top:10px}`;
+  #vtune .info{color:#9aa5b1;font-size:12px;margin-top:10px}
+  #vhud .vhp{display:block;width:120px;height:6px;margin:5px 0 2px auto;background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden}
+  #vhud .vhp i{display:block;height:100%}`;
   document.head.append(css);
   const hud = document.createElement('div'); hud.id = 'vhud';
   const prompt = document.createElement('div'); prompt.id = 'vprompt';
@@ -882,7 +973,7 @@
       <p class="info">Copy settings puts the numbers on your clipboard, to paste to Claude or a friend.</p>`;
     panel.innerHTML = html; turnInfo();
     panel.querySelectorAll('input[type=range]').forEach(el => el.oninput = () => {
-      const k = el.dataset.k, row = TUNE.find(t => t[0] === k); cur.p[k] = +el.value;
+      const k = el.dataset.k, row = TUNE.find(t => t[0] === k); cur.p[k] = +el.value; if (k === 'hp' && !cur.dead) cur.hp = cur.p.hp; // (a new health is a full tank)
       panel.querySelector('#vo-' + k).textContent = shown(cur.p[k], row[4], row[5]);
       if (['steer', 'wheelbase', 'maxLat', 'downforce', 'top'].includes(k)) turnInfo();
       paramsChanged(cur, ['wheelbase', 'track', 'wheelR'].includes(k));
@@ -917,15 +1008,16 @@
   // The page is only touched when something on it changes (it was rewritten every frame)
   const shownAs = new WeakMap();
   function setShown(el, key, val, apply) { const m = shownAs.get(el) || {}; if (m[key] === val) return; m[key] = val; shownAs.set(el, m); apply(val); }
+  const hpBar = v => { const k = 1 - hurt(v), c = k > 0.5 ? '#8fd16a' : k > 0.25 ? '#f0c040' : '#f05a3c'; return `<span class="vhp"><i style="width:${Math.round(k * 100)}%;background:${c}"></i></span>`; };
   function hudTick() {
     const on = list.length > 0 && (locked || tuneOpen);
     let html = null;
     if (cur && on) {
       const v = cur, mph = Math.round(Math.abs(v.speed) * 2.23694);
-      html = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${TOUCH ? '' : '<br><small>Tab tune · R back on your wheels · V view · E out</small>'}`;
+      html = `<b>${mph} mph</b><br>${v.name}${v.speed < -0.5 ? ' · reverse' : ''}${hpBar(v)}${TOUCH ? '' : '<br><small>Tab tune · R back on your wheels · V view · E out</small>'}`;
     } else if (ride && on) {
       const v = ride, mph = Math.round(Math.abs(v.speed) * 2.23694), d = ents.find(e => e.id === v.owner && e !== P);
-      html = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}${TOUCH ? '' : '<br><small>V view · E out</small>'}`;
+      html = `<b>${mph} mph</b><br>${rideSeat > 1 ? 'In the back of' : 'Riding along in'} the ${v.name.toLowerCase()}${d ? ` with ${esc(d.name)}` : ''}${hpBar(v)}${TOUCH ? '' : '<br><small>V view · E out</small>'}`;
     }
     if (html !== null) setShown(hud, 'html', html, h => { hud.innerHTML = h; });
     setShown(hud, 'display', html !== null ? 'block' : 'none', d => { hud.style.display = d; });
@@ -948,7 +1040,7 @@
   function applyParams(v, p) {
     if (!v || !p || typeof p !== 'object') return;
     let shape = false;
-    for (const [k, , min, max] of TUNE) if (Number.isFinite(+p[k])) { const n = Math.max(min, Math.min(max, +p[k])); if (['wheelbase', 'track', 'wheelR'].includes(k) && n !== v.p[k]) shape = true; v.p[k] = n; }
+    for (const [k, , min, max] of TUNE) if (Number.isFinite(+p[k])) { const n = Math.max(min, Math.min(max, +p[k])); if (['wheelbase', 'track', 'wheelR'].includes(k) && n !== v.p[k]) shape = true; if (k === 'hp' && n !== v.p[k] && !v.dead) v.hp = n; v.p[k] = n; }
     if (shape) rebuild(v);
   }
   function sendParams(v) {
@@ -1151,7 +1243,10 @@
     spawn: (key, pos, yaw) => { const v = make(key, pos.x, pos.z, yaw); return v; },
     remove: removeVehicles,
     // A vehicle is wrecked: nobody can drive it, and anyone in it bails out
-    wreck(v) { if (!v || v.dead) return; v.dead = true; darken(v); },
+    wreck(v) { if (!v || v.dead) return; v.dead = true; v.hp = 0; darken(v); wreckFx(v); },
+    damage: damageV, // (v, amount, who): a shot into its body; on a guest it's sent to the host
+    blast: blastV,   // (where, distance -> damage to a person there, who): a grenade, mine or F tube shell
+    carrying: id => list.find(v => !v.dead && (v.owner === id || v.occ.includes(id))) || null, // the vehicle someone's driving or riding in
     update(dt) {
       if (!list.length) return;
       for (const v of list) {
@@ -1166,7 +1261,7 @@
       resetQ = false;
       bumpVehicles();
       for (const v of list) if (simulated(v) && v.owner && !v.dead && !matchOver) runOver(v);
-      for (const v of list) { suspension(v, dt); pose(v, dt); bodyMatrix(v); }
+      for (const v of list) { suspension(v, dt); pose(v, dt); bodyMatrix(v); smokeTick(v, dt); wheelTick(v, dt); }
       // Dying in a vehicle leaves it where it is (you come back at a spawn point, on foot)
       if (!P.alive) { if (cur) leave(true); if (ride) unride(true); }
       if (cur && cur.dead) { leave(true); note('Bail out! It\'s wrecked', 2); }
@@ -1261,8 +1356,8 @@
     },
     exit: () => (cur ? leave(true) : unride(true)),
     // Networking: the host's snapshot carries every vehicle; a guest's state message carries the one they drive
-    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked; + 4 brake lights on, + 8 a burnout, + 16 headlights on), who's in seat 1, seat 2, ...]
-    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0) + (v.lightsOn ? 16 : 0), ...v.occ.slice(1).map(o => o || 0)]),
+    // vh entry: [preset, driver, x, y, z, yaw, pitch, roll, vx, vy, vz, steer, status (1 wrecked; + 4 brake lights on, + 8 a burnout, + 16 headlights on, + 32 × how hurt, 0-15), who's in seat 1, seat 2, ...]
+    netSnapshot: () => list.map(v => [v.key, v.owner || 0, ...stateOf(v).slice(1), (v.dead ? 1 : 0) + (v.brakeOn ? 4 : 0) + (burnOf(v) ? 8 : 0) + (v.lightsOn ? 16 : 0) + Math.round(hurt(v) * 15) * 32, ...v.occ.slice(1).map(o => o || 0)]),
     myState: () => (cur && simulated(cur) ? [...stateOf(cur), cur.brakeOn ? 1 : 0, cur.burning ? 1 : 0, cur.lightsOn ? 1 : 0] : null),
     applyNet(vh) {
       if (!Array.isArray(vh)) return;
@@ -1274,6 +1369,8 @@
         const v = list[i]; if (!v || !Array.isArray(s)) return;
         const st = s[12] | 0;
         if ((st & 3) === 1 && !v.dead) VEH.wreck(v);
+        else if (!(st & 1) && v.dead) revive(v); // (back as good as new)
+        v.netDmg = ((st >> 5) & 15) / 15;
         if (v !== cur) { v.netBrake = !!(st & 4); v.netBurn = !!(st & 8); v.lightsOn = !!(st & 16); v.lightsSet = true; }
         for (let q = 1; q < v.seats.length; q++) if (!(v === ride && q === rideSeat)) v.occ[q] = s[12 + q] || null; // (our own seat stands until the host says otherwise)
         if (v === cur) return; // ours: we're the authority (the host says no with 'vdeny')
@@ -1289,6 +1386,7 @@
       else if (m.t === 'vfree' && v && v.owner === r.id) { if (Array.isArray(m.s)) { setNet(v, m.s); v.pos.set(v.net.x, v.net.y, v.net.z); v.yaw = v.net.yaw; v.vel.set(v.net.vx, 0, v.net.vz); } v.owner = null; v.net = null; }
       else if (m.t === 'vp' && v && v.owner === r.id) { applyParams(v, m.p); broadcast({ t: 'vp', i: v.i, p: v.p }, r.conn); }
       else if (m.t === 'vride' && v) { const q = m.s | 0; if (q > 0 && q < v.seats.length && (!v.occ[q] || v.occ[q] === r.id) && !v.dead) v.occ[q] = r.id; else sendTo(r, { t: 'vdeny', i: v.i, ride: 1 }); }
+      else if (m.t === 'vdmg' && v) damageV(v, Math.min(500, +m.d || 0), r); // a guest's shot
       else if (m.t === 'vunride' && v) { const q = m.s | 0; if (v.occ[q] === r.id) v.occ[q] = null; }
     },
     onHostMsg(m) { // guest side; true when handled
