@@ -1297,6 +1297,9 @@ function levelFortress() {
     // Halls kept clear [x0, x1, y0, y1, z0, z1] (clearHalls): the one on the fort's upper floor to the walkway over the gate, which the big tree's trunk, the hill's
     // ground and a rock poked into, drawn and solid. Their pieces there are taken out, and the hall gets a plain wall on the hill side (west) and a plain ceiling
     clearHalls: [[-8.62, -5.53, 36.95, 40.06, -7.05, 4.3]],
+    // Room under the big tree's lowest leaves in front of the bunker's door [x0, x1, y0, y1, z0, z1] (solidFoliage): they hang to a metre and a half off the ground there,
+    // drawn and, till 2026-11-26, solid, a wall you couldn't see to walk into, and the bots went 70 m round to get to the door. Still drawn; walked through
+    foliageWalk: [[-25.6, -23.2, 24.5, 28.6, 8.6, 11.5]], // (the box reaches a 1.5 m column further each way: solidFoliage)
     // Smooth the hills where people and vehicles got stuck (smoothGround): [x0, x1, z0, z1] of the island inside the coast's cliffs, the steepest slope left (rise per metre),
     // how often earth slides, the most any spot moves (m), how big a drop within 3 m is a cliff to keep, and what stays put: the fort and the bunker's mound
     smoothGround: { box: [-62, 76, 8, 124], slope: 0.75, passes: 120, max: 4, cliff: 14, keep: [[-16, 13, -16, 10], [-30, -8, -4, 16]] },
@@ -1443,7 +1446,7 @@ function solidifyTrees(col, draw, cm, L) {
     return [...boxes.values()];
   };
   // (the trees: solid to everything, below: solidFoliage. Until 2026-11-25 their leaves were a cone that stopped walking only, and bots saw and shot through them)
-  if (L && L.solidFoliage) solidFoliage(col, draw, cm, L.solidFoliage, L.clearHalls || []);
+  if (L && L.solidFoliage) solidFoliage(col, draw, cm, L.solidFoliage, L.clearHalls || [], L.foliageWalk || []);
   // the bushes are thousands of tiny pieces: merge the ones within a grid cell of each other, then merge the boxes that touch
   const bush = pieces('M_Material004', 1.5), merged = [];
   for (const b of bush) {
@@ -1461,7 +1464,7 @@ function solidifyTrees(col, draw, cm, L) {
 // trunk) reach through, sampled over their triangles, a round column from the lowest to the highest of them, as wide as they spread from the cell's middle (a trunk:
 // narrow; inside the leaves: the whole cell, overlapping its neighbours), and pointed at the top (narrowing no flatter than a wall's slope, so no ledge on it is a
 // floor). Shots leave no holes on it (they'd hang in the air round the leaves). All in one mesh
-function solidFoliage(col, draw, cm, names, clear) {
+function solidFoliage(col, draw, cm, names, clear, walk = []) { // walk: boxes kept clear of the solid leaves (but not the drawn ones), to walk through under a low branch
   draw.updateMatrixWorld(true);
   const CELL = 1.5, RMAX = CELL * 0.75, SEG = 6, a = new V3(), b = new V3(), c = new V3(), p = new V3(), cells = new Map();
   const inClear = (v, m = 0) => clear.some(q => v.x > q[0] - m && v.x < q[1] + m && v.y > q[2] - m && v.y < q[3] + m && v.z > q[4] - m && v.z < q[5] + m);
@@ -1499,7 +1502,7 @@ function solidFoliage(col, draw, cm, names, clear) {
   }
   const out = [], parts = [];
   for (const e of cells.values()) { // a column crossing a cleared box: the part below it and the part above it
-    const cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL, q = clear.find(q => cx > q[0] - CELL && cx < q[1] + CELL && cz > q[4] - CELL && cz < q[5] + CELL && e.y0 < q[3] && e.y1 > q[2]);
+    const cx = (e.i + 0.5) * CELL, cz = (e.j + 0.5) * CELL, q = [...clear, ...walk].find(q => cx > q[0] - CELL && cx < q[1] + CELL && cz > q[4] - CELL && cz < q[5] + CELL && e.y0 < q[3] && e.y1 > q[2]);
     if (!q) { parts.push(e); continue; }
     if (q[2] - 0.05 - e.y0 >= 0.5) parts.push({ ...e, y1: q[2] - 0.05, cap: true });
     if (e.y1 - q[3] - 0.05 >= 0.5) parts.push({ ...e, y0: q[3] + 0.05 });
